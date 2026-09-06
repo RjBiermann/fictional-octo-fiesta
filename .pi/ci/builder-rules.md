@@ -13,3 +13,7 @@ Rules (mandatory):
   verify in-app" with the failure evidence.
 - If you cannot complete: comment on the issue with what you did, what broke, and what info
   is missing. Never close or merge anything.
+- Creating the PR works from CI: run `gh pr create --head ai/issue-N --base main --title … --body …`
+  (the token can push branches AND create PRs). If `gh pr create` errors, retry once with the
+  error shown, then report the exact error in the issue comment — never claim the environment
+  cannot create PRs and stop.
