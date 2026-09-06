@@ -75,8 +75,8 @@ jobs:
             echo
             echo "Per provider, run a DRIFT PROBE (cheap, not a full FINDINGS probe):"
             echo "1. Read the provider's Kotlin: mainUrl, search URL pattern, one video-page"
-            echo "   URL, stream source. Extraction discipline: mainUrl may be `override var`"
-            echo "   OR `override val` with any whitespace (`mainUrl              = ...`) — grep"
+            echo "   URL, stream source. Extraction discipline: mainUrl may be 'override var'"
+            echo "   OR 'override val' with any whitespace (mainUrl              = ...) — grep"
             echo "   for 'mainUrl' and read the line, never assume a fixed format. NEVER"
             echo "   claim 'missing mainUrl' without quoting the exact file+line you read."
             echo "2. Live-check exactly that: search returns results, video page has the"

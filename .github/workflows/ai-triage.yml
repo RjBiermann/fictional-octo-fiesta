@@ -153,5 +153,3 @@ jobs:
           gh issue comment "${{ github.event.issue.number }}" \
             --body "Triage agent failed on both free models — needs manual triage. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           exit 1
-        env:
-          GH_TOKEN: ${{ github.token }}
