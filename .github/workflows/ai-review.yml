@@ -98,10 +98,15 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
-          pi --no-session --mode text \
-            --model openrouter-free/google/gemma-4-31b-it:free --thinking low \
-            -e .pi/ci/extensions/rtk.ts \
-            -p "$(cat /tmp/review-prompt.md)"
+          # free-tier pools rate-limit transiently (429) — bounded retry, 3 attempts
+          for i in 1 2 3; do
+            pi --no-session --mode text \
+              --model openrouter-free/google/gemma-4-31b-it:free --thinking low \
+              -e .pi/ci/extensions/rtk.ts \
+              -p "$(cat /tmp/review-prompt.md)" && exit 0
+            [[ $i -lt 3 ]] && sleep $((i * 60))
+          done
+          exit 1
 
       - name: Reviewer run (nemotron free fallback)
         id: run2
@@ -111,10 +116,14 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
-          pi --no-session --mode text \
-            --model openrouter-free/nvidia/nemotron-3.5-lightning:free --thinking low \
-            -e .pi/ci/extensions/rtk.ts \
-            -p "$(cat /tmp/review-prompt.md)"
+          for i in 1 2 3; do
+            pi --no-session --mode text \
+              --model openrouter-free/nvidia/nemotron-3.5-lightning:free --thinking low \
+              -e .pi/ci/extensions/rtk.ts \
+              -p "$(cat /tmp/review-prompt.md)" && exit 0
+            [[ $i -lt 3 ]] && sleep $((i * 60))
+          done
+          exit 1
 
       - name: Gate
         if: always()
