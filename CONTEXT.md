@@ -60,6 +60,10 @@ _Avoid_: status update, monitor output
 An agent classification of a new user issue (broken-provider report, new-site request, needs info, duplicate) with a live-site probe behind it. Suggests a trigger label; never applies one.
 _Avoid_: labeling, classification
 
+**Free model chain**:
+The ordered fallback every agent run follows: Z.ai GLM flash → Zen nemotron → OpenRouter free — all free, open-weight, driven by pi. The Reviewer's model must come from a different family than the Builder's primary (independence).
+_Avoid_: model pool, provider list, LLM stack
+
 ### Provider data
 
 **Recommendations**:
