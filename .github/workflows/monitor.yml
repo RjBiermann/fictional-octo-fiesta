@@ -16,8 +16,8 @@ permissions:
   issues: write
 
 concurrency:
-  group: ai-agent
-  cancel-in-progress: false
+  group: ai-monitor
+  cancel-in-progress: true
 
 jobs:
   monitor:

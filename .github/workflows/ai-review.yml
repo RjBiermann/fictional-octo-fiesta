@@ -14,8 +14,8 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: ai-agent
-  cancel-in-progress: false
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   review:

@@ -8,14 +8,14 @@ name: AI triage (new issue → probe + classify)
 
 on:
   issues:
-    types: [opened]
+    types: [opened, reopened] # reopened enables re-firing triage on an existing issue
 
 permissions:
   issues: write
 
 concurrency:
-  group: ai-agent
-  cancel-in-progress: false
+  group: ai-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
 
 jobs:
   triage:

@@ -14,8 +14,8 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: ai-agent
-  cancel-in-progress: false
+  group: ai-build-${{ github.event.issue.number }}
+  cancel-in-progress: true
 
 jobs:
   build:
