@@ -1,0 +1,25 @@
+name: Lint workflows
+
+# Workflow-file bugs only surface as opaque GitHub "startup failure" runs —
+# actionlint catches them (duplicate keys, shell errors in run blocks) before
+# they ever reach a triggering event.
+
+on:
+  push:
+    branches: [main, master]
+    paths: ['.github/workflows/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: actionlint
+        uses: reviewdog/action-actionlint@v1
+        with:
+          reporter: github-check
+          fail_level: error

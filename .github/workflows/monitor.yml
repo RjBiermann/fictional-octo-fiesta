@@ -88,7 +88,7 @@ jobs:
             echo "   Blocked providers unless they changed)."
             echo "   IMPORTANT: verify.sh matching -1 means the SELECTOR you supplied is"
             echo "   syntactically unsupported — that is your error, not the site's."
-            echo "   Simplify the selector (tag, tag.class, tag#id, tag[attr], space-composed)
+            echo "   Simplify the selector (tag, tag.class, tag#id, tag[attr], space-composed)"
             echo "   and retry before blaming the site. Every verdict must quote the"
             echo "   command and its output as evidence."
             echo
