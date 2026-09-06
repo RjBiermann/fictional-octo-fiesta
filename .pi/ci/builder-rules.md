@@ -17,3 +17,7 @@ Rules (mandatory):
   (the token can push branches AND create PRs). If `gh pr create` errors, retry once with the
   error shown, then report the exact error in the issue comment — never claim the environment
   cannot create PRs and stop.
+- Completion is mechanical, not felt: your run only counts if `git ls-remote --heads origin ai/issue-N`
+  returns your branch AND `gh pr list --head ai/issue-N` finds the PR. Verify both commands'
+  output before finishing — a summary saying "done" without that output is a failed run, and
+  your work is discarded with the runner.
