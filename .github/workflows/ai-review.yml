@@ -3,11 +3,19 @@ name: AI review (PR → Reviewer → fix commits)
 # Reviewer pass: pi on a free Zen model, Meta family (independent of the
 # Builder's GLM/nemotron) reviews Builder PRs against the repo rubric, posts
 # review comments, and pushes fix commits to the PR branch.
-# Bounded to 2 rounds via the ai-review-round-N label. Never merges. Spec issue #1.
+# Bounded to 2 rounds via the ai-review-round-N label — spent only by a
+# completed pass; a Superseded (cancelled) run spends nothing. Never merges.
+# Spec issue #1. Manual re-fire: Actions → this workflow → provide PR number.
 
 on:
   pull_request:
     types: [opened, synchronize]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: PR number to review
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -15,18 +23,31 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: ai-review-${{ github.event.pull_request.number }}
+  group: ai-review-${{ github.event.pull_request.number || inputs.pr }}
   cancel-in-progress: true
 
 jobs:
   review:
-    if: startsWith(github.event.pull_request.head.ref, 'ai/')
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.pull_request.head.ref, 'ai/')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      - name: Resolve PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr="${{ github.event.pull_request.number || inputs.pr }}"
+          head=$(gh pr view "$pr" --json headRefName -q .headRefName)
+          if [[ "$head" != ai/* ]]; then
+            echo "not an AI-pipeline PR (head '$head') — standing down"; exit 1
+          fi
+          echo "number=$pr" >> "$GITHUB_OUTPUT"
+          echo "head=$head" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ steps.pr.outputs.head }}
           fetch-depth: 0
 
       - name: Round accounting
@@ -34,7 +55,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          pr="${{ github.event.pull_request.number }}"
+          pr="${{ steps.pr.outputs.number }}"
           labels=$(gh pr view "$pr" --json labels -q '[.labels[].name]' | tr -d '[]" ')
           n=$(echo "$labels" | tr ',' '\n' | grep -oE 'ai-review-round-[0-9]+' | grep -oE '[0-9]+' | sort -n | tail -1 || echo 0)
           [[ -z "$n" ]] && n=0
@@ -42,18 +63,18 @@ jobs:
             echo "round-limit reached ($n) — Reviewer stands down"
             exit 0
           fi
-          next=$((n + 1))
-          gh label create "ai-review-round-$next" --color BFD4F2 >/dev/null 2>&1 || true
-          gh pr edit "$pr" --add-label "ai-review-round-$next" >/dev/null
-          echo "round=$next" >> "$GITHUB_OUTPUT"
+          echo "round=$((n + 1))" >> "$GITHUB_OUTPUT"
 
       - uses: ./.github/actions/agent-runtime
+        if: steps.round.outputs.round != ''
 
       - name: Compose review prompt
+        id: compose
+        if: steps.round.outputs.round != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          pr="${{ github.event.pull_request.number }}"
+          pr="${{ steps.pr.outputs.number }}"
           gh pr diff "$pr" > /tmp/diff.patch
           {
             echo "You are the Reviewer in this repo's AI pipeline — an independent second"
@@ -89,9 +110,14 @@ jobs:
             cat /tmp/diff.patch
           } > /tmp/review-prompt.md
           wc -c /tmp/review-prompt.md
+          # baseline for the Gate's mechanical deliverable check: a completed pass
+          # must post findings — an exit 0 with no new comment is a failed round
+          comments_before=$(gh api "repos/${{ github.repository }}/issues/$pr/comments" -q 'length')
+          echo "comments_before=$comments_before" >> "$GITHUB_OUTPUT"
 
       - name: Reviewer run (Zen nemotron — independent run)
         id: run1
+        if: steps.round.outputs.round != ''
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -110,7 +136,7 @@ jobs:
 
       - name: Reviewer run (Gemma free fallback)
         id: run2
-        if: steps.run1.outcome == 'failure'
+        if: steps.round.outputs.round != '' && steps.run1.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
@@ -130,9 +156,29 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          pr="${{ github.event.pull_request.number }}"
-          if [[ "${{ steps.run1.outcome }}" == "success" || "${{ steps.run2.outcome }}" == "success" ]]; then
-            echo "reviewer completed"; exit 0
+          pr="${{ steps.pr.outputs.number }}"
+          round="${{ steps.round.outputs.round }}"
+          o1="${{ steps.run1.outcome }}"
+          o2="${{ steps.run2.outcome }}"
+          if [[ -z "$round" ]]; then
+            echo "round limit reached — reviewer stood down"; exit 0
+          fi
+          if [[ "$o1" == "success" || "$o2" == "success" ]]; then
+            comments_after=$(gh api "repos/${{ github.repository }}/issues/$pr/comments" -q 'length')
+            if (( comments_after <= ${{ steps.compose.outputs.comments_before }} )); then
+              echo "reviewer exited 0 but posted no findings — round NOT spent"
+              gh pr comment "$pr" --body "Reviewer run exited 0 without posting findings — treated as failed (no Round spent). Re-fire from the Actions tab. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              exit 1
+            fi
+            # a completed pass is the only thing that spends a Round
+            gh label create "ai-review-round-$round" --color BFD4F2 >/dev/null 2>&1 || true
+            gh pr edit "$pr" --add-label "ai-review-round-$round" >/dev/null
+            echo "reviewer completed — round $round spent"; exit 0
+          fi
+          if [[ "$o1" == "cancelled" || "$o2" == "cancelled" ]]; then
+            echo "run superseded, not failed"
+            gh pr comment "$pr" --body "Reviewer run superseded by a newer trigger (cancelled — not a model failure; no Round spent). The newest run owns this review."
+            exit 0
           fi
           echo "both model attempts failed"
           gh pr comment "$pr" \

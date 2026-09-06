@@ -19,8 +19,12 @@ One headless agent invocation, bounded by hard caps (max turns, wall-clock timeo
 _Avoid_: session, job (job = the CI wrapper, not the agent invocation)
 
 **Round**:
-One Reviewer pass over a pull request. Bounded: 2 rounds maximum, tracked by a round label. Fixes pushed by a Reviewer may trigger a new Round but never a new PR.
+One Reviewer pass over a pull request. Bounded: 2 rounds maximum, tracked by a round label. A Round is spent only by a completed pass — a Superseded or failed run spends nothing. Fixes pushed by a Reviewer may trigger a new Round but never a new PR.
 _Avoid_: iteration, loop
+
+**Superseded**:
+An Agent run cancelled because a newer trigger replaced it (a new push to the PR, a re-fired run). Not a failure: no findings, no Round spent, and the superseding run owns the outcome. Distinct from Blocked (the site refused) and a failure (the models failed).
+_Avoid_: cancellation, aborted run
 
 ### Triggers & artifacts
 
