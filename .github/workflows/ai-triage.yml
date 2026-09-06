@@ -11,6 +11,7 @@ on:
     types: [opened, reopened] # reopened enables re-firing triage on an existing issue
 
 permissions:
+  contents: read # checkout needs this (as do the probes reading provider code)
   issues: write
 
 concurrency:
