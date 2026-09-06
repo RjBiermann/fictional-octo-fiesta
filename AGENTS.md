@@ -37,3 +37,17 @@ CI (`.github/workflows/build.yml`) builds all providers on push to `master`/`mai
 - HTTP via [NiceHttp](https://github.com/Blatzar/NiceHttp) (`app.get` / `app.post`), HTML parsing via jsoup, JSON via Jackson (do **not** bump Jackson past 2.13.1 — breaks older Android devices).
 - Match the existing provider style in this repo; reuse extractors already present (e.g. `HQPorner/MyDaddyExtractor.kt`) instead of duplicating them.
 - Keep provider changes self-contained in the provider's directory. Root `build.gradle.kts` changes affect every provider — make them only when required by all.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in GitHub Issues via the `gh` CLI (CI may create/update them too). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default canonical triage label vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
