@@ -39,3 +39,13 @@ _Avoid_: testing, validation, smoke test
 **Blocked**:
 The live site refused the runner (Cloudflare, IP ban). A PR may open as Blocked with an explicit note; the human verifies in-app instead.
 _Avoid_: failure (a failure stops the run; Blocked completes it with a caveat)
+
+### Provider data
+
+**Recommendations**:
+Related videos shown on a video page, surfaced on that video's load screen in the app. Distinct from search results: same card shape, different origin — the video page, not a listing or query.
+_Avoid_: related items, suggested videos, related (use the full term in docs)
+
+**Data-complete**:
+A provider whose `load` populates every `LoadResponse` field the site exposes (recommendations, tags, plot, duration) and whose `loadLinks` emits every source FINDINGS recorded for the site's videos. The bar a fix or new-provider PR must clear.
+_Avoid_: fully populated, feature-complete

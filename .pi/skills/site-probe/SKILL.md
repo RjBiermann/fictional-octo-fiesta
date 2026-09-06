@@ -21,11 +21,17 @@ A `FINDINGS.md` in the provider directory with this structure:
 ## Search
 <pattern(s) tested, the one that works, curl transcript>
 
-## Video page
-<URL structure + selector evidence, curl transcript>
+## Video pages
+<for each of the ≥5 probed pages: URL, which listing it came from (recent/genre/related),
+structure + selector evidence, curl transcript>
 
-## Stream source
-<where the stream URL lives, curl transcript, content-type check>
+## Related videos
+<the related/recommended-videos selector with transcript — or an explicit
+"no related-videos section" note. Never left unstated.>
+
+## Stream sources (per video page)
+<for EACH probed video page: every source found, each with its own transcript and
+content-type check. Different videos can carry different sources.>
 
 ## Headers / referer
 <what requests require, evidence>
@@ -61,30 +67,41 @@ Common patterns to try (fill in from the engine fingerprint):
 Judge by results: the working pattern returns item HTML/JSON matching a repeatable structure.
 Capture the exact URL and a transcript showing ≥1 result.
 
-### 3. Video page
+### 3. Video pages — ≥5, varied
 
-Pick one result. Identify: title, poster, tags/categories, description, duration, upload date —
-each with a selector proven against the fetched page (`og:` meta tags are often the cheapest
-source). Capture the URL shape (slug vs numeric id).
+Probe **at least 5 video pages** from *different listings*: most-recent, a genre/category page,
+and one pulled from a related-videos section — variety across recency and genre. More the
+better beyond that floor. For each page identify: title, poster, tags/categories, description,
+duration, upload date — each with a selector proven against the fetched page (`og:` meta tags
+are often the cheapest source). Capture the URL shape (slug vs numeric id) and record *where*
+each URL came from.
 
-### 4. Stream source
+### 4. Related videos
 
-Find the stream URL, in this order:
+On every probed video page, find the related/recommended-videos selector (`section#related`,
+`#list_videos_related_videos_items`, etc.). Record it with a transcript, or explicitly note
+"no related-videos section on this site". One or the other — never unstated.
+
+### 5. Stream sources — enumerate ALL
+
+For each probed video page, enumerate **every** source on it — do not stop at the first one
+that works. A single video can carry several sources, and different videos on the same site
+can carry different sets. For each page, in this order:
 1. Direct: `<video><source>` / `og:video` / player config in inline JS (`video_url`, `contentUrl`,
-   `flashvars`, `setVideoUrl*`)
+   `flashvars`, `setVideoUrl*`) — all qualities and mirrors
 2. m3u8/HLS: search the page and its JS for `.m3u8`
-3. Embed iframe: if the stream lives on an embed domain, record the embed URL pattern. Then
+3. Embed iframes: record **every** embed domain and URL pattern. Then
    **check the repo's existing extractors first** (grep the provider directories for that
    domain) — reuse before writing a new extractor.
-Verify the stream URL with a real request (headers + referer if needed) and record the
-content-type. Player configs are often URL-encoded or base64 — decode before recording.
+Each source gets its own verification request (headers + referer if needed) and content-type
+check. Player configs are often URL-encoded or base64 — decode before recording.
 
-### 5. Headers / referer
+### 6. Headers / referer
 
 Replay the stream request without the referer/UA, then with. Record which combination is
 required — providers die silently on missing referer.
 
-### 6. Pagination
+### 7. Pagination
 
 Page 2 of search and home listing: `/{page}/` suffix, `?page=N`, AJAX endpoint? Record the
 pattern and confirm page 2 returns *different* items.

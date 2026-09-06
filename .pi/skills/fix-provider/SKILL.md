@@ -19,9 +19,14 @@ seen live is a guess.
    what the live site serves. The gap is the bug list.
 3. **Fix**: minimal change inside the provider's directory only. Update selectors/URLs/parsing
    per the evidence. Follow the new-provider skill's implementation rules (real API signatures,
-   per-item try/catch). **Bump `version` in `build.gradle.kts` — repo rule, no exceptions.**
+   per-item try/catch, extractor ladder). **Also restore missing data** the fresh FINDINGS
+   exposes: if the provider doesn't populate `recommendations` (or other `LoadResponse` fields)
+   or doesn't emit sources FINDINGS shows the site serving, fix that too — a fix PR must leave
+   the provider data-complete, not just unbroken. **Bump `version` in `build.gradle.kts` — repo
+   rule, no exceptions.**
 4. **Rebuild + verify** (new-provider build loop, verify-provider skill): `./gradlew
-   <Name>:make` clean, then `verify.sh` PASS with the fixed selectors.
+   <Name>:make` clean, then `verify.sh` PASS with ≥5 varied video URLs (and
+   `--related-selector` when the site exposes related videos) against the fixed selectors.
 5. **Deliver**: commit on the fix branch, PR referencing the issue (`Fixes #N`) with the
    before/after evidence — what broke, what changed, verification transcript.
 
