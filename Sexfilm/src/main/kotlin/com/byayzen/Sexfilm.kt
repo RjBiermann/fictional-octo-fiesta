@@ -127,7 +127,8 @@ class Sexfilm : MainAPI() {
 
         Regex("""s2\.src\s*=\s*"(https?://.*?)"""").findAll(scripts).forEach { match ->
             val iframeUrl = match.groupValues[1]
-            loadExtractor(iframeUrl, data, subtitleCallback, callback)
+            // Pass the original video page URL as referer for the iframe
+            loadExtractor(iframeUrl, referer = data, subtitleCallback = subtitleCallback, callback = callback)
         }
         return true
     }
