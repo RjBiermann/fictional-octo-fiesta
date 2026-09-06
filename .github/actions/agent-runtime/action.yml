@@ -43,7 +43,8 @@ runs:
               "apiKey": "$OPENROUTER_API_KEY",
               "compat": { "thinkingFormat": "openrouter" },
               "models": [
-                { "id": "nvidia/nemotron-3.5-lightning:free", "name": "Nemotron Lightning (free)", "reasoning": true }
+                { "id": "nvidia/nemotron-3.5-lightning:free", "name": "Nemotron Lightning (free)", "reasoning": true },
+                { "id": "google/gemma-4-31b-it:free", "name": "Gemma 4 31B (free)", "reasoning": true }
               ]
             }
           }
