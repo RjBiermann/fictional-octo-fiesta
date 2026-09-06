@@ -51,9 +51,12 @@ jobs:
               echo "Task: BUILD a new provider per the issue below."
             fi
             cat /tmp/issue.md
-            echo "Deliverables: branch ai/issue-$n, commit, push, then gh pr create with a"
-            echo "body starting 'Fixes #$n' followed by: what you found (FINDINGS summary),"
-            echo "verification/Blocked evidence. Nothing else on the tracker."
+            echo "Deliverables: leave your changes UNCOMMITTED in the working tree and"
+            echo "write the PR body to /tmp/pr-body.md — starting 'Fixes #$n' followed by:"
+            echo "what you found (FINDINGS summary), verification/Blocked evidence."
+            echo "The workflow creates the branch, push, and PR mechanically after your"
+            echo "run — do NOT attempt git push or gh pr create yourself."
+            echo "Nothing else on the tracker."
             cat .pi/ci/builder-rules.md
           } > /tmp/prompt.md
           wc -c /tmp/prompt.md
@@ -98,16 +101,34 @@ jobs:
             -e .pi/ci/extensions/caveman-native.js \
             -p "$(cat /tmp/prompt.md)"
 
+      - name: Deliver branch + PR (mechanical)
+        id: deliver
+        if: steps.run1.outcome == 'success' || steps.run2.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          n="${{ github.event.issue.number }}"
+          if [[ "$(gh pr list --head "ai/issue-$n" --json number -q 'length')" != "0" ]]; then
+            echo "PR already exists — agent did it itself"; exit 0
+          fi
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -q -m "Builder: resolve #$n"
+          fi
+          git rev-parse -q --verify "ai/issue-$n" >/dev/null || git branch "ai/issue-$n"
+          git push -q --force origin "ai/issue-$n"
+          title=$(gh issue view "$n" --json title -q .title)
+          body=/tmp/pr-body.md; [[ -f $body ]] || body=<(echo "Fixes #$n")
+          gh pr create --head "ai/issue-$n" --base main --title "$title" --body-file "$body"
+
       - name: Gate
         if: always()
         run: |
           n="${{ github.event.issue.number }}"
           if [[ "${{ steps.run1.outcome }}" == "success" || "${{ steps.run2.outcome }}" == "success" ]]; then
-            branch=$(git ls-remote --heads origin "ai/issue-$n" | wc -l)
-            pr=$(gh pr list --head "ai/issue-$n" --json number -q 'length')
-            if [[ "$branch" == "0" || "$pr" == "0" ]]; then
-              echo "agent exited 0 but no branch/PR on the remote — deliverable missing"
-              gh issue comment "$n" --body "Builder exited 0 but never pushed a branch or opened a PR — treat this run as failed and re-apply the trigger label to retry. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            if [[ "${{ steps.deliver.outcome }}" != "success" ]]; then
+              echo "agent run succeeded but branch/PR delivery failed"
+              gh issue comment "$n" --body "Builder produced no deliverable (no branch/PR could be created from its changes) — treat this run as failed and re-apply the trigger label to retry. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
               exit 1
             fi
             echo "builder delivered branch + PR"; exit 0

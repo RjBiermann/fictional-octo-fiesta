@@ -13,11 +13,11 @@ Rules (mandatory):
   verify in-app" with the failure evidence.
 - If you cannot complete: comment on the issue with what you did, what broke, and what info
   is missing. Never close or merge anything.
-- Creating the PR works from CI: run `gh pr create --head ai/issue-N --base main --title … --body …`
-  (the token can push branches AND create PRs). If `gh pr create` errors, retry once with the
-  error shown, then report the exact error in the issue comment — never claim the environment
-  cannot create PRs and stop.
-- Completion is mechanical, not felt: your run only counts if `git ls-remote --heads origin ai/issue-N`
-  returns your branch AND `gh pr list --head ai/issue-N` finds the PR. Verify both commands'
-  output before finishing — a summary saying "done" without that output is a failed run, and
-  your work is discarded with the runner.
+- The workflow delivers mechanically: after your run it commits the working tree to branch
+  `ai/issue-N`, pushes, and opens the PR using `/tmp/pr-body.md`. Your job is to leave the
+  changes uncommitted in the tree and write that file — do NOT git push or `gh pr create`.
+  Writing "the PR needs to be created manually" or blaming permissions is a failed run: the
+  workflow does it, not you.
+- Completion is mechanical, not felt: your work only counts if your changes are on disk and
+  `/tmp/pr-body.md` exists. A summary saying "done" without both is a failed run, and your
+  work is discarded with the runner.
