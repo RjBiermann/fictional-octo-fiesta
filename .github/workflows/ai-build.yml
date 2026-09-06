@@ -140,8 +140,16 @@ jobs:
       - name: Gate
         if: always()
         run: |
+          n="${{ github.event.issue.number }}"
           if [[ "${{ steps.run1.outcome }}" == "success" || "${{ steps.run2.outcome }}" == "success" ]]; then
-            echo "builder completed"; exit 0
+            branch=$(git ls-remote --heads origin "ai/issue-$n" | wc -l)
+            pr=$(gh pr list --head "ai/issue-$n" --json number -q 'length')
+            if [[ "$branch" == "0" || "$pr" == "0" ]]; then
+              echo "agent exited 0 but no branch/PR on the remote — deliverable missing"
+              gh issue comment "$n" --body "Builder exited 0 but never pushed a branch or opened a PR — treat this run as failed and re-apply the trigger label to retry. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              exit 1
+            fi
+            echo "builder delivered branch + PR"; exit 0
           fi
           echo "both model attempts failed"
           gh issue comment "${{ github.event.issue.number }}" \
