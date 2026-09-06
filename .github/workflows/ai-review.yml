@@ -50,6 +50,8 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         run: |
+          npm i -g opencode-ai@latest >/dev/null 2>&1
+          opencode --version
           npm i -g @caveman-ai/cli >/dev/null 2>&1 || true
           # rtk for token-tight diffs/logs (same runtime bundle as the Builder)
           curl -sL -o /tmp/rtk.tgz \
