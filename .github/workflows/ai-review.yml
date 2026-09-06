@@ -36,6 +36,7 @@ jobs:
         id: pr
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }} # runs pre-checkout; gh can't infer repo from git
         run: |
           pr="${{ github.event.pull_request.number || inputs.pr }}"
           head=$(gh pr view "$pr" --json headRefName -q .headRefName)
