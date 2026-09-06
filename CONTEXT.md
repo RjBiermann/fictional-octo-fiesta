@@ -40,6 +40,22 @@ _Avoid_: testing, validation, smoke test
 The live site refused the runner (Cloudflare, IP ban). A PR may open as Blocked with an explicit note; the human verifies in-app instead.
 _Avoid_: failure (a failure stops the run; Blocked completes it with a caveat)
 
+**Task run**:
+An Agent run executing a fully specified issue (labeled `ready-for-agent`) with a generic prompt — the issue body is the task spec. Uses the Builder runtime; may apply non-trigger labels only.
+_Avoid_: audit run (an audit is one kind of task run)
+
+**Drift probe**:
+A cheap scheduled per-provider live check (search + one video page + one stream) that detects provider rot. Distinct from a full **FINDINGS** probe: no evidence transcription, verdict-only output. Broken providers surface as triage issues, not automatic fixes.
+_Avoid_: monitoring, health check (the report is a Health report; the probe is the action)
+
+**Health report**:
+The weekly verdict table the Monitor posts on the `provider-health` tracking issue: per provider, OK / drift / Blocked.
+_Avoid_: status update, monitor output
+
+**Triage**:
+An agent classification of a new user issue (broken-provider report, new-site request, needs info, duplicate) with a live-site probe behind it. Suggests a trigger label; never applies one.
+_Avoid_: labeling, classification
+
 ### Provider data
 
 **Recommendations**:
