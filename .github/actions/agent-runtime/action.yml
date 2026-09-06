@@ -1,0 +1,63 @@
+name: Agent runtime
+description: >
+  Install the agent runtime (pi, ponytail, caveman, rtk), write the free-tier
+  model config, and regenerate the caveman pi extension. Shared by all agent
+  workflows; secrets are passed at the call site as step env.
+
+runs:
+  using: composite
+  steps:
+    - name: Install pi, ponytail, caveman, rtk
+      shell: bash
+      run: |
+        npm i -g @earendil-works/pi-coding-agent >/dev/null 2>&1
+        npm i -g @dietrichgebert/ponytail >/dev/null 2>&1
+        npm i -g @caveman-ai/cli >/dev/null 2>&1
+        pi install npm:@dietrichgebert/ponytail >/dev/null
+        # rtk: static binary, token-savings bash rewrites (needs >= 0.23)
+        curl -sL -o /tmp/rtk.tgz \
+          https://github.com/rtk-ai/rtk/releases/latest/download/rtk-x86_64-unknown-linux-musl.tar.gz
+        mkdir /tmp/rtkx && tar -xzf /tmp/rtk.tgz -C /tmp/rtkx
+        install -m755 "$(find /tmp/rtkx -name rtk -type f | head -1)" /usr/local/bin/rtk
+        rtk --version
+
+    - name: Model config (free tiers only)
+      shell: bash
+      run: |
+        mkdir -p ~/.pi/agent
+        cat > ~/.pi/agent/models.json <<'JSON'
+        {
+          "providers": {
+            "zai-free": {
+              "baseUrl": "https://api.z.ai/api/paas/v4",
+              "api": "openai-completions",
+              "apiKey": "$ZAI_API_KEY",
+              "compat": { "thinkingFormat": "zai" },
+              "models": [
+                { "id": "glm-4.5-flash", "name": "GLM 4.5 Flash (free)", "reasoning": true }
+              ]
+            },
+            "openrouter-free": {
+              "baseUrl": "https://openrouter.ai/api/v1",
+              "api": "openai-completions",
+              "apiKey": "$OPENROUTER_API_KEY",
+              "compat": { "thinkingFormat": "openrouter" },
+              "models": [
+                { "id": "nvidia/nemotron-3.5-lightning:free", "name": "Nemotron Lightning (free)", "reasoning": true }
+              ]
+            }
+          }
+        }
+        JSON
+
+    - name: Regenerate caveman pi extension (fail-open)
+      shell: bash
+      run: |
+        # replaces the previously vendored caveman-native.js; an empty file is a
+        # no-op extension, so generation failure degrades to no compression
+        caveman enable pi >/dev/null 2>&1 || true
+        if [[ -f ~/.pi/agent/extensions/caveman-native.js ]]; then
+          cp ~/.pi/agent/extensions/caveman-native.js .pi/ci/extensions/caveman-native.js
+        else
+          : > .pi/ci/extensions/caveman-native.js
+        fi

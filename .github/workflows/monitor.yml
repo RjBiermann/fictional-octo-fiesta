@@ -26,45 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install agent runtime (pi, ponytail, caveman, rtk)
-        run: |
-          npm i -g @earendil-works/pi-coding-agent >/dev/null 2>&1
-          npm i -g @dietrichgebert/ponytail >/dev/null 2>&1
-          npm i -g @caveman-ai/cli >/dev/null 2>&1
-          pi install npm:@dietrichgebert/ponytail >/dev/null
-          curl -sL -o /tmp/rtk.tgz \
-            https://github.com/rtk-ai/rtk/releases/latest/download/rtk-x86_64-unknown-linux-musl.tar.gz
-          mkdir /tmp/rtkx && tar -xzf /tmp/rtk.tgz -C /tmp/rtkx
-          install -m755 "$(find /tmp/rtkx -name rtk -type f | head -1)" /usr/local/bin/rtk
-          rtk --version
-
-      - name: Model config (free tiers only)
-        run: |
-          mkdir -p ~/.pi/agent
-          cat > ~/.pi/agent/models.json <<'JSON'
-          {
-            "providers": {
-              "zai-free": {
-                "baseUrl": "https://api.z.ai/api/paas/v4",
-                "api": "openai-completions",
-                "apiKey": "$ZAI_API_KEY",
-                "compat": { "thinkingFormat": "zai" },
-                "models": [
-                  { "id": "glm-4.5-flash", "name": "GLM 4.5 Flash (free)", "reasoning": true }
-                ]
-              },
-              "openrouter-free": {
-                "baseUrl": "https://openrouter.ai/api/v1",
-                "api": "openai-completions",
-                "apiKey": "$OPENROUTER_API_KEY",
-                "compat": { "thinkingFormat": "openrouter" },
-                "models": [
-                  { "id": "nvidia/nemotron-3.5-lightning:free", "name": "Nemotron Lightning (free)", "reasoning": true }
-                ]
-              }
-            }
-          }
-          JSON
+      - uses: ./.github/actions/agent-runtime
 
       - name: Compose monitor prompt
         run: |
