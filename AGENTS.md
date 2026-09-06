@@ -51,7 +51,7 @@ This repo runs an automated pipeline (spec: issue #1, vocabulary: `CONTEXT.md`):
   provider), or `ai-remove-site` (remove a provider; triage classifies such
   requests as `(e)` and suggests the label).
   Without the label nothing runs.
-- **Builder** (pi, free models — Z.ai GLM flash → OpenRouter `:free` fallback) runs in CI
+- **Builder** (pi, free open-weight models — Z.ai GLM flash → Zen nemotron → OpenRouter `:free` fallback) runs in CI
   (`.github/workflows/ai-build.yml`): probes the live site (writes `FINDINGS.md` evidence),
   builds or fixes the provider, verifies it against the site
   (`.pi/skills/verify-provider/scripts/verify.sh`), and opens a PR from `ai/issue-<n>`.

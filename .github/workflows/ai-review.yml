@@ -1,6 +1,6 @@
 name: AI review (PR → Reviewer → fix commits)
 
-# Reviewer pass: pi on a free OpenRouter model (independent family from the
+# Reviewer pass: pi on a free Zen model, Meta family (independent of the
 # Builder's GLM/nemotron) reviews Builder PRs against the repo rubric, posts
 # review comments, and pushes fix commits to the PR branch.
 # Bounded to 2 rounds via the ai-review-round-N label. Never merges. Spec issue #1.
@@ -90,25 +90,25 @@ jobs:
           } > /tmp/review-prompt.md
           wc -c /tmp/review-prompt.md
 
-      - name: Reviewer run (Gemma free — independent family)
+      - name: Reviewer run (Zen nemotron — independent run)
         id: run1
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         run: |
           # free-tier pools rate-limit transiently (429) — bounded retry, 3 attempts
           for i in 1 2 3; do
             pi --no-session --mode text \
-              --model openrouter-free/google/gemma-4-31b-it:free --thinking low \
+              --model zen/nemotron-3.5-lightning-free --thinking low \
               -e .pi/ci/extensions/rtk.ts \
               -p "$(cat /tmp/review-prompt.md)" && exit 0
             [[ $i -lt 3 ]] && sleep $((i * 60))
           done
           exit 1
 
-      - name: Reviewer run (nemotron free fallback)
+      - name: Reviewer run (Gemma free fallback)
         id: run2
         if: steps.run1.outcome == 'failure'
         env:
@@ -118,7 +118,7 @@ jobs:
         run: |
           for i in 1 2 3; do
             pi --no-session --mode text \
-              --model openrouter-free/nvidia/nemotron-3.5-lightning:free --thinking low \
+              --model openrouter-free/google/gemma-4-31b-it:free --thinking low \
               -e .pi/ci/extensions/rtk.ts \
               -p "$(cat /tmp/review-prompt.md)" && exit 0
             [[ $i -lt 3 ]] && sleep $((i * 60))
@@ -136,5 +136,5 @@ jobs:
           fi
           echo "both model attempts failed"
           gh pr comment "$pr" \
-            --body "Reviewer failed on both free models (Gemma + nemotron fallback). Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            --body "Reviewer failed on both free models (Zen nemotron + OpenRouter gemma). Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           exit 1
