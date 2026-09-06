@@ -10,5 +10,6 @@ class SexfilmPlugin: Plugin() {
     override fun load(context: Context) {
         registerMainAPI(Sexfilm())
         registerExtractorAPI(Filmcdn())
+        registerExtractorAPI(Morencius())
     }
 }
