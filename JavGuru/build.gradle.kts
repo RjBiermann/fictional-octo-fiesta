@@ -9,3 +9,6 @@ cloudstream {
     tvTypes = listOf("NSFW")
     iconUrl = "https://www.google.com/s2/favicons?domain=jav.guru&sz=%size%"
 }
+dependencies {
+    implementation("org.mozilla:rhino:1.7.15")
+}

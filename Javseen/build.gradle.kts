@@ -9,3 +9,6 @@ cloudstream {
     tvTypes = listOf("NSFW")
     iconUrl = "https://javseen.tv/favicon-96x96.png"
 }
+dependencies {
+    implementation("org.mozilla:rhino:1.7.15")
+}

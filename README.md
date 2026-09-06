@@ -47,6 +47,15 @@ For local plugin testing, you need to grant the app "All Files Access" on newer 
 6. **Restart the App**: Close and reopen the app to apply the changes.
 
 
+## References
+
+Example 18+ extension repos and docs, useful when writing new providers:
+
+- https://github.com/phisher98/CXXX
+- https://github.com/Kraptor123/Cs-GizliKeyif
+- https://cloudstream.miraheze.org/wiki/18%2B
+- https://cloudstream.miraheze.org/wiki/List_of_extensions
+
 ## License
 
 Everything in this repo is released into the public domain. You may use it however you want with no conditions whatsoever
