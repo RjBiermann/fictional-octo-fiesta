@@ -1,0 +1,8 @@
+{
+  "name": "fictional-octo-fiesta",
+  "description": "fictional-octo-fiesta",
+  "manifestVersion": 1,
+  "pluginLists": [
+    "https://codeberg.org/RjBiermann/fictional-octo-fiesta/raw/branch/builds/plugins.json"
+  ]
+}
