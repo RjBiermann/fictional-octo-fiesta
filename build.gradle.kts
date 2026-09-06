@@ -84,6 +84,8 @@ subprojects {
         // IMPORTANT: Do not bump Jackson above 2.13.1, as newer versions will
         // break compatibility on older Android devices.
         implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.1") // JSON Parser
+        implementation("org.mozilla:rhino:1.7.15") // JS engine (JavGuru, Javseen, Mangoporn, XXXParodyHD)
+        implementation("org.jspecify:jspecify:1.0.0") // annotations referenced by jsoup
     }
 }
 
