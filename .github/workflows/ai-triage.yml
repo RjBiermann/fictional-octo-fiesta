@@ -78,7 +78,6 @@ jobs:
             --model zai-free/glm-4.5-flash --thinking low \
             --skill .pi/skills/site-probe \
             -e .pi/ci/extensions/rtk.ts \
-            -e .pi/ci/extensions/caveman-native.js \
             -p "$(cat /tmp/prompt.md)"
 
       - name: Triage run (OpenRouter free fallback)
@@ -94,7 +93,6 @@ jobs:
             --model openrouter-free/nvidia/nemotron-3.5-lightning:free --thinking low \
             --skill .pi/skills/site-probe \
             -e .pi/ci/extensions/rtk.ts \
-            -e .pi/ci/extensions/caveman-native.js \
             -p "$(cat /tmp/prompt.md)"
 
       - name: Gate

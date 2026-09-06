@@ -77,7 +77,6 @@ jobs:
             --skill .pi/skills/fix-provider \
             --skill .pi/skills/verify-provider \
             -e .pi/ci/extensions/rtk.ts \
-            -e .pi/ci/extensions/caveman-native.js \
             -p "$(cat /tmp/prompt.md)"
 
       - name: Task run (OpenRouter free fallback)
@@ -96,7 +95,6 @@ jobs:
             --skill .pi/skills/fix-provider \
             --skill .pi/skills/verify-provider \
             -e .pi/ci/extensions/rtk.ts \
-            -e .pi/ci/extensions/caveman-native.js \
             -p "$(cat /tmp/prompt.md)"
 
       - name: Gate

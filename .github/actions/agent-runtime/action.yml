@@ -50,14 +50,10 @@ runs:
         }
         JSON
 
-    - name: Regenerate caveman pi extension (fail-open)
+    - name: Enable caveman for pi (fail-open by absence)
       shell: bash
       run: |
-        # replaces the previously vendored caveman-native.js; an empty file is a
-        # no-op extension, so generation failure degrades to no compression
+        # pi auto-loads ~/.pi/agent/extensions/* — if generation fails there is
+        # no file and nothing loads; never write an empty stub (pi rejects it)
         caveman enable pi >/dev/null 2>&1 || true
-        if [[ -f ~/.pi/agent/extensions/caveman-native.js ]]; then
-          cp ~/.pi/agent/extensions/caveman-native.js .pi/ci/extensions/caveman-native.js
-        else
-          : > .pi/ci/extensions/caveman-native.js
-        fi
+        ls -la ~/.pi/agent/extensions/ 2>/dev/null || true

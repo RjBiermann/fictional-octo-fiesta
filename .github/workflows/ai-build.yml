@@ -78,7 +78,6 @@ jobs:
             --skill .pi/skills/verify-provider \
             --skill .pi/skills/remove-provider \
             -e .pi/ci/extensions/rtk.ts \
-            -e .pi/ci/extensions/caveman-native.js \
             -p "$(cat /tmp/prompt.md)"
 
       - name: Builder run (OpenRouter free fallback)
@@ -98,7 +97,6 @@ jobs:
             --skill .pi/skills/verify-provider \
             --skill .pi/skills/remove-provider \
             -e .pi/ci/extensions/rtk.ts \
-            -e .pi/ci/extensions/caveman-native.js \
             -p "$(cat /tmp/prompt.md)"
 
       - name: Deliver branch + PR (mechanical)
