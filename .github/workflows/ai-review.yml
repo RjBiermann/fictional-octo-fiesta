@@ -42,6 +42,7 @@ jobs:
             exit 0
           fi
           next=$((n + 1))
+          gh label create "ai-review-round-$next" --color BFD4F2 >/dev/null 2>&1 || true
           gh pr edit "$pr" --add-label "ai-review-round-$next" >/dev/null
           echo "round=$next" >> "$GITHUB_OUTPUT"
 
