@@ -9,6 +9,7 @@ cloudstream {
     tvTypes = listOf("NSFW")
     iconUrl = "https://javseen.tv/favicon-96x96.png"
 }
-dependencies {
-    implementation("org.mozilla:rhino:1.7.15")
+android {
+    // Shared extractors (JavGuru/Javseen/Mangoporn/XXXParodyHD) compiled into this plugin
+    sourceSets.getByName("main").kotlin.srcDir(rootDir.resolve("shared/src/main/kotlin"))
 }

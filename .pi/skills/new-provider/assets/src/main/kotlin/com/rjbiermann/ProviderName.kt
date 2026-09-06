@@ -91,3 +91,10 @@ class ProviderName : MainAPI() {
         return true
     }
 }
+
+@com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+class ProviderNamePlugin : com.lagradost.cloudstream3.plugins.BasePlugin() {
+    override fun load() {
+        registerMainAPI(ProviderName())
+    }
+}

@@ -117,3 +117,10 @@ class PerverZija : MainAPI() {
         return true
     }
 }
+@com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+class PerverZijaPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
+    override fun load() {
+        registerMainAPI(PerverZija())
+        registerExtractorAPI(PerverZijaExtractor())
+    }
+}

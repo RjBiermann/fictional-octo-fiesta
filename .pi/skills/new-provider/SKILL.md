@@ -14,9 +14,9 @@ Copy the files from [assets/](assets/) into `<ProviderName>/`:
 - `build.gradle.kts` — set `authors` (repo owner), `language`, `description`, `iconUrl`
   (favicon of the site domain), `version = 1` for a new provider
 - `src/main/AndroidManifest.xml` — as-is
-- `<Provider>Plugin.kt` — `@CloudstreamPlugin` class extending `BasePlugin`, `registerMainAPI`
-  in `load()`; package `com.rjbiermann`
-- `<Provider>.kt` — the `MainAPI` implementation
+- `<Provider>.kt` — the `MainAPI` implementation **plus** the `@CloudstreamPlugin`
+  plugin class (`registerMainAPI` in `load()`) at the bottom — one Kotlin file per
+  provider; package `com.rjbiermann`
 
 Package: `com.rjbiermann`. Class name = the provider directory name.
 

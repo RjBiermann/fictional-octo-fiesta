@@ -2,6 +2,8 @@
 
 package com.byayzen
 
+import com.kraptor.registerSharedExtractors
+
 import android.util.Base64
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.lagradost.api.Log
@@ -228,3 +230,11 @@ data class Anamenujson(
     val status: Int,
     val html: String?
 )
+
+@com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+class JavseenPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
+    override fun load() {
+        registerMainAPI(Javseen())
+        registerSharedExtractors(listOf(com.lagradost.cloudstream3.extractors.FileMoonSx(), com.kraptor.Filemoon()))
+    }
+}

@@ -9,3 +9,7 @@ cloudstream {
     tvTypes = listOf("NSFW")
     iconUrl = "https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://xxxparodyhd.net/&size=16"
 }
+android {
+    // Shared extractors (JavGuru/Javseen/Mangoporn/XXXParodyHD) compiled into this plugin
+    sourceSets.getByName("main").kotlin.srcDir(rootDir.resolve("shared/src/main/kotlin"))
+}

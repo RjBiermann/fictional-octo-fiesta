@@ -277,3 +277,9 @@ class WatchPorn(context: Context) : MainAPI() {
         return videoUrls.isNotEmpty()
     }
 }
+@com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+class WatchPornPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
+    override fun load(context: android.content.Context) {
+        registerMainAPI(WatchPorn(context))
+    }
+}

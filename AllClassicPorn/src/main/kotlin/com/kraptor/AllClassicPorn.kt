@@ -309,3 +309,9 @@ class AllClassicPorn(context: Context) : MainAPI() {
         return true
     }
 }
+@com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+class AllClassicPornPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
+    override fun load(context: android.content.Context) {
+        registerMainAPI(AllClassicPorn(context))
+    }
+}

@@ -155,3 +155,9 @@ class Girlsswallowed : MainAPI() {
         return true
     }
 }
+@com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+class GirlswallowedPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
+    override fun load() {
+        registerMainAPI(Girlsswallowed())
+    }
+}

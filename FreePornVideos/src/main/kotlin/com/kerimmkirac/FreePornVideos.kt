@@ -171,3 +171,9 @@ class FreePornVideos : MainAPI() {
 
     return true
 }}
+@com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+class FreePornVideosPlugin: com.lagradost.cloudstream3.plugins.BasePlugin() {
+    override fun load() {
+        registerMainAPI(FreePornVideos())
+    }
+}

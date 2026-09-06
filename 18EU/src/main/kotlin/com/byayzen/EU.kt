@@ -209,3 +209,10 @@ class EU : MainAPI() {
         val type: String = ""
     )
 }
+
+@com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+class EUPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
+    override fun load() {
+        registerMainAPI(EU())
+    }
+}

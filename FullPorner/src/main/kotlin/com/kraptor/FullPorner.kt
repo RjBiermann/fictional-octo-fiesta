@@ -334,3 +334,10 @@ return@withContext true
 }
 }
 
+
+@com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+class FullPornerPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
+    override fun load(context: android.content.Context) {
+        registerMainAPI(FullPorner(context))
+    }
+}

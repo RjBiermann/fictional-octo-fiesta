@@ -190,3 +190,9 @@ class XMoviesForYou : MainAPI() {
     )
 
 }
+@com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+class XMoviesForYouPlugin: com.lagradost.cloudstream3.plugins.BasePlugin() {
+    override fun load() {
+        registerMainAPI(XMoviesForYou())
+    }
+}

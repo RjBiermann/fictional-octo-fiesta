@@ -15,7 +15,9 @@ Every provider directory contains:
 - `build.gradle.kts` — sets `version`, `authors`, `language`, `description`, `status`, `tvTypes = listOf("NSFW")`, and `iconUrl`. Bump `version` when the provider changes.
 - `src/main/AndroidManifest.xml` — minimal manifest.
 - `src/main/kotlin/...` — Kotlin sources.
-  - `<Provider>Plugin.kt` — `@CloudstreamPlugin` class that calls `registerMainAPI(...)` in `load()`.
+  - `<Provider>.kt` — the `MainAPI` implementation **plus** the `@CloudstreamPlugin`
+    plugin class (`registerMainAPI(...)` in `load()`) at the bottom of the same file.
+    A separate `*Plugin.kt` is only acceptable for a large extractor-registration manifest.
   - `<Provider>.kt` — the `MainAPI` implementation (search, load, home).
   - `Extractorlar.kt` / extractors — only when the site needs custom stream extraction.
 
@@ -36,6 +38,7 @@ CI (`.github/workflows/build.yml`) builds all providers on push to `master`/`mai
 - Kotlin, targeting JVM 1.8 / minSdk 21 — avoid APIs newer than these.
 - HTTP via [NiceHttp](https://github.com/Blatzar/NiceHttp) (`app.get` / `app.post`), HTML parsing via jsoup, JSON via Jackson (do **not** bump Jackson past 2.13.1 — breaks older Android devices).
 - Match the existing provider style in this repo; reuse extractors already present (e.g. `HQPorner/MyDaddyExtractor.kt`) instead of duplicating them.
+- Shared extractor code lives in `shared/src/main/kotlin/` (not a Gradle subproject); providers include it via `sourceSets.getByName("main").kotlin.srcDir(...)` in their `build.gradle.kts`. `registerSharedExtractors()` there registers the extractor set shared by JavGuru/Javseen/XXXParodyHD. Do not copy-paste extractor files between providers — extend `shared/`.
 - Keep provider changes self-contained in the provider's directory. Root `build.gradle.kts` changes affect every provider — make them only when required by all.
 
 ## Agent skills

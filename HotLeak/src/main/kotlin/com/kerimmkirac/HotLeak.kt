@@ -171,3 +171,10 @@ class HotLeak : MainAPI() {
         return true
     }
 }
+
+@com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+class HotLeakPlugin: com.lagradost.cloudstream3.plugins.BasePlugin() {
+    override fun load() {
+        registerMainAPI(HotLeak())
+    }
+}

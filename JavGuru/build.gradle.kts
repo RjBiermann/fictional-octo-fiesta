@@ -9,6 +9,7 @@ cloudstream {
     tvTypes = listOf("NSFW")
     iconUrl = "https://www.google.com/s2/favicons?domain=jav.guru&sz=%size%"
 }
-dependencies {
-    implementation("org.mozilla:rhino:1.7.15")
+android {
+    // Shared extractors (JavGuru/Javseen/Mangoporn/XXXParodyHD) compiled into this plugin
+    sourceSets.getByName("main").kotlin.srcDir(rootDir.resolve("shared/src/main/kotlin"))
 }

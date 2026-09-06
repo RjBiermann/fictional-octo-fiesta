@@ -146,3 +146,9 @@ class Porn36 : MainAPI() {
      return true
     }
 }
+@com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+class Porn36Plugin: com.lagradost.cloudstream3.plugins.BasePlugin() {
+    override fun load() {
+        registerMainAPI(Porn36())
+    }
+}

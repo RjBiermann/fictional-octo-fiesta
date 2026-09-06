@@ -180,3 +180,9 @@ class Javtiful : MainAPI() {
         @param:JsonProperty("size") val size: Int? = null
     )
 }
+@com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+class JavtifulPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
+    override fun load() {
+        registerMainAPI(Javtiful())
+    }
+}

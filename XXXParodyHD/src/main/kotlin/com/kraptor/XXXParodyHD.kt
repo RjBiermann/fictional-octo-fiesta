@@ -204,3 +204,11 @@ class XXXParodyHD : MainAPI() {
         return true
     }
 }
+
+@com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+class XXXParodyHDPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
+    override fun load(context: android.content.Context) {
+        registerMainAPI(XXXParodyHD())
+        registerSharedExtractors(listOf(com.lagradost.cloudstream3.extractors.Maxstream()))
+    }
+}

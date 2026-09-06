@@ -330,3 +330,11 @@ class JavGuru : MainAPI() {
         return true
     }
 }
+
+@com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+class JavGuruPlugin: com.lagradost.cloudstream3.plugins.BasePlugin() {
+    override fun load() {
+        registerMainAPI(JavGuru())
+        registerSharedExtractors()
+    }
+}
