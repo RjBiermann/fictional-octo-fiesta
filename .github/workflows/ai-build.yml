@@ -116,7 +116,11 @@ jobs:
           git rev-parse -q --verify "ai/issue-$n" >/dev/null || git branch "ai/issue-$n"
           git push -q --force origin "ai/issue-$n"
           title=$(gh issue view "$n" --json title -q .title)
-          body=/tmp/pr-body.md; [[ -f $body ]] || body=<(echo "Fixes #$n")
+          body=/tmp/pr-body.md
+          if [[ ! -f $body ]]; then
+            printf 'Fixes #%s\n' "$n" > /tmp/pr-body-default.md
+            body=/tmp/pr-body-default.md
+          fi
           gh pr create --head "ai/issue-$n" --base main --title "$title" --body-file "$body"
 
       - name: Gate
