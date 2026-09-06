@@ -72,6 +72,7 @@ jobs:
         run: |
           n="${{ github.event.issue.number }}"
           gh issue view "$n" --json number,title,body -q '"# Issue #\(.number) — \(.title)\n\n\(.body)"' > /tmp/issue.md
+          echo "COMMENTS_BEFORE=$(gh issue view "$n" --json comments -q '.comments|length')" >> "$GITHUB_ENV"
           {
             echo "You are the Triage agent in this repo's AI pipeline. A new user issue"
             echo "arrived; classify it so a maintainer can act in one glance."
@@ -84,7 +85,9 @@ jobs:
             echo "   homepage + one search + one video page). Report what you can observe"
             echo "   live — reachable? engine? does the symptom reproduce?"
             echo "3. Comment on the issue: classification first, then findings, then what"
-            echo "   a fixer/build agent would need. End with the suggested trigger label"
+            echo "   a fixer/build agent would need. The comment IS the deliverable — a run"
+            echo "   that exits without posting it has failed, no matter the exit code."
+            echo "   End with the suggested trigger label"
             echo "   (ai-fix / ai-new-site) for the MAINTAINER to apply — never apply it."
             echo "4. Apply at most one of: needs-info (c), needs-triage (ready to dig"
             echo "   deeper or waiting on maintainer). NEVER apply trigger labels,"
@@ -133,8 +136,17 @@ jobs:
 
       - name: Gate
         if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          n="${{ github.event.issue.number }}"
+          after=$(gh issue view "$n" --json comments -q '.comments|length' || echo 0)
           if [[ "${{ steps.run1.outcome }}" == "success" || "${{ steps.run2.outcome }}" == "success" ]]; then
+            if [[ "${after:-0}" -le "${COMMENTS_BEFORE:-0}" ]]; then
+              echo "agent exited 0 but posted no comment — deliverable missing"
+              gh issue comment "$n" --body "Triage agent completed without posting its findings. Re-running triage is required — classification is NOT recorded here. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              exit 1
+            fi
             echo "triage completed"; exit 0
           fi
           echo "both model attempts failed"

@@ -72,6 +72,7 @@ jobs:
         run: |
           n="${{ github.event.issue.number }}"
           gh issue view "$n" --json number,title,body,comments -q '"# Issue #\(.number) — \(.title)\n\n\(.body)\n\n## Comments\n\n" + ([.comments[] | "### \(.author.login):\n\(.body)"] | join("\n\n"))' > /tmp/issue.md
+          echo "COMMENTS_BEFORE=$(gh issue view "$n" --json comments -q '.comments|length')" >> "$GITHUB_ENV"
           {
             echo "You are the Task agent in this repo's AI pipeline — you execute a fully"
             echo "specified issue AFK. Read AGENTS.md first; follow the repo skills"
@@ -139,7 +140,14 @@ jobs:
       - name: Gate
         if: always()
         run: |
+          n="${{ github.event.issue.number }}"
+          after=$(gh issue view "$n" --json comments -q '.comments|length' || echo 0)
           if [[ "${{ steps.run1.outcome }}" == "success" || "${{ steps.run2.outcome }}" == "success" ]]; then
+            if [[ "${after:-0}" -le "${COMMENTS_BEFORE:-0}" ]]; then
+              echo "agent exited 0 but posted no comment — observability rule violated"
+              gh issue comment "$n" --body "Task agent completed without posting any progress or results. Treat this run as failed — the deliverables are not on the tracker. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              exit 1
+            fi
             echo "task agent completed"; exit 0
           fi
           echo "both model attempts failed"
