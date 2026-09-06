@@ -1,8 +1,9 @@
 name: AI build (issue → agent → PR)
 
-# Builder pipeline: a maintainer labels an issue ai-fix / ai-new-site; the Builder
-# agent (pi, free models) probes the live site, builds or fixes the provider,
-# verifies against the site, and opens a PR. Humans merge. See spec issue #1.
+# Builder pipeline: a maintainer labels an issue ai-fix / ai-new-site /
+# ai-remove-site; the Builder agent (pi, free models) probes the live site,
+# builds, fixes, or removes the provider, verifies against the site, and opens
+# a PR. Humans merge. See spec issue #1.
 
 on:
   issues:
@@ -20,7 +21,7 @@ concurrency:
 jobs:
   build:
     # fires on every label event; no-op unless it's a trigger label
-    if: github.event.label.name == 'ai-fix' || github.event.label.name == 'ai-new-site'
+    if: github.event.label.name == 'ai-fix' || github.event.label.name == 'ai-new-site' || github.event.label.name == 'ai-remove-site'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -79,6 +80,12 @@ jobs:
             echo "You are the Builder in this repo's AI pipeline."
             if [[ "$kind" == "ai-fix" ]]; then
               echo "Task: FIX a broken existing provider per the issue below."
+            elif [[ "$kind" == "ai-remove-site" ]]; then
+              echo "Task: REMOVE an existing provider per the issue below."
+              echo "The maintainer's ai-remove-site label IS the decision — probe the"
+              echo "site for evidence only (no FINDINGS.md), then delete and open the"
+              echo "removal PR per the remove-provider skill. Do NOT stop because the"
+              echo "site still works; the maintainer already decided."
             else
               echo "Task: BUILD a new provider per the issue below."
             fi
@@ -105,6 +112,7 @@ jobs:
             --skill .pi/skills/new-provider \
             --skill .pi/skills/fix-provider \
             --skill .pi/skills/verify-provider \
+            --skill .pi/skills/remove-provider \
             -e .pi/ci/extensions/rtk.ts \
             -e .pi/ci/extensions/caveman-native.js \
             -p "$(cat /tmp/prompt.md)"
@@ -124,6 +132,7 @@ jobs:
             --skill .pi/skills/new-provider \
             --skill .pi/skills/fix-provider \
             --skill .pi/skills/verify-provider \
+            --skill .pi/skills/remove-provider \
             -e .pi/ci/extensions/rtk.ts \
             -e .pi/ci/extensions/caveman-native.js \
             -p "$(cat /tmp/prompt.md)"

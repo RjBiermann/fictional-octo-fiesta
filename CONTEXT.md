@@ -25,8 +25,12 @@ _Avoid_: iteration, loop
 ### Triggers & artifacts
 
 **Trigger label**:
-A maintainer-applied issue label (`ai-fix` or `ai-new-site`) that starts a Builder run. Issues without one are never processed.
+A maintainer-applied issue label (`ai-fix`, `ai-new-site`, or `ai-remove-site`) that starts a Builder run. Issues without one are never processed.
 _Avoid_: auto label, bot label
+
+**Removal**:
+A Builder run executing an `ai-remove-site` issue: probe the site for evidence only, delete the provider directory, open a removal PR. The label is the decision — the agent never gates on the probe's outcome; deletion is git-reversible.
+_Avoid_: deletion task, teardown (the deliverable is a removal PR, not a direct deletion)
 
 **FINDINGS**:
 The ground-truth record of a site probe: exact selectors, endpoints, headers, curl transcripts. Every selector in shipped Kotlin code must exist in FINDINGS evidence. Committed as part of the PR.

@@ -44,7 +44,9 @@ CI (`.github/workflows/build.yml`) builds all providers on push to `master`/`mai
 
 This repo runs an automated pipeline (spec: issue #1, vocabulary: `CONTEXT.md`):
 
-- A maintainer labels an issue `ai-fix` (broken provider) or `ai-new-site` (new provider).
+- A maintainer labels an issue `ai-fix` (broken provider), `ai-new-site` (new
+  provider), or `ai-remove-site` (remove a provider; triage classifies such
+  requests as `(e)` and suggests the label).
   Without the label nothing runs.
 - **Builder** (pi, free models — Z.ai GLM flash → OpenRouter `:free` fallback) runs in CI
   (`.github/workflows/ai-build.yml`): probes the live site (writes `FINDINGS.md` evidence),
