@@ -15,10 +15,10 @@ jobs:
           echo "zai HTTP: $code"; head -c 300 /tmp/z.json; echo
           test "$code" = 200 && grep -q '"choices"' /tmp/z.json
       - name: OpenRouter free completion (optional)
-        if: ${{ secrets.OPENROUTER_API_KEY != '' }}
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then echo "skipped (no key)"; exit 0; fi
           code=$(curl -s -o /tmp/o.json -w '%{http_code}' -X POST \
             https://openrouter.ai/api/v1/chat/completions \
             -H "Authorization: Bearer $OPENROUTER_API_KEY" -H 'Content-Type: application/json' \
