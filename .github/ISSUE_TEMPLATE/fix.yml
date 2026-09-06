@@ -1,0 +1,48 @@
+name: Broken provider report
+description: Report a provider in this repo that no longer works (streams, search, site moved…)
+labels: ["needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A **maintainer** triggers the automated fix pipeline by adding the `ai-fix` label to
+        this issue after filing. Without the label it waits in triage.
+  - type: input
+    id: provider
+    attributes:
+      label: Provider name
+      description: "Exactly as the folder name in this repo, e.g. MissAV. If unsure, type your best guess."
+    validations:
+      required: true
+  - type: input
+    id: site-url
+    attributes:
+      label: Site URL
+      description: The site's homepage.
+    validations:
+      required: true
+  - type: dropdown
+    id: broken
+    attributes:
+      label: What's broken
+      options:
+        - No streams / videos won't play
+        - Search returns nothing
+        - Site moved / restructured
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: example-video
+    attributes:
+      label: Example video URL (optional but very helpful)
+      description: A video page on the site that should play but doesn't.
+    validations:
+      required: false
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Anything else — error messages, when it broke, works-on-mobile observations.
+    validations:
+      required: false

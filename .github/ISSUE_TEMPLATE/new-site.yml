@@ -1,0 +1,43 @@
+name: New site request
+description: Request a CloudStream provider for a site not yet in this repo
+labels: ["needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A **maintainer** triggers the automated build pipeline by adding the `ai-new-site`
+        label to this issue after filing. Without the label it waits in triage.
+  - type: input
+    id: site-name
+    attributes:
+      label: Site name
+    validations:
+      required: true
+  - type: input
+    id: site-url
+    attributes:
+      label: Site URL
+      description: The site's homepage.
+    validations:
+      required: true
+  - type: input
+    id: language
+    attributes:
+      label: Language
+      description: "e.g. en, es, ja…"
+    validations:
+      required: true
+  - type: input
+    id: example-video
+    attributes:
+      label: Example video URL
+      description: A direct link to one video page on the site. Required — the automated builder uses it to verify it can actually extract a stream.
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Anything else — known embed hosts, regions where the site is blocked, similar sites.
+    validations:
+      required: false

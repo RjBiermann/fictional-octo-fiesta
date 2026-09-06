@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: CloudStream app support
+    url: https://github.com/recloudstream/cloudstream
+    about: Issues with the CloudStream app itself (not this extension repo).
