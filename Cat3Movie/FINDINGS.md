@@ -109,7 +109,7 @@ vidstack player); not decryptable cheaply; skipped.
 - cat3movie.org pages: plain requests, browser UA, no referer needed.
 - player.php: needs `Referer: https://cat3movie.org/watch-<slug>/full-svN.html` (send it).
 - hlsfree embed page: needs `Referer: https://cat3movie.org/` (403 without).
-- hlsfree token/serve + segments: none needed.
+- hlsfree token/serve: needs `Referer: https://hlsfree.com/` (500 `Proxy error` without); segments: none needed.
 
 ## Pagination
 Home/categories: `/{base}/page/{N}` suffix (page 1 = base). Verified different posts on
