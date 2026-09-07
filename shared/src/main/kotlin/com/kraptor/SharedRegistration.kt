@@ -1,4 +1,4 @@
-// Extractor registration list shared by JavGuru, Javseen and XXXParodyHD.
+// Extractor registration list shared by JavGuru and Javseen.
 // Order matters where two extractors match the same host (e.g. StreamTape
 // before StreamTAPE) - keep the sequence stable.
 package com.kraptor
