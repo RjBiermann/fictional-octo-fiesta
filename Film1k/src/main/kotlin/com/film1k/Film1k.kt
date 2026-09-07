@@ -45,7 +45,9 @@ class Film1k : MainAPI() {
     }
 
     private fun parseList(doc: org.jsoup.nodes.Document): List<SearchResponse> =
-        doc.select("article.loop-post").mapNotNull { it.toResult() }.distinctBy { it.url }
+        doc.select("article.loop-post").mapNotNull {
+            try { it.toResult() } catch (e: Exception) { null }
+        }.distinctBy { it.url }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val doc = app.get(pageUrl(request.data, page)).document
