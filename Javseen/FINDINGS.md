@@ -1,33 +1,46 @@
-# FINDINGS — javseen.tv (issue #118 re-probe, 2026-09-08)
+# FINDINGS — javseen.tv (issue #145 re-probe, 2026-09-14)
 
-## Verdict: provider drift confirmed — embeds moved to hosts not registered by JavseenPlugin
+## Verdict: provider code intact; primary javhdz embed host had no extractor → added Javhdz/Javhdz2
 
 ## Search
-- ajax `https://javseen.tv/search/video/?ajax=search_results&s=nurse&o=recent` → 200, JSON `{"status":1,"html":…}` with 30 escaped `li id=\"video-…\"` items — provider's JSONObject+Jsoup path intact.
+- AJAX JSON `https://javseen.tv/search/video/?ajax=search_results&s=teacher&o=recent` → 200,
+  `{"status":1,"html":…}` with 25 × `li id=\"video-…\"` items — provider's JSONObject+Jsoup
+  path intact. Transcript: curl returns status 1 and escaped `video-285505` etc.
+- Note: plain HTML search pages (`/?s=`, `/search/video/?s=`) return a JS-driven landing page
+  with **no server-rendered results** — AJAX JSON is the only search source (unchanged since #118).
+- verify.sh check-1 caveat: the script matches selectors on literal HTML, so the JSON-wrapped
+  (backslash-escaped) markup yields 0 matches even though the endpoint is healthy. Manual
+  transcript provided instead.
 
-## Video pages (5 probed: recent ×2, category, search, search)
-- `/285509/dmsm-6863-…/`, `/285508/mosaic-babd-024-…/`, `/285452/caribbeancom-cr-041626-001-…/`, `/285502/mida-593-…/`, `/285484/mosaic-kam-141-…/` — all 200, 6–7× `button.button_choice_server[data-embed]` (base64) each.
+## Video pages (5 probed: recent ×4, one older)
+- `/285509/dmsm-6863-…/`, `/285508/mosaic-babd-024-…/`, `/285506/oba-303-…/`,
+  `/285505/waaa-629-…/`, `/285504/english-sub-huntc-553-…/` — all 200, each with
+  4–7 × `button.button_choice_server[data-embed]` (base64). Provider load() intact.
 
 ## Related videos
-- **No related-videos section** — markup is a commented-out `No related videos found!` placeholder on all probed pages. Provider's `ul.videos.related li` selector returns empty (matches site, not a bug).
+- **No related-videos section** — commented-out `No related videos found!` placeholder
+  (matches #118 finding; provider's `ul.videos.related li` returns empty, which is correct).
 
-## Stream sources (per page, base64 data-embed decoded)
-| Host | Coverage after fix |
-|---|---|
-| `cloudwish.xyz/e/…` | CloudWish (registered) — packed eval player confirmed live |
-| `dooood.com/e/…` | Dooood (registered) — **Cloudflare 403 for runner** (may differ in-app) |
-| `streamtape.net/e/…` | StreamTapeNet (registered) — sample link 404 (tokens expire fast) |
-| `mycloudz.cc/v/…` | MyCloudZ (registered) — VidHide jwplayer confirmed live |
-| `lulustream.fit/e/…` | **new LULUSTREAMFIT : LULUSTREAM** (was only lulustream.com) |
-| `turbovid.vip/t/…` | **new TurbovidVip : Turtleviplay** — `data-hash` m3u8, verified `200 application/vnd.apple.mpegurl` |
-| `streambeast.upn.one/#…` | **new StreamBeastUpn : Playerupnone (VidStack)** |
-| `worker4.savedvids.com/embed.php?p=…` | **new SavedVids extractor** — `var FIRST = {"playlist": …master.m3u8}`, verified `200 application/vnd.apple.mpegurl` |
-| `stream2.javhdz.today/embed.php?p=…` | Cloudflare "Just a moment" 403 for runner — left unhandled (same host family as savedvids; same player markup) |
+## Stream sources (base64 data-embed decoded, per live pages)
+| # | Host | Status 2026-09-14 (runner, datacenter IP) |
+|---|---|---|
+| 1 | `stream3.javhdz.today/embed.php?p=…` (also seen `stream2.` on other pages) | **Cloudflare "Just a moment" 403** for runner — was a no-op (`loadExtractor` no match). **Fix: added `Javhdz`/`Javhdz2` extractors** (SavedVids playlist pattern — #118 probe noted same player family). In-app verification required. |
+| 2 | `mycloudz.cc/v/…` | 200, packed eval player; unpack (VidHidePro path) yields `dramiyos-cdn.com/hls2/...master.m3u8` — m3u8 fetch 403 for runner (IP/geo-gated CDN), URL shape valid |
+| 3 | `cloudwish.xyz/e/…` | 404 on probe (per-token expiry); #118 confirmed packed eval player intact |
+| 4 | `streambeast.upn.one/#…` | 200 shell (Playerupnone/VidStack registered) |
+| 5 | `dooood.com/e/…` | 301 → playmogo.com → **403 Cloudflare** for runner (may work in-app) |
+| 6 | `streamtape.net/e/…` | 404 (tokens expire fast, per #118) |
+| 7 | `turbovid.vip/t/…` | **200**; `data-hash` m3u8 `cdn1.turboviplay.com/.../…m3u8` → **200 `application/vnd.apple.mpegurl`**, master playlist with variant streams — **verified playable from runner** |
 
-## Old behavior
-- `JavseenPlugin.load()` called `registerSharedExtractors(listOf(FileMoonSx(), Filemoon()))` — the full shared manifest plus `FileMoonSx()`/`Filemoon()` as first-extras. The fix drops that first list (filemoon hosts had zero overlap with live embeds) and registers the full shared manifest, which gains the new TurbovidVip/SavedVids/StreamBeastUpn/LULUSTREAMFIT extractors.
+## Fix applied
+- New `Javseen/src/main/kotlin/com/byayzen/Javhdz.kt`: `Javhdz` (stream3) + `Javhdz2`
+  (stream2) — extracts `"playlist":"…m3u8"` from the embed page (SavedVids pattern),
+  registered in `JavseenPlugin.load()` next to `registerSharedExtractors()`.
+- `version` 10 → 11.
 
 ## Risks / blockers
-- `dooood.com` and `javhdz.today` Cloudflare-block the runner (403 "Just a moment") — untestable from CI, verify in-app.
-- Streamtape tokens single-use/short-lived → 404 on probe is expected.
-- Stream content-type per-host was verified manually (turbovid, savedvids → 200 m3u8); verify.sh's in-page m3u8 fallback can't see base64 iframe embeds, so its stream step reports FAIL while search/video-page steps PASS.
+- Cloudflare blocks javhdz.today and dooood/playmogo from datacenter IPs — the javhdz
+  playlist regex is pattern-derived (same family as SavedVids per #118 evidence) and could
+  not be executed from this runner; verify in-app.
+- CloudWish/StreamTape sample embed tokens 404 quickly; not a provider bug.
+- turbovid/mycloudz streams verified/shape-verified; runner got 403 only on mycloudz's CDN.

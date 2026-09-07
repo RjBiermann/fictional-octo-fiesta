@@ -236,5 +236,7 @@ class JavseenPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
     override fun load() {
         registerMainAPI(Javseen())
         registerSharedExtractors()
+        registerExtractorAPI(Javhdz())
+        registerExtractorAPI(Javhdz2())
     }
 }
