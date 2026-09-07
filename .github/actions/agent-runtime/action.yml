@@ -28,6 +28,15 @@ runs:
         cat > ~/.pi/agent/models.json <<'JSON'
         {
           "providers": {
+            "zen": {
+              "baseUrl": "https://opencode.ai/zen/v1",
+              "api": "openai-completions",
+              "apiKey": "$OPENCODE_API_KEY",
+              "models": [
+                { "id": "nemotron-3-ultra-free", "name": "Nemotron 3 Ultra Free", "reasoning": true },
+                { "id": "ling-3.0-flash-fin-free", "name": "Ling 3.0 Flash Fin Free", "reasoning": true }
+              ]
+            },
             "go": {
               "baseUrl": "https://opencode.ai/zen/go/v1",
               "api": "openai-completions",
