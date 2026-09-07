@@ -6,7 +6,8 @@ KVS (Kernel Video Sharing), "metal" theme — evidenced by `list_videos_most_rec
 ## Search
 - `https://neporn.com/search/{query}/` → 200, 24 video links. WORKS.
 - `https://neporn.com/search/{query}/2/` → 404. Does NOT work.
-- Pagination of search results uses KVS async pattern (same engine as WatchPorn): `/search/?q={query}&mode=async&function=get_block&block_id=list_videos_videos_list_search_result&from_videos={page}` — same block_id naming family as homepage (`list_videos_most_recent_videos`).
+- Pagination of search results uses KVS async pattern (same engine as WatchPorn): `/search/?q={query}&mode=async&function=get_block&block_id=list_videos_videos_list_search_result&from_videos={page}` — same block_id naming family as homepage (`list_videos_most_recent_videos`). Verified: `from_videos=1` returns the identical 24 results as `/search/wet/` page 1; `from_videos=2` returns 24 different videos.
+- Multi-word queries must be URL-encoded: raw spaces break the request (curl 000). `%20` works in both the path form (`/search/big%20ass/` → 200/24) and the async query form (`q=big%20ass` → 200/24).
 
 ```
 $ curl -s -A "Mozilla/5.0" https://neporn.com/search/wet/ | grep -oE '/video/[0-9]+/[a-z0-9-]+/' | head -3
@@ -43,7 +44,8 @@ $ curl -s -o /dev/null -A "Mozilla/5.0" -L -r 0-1000 "$URL" -w "%{http_code} %{c
 Plain `Mozilla/5.0` UA sufficed for get_file and redirect target; no referer required (302→206 without `-e`).
 
 ## Pagination
-Home listings: `/{path}/{page}/` suffix (e.g. `/latest-updates/2/` → 200, different items 43319/43323/43324).
+Home listings: `/{path}/{page}/` suffix (e.g. `/latest-updates/2/` → 200, different items 43319/43323/43324; `/categories/amateur/2/` → 200, 24 items).
+- Search next-page marker: both the page-1 path form and async responses embed a `div.pagination#list_videos_videos_list_search_result_pagination` block. Non-final pages render a forward link `<li class="page last">` (e.g. pages 2–11 of `wet`); the final page renders `<li class="page page-current last">` (verified `from_videos=12` → 13 items, no forward link). Out-of-range `from_videos` (50) → empty response, no pagination block.
 
 ## Risks / blockers
 None. No Cloudflare, no age wall; runner IPs work.

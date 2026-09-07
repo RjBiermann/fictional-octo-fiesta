@@ -4,6 +4,7 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addDuration
 import org.jsoup.nodes.Element
+import java.net.URLEncoder
 
 class Neporn : MainAPI() {
     override var mainUrl = "https://neporn.com"
@@ -49,12 +50,14 @@ class Neporn : MainAPI() {
     }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
-        // KVS async block pagination; /search/{q}/2/ returns 404
-        val url = if (page <= 1) "$mainUrl/search/${query.trim()}/"
-        else "$mainUrl/search/?q=${query.trim()}&mode=async&function=get_block&block_id=list_videos_videos_list_search_result&from_videos=$page"
+        // KVS async block pagination; /search/{q}/2/ returns 404, raw spaces break the request
+        val q = URLEncoder.encode(query.trim(), "UTF-8").replace("+", "%20")
+        val url = if (page <= 1) "$mainUrl/search/$q/"
+        else "$mainUrl/search/?q=$q&mode=async&function=get_block&block_id=list_videos_videos_list_search_result&from_videos=$page"
         val doc = app.get(url).document
         val items = doc.select("div.list-videos div.item").mapNotNull { it.toResult() }.distinctBy { it.url }
-        val hasNext = page < 20 // no reliable next marker; cap reasonably
+        // KVS renders a "last" page link unless the current page is the final one
+        val hasNext = doc.selectFirst("li.page.last:not(.page-current)") != null
         return newSearchResponseList(items, hasNext && items.isNotEmpty())
     }
 
