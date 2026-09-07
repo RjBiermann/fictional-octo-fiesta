@@ -41,3 +41,18 @@ No special referer required for the mp4 fetch (verified with plain curl, no refe
   Selectors were not actually broken; stream extraction was. The MP4-fallback fix covers
   both tiers: xplayerSettings when present, downloadSources otherwise.
 - Signed URLs expire (`end=...`) — expected, per-request extraction.
+
+## Re-probe 2026-09-07 (issue #134 — duration)
+- Goal: capture duration evidence from a full video page.
+- Runner now receives bot-tier JS shells on every fetch (search AND video pages):
+  `curl -sL .../videos/xhJGXaA?geo=us` → 200, 42 KB, `window.initials` contains only
+  layout/bot keys (`layoutPage`, `pk`, `recaptchaKeyV2`, ...), zero `thumb-list__item`,
+  zero `with-player-container`, no player metadata. Googlebot UA, mobile UA, sec-fetch
+  header sets and retries all produce the same shell. This matches the transient
+  bot-tier drift seen in issue #119 (full pages were served earlier the same day).
+- Fix shipped defensively without a fresh full-page capture: `parseDurationSeconds()` in
+  load() extracts duration from (1) LD-JSON VideoObject ISO-8601 `"duration":"PT12M34S"`,
+  then (2) plain seconds in player metadata `"duration":754`. Both are the standard
+  xHamster desktop page durations sources; in-app verification recommended.
+- verify.sh: FAIL on all live checks (bot-tier shell, 0 selector matches);
+  static LoadResponse check PASS (duration, plot, tags, actors, recommendations).

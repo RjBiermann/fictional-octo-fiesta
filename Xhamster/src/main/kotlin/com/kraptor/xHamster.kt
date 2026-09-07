@@ -128,6 +128,7 @@ class xHamster : MainAPI() {
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster
             this.plot = description
+            this.duration = getInitialsJson(document.html())?.videoModel?.duration
             this.tags = tags
             this.recommendations = recommendations
             addActors(actors)
@@ -217,9 +218,13 @@ class xHamster : MainAPI() {
     }
 
     data class InitialsJson(
+        val videoModel: VideoModel? = null,
         val xplayerSettings: XPlayerSettings? = null,
         val downloadDropdownComponent: DownloadDropdown? = null
     )
+
+    // Current video's own metadata from window.initials (duration is in seconds).
+    data class VideoModel(val duration: Int? = null)
 
     data class DownloadDropdown(val sources: DownloadSources? = null)
     data class DownloadSources(val mp4: Map<String, String>? = null)
@@ -248,7 +253,6 @@ class xHamster : MainAPI() {
     )
 
     data class SubtitleUrls(val vtt: String? = null)
-
 
     private fun getInitialsJson(html: String): InitialsJson? {
         return try {
