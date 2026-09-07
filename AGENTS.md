@@ -51,7 +51,7 @@ This repo runs an automated pipeline (spec: issue #1, vocabulary: `CONTEXT.md`):
   provider), or `ai-remove-site` (remove a provider; triage classifies such
   requests as `(e)` and suggests the label).
   Without the label nothing runs.
-- **Builder** (pi, free open-weight models — Z.ai GLM flash → Zen nemotron → OpenRouter `:free` fallback) runs in CI
+- **Builder** (pi, OpenCode Go models — GLM flash → DeepSeek flash fallback) runs in CI
   (`.github/workflows/ai-build.yml`): probes the live site (writes `FINDINGS.md` evidence),
   builds or fixes the provider, verifies it against the site
   (`.pi/skills/verify-provider/scripts/verify.sh`), and opens a PR from `ai/issue-<n>`.
@@ -65,7 +65,7 @@ This repo runs an automated pipeline (spec: issue #1, vocabulary: `CONTEXT.md`):
 - **Triage agent** runs on new unlabeled issues (`.github/workflows/ai-triage.yml`): probes the
   reported site, classifies, comments findings, suggests a trigger label — and applies
   non-trigger labels only (`needs-info`, `needs-triage`).
-- **Reviewer** (opencode, independent model) runs on those PRs
+- **Reviewer** (pi, DeepSeek Go primary — independent of the Builder's GLM) runs on those PRs
   (`.github/workflows/ai-review.yml`), posts findings, and may push fix commits — bounded to
   2 rounds (`ai-review-round-N` labels).
 - **Humans merge, and humans apply trigger labels.** No agent ever merges, approves, closes a

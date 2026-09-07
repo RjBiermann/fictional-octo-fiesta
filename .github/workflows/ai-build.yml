@@ -1,9 +1,9 @@
 name: AI build (issue → agent → PR)
 
 # Builder pipeline: a maintainer labels an issue ai-fix / ai-new-site /
-# ai-remove-site; the Builder agent (pi, free models) probes the live site,
-# builds, fixes, or removes the provider, verifies against the site, and opens
-# a PR. Humans merge. See spec issue #1.
+# ai-remove-site; the Builder agent (pi, OpenCode Go: GLM → DeepSeek) probes
+# the live site, builds, fixes, or removes the provider, verifies against the
+# site, and opens a PR. Humans merge. See spec issue #1.
 
 on:
   issues:
@@ -61,17 +61,16 @@ jobs:
           } > /tmp/prompt.md
           wc -c /tmp/prompt.md
 
-      - name: Builder run (Z.ai glm-4.5-flash)
+      - name: Builder run (Go glm-5.3-flash)
         id: run1
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
-          ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         run: |
           pi --no-session --mode text \
-            --model zai-free/glm-4.5-flash --thinking low \
+            --model go/glm-5.3-flash --thinking low \
             --skill .pi/skills/site-probe \
             --skill .pi/skills/new-provider \
             --skill .pi/skills/fix-provider \
@@ -80,7 +79,7 @@ jobs:
             -e .pi/ci/extensions/rtk.ts \
             -p "$(cat /tmp/prompt.md)"
 
-      - name: Builder run (Zen nemotron fallback)
+      - name: Builder run (Go deepseek-v4-flash fallback)
         id: run2
         if: steps.run1.outcome == 'failure'
         env:
@@ -89,25 +88,7 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         run: |
           pi --no-session --mode text \
-            --model zen/nemotron-3.5-lightning-free --thinking low \
-            --skill .pi/skills/site-probe \
-            --skill .pi/skills/new-provider \
-            --skill .pi/skills/fix-provider \
-            --skill .pi/skills/verify-provider \
-            --skill .pi/skills/remove-provider \
-            -e .pi/ci/extensions/rtk.ts \
-            -p "$(cat /tmp/prompt.md)"
-
-      - name: Builder run (OpenRouter nemotron fallback)
-        id: run3
-        if: steps.run1.outcome == 'failure' && steps.run2.outcome == 'failure'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_TOKEN: ${{ github.token }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        run: |
-          pi --no-session --mode text \
-            --model openrouter-free/nvidia/nemotron-3.5-lightning:free --thinking low \
+            --model go/deepseek-v4-flash --thinking low \
             --skill .pi/skills/site-probe \
             --skill .pi/skills/new-provider \
             --skill .pi/skills/fix-provider \
@@ -118,7 +99,7 @@ jobs:
 
       - name: Deliver branch + PR (mechanical)
         id: deliver
-        if: steps.run1.outcome == 'success' || steps.run2.outcome == 'success' || steps.run3.outcome == 'success'
+        if: steps.run1.outcome == 'success' || steps.run2.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -144,7 +125,7 @@ jobs:
         if: always()
         run: |
           n="${{ github.event.issue.number }}"
-          if [[ "${{ steps.run1.outcome }}" == "success" || "${{ steps.run2.outcome }}" == "success" || "${{ steps.run3.outcome }}" == "success" ]]; then
+          if [[ "${{ steps.run1.outcome }}" == "success" || "${{ steps.run2.outcome }}" == "success" ]]; then
             if [[ "${{ steps.deliver.outcome }}" != "success" ]]; then
               echo "agent run succeeded but branch/PR delivery failed"
               gh issue comment "$n" --body "Builder produced no deliverable (no branch/PR could be created from its changes) — treat this run as failed and re-apply the trigger label to retry. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
@@ -152,9 +133,9 @@ jobs:
             fi
             echo "builder delivered branch + PR"; exit 0
           fi
-          echo "all three model attempts failed (Z.ai + Zen + OpenRouter)"
+          echo "both model attempts failed (GLM + DeepSeek)"
           gh issue comment "${{ github.event.issue.number }}" \
-            --body "Builder failed on all free models (Z.ai → Zen → OpenRouter). Issue stays open for manual handling. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            --body "Builder failed on both Go models (GLM → DeepSeek). Issue stays open for manual handling. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           exit 1
         env:
           GH_TOKEN: ${{ github.token }}

@@ -1,11 +1,11 @@
 name: AI review (PR → Reviewer → fix commits)
 
-# Reviewer pass: pi on a free Zen model, Meta family (independent of the
-# Builder's GLM/nemotron) reviews Builder PRs against the repo rubric, posts
-# review comments, and pushes fix commits to the PR branch.
-# Bounded to 2 rounds via the ai-review-round-N label — spent only by a
-# completed pass; a Superseded (cancelled) run spends nothing. Never merges.
-# Spec issue #1. Manual re-fire: Actions → this workflow → provide PR number.
+# Reviewer pass: pi on a DeepSeek Go model (independent of the Builder's GLM)
+# reviews Builder PRs against the repo rubric, posts review comments, and pushes
+# fix commits to the PR branch. Bounded to 2 rounds via the ai-review-round-N
+# label — spent only by a completed pass; a Superseded (cancelled) run spends
+# nothing. Never merges. Spec issue #1. Manual re-fire: Actions → this workflow
+# → provide PR number.
 
 on:
   pull_request:
@@ -116,7 +116,7 @@ jobs:
           comments_before=$(gh api "repos/${{ github.repository }}/issues/$pr/comments" -q 'length')
           echo "comments_before=$comments_before" >> "$GITHUB_OUTPUT"
 
-      - name: Reviewer run (Zen nemotron — independent run)
+      - name: Reviewer run (Go deepseek-v4-flash — independent family)
         id: run1
         if: steps.round.outputs.round != ''
         continue-on-error: true
@@ -125,27 +125,27 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         run: |
-          # free-tier pools rate-limit transiently (429) — bounded retry, 3 attempts
+          # shared free pools rate-limit transiently (429) — bounded retry, 3 attempts
           for i in 1 2 3; do
             pi --no-session --mode text \
-              --model zen/nemotron-3.5-lightning-free --thinking low \
+              --model go/deepseek-v4-flash --thinking low \
               -e .pi/ci/extensions/rtk.ts \
               -p "$(cat /tmp/review-prompt.md)" && exit 0
             [[ $i -lt 3 ]] && sleep $((i * 60))
           done
           exit 1
 
-      - name: Reviewer run (Gemma free fallback)
+      - name: Reviewer run (Go glm-5.3-flash fallback)
         id: run2
         if: steps.round.outputs.round != '' && steps.run1.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         run: |
           for i in 1 2 3; do
             pi --no-session --mode text \
-              --model openrouter-free/google/gemma-4-31b-it:free --thinking low \
+              --model go/glm-5.3-flash --thinking low \
               -e .pi/ci/extensions/rtk.ts \
               -p "$(cat /tmp/review-prompt.md)" && exit 0
             [[ $i -lt 3 ]] && sleep $((i * 60))
@@ -183,5 +183,5 @@ jobs:
           fi
           echo "both model attempts failed"
           gh pr comment "$pr" \
-            --body "Reviewer failed on both free models (Zen nemotron + OpenRouter gemma). Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            --body "Reviewer failed on both Go models (DeepSeek → GLM). Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           exit 1

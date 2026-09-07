@@ -77,23 +77,22 @@ jobs:
           } > /tmp/prompt.md
           wc -c /tmp/prompt.md
 
-      - name: Monitor run (Z.ai glm-4.5-flash)
+      - name: Monitor run (Go glm-5.3-flash)
         id: run1
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
-          ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         run: |
           pi --no-session --mode text \
-            --model zai-free/glm-4.5-flash --thinking low \
+            --model go/glm-5.3-flash --thinking low \
             --skill .pi/skills/site-probe \
             --skill .pi/skills/verify-provider \
             -e .pi/ci/extensions/rtk.ts \
             -p "$(cat /tmp/prompt.md)"
 
-      - name: Monitor run (Zen nemotron fallback)
+      - name: Monitor run (Go deepseek-v4-flash fallback)
         id: run2
         if: steps.run1.outcome == 'failure'
         env:
@@ -102,22 +101,7 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         run: |
           pi --no-session --mode text \
-            --model zen/nemotron-3.5-lightning-free --thinking low \
-            --skill .pi/skills/site-probe \
-            --skill .pi/skills/verify-provider \
-            -e .pi/ci/extensions/rtk.ts \
-            -p "$(cat /tmp/prompt.md)"
-
-      - name: Monitor run (OpenRouter nemotron fallback)
-        id: run3
-        if: steps.run1.outcome == 'failure' && steps.run2.outcome == 'failure'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_TOKEN: ${{ github.token }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        run: |
-          pi --no-session --mode text \
-            --model openrouter-free/nvidia/nemotron-3.5-lightning:free --thinking low \
+            --model go/deepseek-v4-flash --thinking low \
             --skill .pi/skills/site-probe \
             --skill .pi/skills/verify-provider \
             -e .pi/ci/extensions/rtk.ts \
@@ -126,11 +110,11 @@ jobs:
       - name: Gate
         if: always()
         run: |
-          if [[ "${{ steps.run1.outcome }}" == "success" || "${{ steps.run2.outcome }}" == "success" || "${{ steps.run3.outcome }}" == "success" ]]; then
+          if [[ "${{ steps.run1.outcome }}" == "success" || "${{ steps.run2.outcome }}" == "success" ]]; then
             echo "monitor completed"; exit 0
           fi
-          echo "all three model attempts failed (Z.ai + Zen + OpenRouter)"
-          gh issue list --label provider-health --state open --json number -q '.[0].number' | head -1 | xargs -r gh issue comment --body "Monitor run failed on both free models. Next scheduled run: Monday. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" || true
+          echo "both model attempts failed (GLM + DeepSeek)"
+          gh issue list --label provider-health --state open --json number -q '.[0].number' | head -1 | xargs -r gh issue comment --body "Monitor run failed on both Go models (GLM → DeepSeek). Next scheduled run: Monday. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" || true
           exit 1
         env:
           GH_TOKEN: ${{ github.token }}
