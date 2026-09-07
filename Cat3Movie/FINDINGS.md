@@ -77,8 +77,8 @@ Server→embed mapping (verified, GET; NOTE: server_id ordering varies per movie
 $ curl -s -A "Mozilla/5.0" "https://hlsfree.com/embed/hls/971" | grep -o 'defaultHlsUrl = "[^"]*"'
 const defaultHlsUrl = "https://hlsfree.com/api/hls/serve?token=949554948cf4";
 ```
-2. token endpoint → HLS playlist (send `Referer: https://hlsfree.com/`; occasionally
-   500s "Proxy error" without it):
+2. token endpoint → HLS playlist (**send `Referer: https://hlsfree.com/`** — without it the
+   endpoint returns 500 `Proxy error`; the Kotlin sets it on the emitted link)
 ```
 $ curl -s -A "Mozilla/5.0" -H "Referer: https://hlsfree.com/" "https://hlsfree.com/api/hls/serve?token=949554948cf4"
 HTTP 200, content-type: application/vnd.apple.mpegurl
@@ -87,7 +87,20 @@ HTTP 200, content-type: application/vnd.apple.mpegurl
 3. segment fetch: HTTP 200, ~2.5 MB binary (mislabeled `image/png` content-type, plays fine).
 Same flow verified for hls 741 (baby-cat), 984 (bamboo), 966 (heat), 971 (joy).
 
-**loadvid (sv2):** page exposes `videoToken` + csrf; stream is `POST /videos/resolve-token`
+**2026-09-14 re-probe (issue #143):** server mapping surveyed across 10+ videos (home,
+/classic-porn/page/8, related listings). Typical mapping is sv1=hlsfree, sv2=loadvid,
+sv3=hlsfast (e.g. baby-cat-1983, bamboo-house-of-dolls-1973, blue-money-1972,
+a-bloody-fight-1988, 3-d-sex-and-zen-extreme-ecstasy-2011, curse-of-the-dog-god-1977,
+dannoura-yomakura-kassenki-1977) — the hlsfree path is alive and verified end to end.
+Some older archive movies (e.g. carry-on-teacher-1959, dark-dreams-1971) have hlsfast on
+**every** server: for those no stream is resolvable (see below) — a site-side limitation,
+not a provider defect.
+
+**hlsfast re-check (issue #143):** `hlsfast.com/#<id>` is an obfuscated Vue SPA
+(`/assets/index-DqFBtoPY.js`, vidstack, player-version 16.5.3) that calls
+`/api/v1/player?t=<encrypted>` / `/api/v1/video?id=` — raw ids return `{"error": "Token is invalid"}` /
+`{"message": "Request is invalid"}`; the `t` token is generated inside obfuscated JS
+(aes/crypto strings present) and is not reproducible server-side. **loadvid (sv2):** page exposes `videoToken` + csrf; stream is `POST /videos/resolve-token`
 which returns the **m3u8 body** (no URL) for a blob player — no stable stream URL to emit;
 skipped. **hlsfast (sv3):** `/api/v1/video?id=` returns encrypted hex blobs (obfuscated
 vidstack player); not decryptable cheaply; skipped.
