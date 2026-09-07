@@ -3,7 +3,7 @@
 ## Verdict: OK
 
 ## Search
-- `https://pxp.news/?s=red` → 200 with `.item_cont` (search results); home also `.item_cont`.
+- Provider `search()` uses `?q=` (not `?s=`). Audited `https://pxp.news/?s=red` → 200 with `.item_cont`; reviewer re-probed provider's actual `https://pxp.news/?q=red` → 200, `.item_cont` matched → OK.
 
 ## Stream
 - video `/videos/915675372201` → `#player source` 360/1080 `https://sd.pornxp.sh/...mp4` → **206 video/mp4**.
