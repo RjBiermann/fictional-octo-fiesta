@@ -338,6 +338,6 @@ class JavGuru : MainAPI() {
 class JavGuruPlugin: com.lagradost.cloudstream3.plugins.BasePlugin() {
     override fun load() {
         registerMainAPI(JavGuru())
-        registerSharedExtractors()
+        registerSharedExtractors(listOf(Vidara()))
     }
 }
