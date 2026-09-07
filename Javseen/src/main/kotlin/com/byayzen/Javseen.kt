@@ -235,6 +235,6 @@ data class Anamenujson(
 class JavseenPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
     override fun load() {
         registerMainAPI(Javseen())
-        registerSharedExtractors(listOf(com.lagradost.cloudstream3.extractors.FileMoonSx(), com.kraptor.Filemoon()))
+        registerSharedExtractors()
     }
 }

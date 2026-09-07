@@ -680,6 +680,31 @@ class HgLink : VidHidePro() { override var name = "HGLink"; override var mainUrl
 class RyderJet : VidHidePro() { override var name = "RyderJet"; override var mainUrl = "https://ryderjet.com" }
 
 class MyCloudZ : VidHidePro() { override var mainUrl = "https://mycloudz.cc"; override var name = "MyCloudZ" }
+class TurbovidVip : Turtleviplay() { override var mainUrl = "https://turbovid.vip"; override var name = "TurboVid" }
+
+// worker4.savedvids.com embed.php?p=... serves `var FIRST = {"playlist": "https://...master.m3u8", ...}`
+class SavedVids : ExtractorApi() {
+    override val name = "SavedVids"
+    override val mainUrl = "https://worker4.savedvids.com"
+    override val requiresReferer = true
+
+    override suspend fun getUrl(
+        url: String,
+        referer: String?,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        val res = app.get(url, referer = referer).text
+        val m3u8 = Regex("\"playlist\":\\s*\"([^\"]+\\.m3u8[^\"]*)\"").find(res)?.groupValues?.get(1) ?: return
+        callback.invoke(
+            newExtractorLink(name, name, m3u8, ExtractorLinkType.M3U8) {
+                this.referer = referer ?: "$mainUrl/"
+                this.quality = Qualities.Unknown.value
+            }
+        )
+    }
+}
+class StreamBeastUpn : Playerupnone() { override var mainUrl = "https://streambeast.upn.one"; override var name = "StreamBeast" }
 class Turboplayers : StreamTape() { override var mainUrl = "https://turboplayers.xyz"; override var name = "Streamtape" }
 
 
@@ -730,7 +755,7 @@ class Javmoon : Filesim() { override var mainUrl = "https://javmoon.me"; overrid
 
 
 class StbP2P : VidStack() { override var mainUrl = "https://stb.strp2p.com"; override var name = "STBP2P" }
-class Playerupnone : VidStack() { override var mainUrl = "https://player.upn.one"; override var name = "UPNP2P" }
+open class Playerupnone : VidStack() { override var mainUrl = "https://player.upn.one"; override var name = "UPNP2P" }
 
 open class Turtleviplay : ExtractorApi() {
     override var name = "Turtleviplay"
@@ -916,9 +941,13 @@ open class LULUBASE : ExtractorApi() {
     }
 }
 
-class LULUSTREAM : LULUBASE() {
+open class LULUSTREAM : LULUBASE() {
     override val name = "LuluStream"
     override val mainUrl = "https://lulustream.com"
+}
+
+class LULUSTREAMFIT : LULUSTREAM() {
+    override val mainUrl = "https://lulustream.fit"
 }
 
 
