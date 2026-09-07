@@ -94,7 +94,7 @@ class ixiporn : MainAPI() {
                 newExtractorLink(
                     source = this.name,
                     name = this.name,
-                    url = fixUrl(res.selectFirst("meta[itemprop=contentURL]")?.attr("content")?.trim().toString())
+                    url = fixUrl(res.selectFirst("meta[itemprop=contentUrl]")?.attr("content")?.trim().toString())
                 ) {
                     this.referer = data
                     this.quality = Qualities.Unknown.value
