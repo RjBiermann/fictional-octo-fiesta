@@ -151,7 +151,6 @@ class MissAV : MainAPI() {
 
     private suspend fun getRecommendations(dvdId: String): List<SearchResponse> {
         return try {
-            val props = "[\"title\",\"duration\",\"dm\"]"
             val timestamp = System.currentTimeMillis() / 1000
             val path = "/missav-default/recomms/items/$dvdId/items/"
             val sign = hmacSign("$path?scenario=desktop-watch-next-side&frontend_timestamp=$timestamp")
