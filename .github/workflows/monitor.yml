@@ -9,6 +9,7 @@ name: Provider monitor (weekly drift probe)
 on:
   schedule:
     - cron: '0 6 * * 1' # Mondays 06:00 UTC
+    - cron: '0 6 * * 4' # Thursdays 06:00 UTC
   workflow_dispatch: {} # manual run for testing
 
 permissions:
@@ -86,7 +87,7 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         run: |
           pi --no-session --mode text \
-            --model go/glm-5.3-flash --thinking low \
+            --model go/glm-5.3-flash --thinking off \
             --skill .pi/skills/site-probe \
             --skill .pi/skills/verify-provider \
             -e .pi/ci/extensions/rtk.ts \
@@ -101,7 +102,7 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         run: |
           pi --no-session --mode text \
-            --model go/deepseek-v4-flash --thinking low \
+            --model go/deepseek-v4-flash --thinking off \
             --skill .pi/skills/site-probe \
             --skill .pi/skills/verify-provider \
             -e .pi/ci/extensions/rtk.ts \
@@ -114,7 +115,7 @@ jobs:
             echo "monitor completed"; exit 0
           fi
           echo "both model attempts failed (GLM + DeepSeek)"
-          gh issue list --label provider-health --state open --json number -q '.[0].number' | head -1 | xargs -r gh issue comment --body "Monitor run failed on both Go models (GLM → DeepSeek). Next scheduled run: Monday. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" || true
+          gh issue list --label provider-health --state open --json number -q '.[0].number' | head -1 | xargs -r gh issue comment --body "Monitor run failed on both Go models (GLM → DeepSeek). Next scheduled run: Monday/Thursday. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" || true
           exit 1
         env:
           GH_TOKEN: ${{ github.token }}

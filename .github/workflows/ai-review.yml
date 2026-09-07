@@ -77,6 +77,8 @@ jobs:
         run: |
           pr="${{ steps.pr.outputs.number }}"
           gh pr diff "$pr" > /tmp/diff.patch
+          # cost guard: cap the embedded diff — a huge blob must not blow the prompt
+          head -c 200000 /tmp/diff.patch > /tmp/diff.patch.tmp && mv /tmp/diff.patch.tmp /tmp/diff.patch
           {
             echo "You are the Reviewer in this repo's AI pipeline — an independent second"
             echo "opinion on a Builder-authored pull request. Round ${{ steps.round.outputs.round }} of 2."
