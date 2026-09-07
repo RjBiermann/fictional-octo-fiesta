@@ -175,6 +175,28 @@ class xHamster : MainAPI() {
 
 
         val initialData = getInitialsJson(document.html())
+
+        // Fallback: player sources (xplayerSettings) are often null for guests; the
+        // download-sources JSON still carries direct MP4s per quality.
+        if (!foundLinks) {
+            initialData?.downloadDropdownComponent?.sources?.mp4?.forEach { (quality, mp4Url) ->
+                val fixed = fixUrl(mp4Url)
+                Log.d(sourceName, "MP4 fallback $quality: $fixed")
+                callback(
+                    newExtractorLink(
+                        source = sourceName,
+                        name = sourceName,
+                        url = fixed,
+                        type = ExtractorLinkType.VIDEO
+                    ) {
+                        this.referer = data
+                        this.quality = quality.filter { it.isDigit() }.toIntOrNull()
+                            ?: Qualities.Unknown.value
+                    }
+                )
+                foundLinks = true
+            }
+        }
         initialData?.xplayerSettings?.subtitles?.tracks?.forEach { track ->
             track.urls?.vtt?.let { url ->
                 val fixed = fixUrl(url)
@@ -195,8 +217,12 @@ class xHamster : MainAPI() {
     }
 
     data class InitialsJson(
-        val xplayerSettings: XPlayerSettings? = null
+        val xplayerSettings: XPlayerSettings? = null,
+        val downloadDropdownComponent: DownloadDropdown? = null
     )
+
+    data class DownloadDropdown(val sources: DownloadSources? = null)
+    data class DownloadSources(val mp4: Map<String, String>? = null)
 
     data class XPlayerSettings(
         val sources: VideoSources? = null,
