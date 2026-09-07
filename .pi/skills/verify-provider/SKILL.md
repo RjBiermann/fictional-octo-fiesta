@@ -23,6 +23,8 @@ supplies what to check (judgment, from FINDINGS + the provider's Kotlin), the sc
   --stream-selector 'source[src]' \
   [--stream-quality-attr res] \
   [--related-selector 'section#related a.card'] \
+  [--provider-src '<provider dir>'] \
+  [--load-response 'recommendations,tags,plot,duration,year,actors'] \
   [--header 'User-Agent: …'] [--header 'Referer: …']
 ```
 
@@ -40,6 +42,10 @@ related-videos section.
    HTTP 200/206 and `Content-Type: video/*` (or an m3u8 playlist body).
 4. If `--related-selector` is given: every video page contains ≥1 element matching it —
    recommendations are verified here, not discovered in-app.
+5. If `--load-response` is given (with `--provider-src`): every listed field has ≥1
+   population assignment in the provider's Kotlin — the mechanical half of the
+   Data-complete bar. Whether the site actually exposes each field comes from FINDINGS;
+   the agent judges that, not the script.
 
 ## Rules
 

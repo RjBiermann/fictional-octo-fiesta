@@ -2,11 +2,13 @@
 # verify.sh — mechanical live-site checks for a CloudStream provider (verify-provider skill).
 # The agent supplies selectors/URLs from FINDINGS; this script asserts them. Exit 0 = all pass.
 # --video-url is repeatable (≥5 varied URLs per the skill); --related-selector checks the
-# related-videos section on every video page.
+# related-videos section on every video page. --load-response + --provider-src check the
+# mechanical half of the Data-complete bar: the listed fields are populated in the Kotlin.
 set -euo pipefail
 
 UA="Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0"
 SEARCH_URL="" SEARCH_SELECTOR="" STREAM_SELECTOR="" QUALITY_ATTR="res" RELATED_SELECTOR=""
+PROVIDER_SRC="" LOAD_RESPONSE=""
 VIDEO_URLS=()
 HEADERS=(-A "$UA")
 
@@ -20,6 +22,8 @@ while [[ $# -gt 0 ]]; do
     --stream-selector) STREAM_SELECTOR="$2"; shift 2;;
     --stream-quality-attr) QUALITY_ATTR="$2"; shift 2;;
     --related-selector) RELATED_SELECTOR="$2"; shift 2;;
+    --provider-src) PROVIDER_SRC="$2"; shift 2;;
+    --load-response) LOAD_RESPONSE="$2"; shift 2;;
     --header) HEADERS+=(-H "$2"); shift 2;;
     *) usage;;
   esac
@@ -84,6 +88,20 @@ else:
 PY
 }
 
+field_pattern() {  # LoadResponse field → grep pattern for a population assignment
+  case "$1" in
+    recommendations) echo 'recommendations\s*=';;
+    tags) echo 'tags\s*=';;
+    plot) echo 'plot\s*=';;
+    duration) echo 'duration\s*=';;
+    year) echo 'year\s*=';;
+    actors) echo 'addActors|actors\s*=';;
+    score) echo 'addScore|score\s*=';;
+    posters) echo 'posterUrl\s*=|backgroundPosterUrl\s*=';;
+    *) echo '';;
+  esac
+}
+
 first_stream_url() {  # html_file → first absolute stream URL, fallbacks in FINDINGS-priority order
   python3 - "$1" <<'PY'
 import re, sys
@@ -127,5 +145,24 @@ for VIDEO_URL in "${VIDEO_URLS[@]}"; do
     echo "FAIL: no absolute stream URL extracted from $STREAM_SELECTOR ($VIDEO_URL)"; fail=1
   fi
 done
+
+echo "── check 5: LoadResponse completeness (code vs FINDINGS)"
+if [[ -n "$LOAD_RESPONSE" ]]; then
+  IFS=',' read -ra FIELDS <<< "$LOAD_RESPONSE"
+  if [[ -z "$PROVIDER_SRC" || ! -e "$PROVIDER_SRC" ]]; then
+    echo "FAIL: --load-response requires --provider-src pointing at the provider directory"; fail=1
+  else
+    for f in "${FIELDS[@]}"; do
+      pat=$(field_pattern "$f")
+      if [[ -z "$pat" ]]; then
+        echo "FAIL: unknown load-response field '$f' (recommendations,tags,plot,duration,year,actors,score,posters)"; fail=1
+      else
+        n=$(grep -rE "$pat" --include='*.kt' "$PROVIDER_SRC" | wc -l)
+        echo "field '$f': $n assignment(s) in $PROVIDER_SRC"
+        (( n >= 1 )) || { echo "FAIL load-response: '$f' never populated"; fail=1; }
+      fi
+    done
+  fi
+fi
 
 if (( fail )); then echo "RESULT: FAIL"; exit 1; else echo "RESULT: PASS"; fi

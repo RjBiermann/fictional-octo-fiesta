@@ -25,13 +25,14 @@ Projects are auto-included: `settings.gradle.kts` adds any directory with a `bui
 
 ## Commands
 
+This is an **AI-first, pipeline-first repository with no local development path** (see `docs/adr/0001-ai-first-no-local-development.md`): every check an agent can run, the pipeline runs; humans act through GitHub (labels, review, merge) and CI-built `.cs3` artifacts — never through a local toolchain.
+
 ```bash
 ./gradlew <ProviderName>:make          # build one provider (.cs3)
-./gradlew <ProviderName>:deployWithAdb # build + install to a connected device
 ./gradlew clean                        # clean root build dir
 ```
 
-CI (`.github/workflows/build.yml`) builds all providers on push to `master`/`main` and publishes `plugins.json` to the `builds` branch. There is no unit-test setup; validation is building successfully and testing in the app.
+CI (`.github/workflows/build.yml`) builds all providers on push to `master`/`main` and publishes `plugins.json` to the `builds` branch. There is no unit-test setup; validation is building successfully plus pipeline Verification (`verify.sh`) against the live site. In-app testing is maintainer-only at merge time — it is never an agent deliverable.
 
 ## Conventions
 

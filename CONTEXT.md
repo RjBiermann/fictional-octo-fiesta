@@ -52,6 +52,10 @@ _Avoid_: failure (a failure stops the run; Blocked completes it with a caveat)
 An Agent run executing a fully specified issue (labeled `ready-for-agent`) with a generic prompt — the issue body is the task spec. Uses the Builder runtime; may apply non-trigger labels only.
 _Avoid_: audit run (an audit is one kind of task run)
 
+**Audit**:
+A Task run measuring every provider against its live site on two independent axes: drift (broken selectors/streams vs the site) and Data-completeness (code vs what the site exposes). Each axis reports separately — a drift-OK provider can still be incomplete, and only providers that are drift-OK and incomplete surface as new fix requests.
+_Avoid_: health check (that is the Monitor's Drift probe), review
+
 **Drift probe**:
 A cheap scheduled per-provider live check (search + one video page + one stream) that detects provider rot. Distinct from a full **FINDINGS** probe: no evidence transcription, verdict-only output. Broken providers surface as triage issues, not automatic fixes.
 _Avoid_: monitoring, health check (the report is a Health report; the probe is the action)
@@ -75,5 +79,5 @@ Related videos shown on a video page, surfaced on that video's load screen in th
 _Avoid_: related items, suggested videos, related (use the full term in docs)
 
 **Data-complete**:
-A provider whose `load` populates every `LoadResponse` field the site exposes (recommendations, tags, plot, duration) and whose `loadLinks` emits every source FINDINGS recorded for the site's videos. The bar a fix or new-provider PR must clear.
+A provider whose `load` populates every `LoadResponse` field the site exposes and whose `loadLinks` emits every source FINDINGS recorded for the site's videos. The floor fields are recommendations, tags, plot, duration, year, and actors — required wherever the site exposes them; score and posters are populated opportunistically. The bar a fix or new-provider PR must clear.
 _Avoid_: fully populated, feature-complete
