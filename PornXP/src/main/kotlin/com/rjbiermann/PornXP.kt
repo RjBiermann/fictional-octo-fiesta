@@ -1,6 +1,7 @@
 package com.rjbiermann
 
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.utils.*
@@ -82,7 +83,14 @@ class PornXP : MainAPI() {
             // Get recommendations from related videos
             val recommendations = document.select(".item_cont").mapNotNull { it.toRecommendationResult() }
 
+            // No dedicated actor markup: multi-word tags are performer names,
+            // minus the few multi-word genre tags the site also uses
+            // ponytail: stoplist heuristic — swap for a real models endpoint if pxp.news adds one
+            val genrePhrases = setOf("Big Ass", "Big Tits", "Cum In Mouth", "Big Cock", "Step Mom", "Step Sister", "Step Daughter", "Step Brother")
+            val actors = tags.filter { it.contains(" ") && it !in genrePhrases }.map { Actor(it) }
+
             return newMovieLoadResponse(title, url, TvType.NSFW, url) {
+                addActors(actors)
                 this.posterUrl = poster
                 this.plot = description
                 this.tags = tags

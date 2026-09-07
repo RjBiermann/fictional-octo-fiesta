@@ -107,12 +107,12 @@ first_stream_url() {  # html_file → first absolute stream URL, fallbacks in FI
 import re, sys
 html = open(sys.argv[1], encoding='utf-8', errors='replace').read()
 for pat in [r'video_url\s*:\s*\'(http[^\']+)',
-            r'<source[^>]*src=["\'](http[^"\']+)',
+            r'<source[^>]*src=["\']((?:https?:)?//[^"\']+)',
             r'"contentUrl"\s*:\s*"([^"\\]+)',
             r'property=["\']og:video(:secure_url)?["\']\s+content=["\']([^"\']+)',
             r'(https?://[^"\'\s]+\.m3u8[^"\'\s]*)']:
     m = re.search(pat, html)
-    if m: print(m.group(1)); break
+    if m: print(m.group(1) if m.group(1).startswith('http') else 'https:' + m.group(1)); break
 PY
 }
 
