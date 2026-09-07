@@ -1,6 +1,8 @@
 package com.rjbiermann
 
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.plugins.BasePlugin
+import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Element
 
@@ -9,7 +11,7 @@ class PornXP : MainAPI() {
     override var name = "PornXP"
     override val hasMainPage = true
     override var lang = "en"
-    override val hasQuickSearch = false
+    override val hasQuickSearch = true
     override val supportedTypes = setOf(TvType.NSFW)
 
     override val mainPage = mainPageOf(
@@ -44,9 +46,9 @@ class PornXP : MainAPI() {
         try {
             val titleElement = this.selectFirst(".item_title a") ?: return null
             val link = titleElement.attr("href")
-            val dataId = this.attr("data-id")
             val imgElement = this.selectFirst(".item_thumb img")
-            val poster = imgElement?.attr("src")?.let { fixUrl(it) }
+            // Lazy-loaded posters put the real URL in data-src, src is a spinner placeholder
+            val poster = imgElement?.let { img -> if (img.hasAttr("data-src")) img.attr("data-src") else img.attr("src") }?.let { fixUrl(it) }
 
             return newMovieSearchResponse(
                 titleElement.text().trim(),
@@ -61,16 +63,15 @@ class PornXP : MainAPI() {
     }
 
     override suspend fun quickSearch(query: String): List<SearchResponse>? {
-        // TODO: Fix quickSearch implementation 
-        return null
+        return search(query, 1).items
     }
 
     override suspend fun load(url: String): LoadResponse? {
         try {
             val document = app.get(url).document
             val title = document.selectFirst("h1")?.text()?.trim() ?: return null
-            val poster = document.selectFirst("meta[property=og:image]")?.attr("content")?.let { fixUrl(it) }
-                ?: document.selectFirst(".player_shadow img")?.attr("src")?.let { fixUrl(it) }
+            // Poster lives on the <video id="player"> poster attribute (no og:image on these pages)
+            val poster = document.selectFirst("#player")?.attr("poster")?.let { fixUrl(it) }
             val description = document.selectFirst("#desc")?.text()?.trim()
             val tags = document.select(".tags a").map { it.text().trim() }
             val uploadDateText = document.selectFirst("#desc")?.text()?.let { text ->
@@ -98,7 +99,7 @@ class PornXP : MainAPI() {
             val titleElement = this.selectFirst(".item_title a") ?: return null
             val link = titleElement.attr("href")
             val imgElement = this.selectFirst(".item_thumb img")
-            val poster = imgElement?.attr("src")?.let { fixUrl(it) }
+            val poster = imgElement?.let { img -> if (img.hasAttr("data-src")) img.attr("data-src") else img.attr("src") }?.let { fixUrl(it) }
 
             return newMovieSearchResponse(
                 titleElement.text().trim(),
@@ -120,30 +121,33 @@ class PornXP : MainAPI() {
     ): Boolean {
         try {
             val document = app.get(data).document
-            val videoElement = document.selectFirst("#player source")
-            
-            if (videoElement != null) {
-                val videoUrl = videoElement.attr("src")
-                if (videoUrl.isNotEmpty()) {
-                    val quality = videoElement.attr("title")?.lowercase() ?: "unknown"
-                    callback.invoke(
-                        newExtractorLink(
-                            source = name,
-                            name = name,
-                            url = fixUrl(videoUrl),
-                            type = ExtractorLinkType.VIDEO
-                        ) {
-                            this.referer = mainUrl
-                        }
-                    )
-                    return true
-                }
+            // Emit one ExtractorLink per <source> quality (FINDINGS documents 360p/720p/1080p)
+            val sources = document.select("#player source")
+            for (source in sources) {
+                val videoUrl = source.attr("src")
+                if (videoUrl.isEmpty()) continue
+                callback.invoke(
+                    newExtractorLink(
+                        source = name,
+                        name = name,
+                        url = fixUrl(videoUrl),
+                        type = ExtractorLinkType.VIDEO
+                    ) {
+                        this.quality = getQualityFromName(source.attr("title"))
+                        this.referer = mainUrl
+                    }
+                )
             }
+            return sources.isNotEmpty()
         } catch (e: Exception) {
-            // TODO: Implement proper fallback
             return false
         }
-        
-        return false
+    }
+}
+
+@CloudstreamPlugin
+class PornXPPlugin : BasePlugin() {
+    override fun load() {
+        registerMainAPI(PornXP())
     }
 }
