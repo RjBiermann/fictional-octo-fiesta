@@ -112,7 +112,11 @@ class PerverZija : MainAPI() {
 
         Log.d("kraptor_$name", "iframe = ${iframe}")
 
-         loadExtractor(iframe, "${mainUrl}/", subtitleCallback, callback)
+        // player subdomain varies per video (pervl1..pervl6+), so skip loadExtractor
+        // (which matches by mainUrl) and call the extractor directly; referer comes from the url
+        if (iframe.contains("xtremestream.xyz")) {
+            PerverZijaExtractor().getUrl(iframe, "${mainUrl}/", subtitleCallback, callback)
+        }
 
         return true
     }

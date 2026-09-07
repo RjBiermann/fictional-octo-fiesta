@@ -14,3 +14,15 @@
 
 ## Fix
 Register extractor for both subdomains (pervl1 + pervl2), keep referer on extractor mainUrl.
+
+## Re-probe for issue #99 fix (2026-09, builder)
+- Player subdomain VARIES per video: observed pervl1, pervl2, pervl3, pervl6 across search results. Registering fixed subdomains is insufficient.
+- xs1.php accepts referer from ANY *.xtremestream.xyz/player/index.php (pervl6 stream with pervl1 referer → 200); tube.perverzija.com or none → 403.
+- Fix applied: provider calls PerverZijaExtractor().getUrl(iframe, ...) directly in loadLinks (extractor derives link referer from the iframe URL), so any pervlN subdomain works. No loadExtractor mainUrl matching needed.
+
+## Gradle gate: BLOCKED from CI (environment)
+`./gradlew PerverZija:make` fails at root-project configuration: jitpack no longer serves
+`com.github.recloudstream:gradle:-SNAPSHOT` (gradle--32895aedb6-1.pom → 404; maven-metadata lists
+only `-32895aedb6-1` whose pom is also 404). Failure is repo-wide (root buildscript classpath),
+affects baseline master identically — not caused by this change. Needs a root build.gradle.kts
+version bump (out of scope for an ai-fix per repo rules).
