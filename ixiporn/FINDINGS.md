@@ -1,11 +1,11 @@
-# FINDINGS — ixiporn.org / ixiporn.live (2026-09 audit)
+# FINDINGS — ixiporn (fix probe, issue #120)
 
-## Verdict: OK
+Date: 2026-09-07 · UA: Firefox 130 desktop
 
-## Search
-- `https://ixiporn.org/?s=red` → 200; `div.video-block` ×31; `a.infos href` → `https://ixiporn.live/<slug>` (domain moved org→live; provider's fixUrl + WP redirect handles it; both domains serve).
-- Search page2 `/page/2?s=red` OK.
-
-## Video page / stream
-- Page has `div.video-player` with `meta[itemprop=contentURL] content="https://cdn2.ixifile.xyz/5/Red%20Dress%20-%20Reshmi.mp4"` — matches provider loadLinks selector.
-- Stream: **206 video/mp4** (Referer not required).
+- Video pages live on `ixiporn.live` (search/home on `ixiporn.org`, absolute hrefs to .live, `fixUrl`-safe).
+- Stream source: `<meta itemprop="contentUrl" content="...mp4">` inside `div.video-player` — casing is `contentUrl` (lowercase `rl`), confirmed on two pages:
+  - /mona-darling-bts-2026-moodx-hindi-porn-web-series-episode-4 → `https://cdn2.ixifile.xyz/5/Mona.Darling.BTS.S01E04.mp4`
+  - /big-boobs-desi-maid-2026-niksindian-uncut-porn-video → `https://cdn2.ixifile.xyz/5/Perfect%20Big%20Boobs%20Desi%20Maid%20gets%20Rough%20Pounding%20Niks.mp4`
+- Stream healthy: HTTP 206, `video/mp4`.
+- Search: `https://ixiporn.org/?s=indian` → 200, 30 × `div.video-block`.
+- Fix: `meta[itemprop=contentURL]` → `meta[itemprop=contentUrl]` (jsoup attr match is case-sensitive); version 16 → 17.
