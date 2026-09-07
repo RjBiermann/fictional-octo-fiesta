@@ -10,7 +10,7 @@ import com.lagradost.cloudstream3.utils.newExtractorLink
 
 open class PerverZijaExtractor : ExtractorApi() {
     override var name = "PerverZija"
-    // player iframe lives on pervl1 or pervl2 depending on video; referer must be the player domain
+    // player iframe subdomain varies per video (pervlN/pervmN/j2/perv...); referer must be the player domain
     override var mainUrl = "https://pervl2.xtremestream.xyz"
     override val requiresReferer = true
 
