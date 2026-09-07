@@ -85,7 +85,7 @@ subprojects {
         // break compatibility on older Android devices.
         implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.22.2") // JSON Parser
         implementation("org.mozilla:rhino:1.9.1") // JS engine (JavGuru, Javseen)
-        implementation("org.jspecify:jspecify:1.0.0") // annotations referenced by jsoup
+        implementation("org.jspecify:jspecify:1.0.1") // annotations referenced by jsoup
     }
 }
 
