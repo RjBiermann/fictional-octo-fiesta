@@ -110,7 +110,9 @@ for pat in [r'video_url\s*:\s*\'(http[^\']+)',
             r'<source[^>]*src=["\'](http[^"\']+)',
             r'"contentUrl"\s*:\s*"([^"\\]+)',
             r'property=["\']og:video(:secure_url)?["\']\s+content=["\']([^"\']+)',
-            r'(https?://[^"\'\s]+\.m3u8[^"\'\s]*)']:
+            r'(https?://[^"\'\s]+\.m3u8[^"\'\s]*)'] + \
+           [r'itemprop=["\']contentUrl["\']\s+content=["\']([^"\']+)',
+            r'content=["\']([^"\']+)["\']\s+itemprop=["\']contentUrl']:
     m = re.search(pat, html)
     if m: print(m.group(1)); break
 PY
