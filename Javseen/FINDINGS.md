@@ -25,7 +25,7 @@
 | `stream2.javhdz.today/embed.php?p=…` | Cloudflare "Just a moment" 403 for runner — left unhandled (same host family as savedvids; same player markup) |
 
 ## Old behavior
-- `JavseenPlugin.load()` registered only `FileMoonSx()` + `Filemoon()` — zero overlap with the live embed hosts.
+- `JavseenPlugin.load()` called `registerSharedExtractors(listOf(FileMoonSx(), Filemoon()))` — the full shared manifest plus `FileMoonSx()`/`Filemoon()` as first-extras. The fix drops that first list (filemoon hosts had zero overlap with live embeds) and registers the full shared manifest, which gains the new TurbovidVip/SavedVids/StreamBeastUpn/LULUSTREAMFIT extractors.
 
 ## Risks / blockers
 - `dooood.com` and `javhdz.today` Cloudflare-block the runner (403 "Just a moment") — untestable from CI, verify in-app.
