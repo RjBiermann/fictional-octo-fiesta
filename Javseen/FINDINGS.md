@@ -24,7 +24,7 @@
 ## Stream sources (base64 data-embed decoded, per live pages)
 | # | Host | Status 2026-09-14 (runner, datacenter IP) |
 |---|---|---|
-| 1 | `stream3.javhdz.today/embed.php?p=…` (also seen `stream2.` on other pages) | **Cloudflare "Just a moment" 403** for runner — was a no-op (`loadExtractor` no match). **Fix: added `Javhdz`/`Javhdz2` extractors** (SavedVids playlist pattern — #118 probe noted same player family). In-app verification required. |
+| 1 | `stream3.javhdz.today/embed.php?p=…` (also seen `stream2.` on other pages) | **Cloudflare "Just a moment" 403** for runner — was a no-op (`loadExtractor` no match). **Fix: added `Javhdz`/`Javhdz2` extractors** (SavedVids playlist pattern — NOT verified: javhdz has 403'd in every probe #97/#118/#126/#145; no decoded payload from this host was ever observed). Hypothesis only; unverified until in-app. |
 | 2 | `mycloudz.cc/v/…` | 200, packed eval player; unpack (VidHidePro path) yields `dramiyos-cdn.com/hls2/...master.m3u8` — m3u8 fetch 403 for runner (IP/geo-gated CDN), URL shape valid |
 | 3 | `cloudwish.xyz/e/…` | 404 on probe (per-token expiry); #118 confirmed packed eval player intact |
 | 4 | `streambeast.upn.one/#…` | 200 shell (Playerupnone/VidStack registered) |
@@ -40,7 +40,9 @@
 
 ## Risks / blockers
 - Cloudflare blocks javhdz.today and dooood/playmogo from datacenter IPs — the javhdz
-  playlist regex is pattern-derived (same family as SavedVids per #118 evidence) and could
-  not be executed from this runner; verify in-app.
+  playlist regex is copied from SavedVids purely on URL-shape resemblance (embed.php?p=);
+  there is NO observed javhdz payload in any probe (#118 recorded only a 403) to ground the
+  "same player family" assumption. Could not be executed from this runner; verify in-app
+  BEFORE trusting it.
 - CloudWish/StreamTape sample embed tokens 404 quickly; not a provider bug.
 - turbovid/mycloudz streams verified/shape-verified; runner got 403 only on mycloudz's CDN.
