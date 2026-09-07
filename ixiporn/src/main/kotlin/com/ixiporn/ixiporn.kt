@@ -78,7 +78,7 @@ class ixiporn : MainAPI() {
         val title       = document.selectFirst("meta[property=og:title]")?.attr("content")?.trim().toString()
         val poster      = fixUrlNull(document.selectFirst("[property='og:image']")?.attr("content"))
         val description = document.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
-        val tags        = document.select("#video-tags a").map { it.text().trim() }
+        val tags        = document.select("#video-tags a[href*='/tag/']").map { it.text().trim() }
         val duration    = document.selectFirst("meta[itemprop=duration]")?.attr("content")?.let { isoDurationToMinutes(it) }
         val year        = document.selectFirst("meta[itemprop=uploadDate]")?.attr("content")?.take(4)?.toIntOrNull()
         val related     = document.select(".related-videos div.video-block").mapNotNull { it.toSearchResult() }
