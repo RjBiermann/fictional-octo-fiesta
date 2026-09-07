@@ -143,6 +143,8 @@ class WatchPorn(context: Context) : MainAPI() {
             else -> null
         }
 
+        val plot = document.selectFirst("p.single__content-description")?.text()?.trim()
+
         val recommendations = document.select("div.related-videos div.thumb.item").mapNotNull {
             it.toMainPageResult()
         }
@@ -155,6 +157,7 @@ class WatchPorn(context: Context) : MainAPI() {
                 "Cookie" to cookies
             )
             this.tags = tags
+            this.plot = plot
             this.duration = totalMinutes
             this.recommendations = recommendations
             addActors(actors)
