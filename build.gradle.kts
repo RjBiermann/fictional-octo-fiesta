@@ -42,7 +42,9 @@ subprojects {
 
     cloudstream {
         // when running through github workflow, GITHUB_REPOSITORY should contain current repository name
-        setRepo(System.getenv("GITHUB_REPOSITORY") ?: "user/repo")
+        // builds are published to Codeberg, not GitHub — pass a codeberg URL so plugins.json
+        // gets codeberg raw links (upstream setRepo defaults bare slugs to github)
+        setRepo("https://codeberg.org/${System.getenv("GITHUB_REPOSITORY") ?: "RjBiermann/fictional-octo-fiesta"}")
     }
 
     android {
