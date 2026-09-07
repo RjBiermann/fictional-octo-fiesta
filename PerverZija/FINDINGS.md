@@ -16,9 +16,15 @@
 Register extractor for both subdomains (pervl1 + pervl2), keep referer on extractor mainUrl.
 
 ## Re-probe for issue #99 fix (2026-09, builder)
-- Player subdomain VARIES per video: observed pervl1, pervl2, pervl3, pervl6 across search results. Registering fixed subdomains is insufficient.
+- Player subdomain VARIES per video: observed pervl1, pervl2, pervl3, pervl6, pervm1, j2 across search results. Registering fixed subdomains is insufficient.
 - xs1.php accepts referer from ANY *.xtremestream.xyz/player/index.php (pervl6 stream with pervl1 referer → 200); tube.perverzija.com or none → 403.
-- Fix applied: provider calls PerverZijaExtractor().getUrl(iframe, ...) directly in loadLinks (extractor derives link referer from the iframe URL), so any pervlN subdomain works. No loadExtractor mainUrl matching needed.
+- Fix applied: provider calls PerverZijaExtractor().getUrl(iframe, ...) directly in loadLinks (extractor derives link referer from the iframe URL), so any pervlN/pervmN/jN subdomain works. No loadExtractor mainUrl matching needed.
+
+## Reviewer round-1 verification (independent, 2026-09)
+- Reproduced: search ×1 (200, `div.col-md-3`), 4+ varied video pages; iframes on pervm1, pervl2, pervl1, j2 subdomains (subdomain set wider than pervlN — confirms fixed-subdomain registration is insufficient).
+- Exact code-emitted referer form `https://<sub>.xtremestream.xyz/` (url.substringBefore("/player/")+"/") → xs1.php`q=720` returns 200 `application/vnd.apple.mpegurl` body; no referer → 403. Fix validated.
+- Non-video pages (e.g. /2257-exemption-statement/, discord iframe) skipped by the `contains("xtremestream.xyz")` guard — correct.
+- verify.sh transcript not produced: canned verify.sh cannot pass here (it sends no Referer on the stream GET, so xs1.php 403s). Manual curl evidence substituted.
 
 ## Gradle gate: BLOCKED from CI (environment)
 `./gradlew PerverZija:make` fails at root-project configuration: jitpack no longer serves
