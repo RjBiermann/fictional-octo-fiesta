@@ -108,13 +108,15 @@ import re, sys
 html = open(sys.argv[1], encoding='utf-8', errors='replace').read()
 for pat in [r'video_url\s*:\s*\'(http[^\']+)',
             r'<source[^>]*src=["\'](http[^"\']+)',
+            r'<source[^>]*src=["\'](//[^"\']+)',
             r'"contentUrl"\s*:\s*"([^"\\]+)',
             r'property=["\']og:video(:secure_url)?["\']\s+content=["\']([^"\']+)',
             r'(https?://[^"\'\s]+\.m3u8[^"\'\s]*)'] + \
            [r'itemprop=["\']contentUrl["\']\s+content=["\']([^"\']+)',
             r'content=["\']([^"\']+)["\']\s+itemprop=["\']contentUrl']:
     m = re.search(pat, html)
-    if m: print(m.group(1)); break
+    if m:
+        print('https:' + m.group(1) if m.group(1).startswith('//') else m.group(1)); break
 PY
 }
 
