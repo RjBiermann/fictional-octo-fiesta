@@ -86,7 +86,6 @@ fun BasePlugin.registerSharedExtractors(first: List<ExtractorApi> = emptyList())
         LULUDLC(),
         LULU0(),
         LULUX08(),
-        javclan(),
         Stevenfamilyedge(),
         KPFilemoonSx(),
         KPFilemoonIn(),

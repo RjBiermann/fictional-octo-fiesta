@@ -1,18 +1,41 @@
-# FINDINGS — jav.guru (2026-09 audit)
+# FINDINGS — jav.guru (2026-09 audit, updated by fix for #98)
 
-## Verdict: BROKEN (stream extraction)
+## Verdict: FIXED (stream extraction)
 
 ## Search — OK
-- `https://jav.guru/page/1/?s=red` → 200; `div.inside-article, article` ×78.
+- `https://jav.guru/page/1/?s=jun` → 200; `div.inside-article` ×24.
 
-## Video page — OK
-- `/1047142/` etc.: `h1.tit1`, `div.large-screenshot img`, `"iframe_url":"base64"` ×2-7.
+## Video pages — OK
+- `/1038289/`, `/1038335/`, `/1038373/` (search), `/864198/`, `/864199/` (category/jav-uncensored):
+  `h1.tit1`, `div.large-screenshot img` (verify.sh: matches 1 on probed pages), `"iframe_url":"base64"` ×2-7.
 
-## Stream — FAILS
+## Stream chain (multi-hop)
 1. base64 iframe → `https://jav.guru/searcho/?xd=...`
-2. searcho page: `cid/base/rtype/keys` present → reconstructed `?xr=` URL 302s → `https://javclan.com/e/<hash>` (3 videos probed, all same).
-3. javclan player page is **fully packed** `eval(function(p,a,c,k,e,d)...)` jwplayer config. Raw script contains NO literal m3u8 URL and NO `file:"..."` / `sources` script — both the provider's `hlsRegex` and the shared `Javclan`/`javclan` extractors (regex `file:"(.*?)"` on script containing `sources`) match nothing → no links emitted.
-4. Stream itself is alive: after unpack, `links.hls2` = `https://jZdDKEFw9oEu0.premilkyway.com/hls2/01/14832/6gftk4793mdn_,l,n,h,.urlset/master.m3u8?t=...&...` → **200 application/vnd.apple.mpegurl** (verified manually). Same `/stream/...master.m3u8` path also exists (same-origin 403 without token, hls2 works).
+2. searcho page: `window.cfg = {cid, base, rtype, keys:['data-*']}`; token = reversed concat of
+   the named data attrs on `div#<cid>.stream-box`. NOTE: attrs are empty unless the request
+   carries the cookies from the video page (curl with `-b` cookie jar) — without them no token.
+3. `?xr=<reversed token>` → 302 → `https://javclan.com/e/<hash>`.
+4. javclan player page is fully packed `eval(p,a,c,k,e,d)`. After unpack, `links = {
+   "hls2":"https://<sub>.premilkyway.com/hls2/.../master.m3u8?t=...&e=129600&...",
+   "hls3":"https://<sub>.workflowmanagement.sbs/.../master.txt",
+   "hls4":"/stream/.../master.m3u8" }`, player uses `links.hls4||links.hls3||links.hls2`.
+5. Live checks (2026-09): hls2 → 200 application/vnd.apple.mpegurl; hls4 (prefixed
+   https://javclan.com) → 200 mpegurl; hls3 → 403. Extractor emits hls2 + hls4 in that order.
 
-## Fix direction
-Unpack (JsUnpacker) the javclan payload, read `links.hls2/hls3/hls4`, emit m3u8. Watch out: shared contains TWO `javclan`-named classes (both find nothing on packed pages).
+## Fix (this change)
+- shared `Javclan` extractor: JsUnpack the packed script, parse `links.hls2/hls4`, emit M3U8.
+- Duplicate lowercase `javclan` class removed (consolidated into `Javclan`).
+
+## Headers / referer
+- searcho + javclan requests need cookies from the video page and a Referer; extractor sends
+  `referer = <javclan embed url>` and `Origin: https://javclan.com` on the m3u8 link.
+
+## Pagination
+- `/page/N/?s=` for search (page 2 returns different items).
+
+## Risks / blockers
+- No Cloudflare/IP blocks observed.
+- hls3 mirror 403s — intentionally not emitted.
+- verify.sh's single-hop stream check cannot express this 4-hop chain (no literal m3u8 on any
+  single page); stream verification done by replicating the extractor logic end-to-end over 5
+  varied videos (see PR evidence, 5/5 PASS).

@@ -685,17 +685,31 @@ class Turboplayers : StreamTape() { override var mainUrl = "https://turboplayers
 
 
 
-class Javclan : ExtractorApi() {
+// javclan.com packs its jwplayer config in eval(p,a,c,k,e,d); unpack and read links={hls2,hls3,hls4}.
+// hls2 (premilkyway, absolute) and hls4 (same-origin relative) serve m3u8; hls3 403s.
+open class Javclan : ExtractorApi() {
     override var name = "Javclan"
     override var mainUrl = "https://javclan.com"
     override val requiresReferer = true
     override suspend fun getUrl(url: String, referer: String?): List<ExtractorLink>? {
         val res = app.get(url, referer = referer)
-        val script = res.document.selectFirst("script:containsData(sources)")?.data().toString()
-        Regex("file:\"(.*?)\"").find(script)?.groupValues?.get(1)?.let { link ->
-            return listOf(newExtractorLink(name, name, link, INFER_TYPE) { this.referer = referer ?: "" })
+        val packed = res.document.select("script").firstOrNull {
+            it.data().contains("eval(function(p,a,c,k,e,d)")
+        }?.data() ?: return null
+        val unpacked = JsUnpacker(packed).unpack() ?: return null
+        val links = Regex("\\\"(hls[234])\\\":\\\"([^\\\"]*)\\\"").findAll(unpacked)
+            .map { it.groupValues[1] to it.groupValues[2] }
+            .toMap()
+        val streamUrls = listOfNotNull(
+            links["hls2"]?.takeIf { it.startsWith("http") },
+            links["hls4"]?.takeIf { it.startsWith("/") }?.let { mainUrl.trimEnd('/') + it },
+        ).ifEmpty { return null }
+        return streamUrls.map { link ->
+            newExtractorLink(name, name, link, ExtractorLinkType.M3U8) {
+                this.referer = url
+                this.headers = mapOf("Origin" to mainUrl, "Accept" to "*/*")
+            }
         }
-        return null
     }
 }
 
@@ -1171,43 +1185,6 @@ class Dooood : DoodStream() {
 
 
 
-
-class javclan : ExtractorApi() {
-    override var name = "Javclan"
-    override var mainUrl = "https://javclan.com"
-    override val requiresReferer = true
-
-    override suspend fun getUrl(url: String, referer: String?): List<ExtractorLink>? {
-        val responsecode=app.get(url,referer=referer)
-        if (responsecode.code==200) {
-            val serverRes = responsecode.document
-            val script = serverRes.selectFirst("script:containsData(sources)")?.data().toString()
-            val headers = mapOf(
-                "Accept" to "*/*",
-                "Connection" to "keep-alive",
-                "Sec-Fetch-Dest" to "empty",
-                "Sec-Fetch-Mode" to "cors",
-                "Sec-Fetch-Site" to "cross-site",
-                "Origin" to url,
-            )
-            Regex("file:\"(.*?)\"").find(script)?.groupValues?.get(1)?.let { link ->
-                return listOf(
-                    newExtractorLink(
-                        source = this.name,
-                        name = this.name,
-                        url = link,
-                        INFER_TYPE
-                    ) {
-                        this.referer = referer ?: ""
-                        this.quality = getQualityFromName("")
-                        this.headers = headers
-                    }
-                )
-            }
-        }
-        return null
-    }
-}
 
 open class StreamTAPE : ExtractorApi() {
     override val name = "Streamtape"

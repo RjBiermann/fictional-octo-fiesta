@@ -5,6 +5,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
 buildscript {
     repositories {
+        maven("$rootDir/vendor") // vendored recloudstream gradle plugin (jitpack -SNAPSHOT paths 404 today)
         google()
         mavenCentral()
         // Shitpack repo which contains our tools and dependencies
