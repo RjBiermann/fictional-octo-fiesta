@@ -42,17 +42,17 @@ class PornXP : MainAPI() {
         return newSearchResponseList(videos, hasNext = true)
     }
 
+    // 2026-08 markup: <a href> is an ancestor wrapping .item_title (title inside); lazy posters in data-src
     private fun Element.toSearchResult(): SearchResponse? {
         try {
-            val titleElement = this.selectFirst(".item_title a") ?: return null
-            val link = titleElement.attr("href")
+            val link = this.selectFirst("a[href*=videos]") ?: return null
+            val title = this.selectFirst(".item_title")?.text()?.trim() ?: return null
             val imgElement = this.selectFirst(".item_thumb img")
-            // Lazy-loaded posters put the real URL in data-src, src is a spinner placeholder
-            val poster = imgElement?.let { img -> if (img.hasAttr("data-src")) img.attr("data-src") else img.attr("src") }?.let { fixUrl(it) }
+            val poster = imgElement?.let { img -> if (img.hasAttr("data-src") && img.attr("data-src").isNotEmpty()) img.attr("data-src") else img.attr("src") }?.let { fixUrl(it) }
 
             return newMovieSearchResponse(
-                titleElement.text().trim(),
-                fixUrl(link),
+                title,
+                fixUrl(link.attr("href")),
                 TvType.NSFW
             ) {
                 this.posterUrl = poster
@@ -80,7 +80,7 @@ class PornXP : MainAPI() {
             }
             
             // Get recommendations from related videos
-            val recommendations = document.select(".item_cont").mapNotNull { it.toRecommendationResult() }
+            val recommendations = document.select(".item_cont").mapNotNull { it.toSearchResult() }
 
             return newMovieLoadResponse(title, url, TvType.NSFW, url) {
                 this.posterUrl = poster
@@ -94,24 +94,6 @@ class PornXP : MainAPI() {
         }
     }
 
-    private fun Element.toRecommendationResult(): SearchResponse? {
-        try {
-            val titleElement = this.selectFirst(".item_title a") ?: return null
-            val link = titleElement.attr("href")
-            val imgElement = this.selectFirst(".item_thumb img")
-            val poster = imgElement?.let { img -> if (img.hasAttr("data-src")) img.attr("data-src") else img.attr("src") }?.let { fixUrl(it) }
-
-            return newMovieSearchResponse(
-                titleElement.text().trim(),
-                fixUrl(link),
-                TvType.NSFW
-            ) {
-                this.posterUrl = poster
-            }
-        } catch (e: Exception) {
-            return null
-        }
-    }
 
     override suspend fun loadLinks(
         data: String,
