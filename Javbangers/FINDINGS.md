@@ -84,6 +84,14 @@ Listings are path-paginated: `/latest-updates/{N}/`, `/most-popular/{N}/`, `/top
 `/categories/{slug}/{N}/` (verified `/latest-updates/2/` and `/most-popular/2/` return
 different items, 0 overlap with page 1; `/latest-updates/4444/` → 404).
 
+## Main page category slugs (verified 200 + 24 cards)
+`milf`, `uncensored`, `creampie`, `cosplay`, `hentai`, `teen` — all live.
+`categories/asian/` → **404** (no such slug on site) → main page uses `chinese` instead
+(live, 24 cards). Full slug list: amateur, anal, babe, blowjob, bondage, bukkake, busty,
+censored, chinese, cosplay, creampie, cumshot, deep-throat, fetish, hairy, handjob,
+hardcore, hentai, lesbian, massage, masturbate, milf, orgy, outdoor, squirt, teen, thai,
+threesome, toys, uncensored, uniform.
+
 ## Risks / blockers
 - No Cloudflare/bot wall observed (plain HTTP 200, only PHPSESSID cookie).
 - Search pages beyond page 1 unreachable — provider returns page 1 only for search.

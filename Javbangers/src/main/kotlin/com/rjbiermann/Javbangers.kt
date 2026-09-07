@@ -25,7 +25,7 @@ class Javbangers : MainAPI() {
         "$mainUrl/categories/creampie/" to "Creampie",
         "$mainUrl/categories/cosplay/" to "Cosplay",
         "$mainUrl/categories/hentai/" to "Hentai",
-        "$mainUrl/categories/asian/" to "Asian",
+        "$mainUrl/categories/chinese/" to "Chinese", // categories/asian/ 404s (verified); chinese is a live slug (24 cards)
         "$mainUrl/categories/teen/" to "Teen",
     )
 
@@ -109,7 +109,7 @@ class Javbangers : MainAPI() {
                     type = ExtractorLinkType.VIDEO
                 ) {
                     this.referer = mainUrl
-                    this.quality = getQualityFromName(label)
+                    this.quality = getQualityFromName(label ?: "")
                 }
             )
             pushed = true
