@@ -10,6 +10,7 @@ import com.lagradost.cloudstream3.utils.newExtractorLink
 
 open class PerverZijaExtractor : ExtractorApi() {
     override var name = "PerverZija"
+    // player iframe subdomain varies per video (pervlN/pervmN/j2/perv...); referer must be the player domain
     override var mainUrl = "https://pervl2.xtremestream.xyz"
     override val requiresReferer = true
 
@@ -42,7 +43,7 @@ open class PerverZijaExtractor : ExtractorApi() {
                 url = changeUrl,
                 type = ExtractorLinkType.M3U8
             ) {
-                this.referer = "${mainUrl}/"
+                this.referer = url.substringBefore("/player/") + "/"
                 this.quality = videoQuality
             })
         }
