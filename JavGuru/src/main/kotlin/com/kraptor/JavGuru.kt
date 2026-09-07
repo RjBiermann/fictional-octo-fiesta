@@ -276,7 +276,7 @@ class JavGuru : MainAPI() {
                 val cleanBase = cfgBase.trimEnd('/')
                 val finalUrl = "$cleanBase/?${cfgRtype}r=$reversed"
 
-                val currentEmbedUrl = if (finalUrl.contains("javlesbians.com")) {
+                var currentEmbedUrl = if (finalUrl.contains("javlesbians.com")) {
                     Log.d("kraptor_$name", "[$sourceName] Processing javlesbians: $finalUrl")
                     followRedirects(finalUrl, sourceName)
                 } else {
@@ -293,9 +293,12 @@ class JavGuru : MainAPI() {
 
                 Log.d("kraptor_$name", "[$sourceName] Final Embed: $currentEmbedUrl")
 
+                // searcho can serve its loader page (200, no Location) instead of the
+                // 302 to the real embed (javclan/emturbovid/javlesbians/...); re-resolve
+                // before giving up. loadExtractor can never match jav.guru/searcho/.
                 if (currentEmbedUrl.contains("/searcho/")) {
-                    loadExtractor(currentEmbedUrl, data, subtitleCallback, callback)
-                    continue
+                    currentEmbedUrl = followRedirects(currentEmbedUrl, sourceName)
+                    if (currentEmbedUrl.contains("/searcho/")) continue
                 }
 
                 val playerRes = app.get(currentEmbedUrl, mainHeaders)
