@@ -71,12 +71,19 @@ class Neporn : MainAPI() {
         val duration = doc.selectFirst("div.info span:contains(Duration:) em")?.text()?.trim()
         val tags = doc.select("div.info-content a[href*=/tags/]").map { it.text().trim() }
         val categories = doc.select("div.info-content a[href*=/categories/]").map { it.text().trim() }
+        val plot = doc.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
+        val actors = doc.select("div.info-content a[href*=/models/]").map { it.text().trim() }.filter { it.isNotBlank() }
+        // schema.org ld+json uploadDate, e.g. "2026-03-18T17:35:00Z"
+        val year = Regex(""""uploadDate"\s*:\s*"(\d{4})""""").find(doc.select("script[type=application/ld+json]").html())?.groupValues?.get(1)?.toIntOrNull()
         val recommendations = doc.select("div.related-videos div.item, div.list-videos div.item")
             .mapNotNull { it.toResult() }.distinctBy { it.url }
 
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster
             this.tags = (categories + tags).filter { it.isNotBlank() }.distinct()
+            this.plot = plot
+            this.actors = actors.map { ActorData(Actor(it)) }
+            this.year = year
             addDuration(duration?.trim())
             this.recommendations = recommendations
         }
