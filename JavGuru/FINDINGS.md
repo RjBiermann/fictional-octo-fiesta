@@ -1,6 +1,28 @@
-# FINDINGS — jav.guru (2026-09 audit, updated by fix for #98)
+# FINDINGS — jav.guru (2026-09 audit, updated by fix for #98; re-probed 2026-09-07 for #117)
 
-## Verdict: FIXED (stream extraction)
+## Verdict: FIXED (stream extraction) — #117 re-probe: chain intact, 5/5 videos yield ≥1 m3u8
+
+## Re-probe 2026-09-07 (issue #117)
+- Post pages now carry **6** base64 iframe_url entries (params xd/ud/td/cd/hd/od), all
+  decoding to `https://jav.guru/searcho/?<p>=…&bg=<poster>`.
+- Each searcho page: plain `window.cfg` JS (cid/base/rtype/keys) + `div#<cid>` with the
+  data-attr token (filled WITHOUT cookies too — the #98 cookie note no longer applies);
+  `?xr=<reversed token>` → 302 → per-server embed:
+  - xd → `https://javclan.com/e/<hash>` (packed jwplayer; Javclan extractor)
+  - ud → 301 `emturbovid.com/t/<id>` → `turbovidhls.com` page with literal
+    `urlPlay = 'https://cdn2.turboviplay.com/.../<id>.m3u8'` → 200 application/vnd.apple.mpegurl
+    (NiceHttp follows the 301; caught by loadLinks' literal-m3u8 regex)
+  - td → `javlesbians.com` (Javlesbians/Voe extractor; followRedirects path)
+  - cd → `vidara.to/e/...`, od → `maxstream.org/embed-*.html` — no extractor in repo, skipped
+  - hd → `vide0.net/e/...` (extractor exists; currently 403s without webview cookies)
+- The `/searcho/` fallback branch in loadLinks called loadExtractor on a URL no extractor
+  matches — replaced with followRedirects re-resolution (the only code change).
+- verify.sh's single-hop stream check still cannot express this multi-hop chain; stream
+  verification done by replicating the extractor logic end-to-end (chain.py) over 5 varied
+  videos — 5/5 yielded ≥1 playable m3u8 (javclan hls2/hls4 and/or turboviplay, both
+  confirmed 200 application/vnd.apple.mpegurl).
+- Old hosts: javclan.com still serves all posts (via searcho redirect); javggvideo.xyz no
+  longer appears on post pages (extractor kept, harmless).
 
 ## Search — OK
 - `https://jav.guru/page/1/?s=jun` → 200; `div.inside-article` ×24.
