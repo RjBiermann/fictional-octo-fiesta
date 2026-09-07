@@ -128,7 +128,7 @@ class xHamster : MainAPI() {
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster
             this.plot = description
-            this.duration = getInitialsJson(document.html())?.videoModel?.duration
+            this.duration = parseDurationSeconds(document.html())
             this.tags = tags
             this.recommendations = recommendations
             addActors(actors)
@@ -218,13 +218,9 @@ class xHamster : MainAPI() {
     }
 
     data class InitialsJson(
-        val videoModel: VideoModel? = null,
         val xplayerSettings: XPlayerSettings? = null,
         val downloadDropdownComponent: DownloadDropdown? = null
     )
-
-    // Current video's own metadata from window.initials (duration is in seconds).
-    data class VideoModel(val duration: Int? = null)
 
     data class DownloadDropdown(val sources: DownloadSources? = null)
     data class DownloadSources(val mp4: Map<String, String>? = null)
@@ -253,6 +249,20 @@ class xHamster : MainAPI() {
     )
 
     data class SubtitleUrls(val vtt: String? = null)
+
+    // Duration: LD-JSON VideoObject ("duration":"PT12M34S") first, then plain
+    // seconds in player metadata ("duration":754). Bot-tier shells carry neither.
+    private fun parseDurationSeconds(html: String): Int? {
+        Regex("\"duration\"\\s*:\\s*\"PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?\"")
+            .find(html)?.let { m ->
+                val (h, min, s) = m.destructured
+                val sec = (h.toIntOrNull() ?: 0) * 3600 + (min.toIntOrNull() ?: 0) * 60 + (s.toIntOrNull() ?: 0)
+                if (sec > 0) return sec
+            }
+        Regex("\"duration\"\\s*:\\s*(\\d{1,5})[,:}\\]]")
+            .find(html)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it > 0 }?.let { return it }
+        return null
+    }
 
     private fun getInitialsJson(html: String): InitialsJson? {
         return try {
