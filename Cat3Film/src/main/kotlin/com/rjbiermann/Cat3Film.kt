@@ -89,8 +89,6 @@ class Cat3Film : MainAPI() {
             ?.let { (it.groupValues[1].toIntOrNull() ?: 0) * 60 + (it.groupValues[2].toIntOrNull() ?: 0) }
             ?.takeIf { it > 0 }
 
-        val isSeries = url.contains("watch") || document.selectFirst(".badges")?.text()?.contains("Series") == true
-
         val recommendations = document.select("section#related a.card").mapNotNull {
             try { it.toSearchResult() } catch (e: Exception) { null }
         }
