@@ -10,6 +10,6 @@ cloudstream {
     iconUrl = "https://www.google.com/s2/favicons?domain=jav.guru&sz=%size%"
 }
 android {
-    // Shared extractors (JavGuru/Javseen/Mangoporn/XXXParodyHD) compiled into this plugin
+    // Shared extractors (JavGuru/Javseen) compiled into this plugin
     sourceSets.getByName("main").kotlin.srcDir(rootDir.resolve("shared/src/main/kotlin"))
 }
