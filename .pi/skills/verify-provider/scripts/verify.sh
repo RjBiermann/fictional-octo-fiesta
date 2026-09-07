@@ -88,7 +88,8 @@ first_stream_url() {  # html_file → first absolute stream URL, fallbacks in FI
   python3 - "$1" <<'PY'
 import re, sys
 html = open(sys.argv[1], encoding='utf-8', errors='replace').read()
-for pat in [r'<source[^>]*src=["\'](http[^"\']+)',
+for pat in [r'video_url\s*:\s*\'(http[^\']+)',
+            r'<source[^>]*src=["\'](http[^"\']+)',
             r'"contentUrl"\s*:\s*"([^"\\]+)',
             r'property=["\']og:video(:secure_url)?["\']\s+content=["\']([^"\']+)',
             r'(https?://[^"\'\s]+\.m3u8[^"\'\s]*)']:
