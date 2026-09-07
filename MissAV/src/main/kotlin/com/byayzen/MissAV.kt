@@ -7,6 +7,8 @@ import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 class MissAV : MainAPI() {
     override var mainUrl = "https://missav.live"
@@ -123,11 +125,60 @@ class MissAV : MainAPI() {
             it.text().trim() }
         val actresses = document.select("div.text-secondary:contains(actress) a").map {
             Actor(it.text().trim()) }
+        val plot = document.selectFirst("head meta[property='og:description']")?.attr("content")
+        val duration = document.selectFirst("head meta[property='og:video:duration']")?.attr("content")?.toIntOrNull()
+        val dvdId = url.trimEnd('/').substringAfterLast('/')
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster
             this.year = year
             this.tags = tags
+            this.plot = plot
+            this.duration = duration
+            this.recommendations = getRecommendations(dvdId)
             addActors(actresses)
+        }
+    }
+
+    // ponytail: recombee public token is embedded in the site's own app.js bundle;
+    // if the site rotates it, breakage is caught by verify probe.
+    private val recombeeToken = "Ikkg568nlM51RHvldlPvc2GzZPE9R4XGzaH9Qj4zK9npbbbTly1gj9K4mgRn0QlV"
+
+    private fun hmacSign(path: String): String {
+        val mac = Mac.getInstance("HmacSHA1")
+        mac.init(SecretKeySpec(recombeeToken.toByteArray(), "HmacSHA1"))
+        return mac.doFinal(path.toByteArray()).joinToString("") { "%02x".format(it) }
+    }
+
+    private suspend fun getRecommendations(dvdId: String): List<SearchResponse> {
+        return try {
+            val timestamp = System.currentTimeMillis() / 1000
+            val path = "/missav-default/recomms/items/$dvdId/items/"
+            val sign = hmacSign("$path?scenario=desktop-watch-next-side&frontend_timestamp=$timestamp")
+            val body = mapOf(
+                "targetUserId" to "cs-${(1000000..9999999).random()}",
+                "count" to 12,
+                "scenario" to "desktop-watch-next-side",
+                "returnProperties" to true,
+                "includedProperties" to listOf("title", "duration", "dm"),
+                "cascadeCreate" to true,
+            )
+            val res = app.post(
+                "https://client-rapi-missav.recombee.com$path?scenario=desktop-watch-next-side&frontend_timestamp=$timestamp&frontend_sign=$sign",
+                json = body
+            )
+            val root = com.fasterxml.jackson.databind.ObjectMapper().readTree(res.text)
+            root.get("recomms")?.mapNotNull { item ->
+                val id = item.get("id")?.textValue() ?: return@mapNotNull null
+                val values = item.get("values")
+                val recTitle = values?.get("title")?.textValue()?.takeIf { it.isNotBlank() } ?: id
+                val dm = values?.get("dm")?.asInt() ?: 0
+                val recUrl = if (dm > 0) "$mainUrl/dm$dm/en/$id" else "$mainUrl/en/$id"
+                newMovieSearchResponse(recTitle, recUrl, TvType.NSFW) {
+                    this.posterUrl = "https://fourhoi.com/$id/cover-t.jpg"
+                }
+            } ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
         }
     }
 
