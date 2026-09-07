@@ -17,7 +17,7 @@ class AllClassicPorn : MainAPI() {
     private val tag = "AllClassicPorn"
 
     override val mainPage = mainPageOf(
-        mainUrl to "New Videos",
+        "$mainUrl/page/" to "New Videos",  // pagination appends {page}/ → /page/N/ (FINDINGS)
         "$mainUrl/40s/" to "40s",
         "$mainUrl/50s/" to "50s",
         "$mainUrl/60s/" to "60s",
@@ -41,14 +41,18 @@ class AllClassicPorn : MainAPI() {
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
-        val href = fixUrlNull(this.attr("href")) ?: return null
-        val title = this.selectFirst("div.th-description")?.text()?.trim()
-            ?: this.selectFirst("img")?.attr("alt")?.trim()
-            ?: return null
-        val posterUrl = fixUrlNull(this.selectFirst("img")?.attr("src"))
+        return try {
+            val href = fixUrlNull(this.attr("href")) ?: return null
+            val title = this.selectFirst("div.th-description")?.text()?.trim()
+                ?: this.selectFirst("img")?.attr("alt")?.trim()
+                ?: return null
+            val posterUrl = fixUrlNull(this.selectFirst("img")?.attr("src"))
 
-        return newMovieSearchResponse(title, href, TvType.NSFW) {
-            this.posterUrl = posterUrl
+            newMovieSearchResponse(title, href, TvType.NSFW) {
+                this.posterUrl = posterUrl
+            }
+        } catch (e: Exception) {
+            null  // one broken card must not kill the list
         }
     }
 
@@ -68,11 +72,10 @@ class AllClassicPorn : MainAPI() {
         val poster = fixUrlNull(document.selectFirst("meta[property=\"og:image\"]")?.attr("content"))
         val description = document.selectFirst("meta[property=\"og:description\"]")?.attr("content")
             ?.replace(Regex("<[^>]+>"), "")?.trim()
-        val tags = document.select("div.item:has(span.title-item:contains(Categories)) a, " +
-                "div.item:has(span.title-item:contains(Tags)) a").map { it.text().trim() }.filter { it.isNotEmpty() }
+        // Note: KVS video pages expose only global nav category links, no per-video tags section (verified) — no tags.
         val duration = document.selectFirst("meta[itemprop=\"duration\"]")?.attr("content")
             ?.let { Regex("PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?").find(it) }
-            ?.let { m -> (m.groupValues[1].toIntOrNull() ?: 0) * 3600 + (m.groupValues[2].toIntOrNull() ?: 0) * 60 + (m.groupValues[3].toIntOrNull() ?: 0) }
+            ?.let { m -> (m.groupValues[1].toIntOrNull() ?: 0) * 60 + (m.groupValues[2].toIntOrNull() ?: 0) } // minutes, repo convention
             ?.takeIf { it > 0 }
         val recommendations = document
             .select("#list_videos_related_videos_items a.th.item")
@@ -81,7 +84,6 @@ class AllClassicPorn : MainAPI() {
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster
             this.plot = description
-            this.tags = tags
             this.duration = duration
             this.recommendations = recommendations
         }
