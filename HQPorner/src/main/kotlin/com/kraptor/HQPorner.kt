@@ -88,7 +88,8 @@ class HQPorner : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get("${request.data}/$page", referer = "$mainUrl/").document
-        val home     = document.select("div.row section.box.feature:has(span.icon)").mapNotNull { it.toMainPageResult() }
+        // ponytail: mobile UA serves no hover span.icon in cards; a.image is stable in both layouts
+        val home     = document.select("div.row section.box.feature:has(a.image)").mapNotNull { it.toMainPageResult() }
 
         return newHomePageResponse(HomePageList(request.name, home, true))
     }
@@ -109,7 +110,7 @@ class HQPorner : MainAPI() {
     override suspend fun search(query: String, page: Int): SearchResponseList {
         val document = app.get("${mainUrl}/?q=${query}&p=$page", referer = "${mainUrl}/").document
 
-        val aramaCevap = document.select("div.row section.box.feature:has(span.icon)").mapNotNull { it.toMainPageResult() }
+        val aramaCevap = document.select("div.row section.box.feature:has(a.image)").mapNotNull { it.toMainPageResult() }
         return newSearchResponseList(aramaCevap, hasNext = true)
     }
 
