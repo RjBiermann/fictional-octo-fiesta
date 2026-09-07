@@ -116,6 +116,7 @@ class Porntrex : MainAPI() {
         val description = document.selectFirst("div.videodesc em.des-link")?.text()?.trim()
         val tags        = document.select("div.js-categories a.js-cat").map { it.text() } +
                 document.select("div.item:has(span.title-item:contains(Tags)) div.items-holder a").map { it.text() }
+        val actors      = document.select("div.block-details div.item:has(span.title-item:contains(Models:)) div.items-holder a").map { it.ownText().trim() }.filter { it.isNotEmpty() }
         val duration    = document.selectFirst("i.fa-clock-o")?.parent()?.text()?.trim()
             ?.let { Regex("(\\d+)").find(it)?.value }?.toIntOrNull()
         val recommendations = document.select("div.video-list div.video-item").mapNotNull { it.toRecommendationResult() }
@@ -124,6 +125,7 @@ class Porntrex : MainAPI() {
             this.posterUrl       = poster
             this.plot            = description
             this.tags            = tags
+            this.actors          = actors.map { ActorData(Actor(it)) }
             this.duration        = duration
             this.recommendations = recommendations
         }
