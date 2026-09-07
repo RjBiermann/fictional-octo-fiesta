@@ -1,0 +1,81 @@
+# FINDINGS — neporn.com
+
+## Engine fingerprint
+KVS (Kernel Video Sharing), "metal" theme — evidenced by `list_videos_most_recent_videos_items` block ids, `kt_player`, `flashvars` JS object with `license_code`/`lrc`/`video_url`, and `get_file/...` stream URLs. Identical layout to watchporn.to (existing WatchPorn provider).
+
+## Search
+- `https://neporn.com/search/{query}/` → 200, 24 video links. WORKS.
+- `https://neporn.com/search/{query}/2/` → 404. Does NOT work.
+- Pagination of search results uses KVS async pattern (same engine as WatchPorn): `/search/?q={query}&mode=async&function=get_block&block_id=list_videos_videos_list_search_result&from_videos={page}` — same block_id naming family as homepage (`list_videos_most_recent_videos`). Verified: `from_videos=1` returns the identical 24 results as `/search/wet/` page 1; `from_videos=2` returns 24 different videos.
+- Multi-word queries must be URL-encoded: raw spaces break the request (curl 000). `%20` works in both the path form (`/search/big%20ass/` → 200/24) and the async query form (`q=big%20ass` → 200/24).
+
+```
+$ curl -s -A "Mozilla/5.0" https://neporn.com/search/wet/ | grep -oE '/video/[0-9]+/[a-z0-9-]+/' | head -3
+/video/33918/sexy-flawless-horny-chick-vibrates-her-creamy-pussy/
+/video/33917/hot-blue-eyed-babe-rubbing-her-clit-into-sensation/
+/video/33922/pawg-latina-masturbating-with-her-big-dildo/
+```
+
+## Video pages
+Item cards (home, listings, related): `div.item` → `a[href*=/video/]` with `title=` attr, `strong.title`, `img.thumb` (`src` / `data-webp`), `div.duration`.
+
+Video page `https://neporn.com/video/{id}/{slug}/` probed (5): 41865 (home), 515 (home), 42779 (home), 33918 (search), plus related links on each page.
+- Title: `<h1>Video: {title}`
+- Poster: `meta[property=og:image]` → `https://cdn.neporn.com/contents/videos_screenshots/41000/41865/preview.jpg`
+- Categories: `div.info-content a[href*=/categories/]`
+- Tags: `div.info-content a[href*=/tags/]`
+- Duration: `div.info span:contains(Duration:) em` → "30:49"
+
+## Related videos
+`#list_videos_related_videos_items` present on all probed video pages (same `div.item` cards). Not "no related" — it exists.
+
+## Stream sources (per video page)
+Single source per page, KVS `flashvars.video_url` — plain text in the raw HTML (no JS obfuscation, no WebView needed):
+`video_url: 'https://neporn.com/get_file/5/{hash}/41000/41865/41865_720p.mp4/?v-acctoken=...'`
+No `video_alt_url` on any probed page (single 720p quality; postfix `_720p.mp4`).
+
+Verification (follows 302 → data00N.neporn.com/remote_control.php):
+```
+$ curl -s -o /dev/null -A "Mozilla/5.0" -L -r 0-1000 "$URL" -w "%{http_code} %{content_type}\n"
+206 video/mp4
+```
+
+## Headers / referer
+Plain `Mozilla/5.0` UA sufficed for get_file and redirect target; no referer required (302→206 without `-e`).
+
+## Pagination
+Home listings: `/{path}/{page}/` suffix (e.g. `/latest-updates/2/` → 200, different items 43319/43323/43324; `/categories/amateur/2/` → 200, 24 items).
+- Search next-page marker: both the page-1 path form and async responses embed a `div.pagination#list_videos_videos_list_search_result_pagination` block. Non-final pages render a forward link `<li class="page last">` (e.g. pages 2–11 of `wet`); the final page renders `<li class="page page-current last">` (verified `from_videos=12` → 13 items, no forward link). Out-of-range `from_videos` (50) → empty response, no pagination block.
+
+## Risks / blockers
+None. No Cloudflare, no age wall; runner IPs work.
+
+## Verify.sh transcript
+Ran `.pi/skills/verify-provider/scripts/verify.sh` with 6 varied video URLs (search + home listings), `--search-selector 'div.list-videos div.item'`, `--stream-selector 'div.player'`, `--related-selector 'div.list-videos div.item'`:
+
+```
+── check 1: search page
+GET https://neporn.com/search/wet/ → 200; 'div.list-videos div.item' matches: 24
+── check 2: video pages + streams (6 URLs)
+GET https://neporn.com/video/43371/presley-maddox3/ → 200; 'div.player' matches: 3
+GET ... → 'div.list-videos div.item' matches: 22
+GET stream → 206 video/mp4
+GET https://neporn.com/video/43347/angela-white-blowbang/ → 200; 'div.player' matches: 3
+GET ... → 'div.list-videos div.item' matches: 22
+GET stream → 206 video/mp4
+GET https://neporn.com/video/43349/alexis-texas-jayden-jaymes-drowning-in-big-booty/ → 200; 'div.player' matches: 3
+GET ... → 'div.list-videos div.item' matches: 22
+GET stream → 206 video/mp4
+GET https://neporn.com/video/33918/sexy-flawless-horny-chick-vibrates-her-creamy-pussy/ → 200; 'div.player' matches: 3
+GET ... → 'div.list-videos div.item' matches: 22
+GET stream → 206 video/mp4
+GET https://neporn.com/video/34087/big-oily-ass-brunette-riding-her-fake-cock/ → 200; 'div.player' matches: 3
+GET ... → 'div.list-videos div.item' matches: 22
+GET stream → 206 video/mp4
+GET https://neporn.com/video/34117/horny-babe-tease-seductive-self-love/ → 200; 'div.player' matches: 3
+GET ... → 'div.list-videos div.item' matches: 22
+GET stream → 206 video/mp4
+RESULT: PASS
+```
+
+Related-videos check: every probed video page contains a `list_videos_related_videos_items` block wrapped in `div.list-videos` (22 `div.item` cards each), so the `div.list-videos div.item` related selector is justified.
