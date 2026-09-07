@@ -14,7 +14,10 @@ buildscript {
     dependencies {
         classpath("com.android.tools.build:gradle:8.7.3")
         // Cloudstream gradle plugin which makes everything work and builds plugins
-        classpath("com.github.recloudstream:gradle:-SNAPSHOT")
+        // ponytail: vendored the cloudstream gradle plugin jar — jitpack's -SNAPSHOT
+        // metadata no longer resolves under Gradle 8.12 (file lives in a non-standard
+        // version dir); replace this file when upstream publishes a fix.
+        classpath(files("gradlelibs/cs-plugin-facade.jar"))
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.10")
     }
 }
