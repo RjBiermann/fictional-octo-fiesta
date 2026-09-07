@@ -65,8 +65,7 @@ This repo runs an automated pipeline (spec: issue #1, vocabulary: `CONTEXT.md`):
 - **Triage agent** runs on new unlabeled issues (`.github/workflows/ai-triage.yml`): probes the
   reported site, classifies, comments findings, suggests a trigger label — and applies
   non-trigger labels only (`needs-info`, `needs-triage`).
-- **Reviewer** (pi, Nemotron 3 Ultra Free primary, Ling 3.0 Flash Fin Free fallback —
-  independent of the Builder's GLM) runs on those PRs
+- **Reviewer** (pi, DeepSeek Go primary — independent of the Builder's GLM) runs on those PRs
   (`.github/workflows/ai-review.yml`), posts findings, and may push fix commits — bounded to
   2 rounds (`ai-review-round-N` labels).
 - **Humans merge, and humans apply trigger labels.** No agent ever merges, approves, closes a
