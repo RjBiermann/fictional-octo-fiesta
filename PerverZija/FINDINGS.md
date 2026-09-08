@@ -1,5 +1,13 @@
 # FINDINGS — tube.perverzija.com (2026-09 audit)
 
+## Re-probe for issue #161 fix (2026-02, builder)
+- `span.runtime` → 0 matches on the live page (selector dead; issue #161 confirmed).
+- JSON-LD `<script type="application/ld+json">` VideoObject exposes `"duration":"PT34M59S"` on the same page.
+- Recommendations: `div.srelacionados` gone from the page — no related-videos section exposed anymore; not a data gap.
+- Fix: parse ISO-8601 duration from JSON-LD (PT#H#M#S → total minutes) instead of the dead span.
+- verify.sh: search 200 ×69 `div.col-md-3`; video page 200, `iframe[src*=xtremestream]` ×1; canned script still cannot do the two-hop stream (sends no Referer, xs1.php 403s) — manual chain evidence: player page 200 → `video_id` → `xs1.php?data=<id>` with player referer → 200 body starting `#EXTM3U` (854x480 variant listed).
+- Gradle gate (2026-02): `./gradlew PerverZija:make` BUILD SUCCESSFUL (jitpack issue below no longer reproduces in CI).
+
 ## Verdict: BROKEN (extractor domain mismatch)
 
 ## Search — OK
