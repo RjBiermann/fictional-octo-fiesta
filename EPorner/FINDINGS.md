@@ -33,9 +33,9 @@
 - og:description fallback from #174 misses pages with no "Starring:" clause, e.g.
   https://www.eporner.com/video-11PHqoqftMv/ :
   `og:description content="Watch Stepson Tries To Get His Stepmom ... , Danni Jones. Duration: 33:31, ..."`
-- Ground truth on every probed page: JSON-LD `script[type=application/ld+json]` VideoObject
+- Ground truth on probed pages: JSON-LD `script[type=application/ld+json]` VideoObject
   carries `"actor": [{"@type": "Person", "name": "Danni Jones", "url": ...}]`
-  (verified on video-1DpWrH3bhm3 and video-11PHqoqftMv).
+  (verified on video-1DpWrH3bhm3; absent on video-11PHqoqftMv — the negative case).
 - Fix: parse JSON-LD actor array (Jackson readTree) as first choice after `span.valor`;
   og:description "Starring:" parse kept as last fallback.
 - Further probing (issue #181): 1 of 6 pages (video-11PHqoqftMv) has NO JSON-LD actor and no
@@ -45,3 +45,7 @@
   matches; LoadResponse fields actors/tags/plot/duration/posters all assigned; stream via
   embed→hash→xhr reproduced, CDN range check 206 video/mp4 (fr + ca CDN nodes; one nl node
   timed out from runner — node flakiness, player falls over to other mirrors).
+- Review (independent, round 1): xhr flow reproduced on video-11PHqoqftMv (the negative
+  case) — 4 `labelShort` mp4 srcs + hls `srcFallback`; CDN range check HTTP 206 video/mp4;
+  master.m3u8 HTTP 200 application/vnd.apple.mpegurl; parser traced for Starring /
+  comma-variant / multi-actor / no-actor shapes → correct actors or empty list.
