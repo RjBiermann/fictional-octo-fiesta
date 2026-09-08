@@ -171,7 +171,7 @@ jobs:
             comments_after=$(gh api "repos/${{ github.repository }}/issues/$pr/comments" -q 'length')
             if (( comments_after <= ${{ steps.compose.outputs.comments_before }} )); then
               echo "reviewer exited 0 but posted no findings — round NOT spent"
-              gh pr comment "$pr" --body "Reviewer run exited 0 without posting findings — treated as failed (no Round spent). Re-fire from the Actions tab. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              gh pr comment "$pr" --body "Reviewer run exited 0 without posting findings — treated as failed (no Round spent). Re-fire with \`/review\` on this PR. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
               exit 1
             fi
             # a completed pass is the only thing that spends a Round

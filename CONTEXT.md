@@ -32,6 +32,14 @@ _Avoid_: cancellation, aborted run
 A maintainer-applied issue label (`ai-fix`, `ai-new-site`, or `ai-remove-site`) that starts a Builder run. Issues without one are never processed.
 _Avoid_: auto label, bot label
 
+**Command**:
+A maintainer comment on an issue or PR (`/retry`, `/review`, `/triage`) that the pipeline dispatches. A Command can only re-fire work a Trigger label already created — it never creates work, never spends a Round itself. Issues and PRs alike accept Commands; trigger labels live on issues only.
+_Avoid_: slash command, bot command, retrigger
+
+**Re-fire**:
+Re-running an Agent run for an existing issue or PR, via a Command. The new run Supersedes the previous one. A Builder Re-fire clears the PR's Rounds (a fresh build gets a fresh review budget); a Reviewer Re-fire still respects the Round cap.
+_Avoid_: retrigger, retry (retry is the command name, not the concept)
+
 **Removal**:
 A Builder run executing an `ai-remove-site` issue: probe the site for evidence only, delete the provider directory, open a removal PR. The label is the decision — the agent never gates on the probe's outcome; deletion is git-reversible.
 _Avoid_: deletion task, teardown (the deliverable is a removal PR, not a direct deletion)

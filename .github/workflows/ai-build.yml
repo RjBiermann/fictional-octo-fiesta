@@ -4,6 +4,8 @@ name: AI build (issue → agent → PR)
 # ai-remove-site; the Builder agent (pi, OpenCode Go: GLM → DeepSeek) probes
 # the live site, builds, fixes, or removes the provider, verifies against the
 # site, and opens a PR. Humans merge. See spec issue #1.
+# Re-fire: comment /retry on the issue (or its PR) — re-applies the trigger
+# label, superseding any run in flight.
 
 on:
   issues:

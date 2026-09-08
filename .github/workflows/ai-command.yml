@@ -1,0 +1,130 @@
+name: AI command (comment dispatcher)
+
+# Maintainer commands in issue/PR comments (collaborators only; strangers and
+# bots are ignored):
+#
+#   /retry          — re-fire the Builder/Task run. On an issue: remove + re-apply
+#                     its trigger label (ai-fix / ai-new-site / ai-remove-site /
+#                     ready-for-agent), superseding any run in flight. On a PR:
+#                     resolve the issue the PR fixes (Fixes #N), re-trigger it,
+#                     and clear the PR's ai-review-round-* labels — a fresh build
+#                     gets a fresh review budget.
+#   /review [pr]    — re-fire the Reviewer on a PR (on a PR, no argument = this
+#                     PR). The 2-round cap still applies.
+#   /triage         — re-run triage on this issue (issues only).
+#
+# Commands can only RE-FIRE work a trigger label already created — never create
+# work. Trigger labels stay maintainer-applied. Comment bodies are untrusted
+# data: only the leading command token is parsed and arguments are stripped to
+# digits before any use.
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+  pull-requests: write
+  actions: write # gh workflow run (ai-review, ai-triage)
+
+concurrency:
+  group: ai-command-${{ github.event.comment.id }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    if: >-
+      github.event.comment.user.type != 'Bot' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      NUM: ${{ github.event.issue.number }}
+      CMD_ID: ${{ github.event.comment.id }}
+      IS_PR: ${{ github.event.issue.pull_request != null }}
+    steps:
+      - name: Parse command
+        id: parse
+        env:
+          BODY: ${{ github.event.comment.body }} # untrusted — env indirection, never interpolation
+        run: |
+          first=$(printf '%s' "$BODY" | head -n1 | sed 's/^[[:space:]`*]*//')
+          cmd=""; arg=""
+          case "$first" in
+            /retry*)  cmd=retry;  arg=${first#/retry} ;;
+            /review*) cmd=review; arg=${first#/review} ;;
+            /triage*) cmd=triage ;;
+            *) ;;
+          esac
+          if [[ -z "$cmd" ]]; then
+            echo "cmd=none" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # arguments are PR numbers only — strip everything else (injection-safe)
+          arg=$(printf '%s' "$arg" | tr -cd '0-9')
+          { echo "cmd=$cmd"; echo "arg=$arg"; } >> "$GITHUB_OUTPUT"
+
+      - name: Ack
+        if: steps.parse.outputs.cmd != 'none'
+        run: gh api "repos/$GITHUB_REPOSITORY/issues/comments/$CMD_ID/reactions" -f content=eyes > /dev/null
+
+      - name: /review — re-fire Reviewer
+        if: steps.parse.outputs.cmd == 'review'
+        run: |
+          if [[ "$IS_PR" == "true" ]]; then
+            pr="$NUM"
+          else
+            pr="${{ steps.parse.outputs.arg }}"
+            if [[ -z "$pr" ]]; then
+              gh issue comment "$NUM" --body "/review needs a PR number on an issue: \`/review 150\`"
+              exit 1
+            fi
+          fi
+          gh workflow run ai-review.yml -f pr="$pr"
+          echo "Reviewer re-fired on PR #$pr (round cap still applies)"
+
+      - name: /retry — re-fire Builder/Task
+        if: steps.parse.outputs.cmd == 'retry'
+        run: |
+          set -euo pipefail
+          if [[ "$IS_PR" == "true" ]]; then
+            body=$(gh pr view "$NUM" --json body -q .body)
+            n=$(printf '%s' "$body" | grep -oE '#[0-9]+' | head -n1 | tr -d '#')
+            if [[ -z "$n" ]]; then
+              gh issue comment "$NUM" --body "/retry: PR body has no \`Fixes #N\` — cannot find the source issue"
+              exit 1
+            fi
+          else
+            n="$NUM"
+          fi
+          labels=$(gh issue view "$n" --json labels -q '[.labels[].name] | join(" ")')
+          trigger=""
+          for l in ai-fix ai-new-site ai-remove-site ready-for-agent; do
+            if [[ " $labels " == *" $l "* ]]; then trigger="$l"; break; fi
+          done
+          if [[ -z "$trigger" ]]; then
+            gh issue comment "$NUM" --body "/retry: issue #$n carries no trigger label or \`ready-for-agent\` — nothing to re-fire"
+            exit 1
+          fi
+          # fresh build ⇒ fresh review budget: clear round labels on the PR this rebuilds
+          pr=$(gh pr list --head "ai/issue-$n" --state open --json number -q '.[0].number' || true)
+          if [[ -n "$pr" ]]; then
+            for l in ai-review-round-1 ai-review-round-2; do
+              gh pr edit "$pr" --remove-label "$l" > /dev/null 2>&1 || true
+            done
+          fi
+          # remove + re-apply: the `labeled` event re-fires the Builder/Task;
+          # its per-issue concurrency group supersedes any run in flight
+          gh issue edit "$n" --remove-label "$trigger" > /dev/null
+          gh issue edit "$n" --add-label "$trigger" > /dev/null
+          echo "issue #$n re-triggered via '$trigger' (previous run superseded)"
+
+      - name: /triage — re-run triage
+        if: steps.parse.outputs.cmd == 'triage'
+        run: |
+          if [[ "$IS_PR" == "true" ]]; then
+            gh issue comment "$NUM" --body "/triage is issues-only — a PR is already work in progress"
+            exit 1
+          fi
+          gh workflow run ai-triage.yml -f issue="$NUM"
+          echo "triage re-fired on issue #$NUM"

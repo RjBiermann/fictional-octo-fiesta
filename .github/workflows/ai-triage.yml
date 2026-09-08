@@ -4,11 +4,18 @@ name: AI triage (new issue → probe + classify)
 # classifies it (broken provider / new site / insufficient info / duplicate),
 # posts findings, and applies NON-TRIGGER labels only. Trigger labels
 # (ai-fix, ai-new-site) stay maintainer-applied. Skips issues that already
-# have labels (bot-created ones arrive pre-labeled).
+# have labels (bot-created ones arrive pre-labeled). Manual re-fire: comment
+# /triage on the issue (ai-command.yml), or Actions tab with an issue number.
 
 on:
   issues:
     types: [opened, reopened] # reopened enables re-firing triage on an existing issue
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue number to triage
+        required: true
+        type: string
 
 permissions:
   contents: read # checkout needs this (as do the probes reading provider code)
@@ -21,10 +28,14 @@ concurrency:
 jobs:
   triage:
     # bot-created issues arrive pre-labeled; public repo: collaborator issues only —
-    # strangers can't burn triage runs, their issues wait for a maintainer label
-    if: github.event.issue.labels.length == 0 && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
+    # strangers can't burn triage runs, their issues wait for a maintainer label.
+    # workflow_dispatch (maintainer /triage command) skips the unlabeled check —
+    # a re-triage must see the labels triage itself applied.
+    if: github.event_name == 'workflow_dispatch' || (github.event.issue.labels.length == 0 && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association))
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      ISSUE: ${{ inputs.issue || github.event.issue.number }}
     steps:
       - uses: actions/checkout@v4
 
@@ -34,7 +45,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          n="${{ github.event.issue.number }}"
+          n="$ISSUE"
           gh issue view "$n" --json number,title,body -q '"# Issue #\(.number) — \(.title)\n\n\(.body)"' > /tmp/issue.md
           echo "COMMENTS_BEFORE=$(gh issue view "$n" --json comments -q '.comments|length')" >> "$GITHUB_ENV"
           {
@@ -100,7 +111,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          n="${{ github.event.issue.number }}"
+          n="$ISSUE"
           after=$(gh issue view "$n" --json comments -q '.comments|length' || echo 0)
           if [[ "${{ steps.run1.outcome }}" == "success" || "${{ steps.run2.outcome }}" == "success" ]]; then
             if [[ "${after:-0}" -le "${COMMENTS_BEFORE:-0}" ]]; then
@@ -111,6 +122,6 @@ jobs:
             echo "triage completed"; exit 0
           fi
           echo "both model attempts failed (GLM + DeepSeek)"
-          gh issue comment "${{ github.event.issue.number }}" \
+          gh issue comment "$ISSUE" \
             --body "Triage agent failed on both Go models (GLM → DeepSeek) — needs manual triage. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           exit 1
