@@ -4,16 +4,24 @@ inputs:
   issue:
     description: 'Issue number the run resolves'
     required: true
+  token:
+    description: 'Token for push/PR. Must carry the workflow scope when the changes touch .github/workflows/ (GITHUB_TOKEN cannot be granted it).'
+    required: false
 runs:
   using: composite
   steps:
     - shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
+      env:
+        GH_TOKEN: ${{ inputs.token || github.token }}
       run: |
         n="${{ inputs.issue }}"
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        # checkout persists github.token credentials; swap in the delivery token
+        # so pushes touching .github/workflows/ are accepted (needs workflow scope)
+        git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
         git add -A
         if git diff --cached --quiet; then
           echo "no tree changes — comment-only run, nothing to deliver"

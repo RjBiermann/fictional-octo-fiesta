@@ -20,7 +20,6 @@ on:
 
 permissions:
   contents: write
-  workflows: write
   issues: write
   pull-requests: write
 
@@ -113,6 +112,7 @@ jobs:
         uses: ./.github/actions/deliver-pr
         with:
           issue: ${{ env.ISSUE }}
+          token: ${{ secrets.AGENT_PAT || github.token }}
 
       - name: Gate
         if: always()
