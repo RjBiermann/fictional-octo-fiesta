@@ -129,11 +129,13 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         run: |
           # shared free pools rate-limit transiently (429) — bounded retry, 3 attempts
+          # prompt goes over stdin, not argv: it embeds the diff and a >128KB
+          # single argument hits E2BIG ("Argument list too long")
           for i in 1 2 3; do
             pi --no-session --mode text \
               --model go/deepseek-v4-flash --thinking low \
               -e .pi/ci/extensions/rtk.ts \
-              -p "$(cat /tmp/review-prompt.md)" && exit 0
+              -p < /tmp/review-prompt.md && exit 0
             [[ $i -lt 3 ]] && sleep $((i * 60))
           done
           exit 1
@@ -150,7 +152,7 @@ jobs:
             pi --no-session --mode text \
               --model go/glm-5.3-flash --thinking low \
               -e .pi/ci/extensions/rtk.ts \
-              -p "$(cat /tmp/review-prompt.md)" && exit 0
+              -p < /tmp/review-prompt.md && exit 0
             [[ $i -lt 3 ]] && sleep $((i * 60))
           done
           exit 1
