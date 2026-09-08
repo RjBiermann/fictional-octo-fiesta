@@ -45,9 +45,10 @@ Provider change (version 4 → 5): `load()` and `loadLinks()` fall back to
 
 ## Related videos
 - `https://www.porntrex.com/related_videos_html/2913997/` → 200,
-  `a.player-related-videos-item.kt-api-related-…` items (23 KB). Existing shell-page
-  selector (`div.video-list div.video-item`) returns nothing now; recommendations may be
-  empty until/unless re-wired to this endpoint (not done — out of scope for this fix).
+  `a.player-related-videos-item.kt-api-related-item` items (23 KB). Existing shell-page
+  selector (`div.video-list div.video-item`) returns nothing now; wired in v5: `load()`
+  falls back to this endpoint when the shell yields no items (title from `span.title`,
+  poster from `div.thumb` style `url(...)`).
 
 ## Risks / blockers
 - None blocking. If guest shells ever regress to requiring login, /embed/ is the
