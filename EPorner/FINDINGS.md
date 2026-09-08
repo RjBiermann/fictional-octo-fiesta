@@ -27,3 +27,21 @@
   model/title text with no Starring clause. Parser must no-op gracefully.
 - Fix: parse actors from `og:description` text between "Starring:" and ". Duration",
   comma-split; keep `span.valor a` as a no-cost first choice.
+
+## Update (fix, issue #181): actors on non-"Starring:" pages
+
+- og:description fallback from #174 misses pages with no "Starring:" clause, e.g.
+  https://www.eporner.com/video-11PHqoqftMv/ :
+  `og:description content="Watch Stepson Tries To Get His Stepmom ... , Danni Jones. Duration: 33:31, ..."`
+- Ground truth on every probed page: JSON-LD `script[type=application/ld+json]` VideoObject
+  carries `"actor": [{"@type": "Person", "name": "Danni Jones", "url": ...}]`
+  (verified on video-1DpWrH3bhm3 and video-11PHqoqftMv).
+- Fix: parse JSON-LD actor array (Jackson readTree) as first choice after `span.valor`;
+  og:description "Starring:" parse kept as last fallback.
+- Further probing (issue #181): 1 of 6 pages (video-11PHqoqftMv) has NO JSON-LD actor and no
+  "Starring:" clause — actor only as "Watch <title> , Danni Jones. Duration". Final fallback:
+  last `\s,\s*(.+?)\. Duration` match, comma-split. Sanity-tested all 4 description shapes.
+- Verification (runner): search 200 + 28 results; 6 video pages → related selector 204–229
+  matches; LoadResponse fields actors/tags/plot/duration/posters all assigned; stream via
+  embed→hash→xhr reproduced, CDN range check 206 video/mp4 (fr + ca CDN nodes; one nl node
+  timed out from runner — node flakiness, player falls over to other mirrors).

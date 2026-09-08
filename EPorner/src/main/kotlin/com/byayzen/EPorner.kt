@@ -1,5 +1,7 @@
 package com.byayzen
 
+import com.fasterxml.jackson.databind.node.ArrayNode
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
@@ -77,14 +79,23 @@ class EPorner : MainAPI() {
             document.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
         val recommendations =
             document.select("div#relateddiv div.mb").mapNotNull { it.toRecommendationResult() }
-        // Cast markup was removed from video pages; "Starring:" now only appears in og:description.
+        // Cast markup was removed from video pages; actor lives in JSON-LD VideoObject
+        // ("actor": [{"@type":"Person","name":...}]) and, sometimes, in og:description.
         val actors = document.select("span.valor a").map { Actor(it.text()) }
             .ifEmpty {
-                description?.substringAfter("Starring:", "")?.substringBefore(". Duration")
+                jsonLdActors(document).ifEmpty {
+                // ponytail: og:description heuristics — "Starring: X" clause, else the
+                // "Watch <title> , <Actor>. Duration" comma variant; revisit if the
+                // description format changes again.
+                val names = description?.substringAfter("Starring:", "")?.takeIf { it.isNotEmpty() }
+                    ?: """\s,\s*(.+?)\. Duration""".toRegex().findAll(description ?: "")
+                        .lastOrNull()?.groupValues?.get(1)
+                    names?.substringBefore(". Duration")
                     ?.split(",")
                     ?.mapNotNull { it.trim().takeIf { s -> s.isNotEmpty() } }
                     ?.map { Actor(it) }
                     ?: emptyList()
+                }
             }
 
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
@@ -96,6 +107,21 @@ class EPorner : MainAPI() {
             this.recommendations = recommendations
             addActors(actors)
         }
+    }
+
+    private fun jsonLdActors(document: org.jsoup.nodes.Document): List<Actor> {
+        for (script in document.select("script[type=application/ld+json]")) {
+            try {
+                val obj = ObjectMapper().readTree(script.data())
+                val actor = obj.get("actor")
+                if (actor is ArrayNode && actor.size() > 0) {
+                    return actor.mapNotNull { it.get("name")?.asText()?.takeIf(String::isNotEmpty) }
+                        .map(::Actor)
+                }
+            } catch (_: Exception) {
+            }
+        }
+        return emptyList()
     }
 
     private fun Element.toRecommendationResult(): SearchResponse? {
