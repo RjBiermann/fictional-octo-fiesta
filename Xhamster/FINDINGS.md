@@ -1,89 +1,62 @@
-# FINDINGS — xHamster (re-probe 2026-09-07 for issue #119)
+# FINDINGS — xhamster.com (re-probe 2026-02-06, fix for issue #160)
 
 ## Engine fingerprint
-Custom xHamster desktop engine. Server-rendered HTML **is** served from this runner
-(issue #119's 41 KB "JS shell" did not reproduce here; likely bot-tier/geo dependent and
-transient). Markup confirmed:
-`curl -sL -A "$UA" -b video_titles_translation=0 "https://xhamster.com/newest/?geo=us"` →
-200, 395 KB, 46 × `thumb-list__item video-thumb video-thumb--type-video`.
+Custom xHamster platform. `window.initials = {...}` JSON blob on every page (desktop and mobile).
 
 ## Search
-`GET /search/big?page=2&x_platform_switch=desktop&geo=us` → 200, 355 KB,
-46 × `thumb-list__item video-thumb video-thumb--type-video`, 46 `/videos/<slug>` hrefs.
-Existing selector `div.thumb-list div.thumb-list__item` still matches. Unchanged.
+`https://xhamster.com/search/{query}?geo=us` → 200, `div.thumb-list div.thumb-list__item` items
+with `a.video-thumb-info__name` links. Transcript: 200 after 301→follow, ≥8 `/videos/xh*` hrefs.
 
 ## Video pages
-Probed 2 pages (probe scope: stream extraction is the broken part):
-- `https://xhamster.com/videos/xhJGXaA?geo=us` → 200, 296 KB. `with-player-container`,
-  `controls-info`, `ab-info`, `video-tags-list`, `related-item` (23) all present —
-  load() selectors unchanged and valid.
+Desktop page (`Chrome/130` UA): 200, full metadata (title, tags, duration, related) — but
+`window.initials.xplayerSettings` is **null** for guests and `downloadDropdownComponent`
+absent. Reproduced (video id 22347803, `/videos/xh0flWg?geo=us`):
+
+    xplayerSettings: None ; downloadDropdownComponent: absent ; .m3u8 count in page: 0
+
+**Key finding:** the same URL fetched with a **mobile UA**
+(`Mozilla/5.0 (Linux; Android 13; Pixel 7) ... Mobile Safari/537.36`) serves a populated
+`window.initials.xplayerSettings` to guests:
+
+    xs keys: [debug, duration, fallbackImageClass, hasDSA, hlsConfig, inpEnabled,
+              platform, preload, sources, userSettings, videoId, videoInfo]
+    sources.standard.h264 qualities: auto, 144p, 240p, 480p, 720p
 
 ## Stream sources (per video page)
-- `window.initials` JSON `xplayerSettings` is now **null** for anonymous guests (and
-  likely for bot-tier requests): no HLS, no `standard` player sources, no
-  `link[rel=preload][as=fetch]` m3u8 (0 matches). This is the actual drift —
-  the provider's only stream paths (preload m3u8 + xplayerSettings) both dead.
-- **New working source**: `window.initials.downloadDropdownComponent.sources.mp4` —
-  map quality → signed xhcdn MP4:
-  `"144p":"https://video7.xhcdn.com/key=...,end=...,limit=3/data=.../030/041/584/144p.h264.mp4"`
-  (144p/240p/480p/720p on this video).
-  Verification: `curl -sIL` → 302 → 200, `content-type: video/mp4`,
-  `content-length: 27197828`.
+`xplayerSettings.sources.standard.{h264,av1}` — each entry has `quality`, `url`, `fallback`,
+both **hex-obfuscated**. Decode algorithm (recovered from
+`https://static-nss.xhcdn.com/xh-mobile/js/xplayer-mobile.js`):
+
+    bytes = unhex(s); algId = bytes[0]; seed = b[1]|b[2]<<8|b[3]<<16|b[4]<<24
+    keystream per algId (1..7, xorshift/LCG family — see provider code), url = XOR(bytes[5:], ks)
+
+Verified decodes (guest, mobile page, video 22347803):
+
+    h264 auto   fallback → master HLS m3u8 (avc1.4d4015, up to 1080p):
+                https://video-h.xhcdn.com/key=.../media=hls4/multi=.../022/347/803/_TPL_.h264.mp4.m3u8
+                → curl 200, body starts "#EXTM3U", no referer needed
+    h264 480p   url → https://video-h.xhcdn.com/key=...,limit=3/.../480p.h264.mp4  (direct MP4)
+    h264 720p   url → .../720p.h264.mp4
+    av1  auto   url  → m3u8 master on video-nss-h.xhcdn.com (200, #EXTM3U) — AV1 codec
+
+    curl transcript (m3u8):
+      $ curl -A "Android Mobile UA" ".../h264.mp4.m3u8" → 200 "#EXTM3U #EXT-X-STREAM-INF ... avc1"
+    Direct MP4s returned 403 from this runner (keyed to the requesting IP / limit=3);
+    the master m3u8 serves 200 reliably → prefer m3u8, keep MP4s as additional links.
 
 ## Headers / referer
-No special referer required for the mp4 fetch (verified with plain curl, no referer).
+Mobile UA required on the video page to get populated `xplayerSettings` (desktop = null for
+guests). The decoded CDN m3u8 needs no Referer.
 
 ## Pagination
-`?page=N` on search and listings, unchanged (search page 2 verified above).
+`?page=N` on search/home (unchanged, works).
+
+## Related videos
+`div[data-role='related-item']` present on desktop page (11 matches) — unchanged.
 
 ## Risks / blockers
-- Site serves different shells per bot-tier/IP (issue #119 evidence vs this re-probe).
-  Selectors were not actually broken; stream extraction was. The MP4-fallback fix covers
-  both tiers: xplayerSettings when present, downloadSources otherwise.
-- Signed URLs expire (`end=...`) — expected, per-request extraction.
-
-## Re-probe 2026-09-07 (issue #146 — "JS shell, 0 matchable cards")
-
-- Re-ran the exact monitor probe from the issue:
-  `curl -sL -A "$Chrome126UA" -b video_titles_translation=0 "https://xhamster.com/search/teacher?page=1&x_platform_switch=desktop&geo=us"`
-  → 200, 362 KB, **46 × `thumb-list__item video-thumb video-thumb--type-video`**, 46 `/videos/…` hrefs.
-  Same for `/newest/?geo=us` (380 KB, 46 thumbs), `/categories/milf?geo=us` (46 thumbs).
-  `age-verification-wall` CSS is referenced once, but the full grid HTML is served regardless.
-- The **JS shell did not reproduce** from this runner (same as re-probe for #119). Issue #146's
-  monitor evidence appears to be bot-tier/IP-gated serving (residential vs datacenter), not a
-  universal change. When the shell IS served, `window.initials` carries only layout/bot keys and
-  there is nothing for jsoup to parse — server-side JS is unrenderable, in-app (real IP) still
-  works; no code fix can cover that tier.
-- Video serving splits into two tiers, both already handled by loadLinks():
-  1. **HLS tier** (some videos, e.g. `/videos/xhzjyQV`, `/videos/8805273`, `/videos/xh3IGQl`,
-     `/videos/7089868`): `link rel=preload as=fetch` m3u8 present + `xplayerSettings` populated.
-     verify.sh check: preload m3u8 → 206 `application/vnd.apple.mpegurl` (all 4 verified).
-  2. **Guest tier** (majority, e.g. `/videos/xhGA7MU`, all newest-listing videos probed):
-     0 m3u8, `"xplayerSettings":null`, but `downloadDropdownComponent.sources.mp4` carries
-     signed xhcdn MP4s per quality
-     (`"144p":"https://video7.xhcdn.com/key=…,end=…,limit=3/…/144p.h264.mp4"`).
-     Manual check: mp4 → 302 → 206 `video/mp4`. Covered by the existing MP4 fallback.
-- Search selector, load() selectors (`with-player-container`, `video-tags-list`, `related-item`
-  ×11), related videos, `?page=N` pagination all verified unchanged.
-- verify.sh run (2026-09-07): search ✓ (57 matches), 4/5 video-stream checks ✓ (m3u8 tier),
-  1 FAIL only because the guest tier's mp4 URL lives inside escaped JSON that verify.sh's
-  extraction regex cannot see — that URL was verified manually (206 video/mp4, above) and the
-  provider's loadLinks() extracts it. LoadResponse completeness ✓.
-- Conclusion: selectors valid, both stream tiers work; no provider-code change warranted beyond
-  version bump. If in-app still shows the shell, that resolver's IP is bot-tier — an app-side
-  reality no jsoup selector can fix.
-
-## Re-probe 2026-09-07 (issue #134 — duration)
-- Goal: capture duration evidence from a full video page.
-- Runner now receives bot-tier JS shells on every fetch (search AND video pages):
-  `curl -sL .../videos/xhJGXaA?geo=us` → 200, 42 KB, `window.initials` contains only
-  layout/bot keys (`layoutPage`, `pk`, `recaptchaKeyV2`, ...), zero `thumb-list__item`,
-  zero `with-player-container`, no player metadata. Googlebot UA, mobile UA, sec-fetch
-  header sets and retries all produce the same shell. This matches the transient
-  bot-tier drift seen in issue #119 (full pages were served earlier the same day).
-- Fix shipped defensively without a fresh full-page capture: `parseDurationSeconds()` in
-  load() extracts duration from (1) LD-JSON VideoObject ISO-8601 `"duration":"PT12M34S"`,
-  then (2) plain seconds in player metadata `"duration":754`. Both are the standard
-  xHamster desktop page durations sources; in-app verification recommended.
-- verify.sh: FAIL on all live checks (bot-tier shell, 0 selector matches);
-  static LoadResponse check PASS (duration, plot, tags, actors, recommendations).
+- Guest tier: only the **mobile** page exposes sources; desktop gating is the bug in #160.
+- Decode algorithm is player-JS-derived; if xHamster rotates the constants/algorithms the
+  extractor needs re-derivation (player chunk: `js/xplayer-mobile.js` on static-nss.xhcdn.com).
+- Direct MP4 keys are IP-bound; in-app playback uses the same session IP as fetch → expected
+  to work; CI curl 403 on MP4s is a known artifact, m3u8 verified 200.
