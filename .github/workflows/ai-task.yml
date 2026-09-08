@@ -106,6 +106,17 @@ jobs:
             -e .pi/ci/extensions/rtk.ts \
             -p "$(cat /tmp/prompt.md)"
 
+      # Insurance against delivery failure: a model run that died at push
+      # must not cost a full /retry re-run. Maintainer delivers the artifact
+      # by hand instead (see ADR-0004).
+      - name: Preserve tree (delivery-failure insurance)
+        if: steps.run1.outcome == 'success' || steps.run2.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tree-issue-${{ env.ISSUE }}
+          path: .
+          retention-days: 7
+
       - name: Deliver branch + PR (mechanical)
         id: deliver
         if: steps.run1.outcome == 'success' || steps.run2.outcome == 'success'
@@ -122,7 +133,7 @@ jobs:
           if [[ "${{ steps.run1.outcome }}" == "success" || "${{ steps.run2.outcome }}" == "success" ]]; then
             if [[ "${{ steps.deliver.outcome }}" != "success" ]]; then
               echo "agent run succeeded but branch/PR delivery failed"
-              gh issue comment "$n" --body "Task agent produced no deliverable (no branch/PR could be created from its changes) — treat this run as failed. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              gh issue comment "$n" --body "Task agent produced no deliverable — delivery failed, but its working tree is preserved as artifact \`tree-issue-$n\` on run ${{ github.run_id }}. Deliver manually (\`gh run download ${{ github.run_id }} -n tree-issue-$n\`, commit, push \`ai/issue-$n\` with AGENT_PAT, open the PR) instead of /retry-ing a full model re-run. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
               exit 1
             fi
             if [[ "${after:-0}" -le "${COMMENTS_BEFORE:-0}" ]]; then
