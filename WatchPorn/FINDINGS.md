@@ -1,14 +1,31 @@
-# FINDINGS — watchporn.to (2026-09 audit)
+# FINDINGS — WatchPorn (watchporn.to)
 
-## Verdict: OK
+Probe 2026-02-06 (drift) + re-probe for issue #162. Engine: KVS (flashvars, `/video/<id>/<slug>/`, `/get_file/` streams — matches provider code).
+
+## Duration source (issue #162 focus)
+- `div.fp-time-duration` → **0 matches** on current video page (dead selector).
+- JSON-LD VideoObject present on video page:
+  ```
+  $ curl -s 'https://watchporn.to/video/162183/.../' | grep -o 'duration[^,>]*' | head
+  duration": "PT0H36M3S"
+  ```
+  `<script type="application/ld+json">` blocks: 2 (BreadcrumbList + VideoObject). VideoObject has name, description, thumbnailUrl, duration (ISO-8601 `PT0H36M3S`).
+- Fallback also present: `<meta itemprop="duration" content="2163">` (seconds). JSON-LD is primary; both parse fine.
 
 ## Search
-- `/?s=red` → 200, `div.thumb.item` cards (52; watch grid-ad class — provider toSearch filters? cards all `div.thumb item`).
+`/search/?q=<q>&mode=async&function=get_block&block_id=list_videos_videos_list_search_result&from_videos=<page>` — unchanged, works (35 cards in drift probe). Items: `div.thumb.item` with `span.thumb__title`, `a[href]`, `img[data-webp|src]`.
 
-## Stream
-- KVS flashvars: `video_url ..._720p.mp4/?v-acctoken=...` and `video_alt_url ..._1080p.mp4` → **206 video/mp4**.
-- Provider already uses WebView to fetch — flashvars still present in HTML.
+## Video pages
+`https://watchporn.to/video/<id>/<slug>/`. Tags `div.single__info-row:contains(Tags:) a` ✓, Models row ✓, description `p.single__content-description` ✓, related `div.related-videos div.thumb.item` ✓ (5 info-row/related matches on probe page).
 
-## Plot (audit #133)
-- `p.single__content-description` on video page contains the description text (evidence: line 360 of /video/139460/... probe).
-- Also present duplicated in `meta[name=description]` and `meta[property=og:description]` (tag-polluted); the `<p>` is the clean source. Year/uploadDate not exposed on page.
+## Stream sources
+flashvars `video_url` / `video_alt_url` → `/get_file/...mp4` — drift probe 2026-02-06: HTTP 206 `video/mp4`. WebView-based extraction unchanged.
+
+## Headers / referer
+Referer `$mainUrl/` + cookies on poster (unchanged).
+
+## Pagination
+`from_videos=N` for search; `{url}{page}/` suffix for category pages — unchanged.
+
+## Risks / blockers
+None; site reachable from runner.

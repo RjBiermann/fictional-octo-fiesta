@@ -135,13 +135,14 @@ class WatchPorn(context: Context) : MainAPI() {
         val tags = document.select("div.single__info-row:contains(Tags:) a").map { it.text().trim() }
         val actors = document.select("div.single__info-row:contains(Models:) a").map { Actor(it.text().trim()) }
 
-        val durationText = document.selectFirst("div.fp-time-duration")?.text()?.trim()
-        val parts = durationText?.split(":")?.mapNotNull { it.toIntOrNull() }
-        val totalMinutes = when (parts?.size) {
-            3 -> (parts[0] * 60) + parts[1]
-            2 -> parts[0]
-            else -> null
-        }
+        // fp-time-duration selector is dead; duration lives in the JSON-LD VideoObject ("PT0H36M3S")
+        val ldJson = document.select("script[type=application/ld+json]")
+            .firstOrNull { it.data().contains("\"@type\": \"VideoObject\"") || it.data().contains("\"@type\":\"VideoObject\"") }
+            ?.data()
+        val durationText = ldJson?.let { Regex("\"duration\"\\s*:\\s*\"(PT[^\"]+)\"").find(it)?.groupValues?.get(1) }
+        val hours = durationText?.let { Regex("(\\d+)H").find(it)?.groupValues?.get(1)?.toIntOrNull() } ?: 0
+        val minutes = durationText?.let { Regex("(\\d+)M").find(it)?.groupValues?.get(1)?.toIntOrNull() } ?: 0
+        val totalMinutes = if (hours + minutes > 0) hours * 60 + minutes else null
 
         val plot = document.selectFirst("p.single__content-description")?.text()?.trim()
 
