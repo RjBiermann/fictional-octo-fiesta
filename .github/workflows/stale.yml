@@ -30,4 +30,3 @@ jobs:
           stale-issue-message: "Waiting on the reporter — marked stale after 14 days of silence. Comment to keep it open."
           close-issue-message: "Closing for inactivity (needs-info with no response). Comment to reopen."
           exempt-issue-labels: "ai-fix,ai-new-site,ai-remove-site,ready-for-agent"
-          exempt-all-issues-with-assignees: false
