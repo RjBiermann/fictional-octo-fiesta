@@ -34,10 +34,16 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || (github.event.issue.labels.length == 0 && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association))
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    env:
-      ISSUE: ${{ inputs.issue || github.event.issue.number }}
     steps:
       - uses: actions/checkout@v4
+
+      # resolve the issue number from the event payload and validate it —
+      # never interpolates a workflow expression into an env var
+      - name: Resolve issue number
+        run: |
+          n=$(jq -r '.inputs.issue // .issue.number // empty' "$GITHUB_EVENT_PATH")
+          [[ "$n" =~ ^[0-9]+$ ]] || { echo "no valid issue number in event payload"; exit 1; }
+          echo "ISSUE=$n" >> "$GITHUB_ENV"
 
       - uses: ./.github/actions/agent-runtime
 
