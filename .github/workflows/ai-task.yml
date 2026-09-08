@@ -20,6 +20,7 @@ on:
 
 permissions:
   contents: write
+  workflows: write
   issues: write
   pull-requests: write
 
