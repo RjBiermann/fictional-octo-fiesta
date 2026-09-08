@@ -130,7 +130,13 @@ class Porntrex : MainAPI() {
         val actors      = document.select("div.block-details div.item:has(span.title-item:contains(Models:)) div.items-holder a").map { it.ownText().trim() }.filter { it.isNotEmpty() }
         val duration    = document.selectFirst("i.fa-clock-o")?.parent()?.text()?.trim()
             ?.let { Regex("(\\d+)").find(it)?.value }?.toIntOrNull()
-        val recommendations = document.select("div.video-list div.video-item").mapNotNull { it.toRecommendationResult() }
+        var recommendations = document.select("div.video-list div.video-item").mapNotNull { it.toRecommendationResult() }
+        // issue #171: shell pages render no related list; fall back to the live related-videos endpoint.
+        if (recommendations.isEmpty() && videoId(url) != null) {
+            recommendations = app.get("${mainUrl}/related_videos_html/${videoId(url)}/").document
+                .select("a.player-related-videos-item.kt-api-related-item")
+                .mapNotNull { it.toRelatedRecommendationResult() }
+        }
 
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl       = poster
@@ -140,6 +146,17 @@ class Porntrex : MainAPI() {
             this.duration        = duration
             this.recommendations = recommendations
         }
+    }
+
+    // item nodes on /related_videos_html/{id}/ are <a class="...player-related-videos-item kt-api-related-item">
+    private fun Element.toRelatedRecommendationResult(): SearchResponse? {
+        val href  = fixUrlNull(attr("href")) ?: return null
+        val title = selectFirst("span.title")?.text()?.trim().takeIf { !it.isNullOrBlank() }
+            ?: attr("title").takeIf { it.isNotBlank() } ?: return null
+        val poster = selectFirst("div.thumb")?.attr("style")
+            ?.let { Regex("url\\(['\"]([^'\"]+)['\"]\\)").find(it)?.groupValues?.get(1) }
+            ?.let { fixUrlNull(it) }
+        return newMovieSearchResponse(title, href, TvType.NSFW) { this.posterUrl = poster }
     }
 
     private fun Element.toRecommendationResult(): SearchResponse? {
