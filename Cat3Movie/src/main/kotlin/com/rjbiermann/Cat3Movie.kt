@@ -4,7 +4,11 @@ import com.lagradost.api.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.jsoup.nodes.Element
+import javax.crypto.Cipher
+import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.SecretKeySpec
 
 class Cat3Movie : MainAPI() {
     override var mainUrl = "https://cat3movie.org"
@@ -89,7 +93,8 @@ class Cat3Movie : MainAPI() {
         val nonce = document.selectFirst("body[data-nonce]")?.attr("data-nonce") ?: return false
         val slug = data.substringAfterLast('/')
 
-        // sv1..sv3 servers: only hlsfree embeds yield a plain stream URL
+        // sv1..sv3 servers: hlsfree embeds yield a token stream URL, hlsfast embeds
+        // yield an AES-CBC encrypted api response (see extractHlsFast); loadvid is blob-gated
         for (sv in 1..3) {
             try {
                 val playerHtml = app.get(
@@ -107,7 +112,23 @@ class Cat3Movie : MainAPI() {
                 ).text
                 val embed = Regex("iframe[^>]*src=\"([^\"]+)\"").find(playerHtml)?.groupValues?.get(1) ?: continue
 
-                if (embed.contains("hlsfree.com/embed/hls/")) {
+                if (embed.contains("hlsfast.com/#")) {
+                    val hash = embed.substringAfterLast('#')
+                    val hlsFast = extractHlsFast(hash)
+                    if (hlsFast != null) {
+                        callback.invoke(
+                            newExtractorLink(
+                                source = "HlsFast",
+                                name = "HlsFast",
+                                url = hlsFast,
+                                type = ExtractorLinkType.M3U8
+                            ) {
+                                this.referer = "https://hlsfast.com/"
+                                this.quality = Qualities.Unknown.value
+                            }
+                        )
+                    }
+                } else if (embed.contains("hlsfree.com/embed/hls/")) {
                     val embedPage = app.get(embed, referer = mainUrl).text
                     val token = Regex("defaultHlsUrl\\s*=\\s*\"([^\"]*token=([a-f0-9]+))\"")
                         .find(embedPage)?.groupValues?.get(1) ?: continue
@@ -124,12 +145,49 @@ class Cat3Movie : MainAPI() {
                         }
                     )
                 }
-                // loadvid / hlsfast embeds return no plain stream URL (token/blob gated) — skipped
             } catch (e: Exception) {
                 Log.d("Cat3Movie", "sv$sv: ${e.message}")
             }
         }
         return true
+    }
+
+    companion object {
+        private val mapper = ObjectMapper()
+
+        // hlsfast.com SPA (issue #180): GET /api/v1/video returns an AES-CBC encrypted hex
+        // blob; key/iv are constants generated in the obfuscated player JS
+        // (assets/index-DqFBtoPY.js, Z()/J()). Response JSON has "cfNative" (proxied
+        // through hlsfast.com) and "source" (direct IP) — prefer cfNative.
+        private const val HLSFAST_KEY = "kiemtienmua911ca"
+        private const val HLSFAST_IV = "1234567890oiuytr"
+
+        private fun aesCbcDecryptHex(hex: String): String {
+            val data = hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+            val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
+            cipher.init(
+                Cipher.DECRYPT_MODE,
+                SecretKeySpec(HLSFAST_KEY.toByteArray(), "AES"),
+                IvParameterSpec(HLSFAST_IV.toByteArray())
+            )
+            return String(cipher.doFinal(data))
+        }
+
+        private suspend fun extractHlsFast(hash: String): String? = try {
+            val body = app.get(
+                "https://hlsfast.com/api/v1/video?id=$hash&w=1280&h=720&r=cat3movie.org",
+                referer = "https://hlsfast.com/"
+            ).text.trim()
+            if (!body.matches(Regex("[0-9a-fA-F]+"))) return null
+            val json = mapper.readTree(aesCbcDecryptHex(body))
+            val url = json.get("cfNative")?.asText()?.takeIf { it.isNotBlank() }
+                ?: json.get("source")?.asText()?.takeIf { it.isNotBlank() }
+                ?: return null
+            if (url.startsWith("http")) url else "https://hlsfast.com" + url
+        } catch (e: Exception) {
+            Log.d("Cat3Movie", "hlsfast: ${e.message}")
+            null
+        }
     }
 }
 
