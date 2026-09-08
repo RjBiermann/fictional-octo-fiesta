@@ -1,5 +1,23 @@
 # FINDINGS — javmost.ws
 
+## Re-probe 2026-02-06 (issue #159 drift report)
+Issue #159 reported sitewide unrendered template HTML (`${url}` placeholders, 0 cards) — but
+that evidence was collected against **javmost.com**, the old domain. The provider's `mainUrl`
+is `https://www.javmost.ws`, which was re-probed on 2026-02-06 and is fully rendered and
+working server-side (plain curl + desktop UA, no cookies, no Cloudflare):
+
+- Homepage: HTTP 200, 126 `class="card "` blocks, real `/{CODE}/` links (ACHJ-089, AVSA-457, BAGR-093…).
+- Search `https://www.javmost.ws/search/milf/`: HTTP 200, cards incl. AVOP-364, C-2224, C-2256; page/2 → 50 cards.
+- Video page C-2224: `og:title`/`og:image` intact, 3 `select_part` buttons, `YWRzMQo = '...'` present.
+- AJAX POST `/ri3123o235r/` (group 60) → `{"status":"success","data":["https://emturbovid.com/t/69a90687d1ab2"]}`.
+- emturbovid 301 → turbovidhls → `data-hash`/`urlPlay` m3u8 → HTTP 200 `application/vnd.apple.mpegurl`.
+- Re-verified full chain on 5 varied pages (C-2224, AVOP-364, AVOP-372, C-2256, C-2283): all
+  200 mpegurl via python chain probe (verify.sh's check-2 cannot express the AJAX two-hop
+  chain — it only scrapes direct/embed URLs from the page HTML, none of which exist here).
+
+No code change required; provider selectors/endpoints on disk match the live site exactly.
+Only `version` bumped (repo rule).
+
 ## Engine fingerprint
 Custom PHP theme (not KVS, not WP). Cards use `div.col-md-4.col-sm-6 > div.card` with lazy
 `<picture><source data-srcset=...><img class="lazyload" data-src=...>`; Bootstrap 4-ish panels;
