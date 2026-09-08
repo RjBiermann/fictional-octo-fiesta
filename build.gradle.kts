@@ -61,6 +61,10 @@ subprojects {
             targetCompatibility = JavaVersion.VERSION_1_8
         }
 
+        // Unit tests (ADR-0005): shared test sources splice into every provider,
+        // so `gradlew <Provider>:test` runs them all. Same pattern providers use for main.
+        sourceSets.getByName("test").kotlin.srcDir(rootDir.resolve("shared/src/test/kotlin"))
+
         tasks.withType<KotlinJvmCompile> {
             compilerOptions {
                 jvmTarget.set(JvmTarget.JVM_1_8) // Required
@@ -76,6 +80,7 @@ subprojects {
     dependencies {
         val cloudstream by configurations
         val implementation by configurations
+        val testImplementation by configurations
 
         // Stubs for all cloudstream classes
         cloudstream("com.lagradost:cloudstream3:pre-release")
@@ -92,6 +97,7 @@ subprojects {
         implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.13.1") // JSON Parser
         implementation("org.mozilla:rhino:1.9.1") // JS engine (JavGuru, Javseen)
         implementation("org.jspecify:jspecify:1.0.1") // annotations referenced by jsoup
+        testImplementation("junit:junit:4.13.2") // TDD-first, ADR-0005
     }
 }
 

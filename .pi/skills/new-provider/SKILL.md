@@ -49,10 +49,19 @@ Read a working provider with the same shape before writing yours — the repo is
 - Wrap per-item parsing in `try/catch` returning null (one broken card must not kill the list).
 - Duration: parse to **minutes** (Int). ISO-8601 `PT#H#M#S` → hours*60+minutes.
 
+## Red → green (TDD-first, ADR-0005)
+
+New parsing logic ships test-first: extract a Parse function (`parseXxx(html): List<…>`), write
+the failing JUnit4 test against a Fixture — saved HTML/JSON from FINDINGS, in
+`src/test/resources/` — then implement until green. No HTTP mocking: `MainAPI` flows stay
+covered by Verification, not unit tests.
+
 ## Build loop
 
 ```bash
 ./gradlew <ProviderName>:make
+./gradlew <ProviderName>:test
 ```
-Fix compile errors, repeat until clean. Then hand off to the verify-provider skill — a clean
-build proves nothing about selectors. No PR without a multi-video verify transcript.
+Fix failures, repeat until both are clean. Then hand off to the verify-provider skill — a clean
+build (and green tests) prove nothing about live selectors. No PR without a multi-video verify
+transcript.

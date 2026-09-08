@@ -29,10 +29,11 @@ This is an **AI-first, pipeline-first repository with no local development path*
 
 ```bash
 ./gradlew <ProviderName>:make          # build one provider (.cs3)
+./gradlew <ProviderName>:test          # run unit tests (TDD loop)
 ./gradlew clean                        # clean root build dir
 ```
 
-CI (`.github/workflows/build.yml`) builds all providers on push to `master`/`main` and publishes `plugins.json` to the `builds` branch. There is no unit-test setup; validation is building successfully plus pipeline Verification (`verify.sh`) against the live site. In-app testing is maintainer-only at merge time — it is never an agent deliverable.
+CI (`.github/workflows/build.yml`) builds all providers on push to `master`/`main` and publishes `plugins.json` to the `builds` branch. The repo is **TDD-first** (see `docs/adr/0005-tdd-first-provider-code.md`): new parsing/extraction logic ships red → green at a Parse function, tested with fixtures under `src/test/resources/`. Validation is `gradlew test` plus a clean build plus pipeline Verification (`verify.sh`) against the live site. In-app testing is maintainer-only at merge time — it is never an agent deliverable.
 
 ## Conventions
 
@@ -43,6 +44,7 @@ CI (`.github/workflows/build.yml`) builds all providers on push to `master`/`mai
 - Before pushing changes under `.github/**`, run `actionlint` (installed locally) — CI `lint.yml` runs it too, but only after the push.
 - Agents change `.github/workflows/` only when the issue spec explicitly names it. Delivery of such changes requires the `AGENT_PAT` secret (see ADR-0004) — without it the push is rejected and the run's work is discarded.
 - Keep provider changes self-contained in the provider's directory. Root `build.gradle.kts` changes affect every provider — make them only when required by all.
+- **TDD-first** (ADR-0005): extract parsing into pure Parse functions and test them first (red → green, JUnit4) against fixtures in `src/test/resources/`; `shared/src/test/kotlin` runs with every provider's `test` task. No HTTP mocking — `MainAPI`/HTTP flows stay covered by pipeline Verification, not unit tests.
 
 ## Agent skills
 

@@ -98,6 +98,20 @@ _Avoid_: shared extractors, extractor list
 One ExtractorApi per embed host family, dispatched through the framework's loadExtractor; hosts are never handled inline inside a provider's loadLinks.
 _Avoid_: extractor class, host handler
 
+### Testing
+
+**Parse function**:
+A pure function (`parseXxx(html): List<…>`) that turns fetched HTML/JSON into data without touching the network — the only unit-tested layer of a provider.
+_Avoid_: helper, parser class
+
+**Fixture**:
+A checked-in copy of live-site HTML/JSON under `src/test/resources/`, captured from FINDINGS evidence, that a Parse function is tested against. Pins parser behavior; never proves the site still works.
+_Avoid_: sample page, mock
+
+**Seam**:
+The Parse-function boundary — the one place unit tests attach. HTTP transport and `MainAPI` flows have no Seam; Verification owns those.
+_Avoid_: interface, injection point
+
 ### Provider data
 
 **Recommendations**:

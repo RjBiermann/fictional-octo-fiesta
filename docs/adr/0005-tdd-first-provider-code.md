@@ -1,0 +1,5 @@
+# TDD-first for provider code
+
+This repo previously validated Kotlin changes only by `gradlew make` plus live-site Verification, which let scraping regressions surface late (at Review rounds or Monitor drift). We decided parsing/extraction logic is developed test-first (red → green) at a **Parse-function seam**: pure `parseXxx(html): List<…>` functions tested with checked-in **Fixtures** (HTML/JSON saved from FINDINGS evidence) under `src/test/resources/`, run via `gradlew <Provider>:test` — JUnit4, wired once in the root build, with `shared/src/test/kotlin` spliced into every provider's test source set. HTTP transport, `MainAPI` flows, workflow YAML, Gradle files, and bash scripts are deliberately outside the loop: liveness stays owned by Verification and the Monitor's Drift probe, so unit tests pin parser behavior but never pretend to prove the site still works.
+
+Alternative rejected: an HTTP-mocking/injection seam to test `load()` end-to-end — real over-engineering against the CloudStream runtime and the global `app` HTTP object.
