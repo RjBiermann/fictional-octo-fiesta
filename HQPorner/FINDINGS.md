@@ -1,53 +1,66 @@
-# FINDINGS — HQPorner (fix probe, 2026-09)
+# FINDINGS — HQPorner (fix probe for issue #158)
 
-## Root cause of the drift
-Cards DO still contain `span.icon` — but only in the **desktop** layout. With a mobile
-UA (what CloudStream/NiceHttp sends), the site serves a variant without the hover
-`span.icon.fa-circle-o` elements, so `section.box.feature:has(span.icon)` matches 0.
+## Engine fingerprint
+Custom theme (same as prior probes; `section.box.feature` card markup family).
 
-Evidence (same URL, different UA):
+## Root cause of the drift (#158)
+The site now **302s mobile User-Agents to `m.hqporner.com`**:
+
 ```
-UA=curl/8.0                                   → 50 cards with span.icon
-UA="Mozilla/5.0 … Android 13 … Mobile"        → 0 cards with span.icon, 50 cards with a.image
+$ curl -A "Mozilla/5.0 (Linux; Android 13; Pixel 7) …Chrome/120 Mobile" -D - "https://hqporner.com/?q=milf&p=1"
+→ location: https://m.hqporner.com/?q=milf&p=1
 ```
-Cards in the mobile layout still carry `<a href="/hdporn/…" class="image featured …">`
-and `<img …>` — stable across both layouts.
 
-## Fix
-`div.row section.box.feature:has(a.image)` for home (`getMainPage`) and `search`.
-`div.row` ancestor verified present (51 sections inside `div.row`, 50 with img).
+The mobile page's cards are `<div class="img-container"><a href="/hdporn/…" class="atfib n8hu6s"><img …></a>`
+— **no `section.box.feature`, no `a.image`** → 0 results, exactly the monitor's symptom
+("tag landing page", 0 video cards; h1 = "Milf Porn HD Videos"). CloudStream/NiceHttp's
+default UA is a mobile Chrome UA, so the provider's requests were being redirected.
 
-## Search
+## Search (desktop UA — the one that works)
 ```
-GET https://hqporner.com/?q=big&p=1 → 200
-section.box.feature matches: 51 (50 video cards)
-href="/hdporn/127759-anxiety_extracted_through_the_dick.html" …
+$ curl -sA "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) … Firefox/130.0" \
+    "https://hqporner.com/?q=milf&p=1"
+→ HTTP 200; 50 cards `<section class="box feature"><a href="/hdporn/…" class="image featured non-overlay atfib …">
+   <img src="//fastporndelivery.hqporner.com/imgs/…/…_main.jpg" alt="…">`
+   selector `div.row section.box.feature:has(a.image)` matches 50 (1 extra non-card
+   search-summary section has no a.image and is filtered out).
 ```
-Pagination `?q=…&p=N` unchanged.
+`?q=` + `&p=N` pagination unchanged; page 2 returns different items.
 
-## Video pages (probed ≥5, varied listings: search/top/category)
-- /hdporn/127757-daddys_little_career_pusher.html (search) → 200
-- /hdporn/101302-twos_cumpany_threesomes_a_crowd_part_two.html (top) → 200
-- /hdporn/124376-have_you_milked_before.html (category) → 200
-- /hdporn/127759-anxiety_extracted_through_the_dick.html (search) → 200
-- /hdporn/102362-fucking_the_new_maid_mommy_got_boobs.html (top) → 200
-(load() selectors verified: `h1` ✓, `li.icon.fa-clock-o` → "39m 20s" ✓,
-`div.4u section` (recommendations) → 47 matches ✓; `div.extra span.C` (year) no longer
-present on the page — pre-existing optional field, returns null.)
+## Video pages
+`/hdporn/<id>-<slug>.html`, HTTP 200 with desktop UA. Probed 5 varied:
+from search, top, and category/asian listings (see PR verify transcript).
+- iframe player: `<iframe … src="//mydaddy.cc/video/<hash>/"` (plain `src`, selector `iframe[src*=mydaddy]` unchanged)
+- title `h1`, meta description, rating, duration `li.icon.fa-clock-o`, actors `li.icon.fa-star-o a` all present.
 
 ## Related videos
-`div.4u section` on video pages (47 matches on 4/5 pages; one top-page listing had 30) —
-unchanged, works.
+```
+selector `div.\34 u section` on video pages → 47 matches, cards carry `a.image`
+```
+(verify.sh reports 47 for `div.4u section`.)
 
-## Stream chain (unchanged, verified end to end)
-1. Video page → `iframe src="//mydaddy.cc/video/<id>/"` ✓ (all 5 pages)
-2. mydaddy page requires `Referer: https://hqporner.com/` (without it: "This domain has
-   been blocked" stub — this also makes verify.sh's built-in stream check structurally
-   N/A here, since the stream is not embedded in the hqporner page HTML)
-3. MyDaddyExtractor regex `a href='([^']*)'` → `//sXX.bigcdn.cc/pubs/…/1080.mp4`
-4. `GET https://s47.bigcdn.cc/…1080.mp4` with referer → **206 video/mp4** (all 5 videos)
+## Stream sources (per video page)
+Two-hop: hqporner → mydaddy.cc iframe → `s*.bigcdn.cc/pubs/<key>/<res>.mp4` (360p/720p/1080p).
+Checked 5 videos, all `HTTP 206, Content-Type: video/mp4` on `1080.mp4`:
+
+| video | stream check |
+|---|---|
+| /hdporn/124516-… | 206 video/mp4 (s53.bigcdn.cc) |
+| /hdporn/101302-… | 206 video/mp4 (s24.bigcdn.cc) |
+| /hdporn/127769-… | 206 video/mp4 (s72.bigcdn.cc) |
+| /hdporn/124908-… | 206 video/mp4 (s29.bigcdn.cc) |
+| /hdporn/124505-… | 206 video/mp4 (s63.bigcdn.cc) |
+
+## Headers / referer
+Desktop UA required (mobile UA = redirect to m.hqporner.com). mydaddy.cc fetch works with
+hqporner referer; mp4 CDN works with mydaddy referer.
+
+## Pagination
+`?p=N` on search; `/<page>` suffix on category/top listings — unchanged.
 
 ## Risks / blockers
-- mydaddy.cc blocks referer-less requests (stub page) — extractor already sends referer.
-- Some `/hdporn/…html` URLs from the /top listing are 404 (dead entries on the site
-  itself, not a provider bug). No Cloudflare on hqporner.com for the runner.
+- Any client using a mobile UA is silently redirected to m.hqporner.com → card markup
+  mismatch. Fix pins the desktop UA on every provider request (getMainPage/search/load;
+  loadLinks already had one).
+- Card thumbnail classes include randomized tokens (`atfib n8hu6s`) that vary per
+  response — selectors must not depend on them.
