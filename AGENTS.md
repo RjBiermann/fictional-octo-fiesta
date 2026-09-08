@@ -40,6 +40,7 @@ CI (`.github/workflows/build.yml`) builds all providers on push to `master`/`mai
 - HTTP via [NiceHttp](https://github.com/Blatzar/NiceHttp) (`app.get` / `app.post`), HTML parsing via jsoup, JSON via Jackson (do **not** bump Jackson past 2.13.1 — breaks older Android devices).
 - Match the existing provider style in this repo; reuse extractors already present (e.g. `HQPorner/MyDaddyExtractor.kt`) instead of duplicating them.
 - Shared extractor code lives in `shared/src/main/kotlin/` (not a Gradle subproject); providers include it via `sourceSets.getByName("main").kotlin.srcDir(...)` in their `build.gradle.kts`. `registerSharedExtractors()` there registers the extractor set shared by JavGuru/Javseen. Do not copy-paste extractor files between providers — extend `shared/`.
+- Before pushing changes under `.github/**`, run `actionlint` (installed locally) — CI `lint.yml` runs it too, but only after the push.
 - Keep provider changes self-contained in the provider's directory. Root `build.gradle.kts` changes affect every provider — make them only when required by all.
 
 ## Agent skills

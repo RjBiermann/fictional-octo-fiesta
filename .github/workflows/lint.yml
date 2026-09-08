@@ -11,7 +11,7 @@ name: Lint
 on:
   push:
     branches: [main, master]
-    paths: ['.github/workflows/**']
+    paths: ['.github/workflows/**', '.github/actions/**']
   pull_request:
     paths: ['**/build.gradle.kts']
   workflow_dispatch:
