@@ -41,6 +41,7 @@ CI (`.github/workflows/build.yml`) builds all providers on push to `master`/`mai
 - Match the existing provider style in this repo; reuse extractors already present (e.g. `HQPorner/MyDaddyExtractor.kt`) instead of duplicating them.
 - Shared extractor code lives in `shared/src/main/kotlin/` (not a Gradle subproject); providers include it via `sourceSets.getByName("main").kotlin.srcDir(...)` in their `build.gradle.kts`. `registerSharedExtractors()` there registers the extractor set shared by JavGuru/Javseen. Do not copy-paste extractor files between providers — extend `shared/`.
 - Before pushing changes under `.github/**`, run `actionlint` (installed locally) — CI `lint.yml` runs it too, but only after the push.
+- Agents change `.github/workflows/` only when the issue spec explicitly names it. Delivery of such changes requires the `AGENT_PAT` secret (see ADR-0004) — without it the push is rejected and the run's work is discarded.
 - Keep provider changes self-contained in the provider's directory. Root `build.gradle.kts` changes affect every provider — make them only when required by all.
 
 ## Agent skills
