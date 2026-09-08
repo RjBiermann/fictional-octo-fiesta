@@ -20,7 +20,9 @@ concurrency:
 
 jobs:
   triage:
-    if: github.event.issue.labels.length == 0 # bot-created issues arrive pre-labeled
+    # bot-created issues arrive pre-labeled; public repo: collaborator issues only —
+    # strangers can't burn triage runs, their issues wait for a maintainer label
+    if: github.event.issue.labels.length == 0 && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
