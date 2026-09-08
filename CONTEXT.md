@@ -76,6 +76,10 @@ _Avoid_: status update, monitor output
 An agent classification of a new user issue (broken-provider report, new-site request, needs info, duplicate) with a live-site probe behind it. Suggests a trigger label; never applies one.
 _Avoid_: labeling, classification
 
+**Expiry**:
+A `needs-info` issue closed by the stale bot after the reporter stays silent past the grace window (mark-stale, then close). An Expiry ends a conversation, not a Triage verdict — the classification stands, the reporter just never answered. Any comment reopens it; trigger-labeled and ready-for-agent issues are exempt and never expire.
+_Avoid_: stale (the bot's mark, not the outcome), auto-close, abandonment
+
 **Model chain**:
 The ordered fallback every agent run follows: GLM 5.3 Flash → DeepSeek V4 Flash, both served through the OpenCode Go gateway (paid key) and driven by pi. The Reviewer's primary must come from a different model family than the Builder's primary (independence). Cost discipline: mechanical agent runs (Monitor, Triage) run with thinking off; the Monitor does a full per-provider sweep twice a week (Mon + Thu).
 _Avoid_: free model chain, model pool, provider list, LLM stack

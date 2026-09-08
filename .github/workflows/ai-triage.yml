@@ -52,6 +52,9 @@ jobs:
             echo "You are the Triage agent in this repo's AI pipeline. A new user issue"
             echo "arrived; classify it so a maintainer can act in one glance."
             echo
+            echo "Issue-form headings (Site URL, What's broken) are canonical fields:"
+            echo "a missing or empty Site URL section means (c)."
+            echo
             echo "Steps:"
             echo "1. Read the issue. Classify: (a) broken-provider report, (b) new-site"
             echo "   request, (c) insufficient info (no site URL / no symptom),"

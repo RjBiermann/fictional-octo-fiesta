@@ -1,0 +1,37 @@
+name: Broken provider
+description: Report a provider that stopped working (search, video page, or stream)
+labels: ["needs-triage"]
+body:
+  - type: input
+    id: site-url
+    attributes:
+      label: Site URL
+      description: Exactly as you typed it in the browser.
+      placeholder: https://example.com
+    validations:
+      required: true
+  - type: dropdown
+    id: symptom
+    attributes:
+      label: What's broken
+      options:
+        - Search returns nothing
+        - Video page fails to load
+        - Stream won't play
+        - Everything
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: Provider name (if known)
+      description: The provider's name in the CloudStream extension list. Leave blank if unsure.
+    validations:
+      required: false
+  - type: textarea
+    id: details
+    attributes:
+      label: Anything else
+      description: Error messages, when it broke, region — anything that helps. Optional.
+    validations:
+      required: false

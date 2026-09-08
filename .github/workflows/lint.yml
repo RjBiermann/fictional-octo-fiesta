@@ -1,13 +1,19 @@
-name: Lint workflows
+name: Lint
 
-# Workflow-file bugs only surface as opaque GitHub "startup failure" runs —
-# actionlint catches them (duplicate keys, shell errors in run blocks) before
-# they ever reach a triggering event.
+# Three cheap gates:
+# - actionlint on workflow changes (push): workflow-file bugs surface as opaque
+#   GitHub "startup failure" runs otherwise.
+# - Jackson version gate (PRs touching build files): Jackson must never be
+#   bumped past 2.13.1 — newer versions break older Android devices.
+# - Dependency review (same PRs): vulnerable/license-changed dependencies fail
+#   the PR.
 
 on:
   push:
     branches: [main, master]
     paths: ['.github/workflows/**']
+  pull_request:
+    paths: ['**/build.gradle.kts']
   workflow_dispatch:
 
 permissions:
@@ -15,6 +21,7 @@ permissions:
 
 jobs:
   actionlint:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,3 +30,23 @@ jobs:
         with:
           reporter: github-check
           fail_level: error
+
+  jackson:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Jackson must not exceed 2.13.1
+        run: |
+          if grep -rEhn --include=build.gradle.kts 'com\.fasterxml.*jackson.*:(2\.1[4-9]|2\.[2-9]|[3-9]\.)' .; then
+            echo "::error::Jackson must not be bumped past 2.13.1 — newer versions break older Android devices"
+            exit 1
+          fi
+
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependency review
+        uses: actions/dependency-review-action@v4

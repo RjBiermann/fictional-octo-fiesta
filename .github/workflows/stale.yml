@@ -1,0 +1,33 @@
+name: Stale
+
+# Expiry (see CONTEXT.md): needs-info issues where the reporter never answers
+# get marked stale after 14 days and closed after 3 more. Any comment reopens.
+# Trigger-labeled and ready-for-agent issues are exempt — the bot can never
+# kill live pipeline work. PRs are never touched.
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          # issues only
+          days-before-pr-stale: -1
+          days-before-pr-close: -1
+          # expiry applies to needs-info only
+          any-of-labels: needs-info
+          days-before-stale: 14
+          days-before-close: 3
+          stale-issue-label: stale
+          stale-issue-message: "Waiting on the reporter — marked stale after 14 days of silence. Comment to keep it open."
+          close-issue-message: "Closing for inactivity (needs-info with no response). Comment to reopen."
+          exempt-issue-labels: "ai-fix,ai-new-site,ai-remove-site,ready-for-agent"
+          exempt-all-issues-with-assignees: false
