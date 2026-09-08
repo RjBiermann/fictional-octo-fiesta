@@ -69,3 +69,13 @@ Search: page 1 only (DLE GET search has no usable pagination links).
   from this runner** — such videos may need in-app verification/VPN. Every other probed video
   also carries a filmcdm.top source, which verified fine.
 - playmogo 403s the runner — skipped.
+
+## Update (issue #176): genre/duration metadata
+Verified on 6760-tarzan-x-shame-of-jane.html and 167-pirates.html:
+- `<meta itemprop="genre" content="Russian translation&nbsp;,&nbsp;Full HD porn movie&nbsp;,&nbsp;Vintage">`
+  (multi-valued, `\u00a0,\u00a0`-separated) — 2 tags per page probed.
+- `<meta itemprop="duration" content="PT8173S">` (ISO-8601 seconds) / `PT7797S` on pirates.
+- JSON-LD `application/ld+json` @type Movie also carries description/datePublished (redundant
+  with og:/div#s-desc already used).
+Fix: load() now parses `meta[itemprop=genre]` → `tags` and `meta[itemprop=duration]` →
+`duration` (seconds). verify.sh --load-response tags,duration: PASS.
