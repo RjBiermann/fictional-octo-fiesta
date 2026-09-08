@@ -304,6 +304,7 @@ class xHamster : MainAPI() {
                         var e = (s shl 7) or (s ushr 25)
                         e += 0x9e3779b9.toInt()
                         e = e xor (e ushr 11)
+                        e = (e.toLong() * 0x27d4eb2dL).toInt()
                         e and 255
                     }
                     5 -> {
@@ -312,8 +313,9 @@ class xHamster : MainAPI() {
                         s and 255
                     }
                     6 -> {
-                        val v = (s.toLong() * 0x2c9277b5L).toInt() + 0xac564b05.toInt()
-                        ((v xor (s ushr 18)) and 255) shr (s ushr 27 and 31)
+                        // update seed first; both the xor and the shift amount use the NEW seed
+                        s = (s.toLong() * 0x2c9277b5L).toInt() + 0xac564b05.toInt()
+                        ((s xor (s ushr 18)) and 255) shr (s ushr 27 and 31)
                     }
                     7 -> {
                         s += 0x9e3779b9.toInt()
