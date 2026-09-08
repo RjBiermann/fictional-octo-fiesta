@@ -43,7 +43,9 @@ class Sexfilm : MainAPI() {
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
         if (page > 1) return newSearchResponseList(emptyList(), false)
-        val doc = app.get("$mainUrl/index.php?do=search&subaction=search&story=$query").document
+        // raw spaces in the query break the request (HTTP 000); encode like Film1k/Cat3Film
+        val q = java.net.URLEncoder.encode(query.trim(), "UTF-8")
+        val doc = app.get("$mainUrl/index.php?do=search&subaction=search&story=$q").document
         val results = doc.select("div.short").mapNotNull { it.toSearchResult() }
         return newSearchResponseList(results, false)
     }
