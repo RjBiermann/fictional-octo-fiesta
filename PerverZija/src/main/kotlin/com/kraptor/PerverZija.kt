@@ -78,7 +78,8 @@ class PerverZija : MainAPI() {
         val year            = document.selectFirst("div.extra span.C a")?.text()?.trim()?.toIntOrNull()
         val tags            = document.select("div.item-tax-list div:has(strong:contains(tags)) a").map { it.text() }
         val score          = document.selectFirst("span.dt_rating_vgs")?.text()?.trim()
-        val duration        = document.selectFirst("span.runtime")?.text()?.split(" ")?.first()?.trim()?.toIntOrNull()
+        // span.runtime is gone from the site; duration now comes from JSON-LD VideoObject (PT#H#M#S)
+        val duration        = parseIsoDuration(document.selectFirst("script[type=application/ld+json]")?.data())
         val recommendations = document.select("div.srelacionados article").mapNotNull { it.toRecommendationResult() }
         val actors          = document.select("div.item-tax-list div:has(strong:contains(stars)) a").map { Actor(it.text()) }
         val trailer         = Regex("""embed\/(.*)\?rel""").find(document.html())?.groupValues?.get(1)?.let { "https://www.youtube.com/embed/$it" }
@@ -94,6 +95,12 @@ class PerverZija : MainAPI() {
             addActors(actors)
             addTrailer(trailer)
         }
+    }
+
+    private fun parseIsoDuration(jsonLd: String?): Int? {
+        val m = Regex("PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?").find(jsonLd ?: return null) ?: return null
+        val (h, min, s) = m.destructured
+        return 60 * ((h.toIntOrNull() ?: 0) * 60 + (min.toIntOrNull() ?: 0)) + (s.toIntOrNull() ?: 0) / 60
     }
 
     private fun Element.toRecommendationResult(): SearchResponse? {
