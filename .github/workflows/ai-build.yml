@@ -4,12 +4,24 @@ name: AI build (issue → agent → PR)
 # ai-remove-site; the Builder agent (pi, OpenCode Go: GLM → DeepSeek) probes
 # the live site, builds, fixes, or removes the provider, verifies against the
 # site, and opens a PR. Humans merge. See spec issue #1.
-# Re-fire: comment /retry on the issue (or its PR) — re-applies the trigger
-# label, superseding any run in flight.
+# Re-fire: comment /retry on the issue (or its PR) — dispatches this workflow
+# (workflow_dispatch), superseding any run in flight.
 
 on:
   issues:
     types: [labeled]
+  # /retry re-fires this via `gh workflow run` — GITHUB_TOKEN label events
+  # never trigger workflows (see ADR-0003), so dispatch is the only reliable path
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue number to build (must carry a trigger label)
+        required: true
+        type: string
+      kind:
+        description: Trigger label (ai-fix / ai-new-site / ai-remove-site)
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -17,15 +29,21 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: ai-build-${{ github.event.issue.number }}
+  group: ai-build-${{ inputs.issue || github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
   build:
-    # fires on every label event; no-op unless it's a trigger label
-    if: github.event.label.name == 'ai-fix' || github.event.label.name == 'ai-new-site' || github.event.label.name == 'ai-remove-site'
+    # fires on every label event and on /retry dispatch; no-op unless a trigger label applies
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.label.name == 'ai-fix' ||
+      github.event.label.name == 'ai-new-site' ||
+      github.event.label.name == 'ai-remove-site'
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      ISSUE: ${{ inputs.issue || github.event.issue.number }}
     steps:
       - uses: actions/checkout@v4
 
@@ -36,9 +54,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          n="${{ github.event.issue.number }}"
+          n="${{ env.ISSUE }}"
           gh issue view "$n" --json number,title,body -q '"# Issue #\(.number) — \(.title)\n\n\(.body)"' > /tmp/issue.md
-          kind="${{ github.event.label.name }}"
+          kind="${{ github.event.label.name || inputs.kind }}"
           {
             echo "You are the Builder in this repo's AI pipeline."
             if [[ "$kind" == "ai-fix" ]]; then
@@ -102,33 +120,14 @@ jobs:
       - name: Deliver branch + PR (mechanical)
         id: deliver
         if: steps.run1.outcome == 'success' || steps.run2.outcome == 'success'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          n="${{ github.event.issue.number }}"
-          if [[ "$(gh pr list --head "ai/issue-$n" --json number -q 'length')" != "0" ]]; then
-            echo "PR already exists — agent did it itself"; exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if ! git diff --cached --quiet; then
-            git commit -q -m "Builder: resolve #$n"
-          fi
-          git rev-parse -q --verify "ai/issue-$n" >/dev/null || git branch "ai/issue-$n"
-          git push -q --force origin "ai/issue-$n"
-          title=$(gh issue view "$n" --json title -q .title)
-          body=/tmp/pr-body.md
-          if [[ ! -f $body ]]; then
-            printf 'Fixes #%s\n' "$n" > /tmp/pr-body-default.md
-            body=/tmp/pr-body-default.md
-          fi
-          gh pr create --head "ai/issue-$n" --base main --title "$title" --body-file "$body"
+        uses: ./.github/actions/deliver-pr
+        with:
+          issue: ${{ env.ISSUE }}
 
       - name: Gate
         if: always()
         run: |
-          n="${{ github.event.issue.number }}"
+          n="${{ env.ISSUE }}"
           if [[ "${{ steps.run1.outcome }}" == "success" || "${{ steps.run2.outcome }}" == "success" ]]; then
             if [[ "${{ steps.deliver.outcome }}" != "success" ]]; then
               echo "agent run succeeded but branch/PR delivery failed"
@@ -138,7 +137,7 @@ jobs:
             echo "builder delivered branch + PR"; exit 0
           fi
           echo "both model attempts failed (GLM + DeepSeek)"
-          gh issue comment "${{ github.event.issue.number }}" \
+          gh issue comment "${{ env.ISSUE }}" \
             --body "Builder failed on both Go models (GLM → DeepSeek). Issue stays open for manual handling. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           exit 1
         env:

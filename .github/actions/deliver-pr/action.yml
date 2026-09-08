@@ -1,0 +1,34 @@
+name: 'Deliver branch + PR (mechanical)'
+description: 'Commit the working tree to ai/issue-N, force-push, and create-or-update the PR. No-op on a clean tree (comment-only runs). The agent never pushes; this does.'
+inputs:
+  issue:
+    description: 'Issue number the run resolves'
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        n="${{ inputs.issue }}"
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git add -A
+        if git diff --cached --quiet; then
+          echo "no tree changes — comment-only run, nothing to deliver"
+          exit 0
+        fi
+        git commit -q -m "Builder: resolve #$n"
+        git push -q --force origin "HEAD:refs/heads/ai/issue-$n"
+        title=$(gh issue view "$n" --json title -q .title)
+        body=/tmp/pr-body.md
+        if [[ ! -f $body ]]; then
+          printf 'Fixes #%s\n' "$n" > /tmp/pr-body-default.md
+          body=/tmp/pr-body-default.md
+        fi
+        if [[ "$(gh pr list --head "ai/issue-$n" --json number -q 'length')" != "0" ]]; then
+          gh pr edit "ai/issue-$n" --body-file "$body" > /dev/null
+        else
+          gh pr create --head "ai/issue-$n" --base main --title "$title" --body-file "$body"
+        fi

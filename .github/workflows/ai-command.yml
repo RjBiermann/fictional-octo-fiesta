@@ -3,12 +3,12 @@ name: AI command (comment dispatcher)
 # Maintainer commands in issue/PR comments (collaborators only; strangers and
 # bots are ignored):
 #
-#   /retry          — re-fire the Builder/Task run. On an issue: remove + re-apply
-#                     its trigger label (ai-fix / ai-new-site / ai-remove-site /
-#                     ready-for-agent), superseding any run in flight. On a PR:
-#                     resolve the issue the PR fixes (Fixes #N), re-trigger it,
-#                     and clear the PR's ai-review-round-* labels — a fresh build
-#                     gets a fresh review budget.
+#   /retry          — re-fire the Builder/Task run. On an issue: dispatch the
+#                     matching workflow (trigger label → ai-build, ready-for-agent
+#                     → ai-task), superseding any run in flight. On a PR: resolve
+#                     the issue the PR fixes (Fixes #N), re-trigger it, and clear
+#                     the PR's ai-review-round-* labels — a fresh build gets a
+#                     fresh review budget.
 #   /review [pr]    — re-fire the Reviewer on a PR (on a PR, no argument = this
 #                     PR). The 2-round cap still applies.
 #   /triage         — re-run triage on this issue (issues only).
@@ -114,10 +114,13 @@ jobs:
               gh pr edit "$pr" --remove-label "$l" > /dev/null 2>&1 || true
             done
           fi
-          # remove + re-apply: the `labeled` event re-fires the Builder/Task;
-          # its per-issue concurrency group supersedes any run in flight
-          gh issue edit "$n" --remove-label "$trigger" > /dev/null
-          gh issue edit "$n" --add-label "$trigger" > /dev/null
+          # dispatch, not label re-apply: GITHUB_TOKEN label events never trigger
+          # workflows (ADR-0003); workflow_dispatch is the documented exception
+          if [[ "$trigger" == "ready-for-agent" ]]; then
+            gh workflow run ai-task.yml -f issue="$n"
+          else
+            gh workflow run ai-build.yml -f issue="$n" -f kind="$trigger"
+          fi
           echo "issue #$n re-triggered via '$trigger' (previous run superseded)"
 
       - name: /triage — re-run triage
