@@ -25,7 +25,7 @@ jobs:
         - language: actions
           build-mode: none
         - language: java-kotlin
-          build-mode: autobuild
+          build-mode: manual
 
     steps:
     - name: Checkout repository
@@ -36,6 +36,23 @@ jobs:
       with:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
+
+    - name: Set up JDK 17
+      if: matrix.build-mode == 'manual'
+      uses: actions/setup-java@v5
+      with:
+        java-version: 17
+        distribution: temurin
+
+    # CodeQL's Kotlin extractor doesn't support the repo's Kotlin 2.4.20 yet
+    # (KotlinVersionTooRecentError, CodeQL 2.26.4); downgrade for the scan run
+    # only — real builds keep 2.4.20. Revert this whole block once CodeQL
+    # supports the pinned version.
+    - name: Build for scan
+      if: matrix.build-mode == 'manual'
+      run: |
+        sed -i 's/kotlin-gradle-plugin:2\.4\.20/kotlin-gradle-plugin:2.4.10/' build.gradle.kts
+        ./gradlew assemble
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
