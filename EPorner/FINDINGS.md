@@ -15,3 +15,15 @@
 
 ## Risks
 - gvideo/`xhr` URLs are signed/time-based — expected; player regenerates.
+
+## Update (2026-02 fix, issue #174): actors
+
+- `span.valor` gone from video pages: `grep -c 'span.valor'` → 0 matches on live page
+  (https://www.eporner.com/video-goBad5wkYV3/…). Cast markup removed entirely
+  (`grep -ioP 'class="[^"]*(cast|starring|actress)[^"]*"'` → 0 matches).
+- "Starring:" now appears only in `og:description`, e.g.:
+  `og:description" content="Watch 橘メアリー [Uncensored], … Squirt - Mary Tachibana. Starring: Mary Tachibana. Duration: 136:17, …"`
+- Not every video carries it — 1 of 5 probed pages had "Starring:"; others end at the
+  model/title text with no Starring clause. Parser must no-op gracefully.
+- Fix: parse actors from `og:description` text between "Starring:" and ". Duration",
+  comma-split; keep `span.valor a` as a no-cost first choice.
