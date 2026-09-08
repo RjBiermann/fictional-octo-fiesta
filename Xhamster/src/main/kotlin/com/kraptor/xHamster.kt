@@ -19,6 +19,11 @@ class xHamster : MainAPI() {
     override val supportedTypes = setOf(TvType.NSFW)
     override val vpnStatus = VPNStatus.MightBeNeeded
 
+    // Desktop pages serve xplayerSettings:null to guests; only the mobile page exposes sources.
+    private val mobileHeaders = mapOf(
+        "User-Agent" to "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36"
+    )
+
     override val mainPage = mainPageOf(
         "${mainUrl}/newest/" to "Newest",
         "${mainUrl}/most-viewed/weekly/" to "Weekly Most Viewed",
@@ -145,7 +150,11 @@ class xHamster : MainAPI() {
         val sourceName = name
 
         val document: Document = try {
-            app.get("${data}?geo=us", cookies = mapOf("video_titles_translation" to "0")).document
+            app.get(
+                "${data}?geo=us",
+                headers = mobileHeaders,
+                cookies = mapOf("video_titles_translation" to "0")
+            ).document
         } catch (e: Exception) {
             Log.e(sourceName, "Failed to fetch document: ${e.message}")
             return false
@@ -177,21 +186,26 @@ class xHamster : MainAPI() {
 
         val initialData = getInitialsJson(document.html())
 
-        // Fallback: player sources (xplayerSettings) are often null for guests; the
-        // download-sources JSON still carries direct MP4s per quality.
-        if (!foundLinks) {
-            initialData?.downloadDropdownComponent?.sources?.mp4?.forEach { (quality, mp4Url) ->
-                val fixed = fixUrl(mp4Url)
-                Log.d(sourceName, "MP4 fallback $quality: $fixed")
+        // Guest tier: desktop initials carry xplayerSettings:null; the mobile page's
+        // xplayerSettings.sources.standard carries hex-obfuscated direct MP4s + HLS masters.
+        initialData?.xplayerSettings?.sources?.standard?.let { std ->
+            // h264 entries first (widest device support), av1 master as backup.
+            for (entry in std.h264.orEmpty() + std.av1.orEmpty()) {
+                val decoded = decodeXhUrl(entry.url)
+                    ?: decodeXhUrl(entry.fallback)
+                    ?: continue
+                if (!decoded.startsWith("http")) continue
+                val isHls = decoded.contains(".m3u8")
+                Log.d(sourceName, "Decoded source ${entry.quality}: $decoded")
                 callback(
                     newExtractorLink(
                         source = sourceName,
                         name = sourceName,
-                        url = fixed,
-                        type = ExtractorLinkType.VIDEO
+                        url = decoded,
+                        type = if (isHls) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
                     ) {
                         this.referer = data
-                        this.quality = quality.filter { it.isDigit() }.toIntOrNull()
+                        this.quality = entry.quality?.filter { it.isDigit() }?.toIntOrNull()
                             ?: Qualities.Unknown.value
                     }
                 )
@@ -226,9 +240,6 @@ class xHamster : MainAPI() {
     // Current video's own metadata from window.initials (duration is in seconds).
     data class VideoModel(val duration: Int? = null)
 
-    data class DownloadDropdown(val sources: DownloadSources? = null)
-    data class DownloadSources(val mp4: Map<String, String>? = null)
-
     data class XPlayerSettings(
         val sources: VideoSources? = null,
         val subtitles: Subtitles? = null
@@ -242,8 +253,15 @@ class xHamster : MainAPI() {
     data class HlsSources(val h264: HlsSource? = null)
     data class HlsSource(val url: String? = null)
 
-    data class StandardSources(val h264: List<StandardSourceQuality>? = null)
-    data class StandardSourceQuality(val quality: String? = null, val url: String? = null)
+    data class StandardSources(
+        val h264: List<StandardSourceQuality>? = null,
+        val av1: List<StandardSourceQuality>? = null
+    )
+    data class StandardSourceQuality(
+        val quality: String? = null,
+        val url: String? = null,
+        val fallback: String? = null
+    )
 
     data class Subtitles(val tracks: List<SubtitleTrack>? = null)
     data class SubtitleTrack(
@@ -253,6 +271,68 @@ class xHamster : MainAPI() {
     )
 
     data class SubtitleUrls(val vtt: String? = null)
+
+    data class DownloadDropdown(val sources: DownloadSources? = null)
+    data class DownloadSources(val mp4: Map<String, String>? = null)
+
+    // Deobfuscation of xplayerSettings.sources URLs, ported from the site's player
+    // (static-nss.xhcdn.com/xh-mobile/js/xplayer-mobile.js): hex bytes, byte 0 = algoId,
+    // bytes 1-4 = little-endian seed, remainder XORed with the keystream.
+    private fun decodeXhUrl(hex: String?): String? {
+        if (hex.isNullOrEmpty() || hex.length % 2 != 0 || hex.length < 12) return null
+        return try {
+            val b = IntArray(hex.length / 2) {
+                hex.substring(it * 2, it * 2 + 2).toInt(16)
+            }
+            val alg = b[0]
+            var s = b[1] or (b[2] shl 8) or (b[3] shl 16) or (b[4] shl 24)
+            var out = ""
+            for (i in 5 until b.size) {
+                val k = when (alg) {
+                    1 -> { s = s * 1664525 + 0x3c6ef35f; s and 255 }
+                    2 -> { s = s xor (s shl 13); s = s xor (s ushr 17); s = s xor (s shl 5); s and 255 }
+                    3 -> {
+                        s += 0x9e3779b9.toInt()
+                        var e = s xor (s ushr 16)
+                        e = (e.toLong() * 0x85ebca77L).toInt()
+                        e = e xor (e ushr 13)
+                        e = (e.toLong() * 0xc2b2ae3dL).toInt()
+                        (e xor (e ushr 16)) and 255
+                    }
+                    4 -> {
+                        s += 0x6d2b79f5.toInt()
+                        var e = (s shl 7) or (s ushr 25)
+                        e += 0x9e3779b9.toInt()
+                        e = e xor (e ushr 11)
+                        e and 255
+                    }
+                    5 -> {
+                        s = s xor (s shl 7); s = s xor (s ushr 9); s = s xor (s shl 8)
+                        s = s + 0xa5a5a5a5.toInt()
+                        s and 255
+                    }
+                    6 -> {
+                        val v = (s.toLong() * 0x2c9277b5L).toInt() + 0xac564b05.toInt()
+                        ((v xor (s ushr 18)) and 255) shr (s ushr 27 and 31)
+                    }
+                    7 -> {
+                        s += 0x9e3779b9.toInt()
+                        var e = s xor (s shl 5)
+                        e = (e.toLong() * 0x7feb352dL).toInt()
+                        e = e xor (e ushr 15)
+                        e = (e.toLong() * 0x846ca68bL).toInt()
+                        e and 255
+                    }
+                    else -> return null
+                }
+                out += ((b[i] xor k) and 255).toChar()
+            }
+            out
+        } catch (e: Exception) {
+            Log.e("xHamster", "decodeXhUrl failed: ${e.message}")
+            null
+        }
+    }
 
     private fun getInitialsJson(html: String): InitialsJson? {
         return try {
