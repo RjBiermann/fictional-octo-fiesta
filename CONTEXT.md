@@ -84,6 +84,16 @@ _Avoid_: stale (the bot's mark, not the outcome), auto-close, abandonment
 The ordered fallback every agent run follows: GLM 5.3 Flash → DeepSeek V4 Flash, both served through the OpenCode Go gateway (paid key) and driven by pi. The Reviewer's primary must come from a different model family than the Builder's primary (independence). Cost discipline: mechanical agent runs (Monitor, Triage) run with thinking off; the Monitor does a full per-provider sweep twice a week (Mon + Thu).
 _Avoid_: free model chain, model pool, provider list, LLM stack
 
+### Provider code
+
+**Host registry**:
+The shared module that registers every extractor adapter the repo ships; every provider's plugin calls it, so host coverage never varies by provider.
+_Avoid_: shared extractors, extractor list
+
+**Extractor adapter**:
+One ExtractorApi per embed host family, dispatched through the framework's loadExtractor; hosts are never handled inline inside a provider's loadLinks.
+_Avoid_: extractor class, host handler
+
 ### Provider data
 
 **Recommendations**:
