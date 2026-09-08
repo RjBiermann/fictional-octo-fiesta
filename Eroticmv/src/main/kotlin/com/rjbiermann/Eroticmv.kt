@@ -71,10 +71,19 @@ class Eroticmv : MainAPI() {
             .select(".single-related-posts article.post-item")
             .mapNotNull { it.toSearchResult() }
 
+        // JSON-LD articleSection = genres; release year from og:title "(1987)"
+        // (datePublished is the WP posting date, not the release year — FINDINGS)
+        val jsonLd = document.selectFirst("script[type='application/ld+json']")?.data().orEmpty()
+        val raw = jsonLd.substringAfter("articleSection", "").substringAfter("[", "").substringBefore("]")
+        val tags = raw.split(",").map { it.trim('"', ' ') }.filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }
+        val year = Regex("\\((\\d{4})\\)").find(title)?.groupValues?.get(1)?.toIntOrNull()
+
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster
             this.plot = description
             this.recommendations = recommendations
+            this.tags = tags
+            this.year = year
         }
     }
 

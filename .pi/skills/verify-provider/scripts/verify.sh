@@ -109,14 +109,26 @@ html = open(sys.argv[1], encoding='utf-8', errors='replace').read()
 for pat in [r'video_url\s*:\s*\'(http[^\']+)',
             r'<source[^>]*src=["\'](http[^"\']+)',
             r'<source[^>]*src=["\'](//[^"\']+)',
-            r'"contentUrl"\s*:\s*"([^"\\]+)',
+            r'"contentUrl"\s*:\s*"((?:[^"\\]|\\.)+)',
             r'property=["\']og:video(:secure_url)?["\']\s+content=["\']([^"\']+)',
             r'(https?://[^"\'\s]+\.m3u8[^"\'\s]*)'] + \
            [r'itemprop=["\']contentUrl["\']\s+content=["\']([^"\']+)',
             r'content=["\']([^"\']+)["\']\s+itemprop=["\']contentUrl']:
     m = re.search(pat, html)
     if m:
-        print('https:' + m.group(1) if m.group(1).startswith('//') else m.group(1)); break
+        link = m.group(m.lastindex) if m.lastindex else m.group(0)
+        if re.search(r'\.(jpe?g|png|webp|gif)([?#]|$)', link):
+            continue  # poster image, not a stream — try the next pattern
+        # eroticmv-style: "http://<base64>.m3u8" -> decode token into the real HLS URL
+        mm = re.match(r'https?://([A-Za-z0-9+/=]+)\.m3u8$', link)
+        if mm:
+            import base64
+            try:
+                tok = mm.group(1) + '=' * ((4 - len(mm.group(1)) % 4) % 4)
+                link = base64.b64decode(tok).decode()
+            except Exception:
+                pass
+        print('https:' + link if link.startswith('//') else link.replace('\\/', '/')); break
 PY
 }
 
@@ -149,7 +161,7 @@ m = re.search(r'"hls\d":"([^"]*master\.m3u8[^"]*)"', page)
 if not m:
     m = re.search(r'https://[^\'"\s]{20,}?\.m3u8[^\'"\s]*', page)
 if m:
-    link = m.group(1) if m.lastindex else m.group(0)
+    link = m.group(m.lastindex) if m.lastindex else m.group(0)
     if not link.startswith('http'):
         link = 'https://' + re.sub(r'^https?://', '', embeds[0]).split('/')[0] + link
     print(link)
@@ -182,9 +194,17 @@ for VIDEO_URL in "${VIDEO_URLS[@]}"; do
     [[ -n "$stream_url" ]] && echo "  (two-hop embed resolved: ${stream_url:0:80}…)"
   fi
   if [[ -n "$stream_url" ]]; then
-    hdr=$(curl -sL "${HEADERS[@]}" -H "Range: bytes=0-64" -o /dev/null -w '%{http_code} %{content_type}' --max-time 30 "$stream_url")
+    hdr=$(curl -sL "${HEADERS[@]}" -H "Range: bytes=0-64" -o /dev/null -w '%{http_code} %{content_type}' --max-time 30 "$stream_url") || hdr="000 ERR"
     echo "GET stream → $hdr"
-    echo "$hdr $stream_url" | grep -qE '(^20[06])' && echo "$hdr" | grep -qiE 'video/mp4|video/webm|application/vnd.apple.mpegurl|mpegurl' || { echo "FAIL stream content-type ($VIDEO_URL)"; fail=1; }
+    if [[ "$hdr $stream_url" =~ ^20[06] ]]; then
+      if ! echo "$hdr" | grep -qiE 'video/mp4|video/webm|application/vnd.apple.mpegurl|mpegurl'; then
+        # some CDNs serve m3u8 as application/octet-stream — accept a playlist body (skill rule)
+        body=$(curl -sL "${HEADERS[@]}" --max-time 30 "$stream_url" | head -c 64 || true)
+        if [[ "$body" == *'#EXTM3U'* ]]; then echo "  (m3u8 playlist body, content-type $(echo "$hdr" | cut -d' ' -f2))"; else echo "FAIL stream content-type ($VIDEO_URL)"; fail=1; fi
+      fi
+    else
+      echo "FAIL stream content-type ($VIDEO_URL)"; fail=1
+    fi
   else
     echo "FAIL: no absolute stream URL extracted from $STREAM_SELECTOR ($VIDEO_URL)"; fail=1
   fi

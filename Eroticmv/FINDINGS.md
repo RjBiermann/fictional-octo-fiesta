@@ -59,3 +59,9 @@ Search: no pagination (see above).
 ## Risks / blockers
 - Stream CDN behind **ddos-guard** but serves 200 to plain curl with browser UA — no challenge observed.
 - None blocking.
+
+## Metadata (2026-09-09 probe, issue #175)
+- JSON-LD `script[type="application/ld+json"]` on every video page exposes
+  `articleSection` genres, e.g. `["1960s","Classic Erotica","Comedy","USA"]`.
+- `datePublished` is the **WP posting date** (e.g. 2026-08-20 for a 1987 film), NOT the
+  release year. Release year comes from og:title: `Watch Pretty Peaches 2 (1987) - ...`.
