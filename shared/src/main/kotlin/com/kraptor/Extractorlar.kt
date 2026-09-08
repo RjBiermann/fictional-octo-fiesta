@@ -30,7 +30,6 @@ import com.lagradost.cloudstream3.extractors.VidStack
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.M3u8Helper.Companion.generateM3u8
 import java.net.URI
-import com.lagradost.cloudstream3.extractors.DoodLaExtractor
 import org.mozilla.javascript.Context
 import org.mozilla.javascript.NativeJSON
 import org.mozilla.javascript.NativeObject
@@ -860,7 +859,6 @@ open class Vidguardto : ExtractorApi() {
 
     private fun runJS2(hideMyHtmlContent: String): String {
         val rhino = Context.enter()
-        rhino.initSafeStandardObjects()
         rhino.optimizationLevel = -1
         val scope: Scriptable = rhino.initSafeStandardObjects()
         scope.put("window", scope, scope)

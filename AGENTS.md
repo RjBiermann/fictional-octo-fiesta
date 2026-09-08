@@ -95,6 +95,9 @@ Pipeline skills live in `.pi/skills/` (site-probe, new-provider, verify-provider
 fix-provider); CI loads them explicitly. When editing a provider, follow the same skills —
 probe → evidence → minimal change → build → verify.
 
+`.agents/skills/` is the maintainer's interactive harness (grilling, code-review, etc.);
+nothing in CI consumes it. Don't flag it as dead weight or prune it.
+
 ### Issue tracker
 
 Issues are tracked in GitHub Issues via the `gh` CLI (CI may create/update them too). See `docs/agents/issue-tracker.md`.
