@@ -107,19 +107,36 @@ class Porntrex : MainAPI() {
 
     override suspend fun quickSearch(query: String): List<SearchResponse>? = search(query)
 
+    private fun videoId(url: String) = Regex("/video/(\\d+)/").find(url)?.groupValues?.get(1)
+
     override suspend fun load(url: String): LoadResponse? {
         Log.d(tag, "Load : $url")
         val document = app.get(url).document
 
-        val title       = document.selectFirst("p.title-video")?.text()?.trim() ?: return null
-        val poster      = fixUrlNull(document.selectFirst("#tab_screenshots img.thumb")?.attr("data-src"))
+        // 2026-10 (issue #171): guest video pages render an empty shell (no flashvars,
+        // no title/details). The /embed/{id}/ page still carries the full KVS player config.
+        var title = document.selectFirst("p.title-video")?.text()?.trim()
+        var poster = fixUrlNull(document.selectFirst("#tab_screenshots img.thumb")?.attr("data-src"))
+        if (title.isNullOrEmpty() && videoId(url) != null) {
+            val embed = app.get("${mainUrl}/embed/${videoId(url)}/").text
+            title = Regex("title: '([^']+)'").find(embed)?.groupValues?.get(1)?.trim()
+            if (poster == null)
+                poster = fixUrlNull(Regex("preview_url: '([^']+)'").find(embed)?.groupValues?.get(1))
+        }
+        title ?: return null
         val description = document.selectFirst("div.videodesc em.des-link")?.text()?.trim()
         val tags        = document.select("div.js-categories a.js-cat").map { it.text() } +
                 document.select("div.item:has(span.title-item:contains(Tags)) div.items-holder a").map { it.text() }
         val actors      = document.select("div.block-details div.item:has(span.title-item:contains(Models:)) div.items-holder a").map { it.ownText().trim() }.filter { it.isNotEmpty() }
         val duration    = document.selectFirst("i.fa-clock-o")?.parent()?.text()?.trim()
             ?.let { Regex("(\\d+)").find(it)?.value }?.toIntOrNull()
-        val recommendations = document.select("div.video-list div.video-item").mapNotNull { it.toRecommendationResult() }
+        var recommendations = document.select("div.video-list div.video-item").mapNotNull { it.toRecommendationResult() }
+        // issue #171: shell pages render no related list; fall back to the live related-videos endpoint.
+        if (recommendations.isEmpty() && videoId(url) != null) {
+            recommendations = app.get("${mainUrl}/related_videos_html/${videoId(url)}/").document
+                .select("a.player-related-videos-item.kt-api-related-item")
+                .mapNotNull { it.toRelatedRecommendationResult() }
+        }
 
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl       = poster
@@ -129,6 +146,17 @@ class Porntrex : MainAPI() {
             this.duration        = duration
             this.recommendations = recommendations
         }
+    }
+
+    // item nodes on /related_videos_html/{id}/ are <a class="...player-related-videos-item kt-api-related-item">
+    private fun Element.toRelatedRecommendationResult(): SearchResponse? {
+        val href  = fixUrlNull(attr("href")) ?: return null
+        val title = selectFirst("span.title")?.text()?.trim().takeIf { !it.isNullOrBlank() }
+            ?: attr("title").takeIf { it.isNotBlank() } ?: return null
+        val poster = selectFirst("div.thumb")?.attr("style")
+            ?.let { Regex("url\\(['\"]([^'\"]+)['\"]\\)").find(it)?.groupValues?.get(1) }
+            ?.let { fixUrlNull(it) }
+        return newMovieSearchResponse(title, href, TvType.NSFW) { this.posterUrl = poster }
     }
 
     private fun Element.toRecommendationResult(): SearchResponse? {
@@ -149,7 +177,12 @@ class Porntrex : MainAPI() {
     ): Boolean {
         Log.d(tag, "data = $data")
         val html     = app.get(data).document.html()
-        val videoUrl = Regex("video_url:\\s*'([^']+)'").find(html)?.groupValues?.get(1) ?: return false
+        var videoUrl = Regex("video_url:\\s*'([^']+)'").find(html)?.groupValues?.get(1)
+        if (videoUrl == null && videoId(data) != null) {
+            val embed = app.get("${mainUrl}/embed/${videoId(data)}/").text
+            videoUrl = Regex("video_url:\\s*'([^']+)'").find(embed)?.groupValues?.get(1)
+        }
+        videoUrl ?: return false
 
         callback(
             newExtractorLink(
