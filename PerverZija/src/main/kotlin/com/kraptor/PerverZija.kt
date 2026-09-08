@@ -97,10 +97,11 @@ class PerverZija : MainAPI() {
         }
     }
 
+    // CloudStream `duration` is minutes (repo convention) — not seconds.
     private fun parseIsoDuration(jsonLd: String?): Int? {
         val m = Regex("PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?").find(jsonLd ?: return null) ?: return null
-        val (h, min, s) = m.destructured
-        return 60 * ((h.toIntOrNull() ?: 0) * 60 + (min.toIntOrNull() ?: 0)) + (s.toIntOrNull() ?: 0) / 60
+        val (h, min, _) = m.destructured
+        return ((h.toIntOrNull() ?: 0) * 60 + (min.toIntOrNull() ?: 0)).takeIf { it > 0 }
     }
 
     private fun Element.toRecommendationResult(): SearchResponse? {
