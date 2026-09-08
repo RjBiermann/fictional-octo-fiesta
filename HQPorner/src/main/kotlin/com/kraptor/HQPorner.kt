@@ -10,6 +10,8 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 
 class HQPorner : MainAPI() {
     override var mainUrl              = "https://hqporner.com"
+    // ponytail: hqporner 302s mobile UAs to m.hqporner.com, whose cards don't match our selectors — pin the desktop UA on every request
+    private val desktopUa             = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) Gecko/20100101 Firefox/130.0"
     override var name                 = "HQPorner"
     override val hasMainPage          = true
     override var lang                 = "en"
@@ -87,7 +89,7 @@ class HQPorner : MainAPI() {
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val document = app.get("${request.data}/$page", referer = "$mainUrl/").document
+        val document = app.get("${request.data}/$page", referer = "$mainUrl/", headers = mapOf("User-Agent" to desktopUa)).document
         // ponytail: mobile UA serves no hover span.icon in cards; a.image is stable in both layouts
         val home     = document.select("div.row section.box.feature:has(a.image)").mapNotNull { it.toMainPageResult() }
 
@@ -108,7 +110,7 @@ class HQPorner : MainAPI() {
     }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
-        val document = app.get("${mainUrl}/?q=${query}&p=$page", referer = "${mainUrl}/").document
+        val document = app.get("${mainUrl}/?q=${query}&p=$page", referer = "${mainUrl}/", headers = mapOf("User-Agent" to desktopUa)).document
 
         val aramaCevap = document.select("div.row section.box.feature:has(a.image)").mapNotNull { it.toMainPageResult() }
         return newSearchResponseList(aramaCevap, hasNext = true)
@@ -121,7 +123,7 @@ class HQPorner : MainAPI() {
         Log.d("kraptor_$name", "split = $split")
         val currentUrl = split[0].trim()
         val poster = split[1].trim()
-        val document = app.get(currentUrl, referer = "$mainUrl/").document
+        val document = app.get(currentUrl, referer = "$mainUrl/", headers = mapOf("User-Agent" to desktopUa)).document
 
         val title           = document.selectFirst("h1")?.text()?.trim() ?: return null
         val description     = document.selectFirst("meta[name=description]")?.attr("content")?.trim()
