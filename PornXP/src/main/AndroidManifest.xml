@@ -1,16 +1,2 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.rjbiermann">
-
-    <application>
-        <activity
-            android:name=".PornXPPlugin"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="com.lagradost.cloudstream3.API" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </activity>
-    </application>
-
-</manifest>
+<manifest />
