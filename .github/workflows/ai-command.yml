@@ -40,6 +40,7 @@ jobs:
     timeout-minutes: 5
     env:
       GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }} # no checkout in this job — gh needs this to resolve the repo
       NUM: ${{ github.event.issue.number }}
       CMD_ID: ${{ github.event.comment.id }}
       IS_PR: ${{ github.event.issue.pull_request != null }}
