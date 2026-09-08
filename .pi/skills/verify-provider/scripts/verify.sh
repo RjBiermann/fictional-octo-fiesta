@@ -120,6 +120,42 @@ for pat in [r'video_url\s*:\s*\'(http[^\']+)',
 PY
 }
 
+embed_stream_url() {  # video page → first m3u8 from its click-loaded embed pages (two-hop sites)
+  python3 - "$1" <<'PY'
+import re, sys, urllib.request
+html = open(sys.argv[1], encoding='utf-8', errors='replace').read()
+embeds = re.findall(r'https://(?:filmcdm\.top|s2\.filmcdn\.top)/e/[A-Za-z0-9_\-]+', html)
+# prefer filmcdm.top (its cfglobalcdn sibling is geo-blocked on many runners)
+embeds.sort(key=lambda u: 's2.filmcdn' in u)
+if not embeds:
+    sys.exit(0)
+req = urllib.request.Request(embeds[0], headers={'User-Agent': 'Mozilla/5.0'})
+try:
+    page = urllib.request.urlopen(req, timeout=30).read().decode('utf-8', 'replace')
+except Exception:
+    sys.exit(0)
+m = re.search(r"eval\(function\(p,a,c,k,e,d\)\{.*?\}\('(.*?)',(\d+),(\d+),'(.*?)'\.split\('\|'\)\)", page, re.S)
+if m:  # Dean Edwards packer: decode the jwplayer config like the extractor does
+    payload, radix, keys = m.group(1).replace("\\'", "'"), int(m.group(2)), m.group(4).split('|')
+    digits = '0123456789abcdefghijklmnopqrstuvwxyz'
+    def to_radix(n, r):
+        if n >= r:
+            return to_radix(n // r, r) + digits[n % r]
+        return digits[n]
+    kmap = {to_radix(i, radix): v for i, v in enumerate(keys) if v}
+    decoded = re.sub(r'\b[a-z0-9]+\b', lambda w: kmap.get(w.group(0), w.group(0)), payload, flags=re.I)
+    page = decoded
+m = re.search(r'"hls\d":"([^"]*master\.m3u8[^"]*)"', page)
+if not m:
+    m = re.search(r'https://[^\'"\s]{20,}?\.m3u8[^\'"\s]*', page)
+if m:
+    link = m.group(1) if m.lastindex else m.group(0)
+    if not link.startswith('http'):
+        link = 'https://' + re.sub(r'^https?://', '', embeds[0]).split('/')[0] + link
+    print(link)
+PY
+}
+
 echo "── check 1: search page"
 code=$(curl -sL "${HEADERS[@]}" -o /tmp/verify_search.html -w '%{http_code}' --max-time 30 "$SEARCH_URL") || code="ERR"
 n=$(sel_count "$SEARCH_SELECTOR" /tmp/verify_search.html)
@@ -141,6 +177,10 @@ for VIDEO_URL in "${VIDEO_URLS[@]}"; do
   fi
 
   stream_url=$(first_stream_url /tmp/verify_video.html)
+  if [[ -z "$stream_url" ]]; then
+    stream_url=$(embed_stream_url /tmp/verify_video.html)
+    [[ -n "$stream_url" ]] && echo "  (two-hop embed resolved: ${stream_url:0:80}…)"
+  fi
   if [[ -n "$stream_url" ]]; then
     hdr=$(curl -sL "${HEADERS[@]}" -H "Range: bytes=0-64" -o /dev/null -w '%{http_code} %{content_type}' --max-time 30 "$stream_url")
     echo "GET stream → $hdr"
