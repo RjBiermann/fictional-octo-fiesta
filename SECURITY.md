@@ -1,21 +1,12 @@
 # Security Policy
 
-## Supported Versions
+This repo contains scraping code for third-party video sites. There is nothing
+here that handles user data, credentials, or payments, so there is no private
+disclosure track.
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
-
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
-
-## Reporting a Vulnerability
-
-Use this section to tell people how to report a vulnerability.
-
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+- Found a bug or a provider that leaks/handles something it shouldn't? Open a
+  [GitHub issue](https://github.com/RjBiermann/fictional-octo-fiesta/issues).
+- Report a security concern only if it affects users of the built `.cs3`
+  plugins (e.g. a provider resolving a malicious stream). Use the same issue
+  tracker; mark the title with `[security]`.
+- Fixes are best-effort by maintainers; there is no SLA.

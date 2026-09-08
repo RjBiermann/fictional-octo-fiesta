@@ -4,7 +4,7 @@ A [CloudStream3](https://github.com/recloudstream/cloudstream) extension repo of
 
 ## Providers
 
-EPorner, FreePornVideos, FullPorner, HQPorner, ixiporn, JavGuru, Javseen, Javtiful, MissAV, PerverZija, PornHits, PornXP, Porntrex, WatchPorn, Xhamster, XMoviesForYou
+AllClassicPorn, Cat3Film, Cat3Movie, EPorner, Film1k, FreePornVideos, FullPorner, HQPorner, ixiporn, Javbangers, JavGuru, Javmost, Javseen, Javtiful, MissAV, Neporn, PerverZija, PornHits, PornXP, Porntrex, Sexfilm, WatchPorn, Xhamster, XMoviesForYou
 
 CI builds every provider on push and publishes `plugins.json` to the `builds` branch.
 
