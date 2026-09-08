@@ -107,3 +107,43 @@ confirmed HTTP 200 with 28 fresh cards on page 2).
   whose only server is dooplayer will have no links.
 - Obfuscated player JS could change its endpoint/params — POST shape recorded above.
 - No Cloudflare / age wall observed; all probes plain curl + desktop UA.
+
+## Re-probe 2026-09-08 (issue #170 drift)
+CONFIRMED: sitewide listing pages (`/search/{q}/`, `/category/{x}/`, `/release/new/`) now serve
+an unrendered JS template (0 `div.card`, literal `${url}` anchors, ~172 KB shell). Video pages
+are STILL fully server-rendered (`og:title`, `YWRzMQo`, `select_part` ×3, `div.card` related).
+
+### New content endpoint (how the browser fills listings)
+The page shell's inline script posts JSON:
+`GET https://www.javmost.ws/showlist2/{group}/{page}/{type}/`
+- search:  group = query, type = `search`   (hidden inputs `update_group`/`update_type` in the shell)
+- home:    `all|uncensor|censor` + `category`; `new` + `release`
+Transcript (curl, no cookies, no Cloudflare):
+```
+$ curl -s 'https://www.javmost.ws/showlist2/milf/1/search/' | head -c 400
+{"result":[{"url":"https:\/\/www.javmost.ws\/SW-256-UNCENSORED-EDIT\/","name":"SW-256-UNCENSORED-EDIT",
+"full_name":" ... ","cover":"https:\/\/img3.javmost.ws\/images\/SW-256-UNCENSORED-EDIT.webp",...
+```
+- 24 items/page; page 2 (`/showlist2/milf/2/search/`) returns different items → real pagination.
+- Item fields: `url`, `name` (code), `full_name` (title, HTML-escaped, may be empty),
+  `cover` (webp/jpg), `star`, `genre`, `length`, `maker`, `release`.
+- No `/api/`/`/ajax/` search endpoint beyond this; `apps.js` is a stock Color-Admin admin
+  theme bundle — the showlist2 call is the only data source.
+
+### Fix applied
+`getMainPage` + `search` now call `showlist2` and parse the JSON (Jackson `readTree`);
+video pages unchanged (`og:title`/`og:image` load, `select_part`+`YWRzMQo` AJAX `/ri3123o235r/`,
+emturbovid→turbovidhls m3u8). `version` 2→3.
+
+### Verification (2026-09-08)
+- `./gradlew Javmost:make` → BUILD SUCCESSFUL.
+- verify.sh: video pages 200 ×5, related selector `div.card` 21–30 matches ×5, LoadResponse
+  fields (recommendations, tags, posters) populated — PASS. check-2's stream-extraction
+  sub-check is a known N/A for this engine (its `contentUrl` JSON-LD points at the page URL,
+  and the real stream needs the two-hop AJAX chain verify.sh cannot express — same limitation
+  recorded 2026-02-06).
+- Independent python chain probe over the 5 video URLs: SW-256-UNCENSORED-EDIT,
+  DLDSS-529, AVOP-era videos → emturbovid pages → `cdn2.turboviplay.com/...m3u8` → HTTP 200
+  `application/vnd.apple.mpegurl` (3/5; FTHTD-192-REDUCING-MOSAIC, CARIBBEANCOM-082226-001,
+  NAMH-075 serve dooplayer embeds only → HTTP 204, JS-only, unresolvable server-side —
+  pre-existing site ceiling, unchanged by this fix).

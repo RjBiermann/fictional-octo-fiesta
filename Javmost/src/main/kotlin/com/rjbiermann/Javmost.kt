@@ -13,27 +13,48 @@ class Javmost : MainAPI() {
     override var lang           = "en"
     override val supportedTypes = setOf(TvType.NSFW)
 
+    // data format for mainPage entries: "group::type" → /showlist2/{group}/{page}/{type}/
     override val mainPage = mainPageOf(
-        "$mainUrl/category/all/" to "All Movies",
-        "$mainUrl/category/uncensor/" to "Uncensored",
-        "$mainUrl/category/censor/" to "Censored",
-        "$mainUrl/release/new/" to "New Releases",
+        "all::category" to "All Movies",
+        "uncensor::category" to "Uncensored",
+        "censor::category" to "Censored",
+        "new::release" to "New Releases",
     )
 
-    private fun pageUrl(base: String, page: Int): String =
-        if (page <= 1) base else "${base.trimEnd('/')}/page/$page/"   // FINDINGS: /page/N/
+    // FINDINGS 2026-09-08: listing pages (/search, /category, /release) now serve an unrendered
+    // JS template; the browser fills them via JSON /showlist2/{group}/{page}/{type}/.
+    private suspend fun showlist(group: String, type: String, page: Int): List<SearchResponse> {
+        val res = app.get("$mainUrl/showlist2/$group/$page/$type/")
+        val root = com.fasterxml.jackson.databind.ObjectMapper().readTree(res.text)
+        return root.get("result")?.mapNotNull { el ->
+            try {
+                val url = el.get("url")?.asText() ?: return@mapNotNull null
+                val title = (el.get("name")?.asText() ?: "").ifBlank {
+                    el.get("full_name")?.asText() ?: ""
+                }.trim()
+                if (title.isBlank()) return@mapNotNull null
+                newMovieSearchResponse(title, url, TvType.NSFW) {
+                    posterUrl = fixUrlNull(el.get("cover")?.asText())
+                }
+            } catch (e: Exception) { null }
+        } ?: emptyList()
+    }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val document = app.get(pageUrl(request.data, page)).document
-        val home = document.select("div.card").mapNotNull {
-            try { it.toSearchResult() } catch (e: Exception) { null }
-        }
+        val (group, type) = request.data.split("::")
+        val home = showlist(group, type, page)
         return newHomePageResponse(
             HomePageList(name = request.name, list = home, isHorizontalImages = false),
-            hasNext = true,
+            hasNext = home.isNotEmpty(),
         )
     }
 
+    override suspend fun search(query: String, page: Int): SearchResponseList {
+        val results = showlist(query, "search", page)
+        return newSearchResponseList(results, hasNext = results.isNotEmpty())
+    }
+
+    // video pages are still server-rendered (FINDINGS 2026-09-08) — recommendations use div.card
     private fun Element.toSearchResult(): SearchResponse? {
         val link = selectFirst("a[href*=\"$mainUrl/\"]") ?: return null
         val href = link.attr("href")
@@ -47,17 +68,6 @@ class Javmost : MainAPI() {
         return newMovieSearchResponse(title, href, TvType.NSFW) {
             posterUrl = fixUrlNull(poster)
         }
-    }
-
-    override suspend fun search(query: String, page: Int): SearchResponseList {
-        val document = app.get(
-            // FINDINGS: /search/{q}/page/N/
-            if (page <= 1) "$mainUrl/search/$query/" else "$mainUrl/search/$query/page/$page/"
-        ).document
-        val results = document.select("div.card").mapNotNull {
-            try { it.toSearchResult() } catch (e: Exception) { null }
-        }
-        return newSearchResponseList(results, hasNext = true)
     }
 
     override suspend fun load(url: String): LoadResponse {
