@@ -19,7 +19,7 @@ buildscript {
         // metadata no longer resolves under Gradle 8.12 (file lives in a non-standard
         // version dir); replace this file when upstream publishes a fix.
         classpath(files("gradlelibs/cs-plugin-facade.jar"))
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.10")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.20")
     }
 }
 
