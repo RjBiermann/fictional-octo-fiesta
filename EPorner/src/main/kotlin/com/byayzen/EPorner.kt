@@ -77,7 +77,15 @@ class EPorner : MainAPI() {
             document.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
         val recommendations =
             document.select("div#relateddiv div.mb").mapNotNull { it.toRecommendationResult() }
+        // Cast markup was removed from video pages; "Starring:" now only appears in og:description.
         val actors = document.select("span.valor a").map { Actor(it.text()) }
+            .ifEmpty {
+                description?.substringAfter("Starring:", "")?.substringBefore(". Duration")
+                    ?.split(",")
+                    ?.mapNotNull { it.trim().takeIf { s -> s.isNotEmpty() } }
+                    ?.map { Actor(it) }
+                    ?: emptyList()
+            }
 
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster
