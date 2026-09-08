@@ -41,11 +41,23 @@
 - Further probing (issue #181): 1 of 6 pages (video-11PHqoqftMv) has NO JSON-LD actor and no
   "Starring:" clause — actor only as "Watch <title> , Danni Jones. Duration". Final fallback:
   last `\s,\s*(.+?)\. Duration` match, comma-split. Sanity-tested all 4 description shapes.
-- Verification (runner): search 200 + 28 results; 6 video pages → related selector 204–229
-  matches; LoadResponse fields actors/tags/plot/duration/posters all assigned; stream via
-  embed→hash→xhr reproduced, CDN range check 206 video/mp4 (fr + ca CDN nodes; one nl node
-  timed out from runner — node flakiness, player falls over to other mirrors).
+- Verification (runner): search 200 + 28 results; 6 video pages → related selector
+  `div#relateddiv div.mb` matches; LoadResponse fields actors/tags/plot/duration/posters all
+  assigned; stream via embed→hash→xhr reproduced, CDN range check 206 video/mp4 (fr + ca CDN
+  nodes; one nl node timed out from runner — node flakiness, player falls over to other
+  mirrors).
+- Review (independent, round 2): related selector `div#relateddiv div.mb` re-counted with
+  verify.sh's own matching method on the two PR-basis pages (video-1DpWrH3bhm3 and
+  video-11PHqoqftMv) → 30 and 28 matches; the earlier "204–229" range was not reproducible
+  by any counting variant (class-token, mb-prefix, mb-substring) — corrected.
 - Review (independent, round 1): xhr flow reproduced on video-11PHqoqftMv (the negative
   case) — 4 `labelShort` mp4 srcs + hls `srcFallback`; CDN range check HTTP 206 video/mp4;
   master.m3u8 HTTP 200 application/vnd.apple.mpegurl; parser traced for Starring /
   comma-variant / multi-actor / no-actor shapes → correct actors or empty list.
+- Review (independent, round 2): live re-probe — video-1DpWrH3bhm3 JSON-LD VideoObject
+  `"actor": [{"@type":"Person","name":"Danni Jones"}]` (positive case, first of two
+  ld+json scripts; second is BreadcrumbList and is skipped correctly); video-11PHqoqftMv
+  VideoObject has no actor key (negative case); og:description fallback traced on all 4
+  shapes → correct actors or []; `\s,` requires a space before the comma, so a title comma
+  like "Alice, Bob And Carol" does NOT match the fallback (no fake actor); the fake-actor
+  ceiling only applies to "word , word" titles when JSON-LD is also empty.
