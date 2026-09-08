@@ -96,14 +96,8 @@ Some older archive movies (e.g. carry-on-teacher-1959, dark-dreams-1971) have hl
 **every** server: for those no stream is resolvable (see below) — a site-side limitation,
 not a provider defect.
 
-**hlsfast re-check (issue #143):** `hlsfast.com/#<id>` is an obfuscated Vue SPA
-(`/assets/index-DqFBtoPY.js`, vidstack, player-version 16.5.3) that calls
-`/api/v1/player?t=<encrypted>` / `/api/v1/video?id=` — raw ids return `{"error": "Token is invalid"}` /
-`{"message": "Request is invalid"}`; the `t` token is generated inside obfuscated JS
-(aes/crypto strings present) and is not reproducible server-side. **loadvid (sv2):** page exposes `videoToken` + csrf; stream is `POST /videos/resolve-token`
-which returns the **m3u8 body** (no URL) for a blob player — no stable stream URL to emit;
-skipped. **hlsfast (sv3):** `/api/v1/video?id=` returns encrypted hex blobs (obfuscated
-vidstack player); not decryptable cheaply; skipped.
+**hlsfast re-check (issue #143):** obfuscated Vue SPA — see issue #180 re-probe below for the
+now-working extraction.
 
 ## Headers / referer
 - cat3movie.org pages: plain requests, browser UA, no referer needed.
@@ -114,6 +108,57 @@ vidstack player); not decryptable cheaply; skipped.
 ## Pagination
 Home/categories: `/{base}/page/{N}` suffix (page 1 = base). Verified different posts on
 /classic-porn vs /classic-porn/page/2 and / vs /page/2. Search: **no pagination** (page 2 → 404).
+
+## hlsfast extraction (issue #180, 2026-09-08 re-probe)
+
+player.php now serves `https://hlsfast.com/#<hash>` embeds (typically sv3; some archive
+movies on every server) alongside the still-working `hlsfree.com/embed/hls/<id>` (sv1)
+and loadvid (sv2). Embed survey:
+
+```
+special-delivery-1959            sv1=hlsfree/993      sv2=loadvid  sv3=hlsfast/#iuba9o
+3-d-sex-and-zen-...-2011         sv1=hlsfree/988      sv2=loadvid  sv3=hlsfast/#pn6yjv
+blue-money-1972                  sv1=hlsfree/667      sv2=loadvid  sv3=hlsfast/#6khwsr
+curse-of-the-dog-god-1977        sv1=hlsfree/953      sv2=loadvid  sv3=hlsfast/#3fu6z9
+bamboo-house-of-dolls-1973       sv1/sv2 CF-cached 404, sv3=hlsfast/#o3iz8s (video deleted upstream)
+```
+
+hlsfast is a vidstack SPA (`assets/index-DqFBtoPY.js`, player-version 16.5.3). The SPA's
+string-table decoder is trivial (`pe(i) = table[i-397]` after a fixed array rotation), so the
+flow is fully reproducible server-side:
+
+1. `GET https://hlsfast.com/api/v1/video?id=<hash>&w=<screenW>&h=<screenH>&r=cat3movie.org`
+   with header `Referer: https://hlsfast.com/` (**required** — without it: 404
+   `{"message":"Video not found or deleted"}`). Response is an AES-CBC encrypted **hex** blob.
+2. Key/IV are constants generated in the obfuscated JS (`Z()`/`J()`), independent of video:
+   key `kiemtienmua911ca`, iv `1234567890oiuytr` (AES-128-CBC, PKCS#5).
+3. Decrypted JSON contains `cfNative` (proxied through hlsfast.com, **preferred**) and
+   `source` (direct server IP). Also `player.restrictEmbed`: `["cat3movie.org","moviecat3.com"]`
+   — the `r=` param must be the cat3movie.org referer domain.
+
+```
+$ node: decrypt(api/v1/video?id=iuba9o...) -> {"source":"https://94.131.217.174/v4/.../master.m3u8?...",
+   "cfNative":"https://hlsfast.com/v4/pl/sn3k.evercresthospitality.space/3ae/iuba9o/master.1788349964.m3u8?k=...&kx=..."}
+$ curl -s -A UA -H 'Referer: https://hlsfast.com/' '<cfNative>'
+HTTP 200 application/vnd.apple.mpegurl
+#EXTM3U / #EXT-X-STREAM-INF ... RESOLUTION=718x478
+```
+
+**End-to-end chain test (player.php → embed → m3u8, emulating the fixed Kotlin):**
+
+```
+special-delivery-1959:            sv1 hlsfree m3u8 200 mpegurl; sv3 hlsfast m3u8 200 mpegurl
+3-d-sex-and-zen-...-2011:         sv1 hlsfree m3u8 200 mpegurl; sv3 hlsfast m3u8 200 mpegurl
+blue-money-1972:                  sv1 hlsfree m3u8 200 mpegurl; sv3 hlsfast m3u8 200 mpegurl
+curse-of-the-dog-god-1977:        sv1 hlsfree m3u8 200 mpegurl; sv3 hlsfast m3u8 200 mpegurl
+the-sadist-of-notre-dame-1979:    sv3 hlsfast m3u8 200 mpegurl (sv1/sv2 CF-cached 404)
+bamboo-house-of-dolls-1973:       sv3 hlsfast id o3iz8s → "Video not found or deleted"
+                                  (video genuinely deleted upstream — site-side gap)
+```
+
+Implementation note: `/api/v1/player?t=` telemetry and P2P/WebTorrent delivery are not
+needed — `cfNative` is a plain HLS master playlist served from hlsfast.com with
+`Referer: https://hlsfast.com/`.
 
 ## Risks / blockers
 - **Cloudflare in front** caches player.php GET responses aggressively; some URLs are
