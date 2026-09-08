@@ -56,6 +56,10 @@ _Avoid_: testing, validation, smoke test
 The live site refused the runner (Cloudflare, IP ban). A PR may open as Blocked with an explicit note; the human verifies in-app instead.
 _Avoid_: failure (a failure stops the run; Blocked completes it with a caveat)
 
+**Delivery**:
+The mechanical commit-and-PR step performed by the workflow (the `deliver-pr` action), never by the agent: commit the working tree to `ai/issue-N`, force-push, create-or-update the PR. A run that produces changes but no Delivery is a failed run.
+_Avoid_: push, publish, ship
+
 **Task run**:
 An Agent run executing a fully specified issue (labeled `ready-for-agent`) with a generic prompt — the issue body is the task spec. Uses the Builder runtime; may apply non-trigger labels only.
 _Avoid_: audit run (an audit is one kind of task run)

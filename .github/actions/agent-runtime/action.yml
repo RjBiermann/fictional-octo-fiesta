@@ -7,6 +7,15 @@ description: >
 runs:
   using: composite
   steps:
+    # Pre-flight: fail broken plumbing (.github/workflows + actions) in seconds,
+    # not after a full model run dies at deliver-pr load time (see ADR-0004).
+    # All callers have checked out before invoking this action.
+    - name: Pre-flight actionlint
+      uses: reviewdog/action-actionlint@v1
+      with:
+        reporter: github-check
+        fail_level: error
+
     - name: Install pi, ponytail, caveman, rtk
       shell: bash
       run: |
