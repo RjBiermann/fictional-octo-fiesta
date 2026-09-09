@@ -29,7 +29,7 @@ class Cat3Movie : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = if (page <= 1) request.data else "${request.data}/page/$page"
         val document = app.get(url).document
-        val home = document.select("article.thumb").mapNotNull { it.toSearchResult() }
+        val home = Parse.homeCards(document).mapNotNull { it.toSearchResult() }
         return newHomePageResponse(
             list = HomePageList(name = request.name, list = home, isHorizontalImages = false),
             hasNext = true
@@ -55,7 +55,7 @@ class Cat3Movie : MainAPI() {
             .filter { it.isLetterOrDigit() || it.isWhitespace() }
             .replace(Regex("\\s+"), "-")
         val document = app.get("$mainUrl/search/$slug").document
-        val list = document.select("article.thumb").mapNotNull { it.toSearchResult() }
+        val list = Parse.searchCards(document).mapNotNull { it.toSearchResult() }
         return newSearchResponseList(list, hasNext = false)
     }
 
@@ -178,6 +178,21 @@ class Cat3Movie : MainAPI() {
             null
         }
     }
+}
+
+/**
+ * Pure card-parsing hooks (TDD-first, ADR-0005). The halimmovies theme renders the newest
+ * posts twice on the homepage archive (top "Latest" strip + main grid); homeCards dedupes
+ * by card href. Search pages have no duplicates.
+ */
+object Parse {
+    fun homeCards(document: org.jsoup.nodes.Document): List<Element> =
+        document.select("article.thumb")
+            .filter { it.selectFirst("a.halim-thumb") != null }
+            .distinctBy { it.selectFirst("a.halim-thumb")?.attr("href") }
+
+    fun searchCards(document: org.jsoup.nodes.Document): List<Element> =
+        document.select("article.thumb").toList()
 }
 
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin

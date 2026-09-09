@@ -1,4 +1,4 @@
-version = 3
+version = 4 // #203 homepage dedupe
 
 cloudstream {
     authors     = listOf("RjBiermann")
