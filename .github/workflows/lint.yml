@@ -63,9 +63,11 @@ jobs:
       - name: No legacy Plugin() classes or pass-through provider files
         run: |
           # WatchPorn/FullPorner keep Plugin(context) — context-requiring constructors.
-          bad=$(grep -rn --include='*.kt' ': Plugin()' \
-            --exclude-dir=WatchPorn --exclude-dir=FullPorner \
-            ./*/src/main/kotlin shared/src/main/kotlin 2>/dev/null || true)
+          # Legacy shape is fully-qualified `plugins.Plugin()`; bare `: Plugin()` and
+          # --exclude-dir don't survive the globbed search roots (review #169 round 2).
+          bad=$(grep -rnE --include='*.kt' '(:[[:space:]]*Plugin\(\)|plugins\.Plugin\(\))' \
+            ./*/src/main/kotlin shared/src/main/kotlin 2>/dev/null \
+            | grep -vE '^\./(WatchPorn|FullPorner)/' || true)
           passthrough=$(find ./*/src/main/kotlin -name '*Provider.kt' 2>/dev/null || true)
           if [[ -n "$bad" || -n "$passthrough" ]]; then
             [[ -n "$bad" ]] && { echo "legacy Plugin() class found:"; echo "$bad"; }
