@@ -100,13 +100,18 @@ class xHamster : MainAPI() {
         val document =
             app.get("${url}?geo=us", cookies = mapOf("video_titles_translation" to "0")).document
 
-        val title = document.selectFirst("div.with-player-container h1")?.text()?.trim().toString()
+        // 2026-09 re-probe (issue #216): div.with-player-container h1 and
+        // div.controls-info div.ab-info p are gone from the template; title, plot and
+        // duration now come from window.initials.videoModel.
+        val initialData = getInitialsJson(document.html())
+        val videoModel = initialData?.videoModel
+        val title = videoModel?.title
+            ?: document.selectFirst("h1")?.text()?.trim().orEmpty()
         val poster = fixUrlNull(
             document.selectFirst("div.xp-preload-image")?.attr("style")?.substringAfter("https:")
                 ?.substringBefore("\');")
         )
-        val description = document.selectFirst("div.controls-info div.ab-info p")?.text()?.trim()
-            ?.replace("\\s+".toRegex(), " ")
+        val description = videoModel?.description?.replace("\\s+".toRegex(), " ")
 
         val actors = document.select("a.entity-author-container__name").map { aTag ->
             val name = aTag.selectFirst("span")?.text()?.trim() ?: ""
@@ -134,7 +139,7 @@ class xHamster : MainAPI() {
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster
             this.plot = description
-            this.duration = getInitialsJson(document.html())?.videoModel?.duration
+            this.duration = videoModel?.duration
             this.tags = tags
             this.recommendations = recommendations
             addActors(actors)
@@ -239,7 +244,11 @@ class xHamster : MainAPI() {
     )
 
     // Current video's own metadata from window.initials (duration is in seconds).
-    data class VideoModel(val duration: Int? = null)
+    data class VideoModel(
+        val title: String? = null,
+        val duration: Int? = null,
+        val description: String? = null
+    )
 
     data class XPlayerSettings(
         val sources: VideoSources? = null,
@@ -279,7 +288,7 @@ class xHamster : MainAPI() {
     // Deobfuscation of xplayerSettings.sources URLs, ported from the site's player
     // (static-nss.xhcdn.com/xh-mobile/js/xplayer-mobile.js): hex bytes, byte 0 = algoId,
     // bytes 1-4 = little-endian seed, remainder XORed with the keystream.
-    private fun decodeXhUrl(hex: String?): String? {
+    internal fun decodeXhUrl(hex: String?): String? {
         if (hex.isNullOrEmpty() || hex.length % 2 != 0 || hex.length < 12) return null
         return try {
             val b = IntArray(hex.length / 2) {
@@ -337,7 +346,7 @@ class xHamster : MainAPI() {
         }
     }
 
-    private fun getInitialsJson(html: String): InitialsJson? {
+    internal fun getInitialsJson(html: String): InitialsJson? {
         return try {
             val regex = Regex("window\\.initials\\s*=\\s*(\\{.*?\\});", RegexOption.DOT_MATCHES_ALL)
             val match = regex.find(html) ?: return null

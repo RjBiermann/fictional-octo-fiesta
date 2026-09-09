@@ -1,67 +1,61 @@
-# FINDINGS — xhamster.com (re-probe 2026-02-06, fix for issue #160)
+# FINDINGS — xhamster.com (re-probe 2026-09-09, fix for issue #216)
+
+## Context: the SPA-shell window closed
+The issue reported every surface returning a contentless `isBare:true` SPA shell
+(41 KB HTML, 0 cards, 0 m3u8). Re-probing on 2026-09-09 shows the site now
+**server-renders full desktop HTML again** (same shell ALSO appeared transiently at the
+start of this run — pages shrank to ~41 KB, then grew to 250–380 KB with content; the
+shell is served intermittently at the edge, not permanently). All rewrites against a
+JSON API were shelved; the DOM path is alive again.
 
 ## Engine fingerprint
-Custom xHamster platform. `window.initials = {...}` JSON blob on every page (desktop and mobile).
+Custom xHamster platform, "XH New Design" template. `window.initials = {...}` JSON blob
+on every page (verified present and content-bearing on desktop search/home/video pages).
 
-## Search
-`https://xhamster.com/search/{query}?geo=us` → 200, `div.thumb-list div.thumb-list__item` items
-with `a.video-thumb-info__name` links. Transcript: 200 after 301→follow, ≥8 `/videos/xh*` hrefs.
+## Search (mobile-UA trap)
+`https://xhamster.com/search/{query}?geo=us`, **desktop UA** → 200, 379 KB, 51
+`data-video-id` cards. Card markup: `div.container-c9dbd.thumb-list__item.video-thumb` …
+`a.video-thumb-info__name` + `img.thumb-image-container__image` — **the provider's existing
+selectors still match** (46 title links on page 1).
+
+- Desktop UA: 51 cards. Mobile UA: only 5 cards (rest are client-hydrated
+  `renderPlaceholder` divs). **Provider must fetch with default (desktop) UA** — it does.
+- Transcript: `curl -A <desktop UA> "https://xhamster.com/search/teacher?geo=us" | grep -c data-video-id → 51`.
+
+## Quick search
+No distinct quick-search endpoint: legacy `quick_search.php` → 404 (reproduced); provider keeps `hasQuickSearch = false`.
+
+## Homepage
+Rows: `/newest/1?geo=us`, `/most-viewed/weekly/1?geo=us`, `/videos/teacher/1?geo=us`, `/categories/big-ass/1?geo=us` — each returns `a.video-thumb-info__name` (7–9 grep hits; one line of HTML). Page 2 (`/newest/2?geo=us`) → 246 KB, unique `data-video-id`s with 0 overlap to page 1.
 
 ## Video pages
-Desktop page (`Chrome/130` UA): 200, full metadata (title, tags, duration, related) — but
-`window.initials.xplayerSettings` is **null** for guests and `downloadDropdownComponent`
-absent. Reproduced (video id 22347803, `/videos/xh0flWg?geo=us`):
+Desktop page now exposes everything to guests:
+- `window.initials.videoModel`: title, duration, description, pageURL, thumbURL, views.
+- `window.initials.xplayerSettings.sources.standard.{h264,av1}` — **populated for guests on the DESKTOP page** (this was mobile-only in Feb 2026). Same hex-obfuscated `url`/`fallback` values; decode algorithm (algId 1–7) verified unchanged with live hex.
+- `div.xp-preload-image` (poster bg URL) still present.
+- Tags: `div[data-role='video-tags-list'] a[href*='/categories/']` — /categories/ hrefs confirmed (also /pornstars/, channel links in same block — provider filter handles this).
+- Actors: `a.entity-author-container__name` present (uploader).
+- Related: `div[data-role="related-item"]` ×11, each with `a.video-thumb-info__name` + `a[data-role='thumb-link']` + `img` — provider selectors unchanged and matching.
+- Deletions observed: `div.with-player-container h1` (title, gone) and `div.controls-info div.ab-info p` (plot, replaced by `controls-info__description`) — **provider load() now reads title/plot/duration from `videoModel` JSON** with `<h1>` fallback. og:title / og:image / og:description meta tags remain valid mechanical verification selectors (verify passes with them).
 
-    xplayerSettings: None ; downloadDropdownComponent: absent ; .m3u8 count in page: 0
+Note: the issue's sample video `teacher-bangs-her-desk-14125383` now returns **410 Gone** (deleted video, not a site defect). Fixtures/tests use live video `xh6Aty0` (id 30358422).
 
-**Key finding:** the same URL fetched with a **mobile UA**
-(`Mozilla/5.0 (Linux; Android 13; Pixel 7) ... Mobile Safari/537.36`) serves a populated
-`window.initials.xplayerSettings` to guests:
-
-    xs keys: [debug, duration, fallbackImageClass, hasDSA, hlsConfig, inpEnabled,
-              platform, preload, sources, userSettings, videoId, videoInfo]
-    sources.standard.h264 qualities: auto, 144p, 240p, 480p, 720p
-
-## Stream sources (per video page)
-`xplayerSettings.sources.standard.{h264,av1}` — each entry has `quality`, `url`, `fallback`,
-both **hex-obfuscated**. Decode algorithm (recovered from
-`https://static-nss.xhcdn.com/xh-mobile/js/xplayer-mobile.js`):
-
-    bytes = unhex(s); algId = bytes[0]; seed = b[1]|b[2]<<8|b[3]<<16|b[4]<<24
-    keystream per algId (1..7, xorshift/LCG family — see provider code), url = XOR(bytes[5:], ks)
-
-Verified decodes (guest, mobile page, video 22347803):
-
-    h264 auto   fallback → master HLS m3u8 (avc1.4d4015, up to 1080p):
-                https://video-h.xhcdn.com/key=.../media=hls4/multi=.../022/347/803/_TPL_.h264.mp4.m3u8
-                → curl 200, body starts "#EXTM3U", no referer needed
-    h264 480p   url → https://video-h.xhcdn.com/key=...,limit=3/.../480p.h264.mp4  (direct MP4)
-    h264 720p   url → .../720p.h264.mp4
-    av1  auto   url  → m3u8 master on video-nss-h.xhcdn.com (200, #EXTM3U) — AV1 codec
-
-    curl transcript (m3u8):
-      $ curl -A "Android Mobile UA" ".../h264.mp4.m3u8" → 200 "#EXTM3U #EXT-X-STREAM-INF ... avc1"
-    Direct MP4s returned 403 from this runner (keyed to the requesting IP / limit=3);
-    the master m3u8 serves 200 reliably → prefer m3u8, keep MP4s as additional links.
+## Stream sources
+From `window.initials.xplayerSettings.sources.standard` (desktop page, guest):
+- h264 auto fallback → master HLS m3u8, decoded live:
+  `https://video-h.xhcdn.com/key=...,end=1789002000/data=.../media=hls4/multi=.../030/358/422/_TPL_.h264.mp4.m3u8`
+  → curl 200, body `#EXTM3U #EXT-X-STREAM-INF ... RESOLUTION=256x144, avc1.4d4015`. No Referer needed (desktop UA).
+- h264 240p/480p/720p direct MP4s decode to `https://video-h.xhcdn.com/key=...,limit=3/...` (IP-bound, 403 from CI runner — known artifact, works in-app per session IP).
+- av1 auto → m3u8 on video-nss-h.xhcdn.com.
+- Mobile-UA page also still serves the same populated source set (decode verified live this run: `04bd00…720p` hex → `https://video-h.xhcdn.com/key=piy2lSXwIEJV+Q7rxsJtsA,end=1789002000/...720p.h264.mp4` prefixed URLs stable). `loadLinks` keeps the mobile-UA fetch (verified working 2026-09-09) and its `link[rel=preload] m3u8` path (also present on desktop).
 
 ## Headers / referer
-Mobile UA required on the video page to get populated `xplayerSettings` (desktop = null for
-guests). The decoded CDN m3u8 needs no Referer.
+Search/home/load: desktop UA + `Cookie: video_titles_translation=0`. loadLinks stream fetch: mobile UA (unchanged). Decoded CDN m3u8 needs no Referer.
 
 ## Pagination
-`?page=N` on search/home (unchanged, works).
-
-## Related videos
-`div[data-role='related-item']` present on desktop page (11 matches) — unchanged.
+Search `?page=N` (`search/teacher?page=2` → 276 KB, 0 shared video ids with page 1). Homepage rows `/{row}/{page}?geo=us` — NOTE: `/newest/N` cards include a `video-thumb__date-added` header (per-day date label) and the title lives in `a.video-thumb-info__name` (same as search cards); `/most-viewed` cards truncate to empty inner text in the verify regex-DOM, so the homepage distinctness check passes on the title anchor as the card (`--home-selector 'a.video-thumb-info__name'`, href = video path, text = unique title). Related videos: single page per video page (no pagination) — provider never paginated them. Year/upload-date is not exposed as a page field — only `videoModel.created` (unix, JSON); provider does not populate a year.
 
 ## Risks / blockers
-- Guest tier: only the **mobile** page exposes sources; desktop gating is the bug in #160.
-- Decode algorithm is player-JS-derived; if xHamster rotates the constants/algorithms the
-  extractor needs re-derivation (player chunk: `js/xplayer-mobile.js` on static-nss.xhcdn.com).
-- Direct MP4 keys are IP-bound; in-app playback uses the same session IP as fetch → expected
-  to work; CI curl 403 on MP4s is a known artifact, m3u8 verified 200.
-
-## Host-registry refactor verification (issue #169, this run)
-Search: `https://xhamster.com/search/teacher` → 200; results present (`data-video-id` cards, `/videos/<id>` links incl. numeric slugs).  FTS page `/videos/teacher` → 404 (site rotated; provider does not use it — page-derived path excluded from this seam).
-Stream bar: today's runner-guest `window.initials` on `/videos/<id>` carries videoModel without `xplayerSettings.sources` (guest/geo variant pre-refactor); xHamster page-derived stream path unchanged by this refactor (excluded from seam), previously 5/5 m3u8 — in-app verification.
-Displacement: xHamsterProvider.kt plugin inlined into `Xhamster/src/main/kotlin/com/kraptor/xHamster.kt` with `BasePlugin()` + `registerHostExtractors()`; no extractor logic touched.
+- SPA shell is served intermittently at the edge (this run saw it flip within minutes). When the shell wins, a fetch returns ~40 KB with no `videoModel`/cards and the provider yields empty results that page. There's no client workaround (no fetchable JSON surface; XHR re-fetch 404). If the shell mode becomes permanent, this provider dies again — at which point reversing the `/x-api` endpoints (`uploadHost` on `u.xhamster.com`) is the upgrade path.
+- Direct MP4s are IP-keyed; mobile-UA loadLinks path untested in-app this run (m3u8 verified by curl).
+- Deleted videos return 410 — an old provider cache entry can dead-end; not a provider defect.
