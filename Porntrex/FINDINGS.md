@@ -74,9 +74,27 @@ Provider change (version 4 → 5): `load()` and `loadLinks()` fall back to
 
 - search `/search/massage/` + async page 2: 200, 85 cards each, no dupes across pages
 - home `/categories/teen/` + async pagination page 2: 200, 120 cards each, no dupes
-- video pages via `/embed/{id}/` (guest direct pages are shells, see #171): both 200, stream
-  `get_file/.../{id}.mp4/` → 302 CDN → **206 video/mp4** (both sampled videos)
-- NOTE (expected): duration selector matches nothing on the sampled *guest shell* embed pages —
-  the row only materializes on fully-rendered pages; parsing correctness is proven by the unit
-  test on the real stats-row markup. Tags/actors/plot/poster likewise absent on shells and
-  resolved by the #171 embed fallback.
+- video pages via `/embed/{id}/` (guest direct pages were shells at probe time, see #171):
+  both 200, stream `get_file/.../{id}.mp4/` → 302 CDN → **206 video/mp4** (both sampled videos)
+- NOTE (expected at the time): duration selector matches nothing on the sampled *guest shell*
+  embed pages — the row only materializes on fully-rendered pages; parsing correctness is
+  proven by the unit test on the real stats-row markup. Tags/actors/plot/poster likewise
+  absent on shells and resolved by the #171 embed fallback.
+
+## Reviewer re-verification (round 2, live site current state) — real run, results below
+
+Direct video pages **now render fully again** (og:title/og:image/og:description metas,
+`video_url:` flashvars, and the full stats row). The duration fix is therefore live-verifiable:
+
+- 5 varied direct video URLs (3074115, 1231055, 3325230, 1182292, 1147023): all 200;
+  `div#kt_player` matched 1 on each; stream `get_file/.../{id}.mp4/` → **206 video/mp4 on all 5**
+- `--video-duration-selector 'div.block-details div.item span:has(i.fa-clock-o) em.badge'`:
+  **field 'duration' present on all 5 sampled pages** (live badges: "9min 57sec",
+  "6min 09sec", ... — parse → 597s, 369s, ...)
+- related videos: site exposes an in-page `div.video-list div.video-item` block (24 items on
+  each of the 5 pages) and a `related_videos_html/{id}/` endpoint (45 items) — both match
+- search `/search/massage/` + async page 2: 200, 85 cards each; sampled videos 3074115 and
+  1231055 appear on both search pages, hrefs identical to their load URLs
+- NOTE: home `/categories/teen/` page 2 shares 20/120 hrefs with page 1 — verified **site-native**
+  (the site's own `/2/` URL overlaps the same 20; async p2 ≡ native p2, 120/120).
+  getMainPage is untouched by this PR; no action taken.
