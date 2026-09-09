@@ -9,7 +9,7 @@ import org.junit.Test
 class JavmostParseTest {
 
     private fun info() = Javmost.Parse.cardBlock(
-        Jsoup.parse(javaClass.classLoader.getResource("avop-179.html")!!.readText())
+        Jsoup.parse(javaClass.classLoader!!.getResource("avop-179.html")!!.readText())
     )
 
     @Test fun `year from Release text`() = assertEquals(2015, info().year)
