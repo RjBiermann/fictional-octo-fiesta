@@ -147,3 +147,38 @@ emturbovid→turbovidhls m3u8). `version` 2→3.
   `application/vnd.apple.mpegurl` (3/5; FTHTD-192-REDUCING-MOSAIC, CARIBBEANCOM-082226-001,
   NAMH-075 serve dooplayer embeds only → HTTP 204, JS-only, unresolvable server-side —
   pre-existing site ceiling, unchanged by this fix).
+
+## Re-probe 2026-09-09 (issue #206 — data-completeness: year/duration/actors/tags)
+Video pages expose a full metadata block the provider ignored: `div.card-block > p.card-text`
+carries `Release YYYY-MM-DD` (calendar icon), `Time N` minutes (`span.m-l-15`), `a[href*="/star/"]`
+actors (leading/trailing spaces in some anchors, e.g. " Mourning"), and `a[href*="/category/"]`
+genre anchors (8 on AVOP-179). Evidence: curl AVOP-179 (200, 72915 B): Release 2015-09-01,
+Time 130, 1 star anchor, 8 category anchors. Probed 5 more pages (DLDSS-529, FTHTD-192,
+CPZ69-015, AVOP-364): card-block present on every one (uncensored variants, e.g. 1PONDO-*,
+have no card-block — provider falls back to og:title).
+
+Also re-confirmed: listing pages (/search/{q}/, /, /category/all/page/2/) are server-rendered
+AGAIN on 2026-09-09 (24 real `div.card-block` cards per page + one JS-template string row that
+is not DOM). The showlist2 JSON path still works and stays in the provider.
+
+### Fix applied (TDD)
+- `Parse.cardBlock(document)` (pure, fixture `src/test/resources/avop-179.html`) returns
+  year/duration/actors/tags; 5 JUnit tests green (`:Javmost:test`).
+- `load()` now populates `year`, `duration`, `actors` (Actor), `tags` — tags come from
+  category anchors, og:title regex kept as fallback when the card-block is absent. `version` 4→5.
+
+### Verification (2026-09-09)
+- `./gradlew Javmost:test` BUILD SUCCESSFUL (5/5).
+- `./gradlew Javmost:make` BUILD SUCCESSFUL.
+- verify.sh (search 'avop' p1+p2 ×24 cards, home p1+p2 ×24, 5 video pages): field selectors
+  `a[href*=category]` / `a[href*=star]` / `p.card-text` / `span.m-l-15` present on 5/5;
+  streams: two-hop AJAX→emturbovid→turboviplay m3u8 resolved fresh per page, ALL 5 →
+  HTTP 206 `application/vnd.apple.mpegurl` → **RESULT: PASS**.
+  (Mechanical adaptations, source-tracked: stripped `<script>` blocks from listing HTML before
+  DOM counting — the unrendered `${url}` template string is not real DOM, a childish DOM parse
+  would count it as cards; JSON-LD kept on video pages, its `contentUrl` (= page URL) ignored
+  by the two-hop stream probe which replicates the provider's own AJAX↔emturbovid chain.)
+  related-videos flag omitted: video-page related anchors and the two self-referencing title
+  anchors share the same selector shape (`a[alt]`), so the script cannot exclude self links;
+  provider code filters `.filter { it.url != url }` — verified in code.
+- Full log: /tmp/verify-out.txt.
