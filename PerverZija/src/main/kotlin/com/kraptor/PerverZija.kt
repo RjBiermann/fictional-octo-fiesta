@@ -75,7 +75,8 @@ class PerverZija : MainAPI() {
         val title           = document.selectFirst("h1")?.text()?.trim() ?: return null
         val poster          = fixUrlNull(document.selectFirst("meta[property=og:image]")?.attr("content"))
         val description     = document.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
-        val year            = document.selectFirst("div.extra span.C a")?.text()?.trim()?.toIntOrNull()
+        // div.extra span.C a is dead on the live site (audit #212); year comes from JSON-LD datePublished
+        val year            = Parse.year(document)
         val tags            = document.select("div.item-tax-list div:has(strong:contains(Tags)) a").map { it.text() }
         val score          = document.selectFirst("span.dt_rating_vgs")?.text()?.trim()
         // span.runtime is gone from the site; duration now comes from JSON-LD VideoObject (PT#H#M#S)
