@@ -10,6 +10,8 @@ class AllClassicPornParseTest {
 
     private val videoPage = javaClass.getResourceAsStream("/video-6161.html")!!.readBytes().decodeToString()
     private val searchPage = javaClass.getResourceAsStream("/search-milf.html")!!.readBytes().decodeToString()
+    private val video2252 = javaClass.getResourceAsStream("/video-2252.html")!!.readBytes().decodeToString()
+    private val loadTitle = AllClassicPornParse.parseTitle(videoPage)
 
     @Test fun `video page title includes year and matches card title from search fixture`() {
         val loadTitle = AllClassicPornParse.parseTitle(videoPage)
@@ -30,7 +32,59 @@ class AllClassicPornParseTest {
         )
     }
 
+    @Test fun `actors from flashvars`() {
+        assertEquals(
+            listOf("Anna Romeo", "Brooke Lane"),
+            AllClassicPornParse.parseActors("<script>flashvars['video_models'] = 'Anna Romeo, Brooke Lane';</script>")
+        )
+        assertEquals(
+            listOf("John Holmes", "Tracy O'Steen"),
+            AllClassicPornParse.parseActors("x\"video_models: 'John Holmes, Tracy O\\'Steen'")
+        )
+    }
+
+    @Test fun `actors empty when flashvars has none (video 6161)`() {
+        assertTrue(AllClassicPornParse.parseActors(videoPage).isEmpty())
+    }
+
+    @Test fun `actors from fixture video 2252`() {
+        assertEquals(
+            "Anna Romeo", AllClassicPornParse.parseActors(video2252).first()
+        )
+        assertEquals(13, AllClassicPornParse.parseActors(video2252).size)
+    }
+
+    @Test fun `tags and categories from fixture video 6161`() {
+        val tags = AllClassicPornParse.parseTags(videoPage)
+        assertEquals("Chubby", tags.first())
+        assertTrue(tags.contains("VHS"))
+        assertTrue(AllClassicPornParse.parseCategories(videoPage).contains("MILF"))
+    }
+
+    @Test fun `tags categories and year from fixture 549`() {
+        val page = javaClass.getResourceAsStream("/video-549.html")!!.readBytes().decodeToString()
+        assertTrue(AllClassicPornParse.parseTags(page).contains("VHS"))
+        assertTrue(AllClassicPornParse.parseCategories(page).contains("Full Movie"))
+        // "Zazel: Parfum d'Amour, Uncut (1996)" — also exercises an apostrophe in the h1 title
+        assertEquals(1996, AllClassicPornParse.parseYear(AllClassicPornParse.parseTitle(page)))
+    }
+
+    @Test fun `year from title suffix`() {
+        assertEquals(1998, AllClassicPornParse.parseYear(loadTitle))
+        assertEquals(1998, AllClassicPornParse.parseYear("Mature Milfs - Part Three - HOMEMADE VHS - (1998)"))
+        assertEquals(1996, AllClassicPornParse.parseYear("Zazel, Full movie (1996)"))
+        assertNull(AllClassicPornParse.parseYear("No Year Here"))
+        assertNull(AllClassicPornParse.parseYear(null))
+    }
+
     @Test fun `null when no title source`() {
         assertNull(AllClassicPornParse.parseTitle("<html></html>"))
+    }
+
+    @Test fun `escaped apostrophe in names survives the load outerHtml path (fixture 1573)`() {
+        val raw = javaClass.getResourceAsStream("/video-1573.html")!!.readBytes().decodeToString()
+        val html = org.jsoup.Jsoup.parse(raw).outerHtml()
+        val actors = AllClassicPornParse.parseActors(html)
+        assertTrue("Tracy O'Neil should be present from the real load() html", actors.contains("Tracy O'Neil"))
     }
 }
