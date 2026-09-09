@@ -56,6 +56,7 @@ jobs:
         run: |
           n="${{ env.ISSUE }}"
           gh issue view "$n" --json number,title,body -q '"# Issue #\(.number) — \(.title)\n\n\(.body)"' > /tmp/issue.md
+          echo "COMMENTS_BEFORE=$(gh issue view "$n" --json comments -q '.comments|length')" >> "$GITHUB_ENV"
           kind="${{ github.event.label.name || inputs.kind }}"
           {
             echo "You are the Builder in this repo's AI pipeline."
@@ -76,10 +77,21 @@ jobs:
             echo "what you found (FINDINGS summary), verification/Blocked evidence."
             echo "The workflow creates the branch, push, and PR mechanically after your"
             echo "run — do NOT attempt git push or gh pr create yourself."
-            echo "Nothing else on the tracker."
+            echo "Nothing else on the tracker (progress comments per the observability rule are fine)."
             cat .pi/ci/builder-rules.md
           } > /tmp/prompt.md
           wc -c /tmp/prompt.md
+
+      # Mechanical narration floor (CONTEXT.md: Ack). The prompt asks the agent for
+      # progress comments; the Ack is guaranteed by machinery. The Gate measures agent
+      # narration beyond it — softly (warning, never verdict-flipping; CONTEXT.md: Gate).
+      - name: Ack (mechanical narration floor)
+        if: always()
+        run: |
+          gh issue comment "${{ env.ISSUE }}" \
+            --body "Builder picked up issue #${{ env.ISSUE }} — run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Progress comments follow as work completes."
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Builder run (Go glm-5.3-flash)
         id: run1
@@ -145,6 +157,13 @@ jobs:
               echo "agent run succeeded but branch/PR delivery failed"
               gh issue comment "$n" --body "Builder produced no deliverable — delivery failed, but its working tree is preserved as artifact \`tree-issue-$n\` on run ${{ github.run_id }}. Deliver manually (\`gh run download ${{ github.run_id }} -n tree-issue-$n\`, commit, push \`ai/issue-$n\` with AGENT_PAT, open the PR) instead of /retry-ing a full model re-run. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
               exit 1
+            fi
+            # Gate (CONTEXT.md): delivery is the verdict; narration violations are
+            # loud warnings only. Baseline = COMMENTS_BEFORE + 1 (the mechanical Ack).
+            after=$(gh issue view "$n" --json comments -q '.comments|length' || echo 0)
+            if [[ "${after:-0}" -le $((COMMENTS_BEFORE + 1)) ]]; then
+              echo "agent posted no comments beyond the mechanical ack — observability warning"
+              gh issue comment "$n" --body "⚠️ Observability warning (run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}): the run succeeded and its deliverable landed, but the agent posted no progress comments of its own. A mid-run death would have left nothing on the tracker. Not a failure — logged for visibility."
             fi
             echo "builder delivered branch + PR"; exit 0
           fi
