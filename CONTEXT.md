@@ -60,6 +60,14 @@ _Avoid_: failure (a failure stops the run; Blocked completes it with a caveat)
 The mechanical commit-and-PR step performed by the workflow (the `deliver-pr` action), never by the agent: commit the working tree to `ai/issue-N`, force-push, create-or-update the PR. A run that produces changes but no Delivery is a failed run.
 _Avoid_: push, publish, ship
 
+**Ack**:
+The workflow-posted comment on the issue when an Agent run starts — a guaranteed narration floor produced by machinery, never by the agent. Agent-issued comments are counted beyond the Ack.
+_Avoid_: progress comment (that is the agent's own narration), bot comment
+
+**Gate**:
+The mechanical post-run check that issues an Agent run's verdict. Delivery is the verdict: a run whose Delivery succeeded is a success even if the agent narrated nothing. Missing agent narration (zero comments beyond the Ack) is a loud warning, never verdict-flipping.
+_Avoid_: CI gate, quality gate
+
 **Task run**:
 An Agent run executing a fully specified issue (labeled `ready-for-agent`) with a generic prompt — the issue body is the task spec. Uses the Builder runtime; may apply non-trigger labels only.
 _Avoid_: audit run (an audit is one kind of task run)
