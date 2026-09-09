@@ -1,0 +1,60 @@
+name: 'Agent run (Model chain)'
+description: >
+  Runs the Model chain (CONTEXT.md): the primary model attempt, falling back
+  to the fallback model only if the primary failed. Encapsulates the pi
+  invocation (--no-session --mode text, rtk extension, optional skill set)
+  and passes the prompt via stdin (a >128KB argv hits E2BIG). Secrets (e.g.
+  OPENCODE_API_KEY, GH_TOKEN) are passed at the call site as step env.
+inputs:
+  primary:
+    description: 'Primary model (e.g. go/glm-5.3-flash)'
+    required: true
+  fallback:
+    description: 'Fallback model, tried only if the primary failed'
+    required: true
+  thinking:
+    description: 'pi thinking level (low / off)'
+    required: false
+    default: low
+  prompt-file:
+    description: 'File containing the prompt (passed to pi via stdin)'
+    required: true
+  skills:
+    description: 'Skill paths, one per line or space-separated (empty = none)'
+    required: false
+    default: ''
+  retries:
+    description: 'Bounded extra attempts per model (0 = one try); 60s*i backoff'
+    required: false
+    default: '0'
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        PRIMARY: ${{ inputs.primary }}
+        FALLBACK: ${{ inputs.fallback }}
+        THINKING: ${{ inputs.thinking }}
+        PROMPT_FILE: ${{ inputs.prompt-file }}
+        SKILLS: ${{ inputs.skills }}
+        RETRIES: ${{ inputs.retries }}
+      run: |
+        # --skill args; word-split intentionally (skill paths contain no spaces)
+        # shellcheck disable=SC2086
+        skill_args=""
+        for s in $SKILLS; do skill_args="$skill_args --skill $s"; done
+
+        try() { # try <model>: RETRIES+1 attempts with bounded backoff
+          local model="$1" i
+          for i in $(seq 1 $((RETRIES + 1))); do
+            pi --no-session --mode text \
+              --model "$model" --thinking "$THINKING" \
+              $skill_args \
+              -e .pi/ci/extensions/rtk.ts \
+              -p < "$PROMPT_FILE" && return 0
+            [[ "$i" -le "$RETRIES" ]] && sleep $((i * 60))
+          done
+          return 1
+        }
+
+        try "$PRIMARY" || try "$FALLBACK"

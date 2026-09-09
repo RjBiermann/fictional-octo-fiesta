@@ -96,40 +96,26 @@ jobs:
           } > /tmp/prompt.md
           wc -c /tmp/prompt.md
 
-      - name: Monitor run (Go glm-5.3-flash)
-        id: run1
-        continue-on-error: true
+      - name: "Monitor run (Model chain: GLM → DeepSeek)"
+        id: agent
+        uses: ./.github/actions/agent-run
+        with:
+          primary: go/glm-5.3-flash
+          fallback: go/deepseek-v4-flash
+          thinking: off
+          prompt-file: /tmp/prompt.md
+          skills: |
+            .pi/skills/site-probe
+            .pi/skills/verify-provider
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-        run: |
-          pi --no-session --mode text \
-            --model go/glm-5.3-flash --thinking off \
-            --skill .pi/skills/site-probe \
-            --skill .pi/skills/verify-provider \
-            -e .pi/ci/extensions/rtk.ts \
-            -p "$(cat /tmp/prompt.md)"
-
-      - name: Monitor run (Go deepseek-v4-flash fallback)
-        id: run2
-        if: steps.run1.outcome == 'failure'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_TOKEN: ${{ github.token }}
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-        run: |
-          pi --no-session --mode text \
-            --model go/deepseek-v4-flash --thinking off \
-            --skill .pi/skills/site-probe \
-            --skill .pi/skills/verify-provider \
-            -e .pi/ci/extensions/rtk.ts \
-            -p "$(cat /tmp/prompt.md)"
 
       - name: Gate
         if: always()
         run: |
-          if [[ "${{ steps.run1.outcome }}" == "success" || "${{ steps.run2.outcome }}" == "success" ]]; then
+          if [[ "${{ steps.agent.outcome }}" == "success" ]]; then
             echo "monitor completed"; exit 0
           fi
           echo "both model attempts failed (GLM + DeepSeek)"

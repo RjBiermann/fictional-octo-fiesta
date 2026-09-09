@@ -123,47 +123,33 @@ jobs:
             cat .pi/ci/builder-rules.md
           } > /tmp/prompt.md
           wc -c /tmp/prompt.md
+          # Model-chain skill set depends on the task (compose step sets it;
+          # the agent-run step reads it)
+          {
+            if [[ "$TASK" == "improve-codebase-architecture" ]]; then
+              echo 'RUN_SKILLS<<EOF'
+              echo '.agents/skills/codebase-design'
+              echo '.agents/skills/improve-codebase-architecture'
+              echo 'EOF'
+            fi
+          } >> "$GITHUB_ENV"
 
-      - name: Maintenance run (Go glm-5.3-flash)
-        id: run1
-        continue-on-error: true
+      - name: "Maintenance run (Model chain: GLM → DeepSeek)"
+        id: agent
+        uses: ./.github/actions/agent-run
+        with:
+          primary: go/glm-5.3-flash
+          fallback: go/deepseek-v4-flash
+          thinking: low
+          prompt-file: /tmp/prompt.md
+          skills: ${{ env.RUN_SKILLS }}
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-        run: |
-          skills=""
-          if [[ "$TASK" == "improve-codebase-architecture" ]]; then
-            skills="--skill .agents/skills/codebase-design --skill .agents/skills/improve-codebase-architecture"
-          fi
-          # shellcheck disable=SC2086  # $skills is intentionally word-split
-          pi --no-session --mode text \
-            --model go/glm-5.3-flash --thinking low \
-            $skills \
-            -e .pi/ci/extensions/rtk.ts \
-            -p "$(cat /tmp/prompt.md)"
-
-      - name: Maintenance run (Go deepseek-v4-flash fallback)
-        id: run2
-        if: steps.run1.outcome == 'failure'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_TOKEN: ${{ github.token }}
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-        run: |
-          skills=""
-          if [[ "$TASK" == "improve-codebase-architecture" ]]; then
-            skills="--skill .agents/skills/codebase-design --skill .agents/skills/improve-codebase-architecture"
-          fi
-          # shellcheck disable=SC2086  # $skills is intentionally word-split
-          pi --no-session --mode text \
-            --model go/deepseek-v4-flash --thinking low \
-            $skills \
-            -e .pi/ci/extensions/rtk.ts \
-            -p "$(cat /tmp/prompt.md)"
 
       - name: Preserve tree (delivery-failure insurance)
-        if: steps.run1.outcome == 'success' || steps.run2.outcome == 'success'
+        if: steps.agent.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: tree-maintenance-${{ env.ISSUE }}
@@ -172,7 +158,7 @@ jobs:
 
       - name: Deliver branch + PR (mechanical)
         id: deliver
-        if: steps.run1.outcome == 'success' || steps.run2.outcome == 'success'
+        if: steps.agent.outcome == 'success'
         uses: ./.github/actions/deliver-pr
         with:
           issue: ${{ env.ISSUE }}
@@ -186,7 +172,7 @@ jobs:
           # shellcheck disable=SC2086  # $skills is intentionally word-split
           n="${{ env.ISSUE }}"
           after=$(gh issue view "$n" --json comments -q '.comments|length' || echo 0)
-          if [[ "${{ steps.run1.outcome }}" == "success" || "${{ steps.run2.outcome }}" == "success" ]]; then
+          if [[ "${{ steps.agent.outcome }}" == "success" ]]; then
             if [[ "${{ steps.deliver.outcome }}" != "success" ]]; then
               echo "agent run succeeded but branch/PR delivery failed"
               gh issue comment "$n" --body "Maintenance run produced no deliverable — delivery failed, but its working tree is preserved as artifact \`tree-maintenance-$n\` on run ${{ github.run_id }}. Deliver manually instead of re-running. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
