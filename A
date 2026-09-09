@@ -1,0 +1,16 @@
+HTTP/2 404 
+date: Wed, 09 Sep 2026 21:38:23 GMT
+content-type: text/html; charset=UTF-8
+server: cloudflare
+vary: Accept-Encoding
+expires: Wed, 11 Jan 1984 05:00:00 GMT
+cache-control: private, max-age=3600, must-revalidate
+link: <https://cat3movie.org/wp-json/>; rel="https://api.w.org/"
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+age: 3
+cf-cache-status: HIT
+speculation-rules: "/cdn-cgi/speculation"
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=Ge9lbzFU7ja4NPV35TeS4%2BOQEzZfaBEy7wWKpk2aFB8VDBbI%2BlaxnZ9y2luyAPcIx2yf6IXfatqdCQRT7DbiSEupgtzMWywOmS33EvoCJ1NTqHYy5m7DGNbfLh0uSKGC"}]}
+cf-ray: a38956ef5fdf424f-EWR
+alt-svc: h3=":443"; ma=86400
+

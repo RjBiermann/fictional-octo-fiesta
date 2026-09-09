@@ -167,6 +167,43 @@ needed — `cfNative` is a plain HLS master playlist served from hlsfast.com wit
 - hlsfree embed domain check can deny new referer domains → keep cat3movie.org referer.
 - No duration/quality metadata anywhere on the site (movies, not tube clips).
 
+## 2026-09-09 re-probe (issue #203 — duplicated homepage cards)
+The halimmovies homepage renders the 10 newest posts **twice** on `/` — a "Latest" top strip
+(`article.thumb.grid-item post-N`, no col classes) plus the main archive grid
+(`article.col-md-3 … post-N`) — and one legacy post (`post-15919`) **3×**. A handful of
+articles carry no `a.halim-thumb` link (widget frames). Raw shape today:
+
+```
+$ curl -s -A "Mozilla/5.0 Chrome/124" https://cat3movie.org/ -o home.html
+$ grep -c 'article\b[^>]* thumb' home.html        → 61 article.thumb
+$ grep -o 'a class="halim-thumb" href="…"' → 58 hrefs, 48 unique
+$ grep -o 'article\b[^>]* thumb' home.html | sort | uniq -c | sort -rn  → 10 posts ×2 (newest 10), post-15919 ×3
+```
+
+Kotlin fix (issue #203): `Parse.homeCards()` dedupes homepage cards by `a.halim-thumb` href
+(fields without that link are dropped); search keeps `Parse.searchCards()` untouched —
+`/search/delivery` has no duplicates (6 cards, 6 unique hrefs, re-checked today).
+
+Homepage pagination: **homepage rows do not paginate today** — `/page/2` (and `/page/3`) served
+served by Cloudflare with `cf-cache-status: HIT` return the *same 51 grid items as `/`*;
+category pages still paginate cleanly (`/classic-porn` vs `/classic-porn/page/2` grids differ).
+Homepage page-2 duplication is a site-side cache/shape artifact, not a provider drift — noted
+for verify.sh (`--home-url` page 1 only).
+
+Stream chain re-verified live today (unchanged, post #180; player.php is JS/AJS-gated and
+leaves no m3u8 in page HTML — verify.sh check 3 cannot mechanically resolve it here):
+
+```
+the-sex-killer-1965          post=34572 nonce=cec74c215e
+  sv1 hlsfree/1007 → defaultHlsUrl token → GET /api/hls/serve?token → HTTP 200 application/vnd.apple.mpegurl #EXTM3U
+  sv3 hlsfast/#3fn91p → api/v1/video AES-CBC(key=kiemtienmua911ca, iv=1234567890oiuytr) → cfNative m3u8 → HTTP 200 mpegurl
+  sv2 loadvid (blob-gated, as before)
+doctr-francoise-gailland-1976  sv1 hlsfree/991 → HTTP 200 mpegurl; blue-money-1972: sv1 200, sv3 cfNative → 200
+```
+
+NOTE: one openssl typo in the first chain sweep printed `000` for sv3 — the corrected run
+(python JSON `cfNative`) fetches HTTP 200 `application/vnd.apple.mpegurl` for all sv1+sv3.
+
 ## Host-registry refactor verification (issue #169, this run)
 Search: `https://cat3movie.org/?s=teacher` → 200, 6 articles (`div.thumb.grid-item.post-N`, `a.halim-thumb` hrefs, no trailing slash). curl (runner IP) gets CF-blocked empty body → urllib with full mobile UA gets 200 (69 KB).
 Stream chain replicated manually (5 movies): player.php?episode_slug=full&server_id=1..3&post_id&nonce via XHR headers → iframe src = `https://hlsfree.com/embed/hls/875` / `/856` (2), hlsfast `#<hash>` (2; API 200/AES path intact — inline AES stays), 1 dead upstream.
