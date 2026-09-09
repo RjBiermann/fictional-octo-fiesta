@@ -52,3 +52,20 @@ Search: AJAX `…/search/video/?ajax=search_results&s=teacher&o=recent` → 200,
 Stream chain: data-embed base64 decode → turbovid.vip embed → m3u8 → 200 `mpegurl` (4/5 posts; 5th post had no data-embed upstream).
 Javhdz embeds present in pages; javhdz/stream 403s from runner (CF, pre-existing & documented) — in-app-only bar.
 Displacement: Javhdz/Javhdz2 adapters moved to `shared/` `com.kraptor.HostAdapters` — code unchanged, registered via `registerHostExtractors()`; javseen's two decode paths (base64 embed and direct) migrated to shared `decodeBase64()`.
+
+## Actors fix (issue #209, 2026-09-09 run)
+- Actor is exposed ONLY in the description meta: `…and pornstar Hatano Yui and …`
+  (old-style) or `…type mosaic pornstar Momono Yume and …` (word between "type" and
+  "pornstar"). No per-video pornstar anchors on the page — all `/pornstar/` hrefs are the
+  footer "JAV Idols" directory. Both old code branches (`a[href*='/pornstar/']` in the
+  detail box, regex `type pornstar (.+) and`) were dead → actors always empty.
+- Fix: pure `JavseenParse.extractActors` (one regex `pornstar\s+(.+?)\s+and\s+` covers both
+  shapes) wired into `load()`. Version 12 → 13.
+- Fixture tests red→green: `Javseen/src/test/kotlin/com/byayzen/JavseenParseTest.kt`, 4 tests pass.
+- Verification 2026-09-09: verify.sh RESULT: PASS (search 2 pages ×30 cards, homepage
+  2 pages ×30 cards, 3 sampled pages 200 + embed buttons, cloudwish two-hop streams
+  resolved → 206 application/vnd.apple.mpegurl on all three; load-response fields
+  actors/tags/plot/duration/year/posters populated in Kotlin). All-surface
+  grep evidence: video-285424 actors=[Hatano Yui] tags=10 duration=8280 year=2022;
+  video-285650 [Momono Yume]/15/8400/2022; video-285600 [Sanae Misono]/14/3600/2025.
+  quick search: none on site — hasQuickSearch=false confirmed.

@@ -154,13 +154,9 @@ class Javseen : MainAPI() {
         val detailBox = document.select("div.col-xs-12.col-sm-6.col-md-8")
         val tags = detailBox.select("a:has(i.fa-th-list)").map { it.text().trim() }.distinct()
 
-        val actors = detailBox.select("a[href*='/pornstar/']").map {
-            Actor(it.text().trim())
-        }.ifEmpty {
-            Regex("""type pornstar (.+) and""").find(description ?: "")?.groupValues?.get(1)?.let {
-                listOf(Actor(it))
-            }
-        } ?: emptyList()
+        // Live pages (probed 2026-09-09) expose the actor only in the description meta:
+        // "... and pornstar Hatano Yui and ..." / "type mosaic pornstar Momono Yume and ...".
+        val actors = JavseenParse.extractActors(description).map { Actor(it) }
 
         val duration =
             document.selectFirst("meta[property=og:video:duration]")?.attr("content")?.toIntOrNull()
