@@ -2,9 +2,9 @@
 
 package com.byayzen
 
-import com.kraptor.registerSharedExtractors
+import com.kraptor.registerHostExtractors
+import com.kraptor.decodeBase64
 
-import android.util.Base64
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.lagradost.api.Log
 import org.jsoup.nodes.Element
@@ -167,11 +167,7 @@ class Javseen : MainAPI() {
                 ?.let { it / 60 }
 
         val episodes = document.select("button.button_choice_server").mapNotNull { btn ->
-            val encodedEmbed = btn.attr("data-embed") ?: return@mapNotNull null
-            val decodedBytes =
-                Base64.decode(encodedEmbed, android.util.Base64.DEFAULT)
-            val decodedUrl = String(decodedBytes, Charsets.UTF_8)
-            decodedUrl
+            decodeBase64(btn.attr("data-embed") ?: return@mapNotNull null)
         }
 
         val recommendations = document.select("ul.videos.related li").mapNotNull { element ->
@@ -213,11 +209,10 @@ class Javseen : MainAPI() {
         } catch (e: Exception) {
             Jsoup.parse(data).select(".button_choice_server").forEach { element ->
                 element.attr("data-embed").takeIf { it.isNotEmpty() }?.let { encoded ->
-                    val decoded =
-                        String(android.util.Base64.decode(encoded, android.util.Base64.DEFAULT))
+                    val decoded = decodeBase64(encoded)
                     Log.d("LoadLinks", "HTML Decoded: $decoded")
                     Log.d("Ayzen", "Extractor'a gönderilen URL (HTML): $decoded")
-                    loadExtractor(decoded, subtitleCallback, callback)
+                    decoded?.let { loadExtractor(it, subtitleCallback, callback) }
                 }
             }
         }
@@ -232,11 +227,9 @@ data class Anamenujson(
 )
 
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-class JavseenPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
+class JavseenPlugin: com.lagradost.cloudstream3.plugins.BasePlugin() {
     override fun load() {
         registerMainAPI(Javseen())
-        registerSharedExtractors()
-        registerExtractorAPI(Javhdz())
-        registerExtractorAPI(Javhdz2())
+        registerHostExtractors()
     }
 }

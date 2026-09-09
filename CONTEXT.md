@@ -98,10 +98,6 @@ _Avoid_: shared extractors, extractor list
 One ExtractorApi per embed host family, dispatched through the framework's loadExtractor; hosts are never handled inline inside a provider's loadLinks.
 _Avoid_: extractor class, host handler
 
-**Quick search**:
-The live-typing/suggest search surface CloudStream calls while the user types, backed by `quickSearch` + `hasQuickSearch`. Distinct from **search**: a separate endpoint (often AJAX) that many sites don't have — when the site has none, `hasQuickSearch` stays `false` and the absence is recorded explicitly in FINDINGS, never faked.
-_Avoid_: instant search, autocomplete (describes UI behavior, not the provider surface)
-
 ### Testing
 
 **Parse function**:

@@ -60,3 +60,8 @@ guests). The decoded CDN m3u8 needs no Referer.
   extractor needs re-derivation (player chunk: `js/xplayer-mobile.js` on static-nss.xhcdn.com).
 - Direct MP4 keys are IP-bound; in-app playback uses the same session IP as fetch → expected
   to work; CI curl 403 on MP4s is a known artifact, m3u8 verified 200.
+
+## Host-registry refactor verification (issue #169, this run)
+Search: `https://xhamster.com/search/teacher` → 200; results present (`data-video-id` cards, `/videos/<id>` links incl. numeric slugs).  FTS page `/videos/teacher` → 404 (site rotated; provider does not use it — page-derived path excluded from this seam).
+Stream bar: today's runner-guest `window.initials` on `/videos/<id>` carries videoModel without `xplayerSettings.sources` (guest/geo variant pre-refactor); xHamster page-derived stream path unchanged by this refactor (excluded from seam), previously 5/5 m3u8 — in-app verification.
+Displacement: xHamsterProvider.kt plugin inlined into `Xhamster/src/main/kotlin/com/kraptor/xHamster.kt` with `BasePlugin()` + `registerHostExtractors()`; no extractor logic touched.

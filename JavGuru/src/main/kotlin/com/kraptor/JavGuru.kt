@@ -6,7 +6,6 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Element
 import kotlin.text.Regex
-import android.util.Base64
 import android.util.Log
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import org.jsoup.Jsoup
@@ -241,7 +240,7 @@ class JavGuru : MainAPI() {
                     if (index < buttonNames.size) buttonNames[index] else "Source ${index + 1}"
 
                 val encodedUrl = match.groupValues[1]
-                val decodedUrl = base64Decode(encodedUrl)
+                val decodedUrl = decodeBase64(encodedUrl) ?: continue
 
                 Log.d("kraptor_$name", "[$sourceName] Iframe URL: $decodedUrl")
 
@@ -338,6 +337,6 @@ class JavGuru : MainAPI() {
 class JavGuruPlugin: com.lagradost.cloudstream3.plugins.BasePlugin() {
     override fun load() {
         registerMainAPI(JavGuru())
-        registerSharedExtractors(listOf(Vidara()))
+        registerHostExtractors()
     }
 }

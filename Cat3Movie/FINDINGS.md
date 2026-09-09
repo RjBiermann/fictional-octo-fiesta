@@ -166,3 +166,8 @@ needed — `cfNative` is a plain HLS master playlist served from hlsfast.com wit
   its player.php URLs return cached 404 even with fresh nonce). Retry logic: try sv1..sv3.
 - hlsfree embed domain check can deny new referer domains → keep cat3movie.org referer.
 - No duration/quality metadata anywhere on the site (movies, not tube clips).
+
+## Host-registry refactor verification (issue #169, this run)
+Search: `https://cat3movie.org/?s=teacher` → 200, 6 articles (`div.thumb.grid-item.post-N`, `a.halim-thumb` hrefs, no trailing slash). curl (runner IP) gets CF-blocked empty body → urllib with full mobile UA gets 200 (69 KB).
+Stream chain replicated manually (5 movies): player.php?episode_slug=full&server_id=1..3&post_id&nonce via XHR headers → iframe src = `https://hlsfree.com/embed/hls/875` / `/856` (2), hlsfast `#<hash>` (2; API 200/AES path intact — inline AES stays), 1 dead upstream.
+HlsFree chain: embed page → `defaultHlsUrl … token=<hex>` → `GET /api/hls/serve?token` → **200 `application/vnd.apple.mpegurl` #EXTM3U, 2/2**. Shared `HlsFree` adapter in `com.kraptor.HostAdapters` — provider code replaced by `loadExtractor(embed, …)`.

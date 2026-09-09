@@ -2,6 +2,7 @@
 
 package com.byayzen
 
+import com.kraptor.registerHostExtractors
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.lagradost.cloudstream3.*
@@ -186,8 +187,9 @@ class Javtiful : MainAPI() {
     )
 }
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-class JavtifulPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
+class JavtifulPlugin : com.lagradost.cloudstream3.plugins.BasePlugin() {
     override fun load() {
         registerMainAPI(Javtiful())
+        registerHostExtractors()
     }
 }

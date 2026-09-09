@@ -1,5 +1,6 @@
 package com.kraptor
 
+import com.kraptor.registerHostExtractors
 import com.lagradost.api.Log
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
@@ -347,5 +348,13 @@ class xHamster : MainAPI() {
             Log.e("xHamster", "getInitialsJson failed: ${e.message}")
             null
         }
+    }
+}
+@com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+@Suppress("ClassName")
+class xHamsterPlugin : com.lagradost.cloudstream3.plugins.BasePlugin() {
+    override fun load() {
+        registerMainAPI(xHamster())
+        registerHostExtractors()
     }
 }

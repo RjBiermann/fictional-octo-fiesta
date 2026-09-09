@@ -57,3 +57,11 @@
 - No Cloudflare/IP blocks observed on jav.guru / vidara.to / turbovidhls.com.
 - vide0.net 403s the runner (unchanged); javclan + javlesbians mirrors now JS-gated.
 - If turboviplay/vidara both die, javclan's hg-function.js deobfuscation is the upgrade path.
+
+## Host-registry refactor verification (issue #169, this run)
+Search: `https://jav.guru/search/teacher/` → 200, 24 × `div.inside-article`; `/page/2/` → 200, 24 (verify.sh check 1 PASS).
+Stream chain (chain multi-hop > verify.sh single-hop; replicated manually):
+iframe_url base64 → searcho (base/rtype/cid keyed attrs, reversed token) → 302 → vidara.to/e/<code> → POST /api/stream → streaming_url m3u8 → 200 `application/vnd.apple.mpegurl` (#EXTM3U). 4 posts verified end-to-end; sequential over the remaining posts of the probe did not complete in-budget (chain per-post is 4 hops).
+Displacement: PerverZijaExtractor Vidara adapter moved to `shared/` — code byte-identical, registration via `registerHostExtractors()` (`loadExtractor` prefix-matched on mainUrl; reverse order = priority; Levenshtein >80 mirror-domain fallback overrides PerverZija schema/subdomain variance).
+LoadResponse fields present in provider (verify.sh check 6: recommendations 2, tags 2, year 1, actors 3).
+NOTE: verify.sh `field` bar cannot express `h1.titl` (mini-selector regex `[a-zA-Z]+` rejects digit tag names) and no m3u8 in page HTML (multi-hop) → check 2 stream bar N/A here, chain replicated above. og:meta absent on video pages (WP theme, anything-for-titles).

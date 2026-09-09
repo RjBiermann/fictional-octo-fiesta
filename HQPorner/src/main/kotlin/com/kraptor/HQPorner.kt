@@ -182,9 +182,9 @@ class HQPorner : MainAPI() {
     }
 }
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-class HQPornerPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
+class HQPornerPlugin: com.lagradost.cloudstream3.plugins.BasePlugin() {
     override fun load() {
         registerMainAPI(HQPorner())
-        registerExtractorAPI(MyDaddyExtractor())
+        registerHostExtractors()
     }
 }

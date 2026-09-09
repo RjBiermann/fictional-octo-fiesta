@@ -1,5 +1,6 @@
 package com.rjbiermann
 
+import com.kraptor.registerHostExtractors
 import com.lagradost.api.Log
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -155,5 +156,6 @@ class Cat3Film : MainAPI() {
 class Cat3FilmPlugin : com.lagradost.cloudstream3.plugins.BasePlugin() {
     override fun load() {
         registerMainAPI(Cat3Film())
+        registerHostExtractors()
     }
 }

@@ -1,10 +1,12 @@
 package com.rjbiermann
 
+import com.kraptor.decodeBase64
+import com.kraptor.registerHostExtractors
 import com.lagradost.api.Log
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
-import android.util.Base64
+
 
 class Eroticmv : MainAPI() {
     override var mainUrl = "https://eroticmv.com"
@@ -100,10 +102,7 @@ class Eroticmv : MainAPI() {
         val raw = Regex("og:video:url\"\\s*content=\"([^\"]+)\"").find(html)?.groupValues?.get(1)
             ?: return false
         val token = raw.substringAfterLast("/").removeSuffix(".m3u8")
-        val padded = token + "=".repeat((4 - token.length % 4) % 4) // android.util.Base64 requires padding
-        val streamUrl = try {
-            String(Base64.decode(padded, Base64.NO_WRAP))
-        } catch (e: IllegalArgumentException) {
+        val streamUrl = decodeBase64(token) ?: run {
             Log.d(tag, "base64 decode failed: $token")
             return false
         }
@@ -124,8 +123,9 @@ class Eroticmv : MainAPI() {
 }
 
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-class EroticmvPlugin : com.lagradost.cloudstream3.plugins.Plugin() {
+class EroticmvPlugin : com.lagradost.cloudstream3.plugins.BasePlugin() {
     override fun load() {
         registerMainAPI(Eroticmv())
+        registerHostExtractors()
     }
 }
