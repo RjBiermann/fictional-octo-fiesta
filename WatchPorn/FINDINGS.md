@@ -12,6 +12,9 @@ Probe 2026-02-06 (drift) + re-probe for issue #162. Engine: KVS (flashvars, `/vi
   `<script type="application/ld+json">` blocks: 2 (BreadcrumbList + VideoObject). VideoObject has name, description, thumbnailUrl, duration (ISO-8601 `PT0H36M3S`).
 - Fallback also present: `<meta itemprop="duration" content="2163">` (seconds). JSON-LD is primary; both parse fine.
 
+## Year source (issue #214 focus)
+JSON-LD VideoObject on every video page carries `"uploadDate": "2022-07-02T13:09:00Z"` (probed 2026-09-09, video 28447). Fix: `WatchPornParse.parseUploadYear(ldJson)` extracts the ISO-8601 year → `this.year` in `load()`. Card level only exposes relative age ("4 years ago") — JSON-LD is the absolute source. Fixture: `src/test/resources/video-28447.html`, unit-tested red→green.
+
 ## Search
 `/search/?q=<q>&mode=async&function=get_block&block_id=list_videos_videos_list_search_result&from_videos=<page>` — unchanged, works (35 cards in drift probe). Items: `div.thumb.item` with `span.thumb__title`, `a[href]`, `img[data-webp|src]`.
 
