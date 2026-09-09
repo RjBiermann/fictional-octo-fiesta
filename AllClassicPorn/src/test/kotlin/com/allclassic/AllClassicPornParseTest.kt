@@ -72,4 +72,11 @@ class AllClassicPornParseTest {
     @Test fun `null when no title source`() {
         assertNull(AllClassicPornParse.parseTitle("<html></html>"))
     }
+
+    @Test fun `escaped apostrophe in names survives the load outerHtml path (fixture 1573)`() {
+        val raw = javaClass.getResourceAsStream("/video-1573.html")!!.readBytes().decodeToString()
+        val html = org.jsoup.Jsoup.parse(raw).outerHtml()
+        val actors = AllClassicPornParse.parseActors(html)
+        assertTrue("Tracy O'Neil should be present from the real load() html", actors.contains("Tracy O'Neil"))
+    }
 }
