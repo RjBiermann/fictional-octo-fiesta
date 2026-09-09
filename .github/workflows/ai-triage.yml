@@ -87,33 +87,19 @@ jobs:
           } > /tmp/prompt.md
           wc -c /tmp/prompt.md
 
-      - name: Triage run (Go glm-5.3-flash)
-        id: run1
-        continue-on-error: true
+      - name: "Triage run (Model chain: GLM → DeepSeek)"
+        id: agent
+        uses: ./.github/actions/agent-run
+        with:
+          primary: go/glm-5.3-flash
+          fallback: go/deepseek-v4-flash
+          thinking: off
+          prompt-file: /tmp/prompt.md
+          skills: .pi/skills/site-probe
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-        run: |
-          pi --no-session --mode text \
-            --model go/glm-5.3-flash --thinking off \
-            --skill .pi/skills/site-probe \
-            -e .pi/ci/extensions/rtk.ts \
-            -p "$(cat /tmp/prompt.md)"
-
-      - name: Triage run (Go deepseek-v4-flash fallback)
-        id: run2
-        if: steps.run1.outcome == 'failure'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_TOKEN: ${{ github.token }}
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-        run: |
-          pi --no-session --mode text \
-            --model go/deepseek-v4-flash --thinking off \
-            --skill .pi/skills/site-probe \
-            -e .pi/ci/extensions/rtk.ts \
-            -p "$(cat /tmp/prompt.md)"
 
       - name: Gate
         if: always()
@@ -122,7 +108,7 @@ jobs:
         run: |
           n="$ISSUE"
           after=$(gh issue view "$n" --json comments -q '.comments|length' || echo 0)
-          if [[ "${{ steps.run1.outcome }}" == "success" || "${{ steps.run2.outcome }}" == "success" ]]; then
+          if [[ "${{ steps.agent.outcome }}" == "success" ]]; then
             if [[ "${after:-0}" -le "${COMMENTS_BEFORE:-0}" ]]; then
               echo "agent exited 0 but posted no comment — deliverable missing"
               gh issue comment "$n" --body "Triage agent completed without posting its findings. Re-running triage is required — classification is NOT recorded here. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

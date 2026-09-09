@@ -119,43 +119,20 @@ jobs:
           comments_before=$(gh api "repos/${{ github.repository }}/issues/$pr/comments" -q 'length')
           echo "comments_before=$comments_before" >> "$GITHUB_OUTPUT"
 
-      - name: Reviewer run (Go deepseek-v4-flash — independent family)
-        id: run1
+      - name: "Reviewer run (Model chain: DeepSeek → GLM)"
+        id: agent
         if: steps.round.outputs.round != ''
-        continue-on-error: true
+        uses: ./.github/actions/agent-run
+        with:
+          primary: go/deepseek-v4-flash
+          fallback: go/glm-5.3-flash
+          thinking: low
+          prompt-file: /tmp/review-prompt.md
+          retries: '2'
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-        run: |
-          # shared free pools rate-limit transiently (429) — bounded retry, 3 attempts
-          # prompt goes over stdin, not argv: it embeds the diff and a >128KB
-          # single argument hits E2BIG ("Argument list too long")
-          for i in 1 2 3; do
-            pi --no-session --mode text \
-              --model go/deepseek-v4-flash --thinking low \
-              -e .pi/ci/extensions/rtk.ts \
-              -p < /tmp/review-prompt.md && exit 0
-            [[ $i -lt 3 ]] && sleep $((i * 60))
-          done
-          exit 1
-
-      - name: Reviewer run (Go glm-5.3-flash fallback)
-        id: run2
-        if: steps.round.outputs.round != '' && steps.run1.outcome == 'failure'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_TOKEN: ${{ github.token }}
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-        run: |
-          for i in 1 2 3; do
-            pi --no-session --mode text \
-              --model go/glm-5.3-flash --thinking low \
-              -e .pi/ci/extensions/rtk.ts \
-              -p < /tmp/review-prompt.md && exit 0
-            [[ $i -lt 3 ]] && sleep $((i * 60))
-          done
-          exit 1
 
       - name: Gate
         if: always()
@@ -164,12 +141,11 @@ jobs:
         run: |
           pr="${{ steps.pr.outputs.number }}"
           round="${{ steps.round.outputs.round }}"
-          o1="${{ steps.run1.outcome }}"
-          o2="${{ steps.run2.outcome }}"
+          o="${{ steps.agent.outcome }}"
           if [[ -z "$round" ]]; then
             echo "round limit reached — reviewer stood down"; exit 0
           fi
-          if [[ "$o1" == "success" || "$o2" == "success" ]]; then
+          if [[ "$o" == "success" ]]; then
             comments_after=$(gh api "repos/${{ github.repository }}/issues/$pr/comments" -q 'length')
             if (( comments_after <= ${{ steps.compose.outputs.comments_before }} )); then
               echo "reviewer exited 0 but posted no findings — round NOT spent"
@@ -181,7 +157,7 @@ jobs:
             gh pr edit "$pr" --add-label "ai-review-round-$round" >/dev/null
             echo "reviewer completed — round $round spent"; exit 0
           fi
-          if [[ "$o1" == "cancelled" || "$o2" == "cancelled" ]]; then
+          if [[ "$o" == "cancelled" ]]; then
             echo "run superseded, not failed"
             gh pr comment "$pr" --body "Reviewer run superseded by a newer trigger (cancelled — not a model failure; no Round spent). The newest run owns this review."
             exit 0

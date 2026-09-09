@@ -80,45 +80,29 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      - name: Task run (Go glm-5.3-flash)
-        id: run1
-        continue-on-error: true
+      - name: "Task run (Model chain: GLM → DeepSeek)"
+        id: agent
+        uses: ./.github/actions/agent-run
+        with:
+          primary: go/glm-5.3-flash
+          fallback: go/deepseek-v4-flash
+          thinking: low
+          prompt-file: /tmp/prompt.md
+          skills: |
+            .pi/skills/site-probe
+            .pi/skills/new-provider
+            .pi/skills/fix-provider
+            .pi/skills/verify-provider
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-        run: |
-          pi --no-session --mode text \
-            --model go/glm-5.3-flash --thinking low \
-            --skill .pi/skills/site-probe \
-            --skill .pi/skills/new-provider \
-            --skill .pi/skills/fix-provider \
-            --skill .pi/skills/verify-provider \
-            -e .pi/ci/extensions/rtk.ts \
-            -p "$(cat /tmp/prompt.md)"
-
-      - name: Task run (Go deepseek-v4-flash fallback)
-        id: run2
-        if: steps.run1.outcome == 'failure'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_TOKEN: ${{ github.token }}
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-        run: |
-          pi --no-session --mode text \
-            --model go/deepseek-v4-flash --thinking low \
-            --skill .pi/skills/site-probe \
-            --skill .pi/skills/new-provider \
-            --skill .pi/skills/fix-provider \
-            --skill .pi/skills/verify-provider \
-            -e .pi/ci/extensions/rtk.ts \
-            -p "$(cat /tmp/prompt.md)"
 
       # Insurance against delivery failure: a model run that died at push
       # must not cost a full /retry re-run. Maintainer delivers the artifact
       # by hand instead (see ADR-0004).
       - name: Preserve tree (delivery-failure insurance)
-        if: steps.run1.outcome == 'success' || steps.run2.outcome == 'success'
+        if: steps.agent.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: tree-issue-${{ env.ISSUE }}
@@ -127,7 +111,7 @@ jobs:
 
       - name: Deliver branch + PR (mechanical)
         id: deliver
-        if: steps.run1.outcome == 'success' || steps.run2.outcome == 'success'
+        if: steps.agent.outcome == 'success'
         uses: ./.github/actions/deliver-pr
         with:
           issue: ${{ env.ISSUE }}
@@ -138,7 +122,7 @@ jobs:
         run: |
           n="${{ env.ISSUE }}"
           after=$(gh issue view "$n" --json comments -q '.comments|length' || echo 0)
-          if [[ "${{ steps.run1.outcome }}" == "success" || "${{ steps.run2.outcome }}" == "success" ]]; then
+          if [[ "${{ steps.agent.outcome }}" == "success" ]]; then
             if [[ "${{ steps.deliver.outcome }}" != "success" ]]; then
               echo "agent run succeeded but branch/PR delivery failed"
               gh issue comment "$n" --body "Task agent produced no deliverable — delivery failed, but its working tree is preserved as artifact \`tree-issue-$n\` on run ${{ github.run_id }}. Deliver manually (\`gh run download ${{ github.run_id }} -n tree-issue-$n\`, commit, push \`ai/issue-$n\` with AGENT_PAT, open the PR) instead of /retry-ing a full model re-run. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
