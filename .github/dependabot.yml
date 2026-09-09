@@ -9,3 +9,7 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+    ignore:
+      # Deliberate pin: Jackson >2.13.1 breaks older Android devices
+      # (build.gradle.kts). Dependabot otherwise re-opens the bump weekly.
+      - dependency-name: "com.fasterxml.jackson*"

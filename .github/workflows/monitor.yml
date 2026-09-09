@@ -90,6 +90,11 @@ jobs:
             echo "   evidence) only if it was flagged data-incomplete there too — debounce, so"
             echo "   fixes get a chance to merge. Dedupe against open issues as with drift."
             echo "   Do NOT apply ai-fix — trigger labels are maintainer-only."
+            echo "2c. Add a 'Chronic' column to the table: the count of closed drift issues per"
+            echo "   provider (gh issue list --search 'Provider <Name> drifted' --state closed)."
+            echo "   At 4 or more, name the provider a removal candidate in that column and"
+            echo "   call it out in the report — the maintainer decides; never apply"
+            echo "   ai-remove-site yourself."
             echo "3. If everything is fine, the weekly table comment is the only deliverable."
             echo
             cat .pi/ci/builder-rules.md

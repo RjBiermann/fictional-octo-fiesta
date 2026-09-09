@@ -34,12 +34,16 @@ concurrency:
 
 jobs:
   build:
-    # fires on every label event and on /retry dispatch; no-op unless a trigger label applies
+    # fires on every label event and on /retry dispatch; no-op unless a trigger label applies.
+    # Trigger labels are mutually exclusive with ready-for-agent: an issue carrying both
+    # would double-fire Builder and Task; the Task workflow owns those and this skips.
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      github.event.label.name == 'ai-fix' ||
+      (github.event_name == 'issues' &&
+      github.event.label.name != 'ready-for-agent' &&
+      (github.event.label.name == 'ai-fix' ||
       github.event.label.name == 'ai-new-site' ||
-      github.event.label.name == 'ai-remove-site'
+      github.event.label.name == 'ai-remove-site'))
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:

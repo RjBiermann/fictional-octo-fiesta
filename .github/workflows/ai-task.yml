@@ -29,7 +29,15 @@ concurrency:
 
 jobs:
   task:
-    if: github.event.label.name == 'ready-for-agent' || github.event_name == 'workflow_dispatch'
+    # Trigger labels are mutually exclusive with ready-for-agent: an issue carrying both
+    # would double-fire Builder and Task; the Builder owns those and this skips.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issues' &&
+      github.event.label.name == 'ready-for-agent' &&
+      !contains(toJSON(github.event.issue.labels.*.name), 'ai-fix') &&
+      !contains(toJSON(github.event.issue.labels.*.name), 'ai-new-site') &&
+      !contains(toJSON(github.event.issue.labels.*.name), 'ai-remove-site'))
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:

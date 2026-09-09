@@ -55,6 +55,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # dedupe: one open tracking issue/PR per task — racing runs produced a
+          # closed-unmerged duplicate PR (198 vs 196) that burned a full run
+          existing=$(gh issue list --state open --search "AI maintenance: ${TASK} in:title" --json number -q '.[0].number' || true)
+          if [[ -z "$existing" ]]; then
+            existing=$(gh pr list --state open --search "AI maintenance: ${TASK} in:title" --json number -q '.[0].number' || true)
+          fi
+          if [[ -n "$existing" ]]; then
+            echo "an open '$TASK' item (#$existing) already exists — skipping duplicate maintenance run"
+            exit 1
+          fi
           # shellcheck disable=SC2086  # $skills is intentionally word-split
           url=$(gh issue create \
             --title "AI maintenance: ${TASK} — $(date -u +%F)" \

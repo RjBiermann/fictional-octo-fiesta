@@ -92,6 +92,10 @@ _Avoid_: monitoring, health check (the report is a Health report; the probe is t
 The weekly verdict table the Monitor posts on the `provider-health` tracking issue: per provider, OK / drift / Blocked.
 _Avoid_: status update, monitor output
 
+**Chronic**:
+A provider that keeps failing the Drift probe after fixes merge — measured as four or more closed drift issues on its name. The Health report flags a Chronic provider as a removal candidate; the Removal decision stays maintainer-only.
+_Avoid_: repeat offender, unstable (rot is the site's doing, not the code's)
+
 **Triage**:
 An agent classification of a new user issue (broken-provider report, new-site request, needs info, duplicate) with a live-site probe behind it. Suggests a trigger label; never applies one.
 _Avoid_: labeling, classification

@@ -55,7 +55,9 @@ This repo runs an automated pipeline (spec: issue #1, vocabulary: `CONTEXT.md`):
 - A maintainer labels an issue `ai-fix` (broken provider), `ai-new-site` (new
   provider), or `ai-remove-site` (remove a provider; triage classifies such
   requests as `(e)` and suggests the label).
-  Without the label nothing runs.
+  Without the label nothing runs. Trigger labels and `ready-for-agent` are
+  mutually exclusive — an issue carrying both double-fires Builder and Task, so
+  the redundant workflow no-ops (enforced in each workflow's `if` guard).
 - **Builder** (pi, OpenCode Go models — GLM flash → DeepSeek flash fallback) runs in CI
   (`.github/workflows/ai-build.yml`): probes the live site (writes `FINDINGS.md` evidence),
   builds or fixes the provider, verifies it against the site
@@ -70,7 +72,9 @@ This repo runs an automated pipeline (spec: issue #1, vocabulary: `CONTEXT.md`):
 - **Monitor** runs twice weekly — Mondays and Thursdays (`.github/workflows/monitor.yml`,
   manual `workflow_dispatch` for testing): a cheap drift probe per provider (search + one video + one stream — not a full
   FINDINGS probe), a verdict table on the `provider-health` tracking issue, and `needs-triage`
-  issues for providers it found broken. No trigger labels.
+  issues for providers it found broken. No trigger labels. The table carries a
+  **Chronic** column (CONTEXT.md): ≥4 closed drift issues marks a provider a removal
+  candidate for the maintainer to decide.
 - **Triage agent** runs on new unlabeled issues (`.github/workflows/ai-triage.yml`): probes the
   reported site, classifies, comments findings, suggests a trigger label — and applies
   non-trigger labels only (`needs-info`, `needs-triage`).
