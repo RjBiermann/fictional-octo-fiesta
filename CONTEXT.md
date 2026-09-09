@@ -73,8 +73,16 @@ An Agent run executing a fully specified issue (labeled `ready-for-agent`) with 
 _Avoid_: audit run (an audit is one kind of task run)
 
 **Audit**:
-A Task run measuring every provider against its live site on two independent axes: drift (broken selectors/streams vs the site) and Data-completeness (code vs what the site exposes). Each axis reports separately — a drift-OK provider can still be incomplete, and only providers that are drift-OK and incomplete surface as new fix requests.
-_Avoid_: health check (that is the Monitor's Drift probe), review
+An Agent run measuring providers against their live sites on three independent axes: Correctness (code vs the CloudStream contract), Drift (code vs the live site), and Data-completeness (code vs what the site exposes). Measure-only: it never fixes in-run — every finding becomes a Fix request, and the fixes ride separate Builder runs. Fired two ways: a maintenance dispatch (`scope` = one provider or empty for the repo) or a `ready-for-agent` issue; either way the run is one provider per agent, never a sweep inside one agent.
+_Avoid_: health check (that is the Monitor's Drift probe), review, site audit (site is the thing audited, provider is the unit)
+
+**Correctness**:
+The audit axis measuring provider code against the CloudStream extension contract: wrong field mapping, URLs that don't resolve as the app expects, empty or misordered lists on valid pages, malformed links. A Correctness finding must be provable at code level against a real site response — never "the app shows it weird"; the fix must go red→green on a Fixture.
+_Avoid_: bug sweep, code review (that is the Reviewer), behavior
+
+**Fix request**:
+An issue the Audit creates for one gap batch: Correctness+Drift share one issue (same fix run, same acceptance bar), Data-completeness gets its own. The body carries the FINDINGS evidence including raw HTML/curl transcripts, so the Builder never re-probes from scratch. A mechanical workflow step applies `ai-fix` to it (ADR-0006); dead, Blocked, or unreachable sites get reported without a Fix request.
+_Avoid_: audit finding, auto-fix, bug report (that is Triage's output)
 
 **Drift probe**:
 A cheap scheduled per-provider live check (search + one video page + one stream) that detects provider rot. Distinct from a full **FINDINGS** probe: no evidence transcription, verdict-only output. Broken providers surface as triage issues, not automatic fixes.
