@@ -99,7 +99,7 @@ def compile_simple(s):
             m2 = re.match(r'([\w-]+)([*^$|]?=)(.*)$', attr.strip())
             if m2:
                 a, op, v = m2.group(1), m2.group(2), m2.group(3).strip("\"'")
-                got = re.search(rf'{re.escape(a)}\s*=\s*["\']([^"\']*)', attrs)
+                got = re.search(rf'\b{re.escape(a)}\s*[\*\^\$|]?\s*=\s*["\']([^"\']*)', attrs)
                 got = got.group(1) if got else ''
                 if op == '*=':
                     if v not in got: ok = False
@@ -159,6 +159,8 @@ def cards_html(html, selector, title_sel, poster_sel):
         href = m.group(1) if m else ''
         title = sub_field(inner, title_sel, 'text') if title_sel else inner_text(inner)
         poster = sub_field(inner, poster_sel, 'src') if poster_sel else sub_field(inner, 'img', 'src')
+        if '/img/placeholder.png' in poster:  # lazy-poster theme: real URL is in data-src
+            poster = sub_field(inner, poster_sel or 'img', 'data-src')
         print(f'{href}\t{title}\t{poster}')
 
 def stream_urls(html):
@@ -174,8 +176,9 @@ def stream_urls(html):
     for pat in pats:
         for m in re.finditer(pat, html):
             link = m.group(m.lastindex) if m.lastindex else m.group(0)
-            if re.search(r'\.(jpe?g|png|webp|gif)([?#]|$)', link):
-                continue  # poster image, not a stream
+            if re.search(r'\.(jpe?g|png|webp|gif)([?#]|$)|gravatar\.com', link):
+                continue  # poster/avatar image, not a stream
+            link = ('https:' + link if link.startswith('//') else link.replace('\\/', '/')).strip()
             mm = re.match(r'https?://([A-Za-z0-9+/=]+)\.m3u8$', link)
             if mm:  # eroticmv-style: "http://<base64>.m3u8" hides the real HLS URL
                 try:
@@ -183,7 +186,6 @@ def stream_urls(html):
                     link = base64.b64decode(tok).decode()
                 except Exception:
                     pass
-            link = ('https:' + link if link.startswith('//') else link.replace('\\/', '/')).strip()
             if link not in seen:
                 seen.add(link)
                 out.append(link)
@@ -270,10 +272,15 @@ check_listing() {  # $1=urls-array-name $2=prefix $3=selector $4=title_sel $5=po
     py cards "$sel" "${tsel:--}" "${psel:--}" "$F" \
       | awk -F'\t' -v p="${prefix}$i" 'BEGIN{OFS="\t"}{print p,$1,$2,$3}' >> "$raw"
   done
-  dups_out=$(py dups 'href,title,poster' < "$raw")
+  dups_out=$(py dups 'href,title' < "$raw")
   if [[ -n "$dups_out" ]]; then
     echo "FAIL duplicate $prefix cards (same video twice on a page or across pages):"
     echo "$dups_out"; fail=1
+  fi
+  poster_dups=$(py dups 'poster' < "$raw")
+  if [[ -n "$poster_dups" ]]; then
+    echo "NOTE: repeated poster on $prefix across different videos (episodes of one series share the series poster — not a card duplicate):"
+    echo "$poster_dups" | head -3
   fi
   py normcards < "$raw" > "$out"
 }
@@ -453,7 +460,14 @@ while IFS=$'\t' read -r vid vpath vtitle vposter vplot; do
   [[ -z "$row" ]] && continue
   agreed=$((agreed+1))
   ctitle=$(cut -f3 <<< "$row"); cposter=$(cut -f4 <<< "$row")
-  if [[ "$(printf '%s' "$ctitle" | norm)" != "$(printf '%s' "$vtitle" | norm)" ]]; then
+  ctitle=$(printf '%s' "$ctitle" | norm)
+  vtitle=$(printf '%s' "$vtitle" | norm)
+  # strip constant og:title wrapper some sites add ("Watch X - Site"); bare card text otherwise
+  if [[ "$vtitle" == watch\ * ]]; then vtitle="${vtitle#watch }"; fi
+  if [[ "$ctitle" == watch\ * ]]; then ctitle="${ctitle#watch }"; fi
+  vtitle=$(printf '%s' "$vtitle" | sed -E 's/ - erotic movies$//')
+  ctitle=$(printf '%s' "$ctitle" | sed -E 's/ - erotic movies$//')
+  if [[ "$ctitle" != "$vtitle" ]]; then
     echo "FAIL title mismatch for $vpath: search='$ctitle' load='$vtitle'"; fail=1
   fi
   if [[ -n "$cposter" && -n "$vposter" && "$cposter" != "$(py path "$vposter")" ]]; then

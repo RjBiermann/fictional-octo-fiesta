@@ -65,3 +65,15 @@ Search: no pagination (see above).
   `articleSection` genres, e.g. `["1960s","Classic Erotica","Comedy","USA"]`.
 - `datePublished` is the **WP posting date** (e.g. 2026-08-20 for a 1987 film), NOT the
   release year. Release year comes from og:title: `Watch Pretty Peaches 2 (1987) - ...`.
+
+## Actors / Stars block (2026-09-09 probe, issue #202)
+- Every video page carries a Stars block: `div.actor-element.single-element`, one card per cast
+  member: `h6.post-title > a[href="<mainUrl>/actor/<slug>/"][title="Name"]` (name in both
+  `title` attr and inner text). Image is lazy (`data-src`, `src` is a placeholder) — titles only.
+- Count varies per film (peaches-2-1987 has 11; actress/director cards share the same structure
+  inside the block, links are `/actor/` slugs). Verified present on all 6 probed video pages.
+- Provider (v4+) populates `actors` via `Eroticmv.parseActors(doc)`:
+  `.actor-element.single-element a[href*='/actor/']` → `title` attr, distinct.
+- Fixture: `src/test/resources/actor-block.html` (raw Stars block of pretty-peaches-2-1987).
+- No true duration exposed on video pages (`duration-text` span on cards carries the rating,
+  e.g. "4.2 ★") and `datePublished` is the WP posting date — neither invented.
