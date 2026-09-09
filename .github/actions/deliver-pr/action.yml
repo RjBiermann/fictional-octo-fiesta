@@ -18,8 +18,10 @@ runs:
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
         # checkout persists github.token credentials; swap in the delivery token
-        # so pushes touching .github/workflows/ are accepted (needs workflow scope)
+        # so pushes touching .github/workflows/ are accepted (needs workflow scope).
+        # The persisted http.extraheader would override URL credentials — drop it.
         git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+        git config --unset-all http.https://github.com/.extraheader || true
         git add -A
         if git diff --cached --quiet; then
           echo "no tree changes — comment-only run, nothing to deliver"
