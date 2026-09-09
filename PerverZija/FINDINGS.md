@@ -49,3 +49,10 @@ version bump (out of scope for an ai-fix per repo rules).
   - vixen-rikako… → iframe `https://j2.xtremestream.xyz/player/index.php?data=7752af…` → `curl -H "Referer: https://j2.xtremestream.xyz/" …/xs1.php?…&q=720` → 200, body `#EXTM3U`.
   - elegantangel-the-red-door… → iframe `pervl4.xtremestream.xyz` → same chain → 200 `#EXTM3U`. (Subdomain variance j2/pervl4 confirmed; direct-call extractor handles it.)
   - Checker limitations recorded: verify.sh's simple selector parser cannot compile `:contains()`/`:has(...)` selectors or bare tag+digit (`h1`) — tags/actors/title asserted via the soupsieve transcript above instead.
+
+## Re-probe for issue #212 fix (year), 2026-09-09 builder
+- Dead selector confirmed: `div.extra span.C a` → 0 matches on sampled video pages (`class="C"` absent from HTML entirely).
+- Year now parsed from JSON-LD `datePublished` (same `script[type=application/ld+json]` block as duration): `Parse.year(document)` — regex first 4 digits; relative "x ago" post-dates simply yield null via JSON-LD being present but a valid date always having a year.
+- Live evidence (curl, 4 sampled pages): vixen-rikako…→2026, wildoncam-harper…→2022, backroommilf-violet…→2022, brazzersexxtra-abigaiil…→2026.
+- Unit tests: `PerverZija/src/test/kotlin/com/kraptor/ParseTest.kt` (datePublished year, missing datePublished → null, no ld+json script → null).
+- verify.sh canned run: search/home/video fetch + selectors pass; stream check unrunnable (two-hop, no Referer — same known limitation recorded by #211); source completeness check found year/plot/duration assignments. Year exposure asserted manually above.
