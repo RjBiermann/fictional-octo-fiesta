@@ -61,6 +61,14 @@ class AllClassicPornParseTest {
         assertTrue(AllClassicPornParse.parseCategories(videoPage).contains("MILF"))
     }
 
+    @Test fun `tags categories and year from fixture 549`() {
+        val page = javaClass.getResourceAsStream("/video-549.html")!!.readBytes().decodeToString()
+        assertTrue(AllClassicPornParse.parseTags(page).contains("VHS"))
+        assertTrue(AllClassicPornParse.parseCategories(page).contains("Full Movie"))
+        // "Zazel: Parfum d'Amour, Uncut (1996)" — also exercises an apostrophe in the h1 title
+        assertEquals(1996, AllClassicPornParse.parseYear(AllClassicPornParse.parseTitle(page)))
+    }
+
     @Test fun `year from title suffix`() {
         assertEquals(1998, AllClassicPornParse.parseYear(loadTitle))
         assertEquals(1998, AllClassicPornParse.parseYear("Mature Milfs - Part Three - HOMEMADE VHS - (1998)"))
