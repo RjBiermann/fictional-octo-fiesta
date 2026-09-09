@@ -84,17 +84,16 @@ class Javseen : MainAPI() {
         val ajaxParam = if (isRecent) "browse_videos" else "category_videos"
 
         // Categories paginate as {cat}/recent/{page}/ (the old {cat}/{page}/ 404s).
-        val url = if (page <= 1) "$baseUrl/?ajax=$ajaxParam" else {
-            if (isRecent) "$mainUrl/recent/$page/?ajax=$ajaxParam"
-            else "$baseUrl/recent/$page/?ajax=$ajaxParam"
-        }
+        val pageBase =
+            if (page <= 1) baseUrl else if (isRecent) "$mainUrl/recent/$page" else "$baseUrl/recent/$page"
+        val url = "$pageBase/?ajax=$ajaxParam"
         Log.d("Ayzen", "URL: $url")
 
         val json = app.get(
             url,
             headers = mapOf(
                 "Accept" to "*/*",
-                "Referer" to if (page <= 1) "$baseUrl/" else "$baseUrl/$page/"
+                "Referer" to "$pageBase/"
             )
         ).parsedSafe<Anamenujson>()
 
