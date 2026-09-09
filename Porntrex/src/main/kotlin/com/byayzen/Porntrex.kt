@@ -203,7 +203,7 @@ class Porntrex : MainAPI() {
 // Issue #215: pure parsing helpers, unit-tested against src/test/resources fixtures.
 object PorntrexParse {
 
-    /** "6min 09sec" -> 369; "1:06:09" -> 3669+360+9; "10min" -> 600; junk -> null. */
+    /** "6min 09sec" -> 369; "1:06:09" -> 3600+360+9; "10min" -> 600; junk -> null. */
     fun parseDurationSeconds(text: String?): Int? {
         if (text == null) return null
         val t = text.trim().lowercase()
