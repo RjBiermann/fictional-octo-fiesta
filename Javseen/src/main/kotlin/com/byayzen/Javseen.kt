@@ -83,20 +83,10 @@ class Javseen : MainAPI() {
         val isRecent = baseUrl.endsWith("/recent")
         val ajaxParam = if (isRecent) "browse_videos" else "category_videos"
 
+        // Categories paginate as {cat}/recent/{page}/ (the old {cat}/{page}/ 404s).
         val url = if (page <= 1) "$baseUrl/?ajax=$ajaxParam" else {
-            if (isRecent) {
-                "$mainUrl/recent/$page/?ajax=$ajaxParam"
-            } else {
-                // Site changed category pagination to {cat}/{sort}/{page}/ — the sort
-                // segment comes from page 1's "pagination" field; fall back to /recent/.
-                val first = app.get(
-                    "$baseUrl/?ajax=$ajaxParam",
-                    headers = mapOf("Accept" to "*/*", "Referer" to "$baseUrl/")
-                ).parsedSafe<Anamenujson>()
-                val sortPage = Parse.categoryPageUrl(first?.pagination.orEmpty(), page)
-                    ?: "$baseUrl/recent/$page/"
-                "$mainUrl$sortPage?ajax=$ajaxParam"
-            }
+            if (isRecent) "$mainUrl/recent/$page/?ajax=$ajaxParam"
+            else "$baseUrl/recent/$page/?ajax=$ajaxParam"
         }
         Log.d("Ayzen", "URL: $url")
 
@@ -237,9 +227,7 @@ class Javseen : MainAPI() {
 
 data class Anamenujson(
     val status: Int,
-    val html: String?,
-    val pagination: String? = null,
-    val next_url: String? = null
+    val html: String?
 )
 
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
