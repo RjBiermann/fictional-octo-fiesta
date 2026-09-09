@@ -68,8 +68,8 @@ class AllClassicPorn : MainAPI() {
         Log.d(tag, "Load : $url")
         val document = app.get(url, referer = mainUrl).document
 
-        val title = document.selectFirst("meta[property=\"og:title\"]")?.attr("content")?.trim()
-            ?: return null
+        // h1[itemprop=name] matches the card title (div.th-description), incl. the "- (yyyy)" suffix; og:title omits it (issue #204).
+        val title = AllClassicPornParse.parseTitle(document) ?: return null
         val poster = fixUrlNull(document.selectFirst("meta[property=\"og:image\"]")?.attr("content"))
         val description = document.selectFirst("meta[property=\"og:description\"]")?.attr("content")
             ?.replace(Regex("<[^>]+>"), "")?.trim()

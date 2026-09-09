@@ -53,3 +53,23 @@ Plain HTML, `{url}/{page}/` suffix:
 
 ## Risks / blockers
 None. No Cloudflare, no age wall. Curl with plain Mozilla UA gets 200 everywhere.
+
+## Audit #204 (2026-09-09) — title drift fix
+
+- `h1[itemprop="name"]` = card title (`div.th-description`) exactly, including the canonical
+  "- (yyyy)" suffix. Live evidence (4 sampled videos): 6161 → "Mature Milfs - Part Three - HOMEMADE VHS - (1998)",
+  2252 → "Zazel, Full movie (1996)", 1573 → "Casanova 2, Uncut Movie (1982)",
+  2208 → "The Golden Age Of Danish Pornography - (1970)". `og:title` omits the suffix on all 4 → looks/title drift.
+- Fix: `AllClassicPornParse.parseTitle()` (h1[itemprop=name] first, og:title fallback), used by `load()`;
+  fixture test `AllClassicPornParseTest` proves search-card ↔ load-page title agreement on video 6161
+  (fixtures `src/test/resources/video-6161.html`, `search-milf.html`).
+- Quick search: provider has `hasQuickSearch = false`; site has no distinct quick-search endpoint (this is the explicit FINDINGS note verify.sh's NOTE requires).
+- verify.sh script-side artifacts (as classified by the audit run, not provider defects):
+  1. check-2 "FAIL stream content-type" on `<id>`-scale og:video — script's stream extractor also grabs
+     `og:video` (embed iframe, text/html). Provider emits ONLY the flashvars `video_url` mp4 which serves
+     206 video/mp4 on all 3 sampled videos.
+  2. check-5 poster mismatch (card `.../320x240/N.jpg` vs og:image `.../preview.jpg`) — site exposes different
+     thumbnail variants per surface; no code change can equalize.
+  3. check-5 title comparison cannot read the new source: the script's mini-DOM only extracts `content` attrs
+     and its tag regex requires `[a-zA-Z]+` (fails on `h1`). Provider's new title source is the h1 text;
+     agreement is evidenced by the unit test + the live h1/card matches above instead.
