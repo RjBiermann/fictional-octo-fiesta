@@ -20,10 +20,15 @@ A `FINDINGS.md` in the provider directory with this structure:
 
 ## Search
 <pattern(s) tested, the one that works, curl transcript>
+<the card selector, and how title/poster extract from a card: card text + first img is the
+verify-provider default; note sub-selectors when the card needs them>
+<a query that matches ≥1 of the sampled video pages — needed for the search↔load
+agreement check>
 
 ## Video pages
 <for each of the ≥5 probed pages: URL, which listing it came from (recent/genre/related),
-structure + selector evidence, curl transcript>
+structure + selector evidence, curl transcript, and the extracted title/poster/description
+values — verify-provider cross-checks these differ across videos>
 
 ## Related videos
 <the related/recommended-videos selector with transcript — or an explicit
@@ -31,13 +36,14 @@ structure + selector evidence, curl transcript>
 
 ## Stream sources (per video page)
 <for EACH probed video page: every source found, each with its own transcript and
-content-type check. Different videos can carry different sources.>
+content-type check. Different videos can carry different sources. Record every stream URL —
+verify-provider asserts no stream path repeats across videos.>
 
 ## Headers / referer
 <what requests require, evidence>
 
 ## Pagination
-<pattern, evidence>
+<pattern, evidence, page-2 URL>
 
 ## Risks / blockers
 <Cloudflare, age walls, IP blocks, anything that would break a runner>
@@ -65,7 +71,9 @@ Common patterns to try (fill in from the engine fingerprint):
 - `/{search}/{query}/`, `/search/{query}/`, `/?s={query}`, `/search/{query}/{page}/`
 - KVS JSON: `/api/json/...` or `/search/{query}/?mode=async`
 Judge by results: the working pattern returns item HTML/JSON matching a repeatable structure.
-Capture the exact URL and a transcript showing ≥1 result.
+Capture the exact URL and a transcript showing ≥1 result. Record how title and poster extract
+from one card (verify-provider defaults: card text + first `<img>`; sub-selectors when the card
+needs them).
 
 ### 3. Video pages — ≥5, varied
 
@@ -73,8 +81,9 @@ Probe **at least 5 video pages** from *different listings*: most-recent, a genre
 and one pulled from a related-videos section — variety across recency and genre. More the
 better beyond that floor. For each page identify: title, poster, tags/categories, description,
 duration, upload date — each with a selector proven against the fetched page (`og:` meta tags
-are often the cheapest source). Capture the URL shape (slug vs numeric id) and record *where*
-each URL came from.
+are often the cheapest source — they are also verify-provider's default selectors). Record the
+extracted values per page: verify-provider asserts they differ across videos (Distinct bar).
+Capture the URL shape (slug vs numeric id) and record *where* each URL came from.
 
 ### 4. Related videos
 
@@ -94,7 +103,9 @@ can carry different sets. For each page, in this order:
    **check the repo's existing extractors first** (grep the provider directories for that
    domain) — reuse before writing a new extractor.
 Each source gets its own verification request (headers + referer if needed) and content-type
-check. Player configs are often URL-encoded or base64 — decode before recording.
+check. Player configs are often URL-encoded or base64 — decode before recording. Record every
+stream URL per page: verify-provider HEAD-checks up to 5 per page and asserts no stream path
+is shared by different videos.
 
 ### 6. Headers / referer
 

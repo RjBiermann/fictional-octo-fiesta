@@ -121,3 +121,7 @@ _Avoid_: related items, suggested videos, related (use the full term in docs)
 **Data-complete**:
 A provider whose `load` populates every `LoadResponse` field the site exposes and whose `loadLinks` emits every source FINDINGS recorded for the site's videos. The floor fields are recommendations, tags, plot, duration, year, and actors — required wherever the site exposes them; score and posters are populated opportunistically. The bar a fix or new-provider PR must clear.
 _Avoid_: fully populated, feature-complete
+
+**Distinct**:
+The uniqueness bar alongside Data-complete: across the sampled videos, every per-video identity field — title, plot, poster URL, stream URL — has a different value on every video, no search page lists the same video twice, recommendations never contain the video itself, and a video's search entry agrees with its load page on title and poster. Identity fields only: tags, actors, year, duration, and score legitimately repeat and are covered by Data-complete, never by Distinct. Checked live by Verification and at fixture level by Parse tests through the shared DistinctBar helper.
+_Avoid_: unique (use the full term), freshness (staleness is Drift's concern)

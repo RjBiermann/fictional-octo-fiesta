@@ -35,26 +35,37 @@ Read a working provider with the same shape before writing yours — the repo is
 - `search` returns `newSearchResponseList(list, hasNext = true)`; `getMainPage` builds
   `HomePageList` + `newHomePageResponse`.
 - Map listing pages per FINDINGS pagination (path-based vs query param differs per site).
+- **Distinct bar (glossary: Distinct)** — identity fields are per-video. Never return a constant
+  title, plot, poster, or stream URL for every video; placeholders ("Watch more at …", a shared
+  fallback poster) are exactly the bug class the bar exists to kill. Tags, actors, year,
+  duration, and score may legitimately repeat — populate them, but never fabricate.
 - `load`: populate the full `LoadResponse` — `recommendations` from the related-videos selector
   in FINDINGS (most sites expose one; if FINDINGS says none exists, say so in the PR), plus
-  tags/plot/duration per FINDINGS.
+  tags/plot/duration/year per FINDINGS. Parse durations to **minutes** (Int); ISO-8601
+  `PT#H#M#S` → hours*60+minutes.
 - `loadLinks`: emit **one `ExtractorLink` per source recorded in FINDINGS** — different videos
   on the same site can carry different sources, so handle each kind you probed. Resolve stream
-  URLs fresh every call (signed/expiring URLs are the norm); set `referer` when FINDINGS says
-  it's required; `getQualityFromName(quality)` for qualities.
+  URLs fresh every call (signed/expiring URLs are the norm). ExtractorLink floor:
+  - `quality` from the page's quality attr when exposed (`getQualityFromName`), never a guessed
+    constant — and never `Qualities.Unknown` when the site states a quality
+  - `type` accurate: let `INFER_TYPE` infer from the URL; pass it explicitly when the URL
+    doesn't reveal the container (an m3u8 claiming `VIDEO` fails verification)
+  - `referer` set when FINDINGS says the host requires it
 - Embed extractor ladder — for each embed domain in FINDINGS, in order: (1) reuse a repo
   extractor (grep the provider directories for that domain); (2) fall through to CloudStream's
   built-in `loadExtractor(...)`; (3) only if neither handles it, write a new extractor inside
   the provider's directory.
 - Wrap per-item parsing in `try/catch` returning null (one broken card must not kill the list).
-- Duration: parse to **minutes** (Int). ISO-8601 `PT#H#M#S` → hours*60+minutes.
 
 ## Red → green (TDD-first, ADR-0005)
 
 New parsing logic ships test-first: extract a Parse function (`parseXxx(html): List<…>`), write
 the failing JUnit4 test against a Fixture — saved HTML/JSON from FINDINGS, in
 `src/test/resources/` — then implement until green. No HTTP mocking: `MainAPI` flows stay
-covered by Verification, not unit tests.
+covered by Verification, not unit tests. Fixture tests also enforce the Distinct bar at the
+fixture level: pipe the parsed identities through the shared `DistinctBar.assertDistinctVideos`
+helper (`com.kraptor`, in `shared/src/test/kotlin`) — a fixture whose parsed titles/posters/URLs
+collide fails red before any live run.
 
 ## Build loop
 

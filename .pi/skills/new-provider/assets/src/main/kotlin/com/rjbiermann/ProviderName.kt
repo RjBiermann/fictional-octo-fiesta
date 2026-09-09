@@ -59,11 +59,22 @@ class ProviderName : MainAPI() {
         val document = app.get(url).document
         val title = document.selectFirst("h1")?.text()?.trim() ?: url      // FINDINGS: title selector
         val poster = document.selectFirst("meta[property=\"og:image\"]")?.attr("content")
+        val plot = document.selectFirst("meta[property=\"og:description\"]")?.attr("content")
         val duration = /* FINDINGS: duration source */ null
+        val tags = document.select(".TAG_SELECTOR").mapNotNull {            // FINDINGS: tag selector
+            it.text()?.trim()?.takeIf { t -> t.isNotBlank() }
+        }
+        val related = document.select("section#related a.RELCARD_SELECTOR").mapNotNull {  // FINDINGS
+            try { it.toSearchResult() } catch (e: Exception) { null }
+        }
 
+        // Distinct bar: title/plot/poster are per-video identity — never constants.
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = fixUrlNull(poster)
+            plot?.let { this.plot = it }
             duration?.let { this.duration = it }
+            if (tags.isNotEmpty()) this.tags = tags
+            if (related.isNotEmpty()) this.recommendations = related
         }
     }
 
