@@ -32,9 +32,12 @@ Read a working provider with the same shape before writing yours — the repo is
 ## Implementation rules
 
 - Only use selectors/URLs that exist in FINDINGS. A selector you can't show evidence for is a bug.
-- `search` returns `newSearchResponseList(list, hasNext = true)`; `getMainPage` builds
-  `HomePageList` + `newHomePageResponse`.
-- Map listing pages per FINDINGS pagination (path-based vs query param differs per site).
+- `search` returns `newSearchResponseList(list, hasNext = true)` and maps page 2+ per the
+  FINDINGS Pagination section (path-based vs query param differs per site); `getMainPage`
+  builds `HomePageList` + `newHomePageResponse` from the FINDINGS Homepage section (rows,
+  selectors, pagination). Implement `quickSearch` only when FINDINGS records a distinct
+  quick-search endpoint — otherwise leave `hasQuickSearch` at its `false` default; a faked
+  endpoint that just duplicates `search` is noise the app would call twice.
 - **Distinct bar (glossary: Distinct)** — identity fields are per-video. Never return a constant
   title, plot, poster, or stream URL for every video; placeholders ("Watch more at …", a shared
   fallback poster) are exactly the bug class the bar exists to kill. Tags, actors, year,
@@ -75,4 +78,6 @@ collide fails red before any live run.
 ```
 Fix failures, repeat until both are clean. Then hand off to the verify-provider skill — a clean
 build (and green tests) prove nothing about live selectors. No PR without a multi-video verify
-transcript.
+transcript. Verify with the flags FINDINGS earns: homepage page 1+2 (`--home-url`), the distinct
+quick-search endpoint (`--quick-search-url`) when one exists, and a field selector for every
+LoadResponse field the site exposes.

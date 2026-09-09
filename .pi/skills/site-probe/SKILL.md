@@ -1,6 +1,6 @@
 ---
 name: site-probe
-description: Probe an adult video site and produce FINDINGS ground truth (engine fingerprint, search pattern, video page structure, stream source, headers, pagination) before writing any CloudStream provider code. Use when building or fixing a provider for a site.
+description: Probe an adult video site and produce FINDINGS ground truth (engine fingerprint, search and quick-search pattern, homepage rows, video page structure, stream source, headers, per-surface pagination, field-exposure inventory) before writing any CloudStream provider code. Use when building or fixing a provider for a site.
 ---
 
 # Site Probe
@@ -25,10 +25,24 @@ verify-provider default; note sub-selectors when the card needs them>
 <a query that matches ≥1 of the sampled video pages — needed for the search↔load
 agreement check>
 
+## Quick search
+<CloudStream's quickSearch surface: the site's live-typing/suggest endpoint if one exists
+distinct from the search page — URL, card shape, transcript. Or an explicit "no distinct
+quick-search endpoint" note (the provider keeps hasQuickSearch = false). Never left unstated.>
+
+## Homepage
+<the rows the provider's getMainPage will render: page-1 URL, card selector (usually the
+search card selector — note sub-selectors when a row differs), page-2 URL, and transcript
+evidence that page 2 returns different items. Or an explicit "homepage does not paginate"
+note. Never left unstated.>
+
 ## Video pages
 <for each of the ≥5 probed pages: URL, which listing it came from (recent/genre/related),
 structure + selector evidence, curl transcript, and the extracted title/poster/description
 values — verify-provider cross-checks these differ across videos>
+<exposure inventory, explicit per field: title, poster, description/plot, tags/categories,
+duration, upload date/year, actors — "site does not expose X" notes are mandatory for
+anything the provider will not populate>
 
 ## Related videos
 <the related/recommended-videos selector with transcript — or an explicit
@@ -43,7 +57,10 @@ verify-provider asserts no stream path repeats across videos.>
 <what requests require, evidence>
 
 ## Pagination
-<pattern, evidence, page-2 URL>
+<per surface — search, homepage, related-videos: pattern (path-based vs query param vs AJAX),
+page-2 URL, and transcript evidence that page 2 returns different items. verify-provider
+requires page-2 URLs for search and homepage unless a surface explicitly records "does not
+paginate".>
 
 ## Risks / blockers
 <Cloudflare, age walls, IP blocks, anything that would break a runner>
@@ -63,7 +80,8 @@ Rules:
 Fetch the homepage and check [references/patterns.md](references/patterns.md) fingerprints in
 this order: KVS/Kernel → WP video theme → custom. Record which fingerprint matched, with the
 HTML snippet. Reuse engine knowledge: same engine ⇒ same search/stream layout as other sites
-of that engine.
+of that engine. While on the homepage, record its rows for the Homepage section: page-1 URL,
+card selector, and whether it paginates (page-2 URL + evidence of different items).
 
 ### 2. Search
 
@@ -75,6 +93,10 @@ Capture the exact URL and a transcript showing ≥1 result. Record how title and
 from one card (verify-provider defaults: card text + first `<img>`; sub-selectors when the card
 needs them).
 
+Also probe quick search: many sites have none distinct from the search page (the app falls back
+to full search) — record the distinct suggest/live-typing endpoint with evidence, or an explicit
+"no distinct quick-search endpoint" note. One or the other — never unstated.
+
 ### 3. Video pages — ≥5, varied
 
 Probe **at least 5 video pages** from *different listings*: most-recent, a genre/category page,
@@ -83,7 +105,10 @@ better beyond that floor. For each page identify: title, poster, tags/categories
 duration, upload date — each with a selector proven against the fetched page (`og:` meta tags
 are often the cheapest source — they are also verify-provider's default selectors). Record the
 extracted values per page: verify-provider asserts they differ across videos (Distinct bar).
-Capture the URL shape (slug vs numeric id) and record *where* each URL came from.
+Record the exposure inventory explicitly, per field — including "site does not expose X" for
+anything the provider won't populate; verify-provider NOTEs omitted field selectors only when
+FINDINGS carries that note. Capture the URL shape (slug vs numeric id) and record *where* each
+URL came from.
 
 ### 4. Related videos
 
@@ -112,7 +137,9 @@ is shared by different videos.
 Replay the stream request without the referer/UA, then with. Record which combination is
 required — providers die silently on missing referer.
 
-### 7. Pagination
+### 7. Pagination — per surface
 
-Page 2 of search and home listing: `/{page}/` suffix, `?page=N`, AJAX endpoint? Record the
-pattern and confirm page 2 returns *different* items.
+Page 2 of each listing surface — search, homepage, related-videos: `/{page}/` suffix,
+`?page=N`, AJAX endpoint? Record the pattern per surface and confirm page 2 returns *different*
+items (transcript). Search and homepage page-2 URLs are mandatory in FINDINGS; a surface that
+doesn't paginate gets an explicit "does not paginate" note, never silence.

@@ -29,7 +29,8 @@ seen live is a guess.
 4. **Rebuild + verify** (new-provider build loop, verify-provider skill): `./gradlew
    <Name>:make` clean and `./gradlew <Name>:test` green, then `verify.sh` PASS with ≥5 varied
    video URLs (and `--related-selector` when the site exposes related videos) against the fixed
-   selectors.
+   selectors — plus homepage page 1+2 (`--home-url`), the quick-search endpoint when FINDINGS
+   records one, and every exposed field selector, all from the fresh FINDINGS.
 5. **Deliver**: commit on the fix branch, PR referencing the issue (`Fixes #N`) with the
    before/after evidence — what broke, what changed, verification transcript.
 

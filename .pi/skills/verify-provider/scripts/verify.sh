@@ -8,9 +8,16 @@
 # actors, year, duration, score) are NEVER distinctness-checked — they legitimately repeat.
 #
 # Checks:
-#  1. search page(s) fetch, ≥1 card each, no duplicate cards (within or across pages)
+#  1. search page(s) fetch, ≥1 card each, no duplicate cards (within or across pages);
+#     page 2 sharing any card with page 1 = duplicate = FAIL (pagination must return new items)
+#  1a. homepage page(s) (getMainPage rows): same bar as search — page 1 always, page 2 too
+#      unless FINDINGS records "homepage does not paginate"
+#  1b. quick search, when FINDINGS records a distinct quick-search endpoint: fetch, ≥1 card,
+#      no duplicate cards (single page, no pagination)
 #  2. every video page fetches, matches --stream-selector, yields a title; poster/plot are
 #     all-or-none across sampled pages (some-but-not-all = FAIL; none = site doesn't expose)
+#  2a. tags/actors/year/duration selectors (from FINDINGS): all-or-none across sampled pages;
+#      a selector omitted = NOTE — FINDINGS must then state the site doesn't expose the field
 #  3. every stream URL per video page (≤5) serves video; stream paths distinct within a page
 #     and across videos
 #  4. related-videos selector matches; rec titles non-empty, distinct, not the video itself
@@ -23,6 +30,8 @@ UA="Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0"
 SEARCH_URLS=() SEARCH_SELECTOR="" STREAM_SELECTOR="" QUALITY_ATTR="res" RELATED_SELECTOR=""
 PROVIDER_SRC="" LOAD_RESPONSE=""
 SEARCH_TITLE_SEL="" SEARCH_POSTER_SEL="" VIDEO_TITLE_SEL="" VIDEO_POSTER_SEL="" VIDEO_PLOT_SEL=""
+HOME_URLS=() HOME_SELECTOR="" QSEARCH_URLS=() QSEARCH_SELECTOR=""
+VIDEO_TAGS_SEL="" VIDEO_ACTORS_SEL="" VIDEO_YEAR_SEL="" VIDEO_DURATION_SEL=""
 VIDEO_URLS=()
 HEADERS=(-A "$UA")
 
@@ -34,6 +43,14 @@ while [[ $# -gt 0 ]]; do
     --search-selector) SEARCH_SELECTOR="$2"; shift 2;;
     --search-title-selector) SEARCH_TITLE_SEL="$2"; shift 2;;
     --search-poster-selector) SEARCH_POSTER_SEL="$2"; shift 2;;
+    --home-url) HOME_URLS+=("$2"); shift 2;;
+    --home-selector) HOME_SELECTOR="$2"; shift 2;;
+    --quick-search-url) QSEARCH_URLS+=("$2"); shift 2;;
+    --quick-search-selector) QSEARCH_SELECTOR="$2"; shift 2;;
+    --video-tags-selector) VIDEO_TAGS_SEL="$2"; shift 2;;
+    --video-actors-selector) VIDEO_ACTORS_SEL="$2"; shift 2;;
+    --video-year-selector) VIDEO_YEAR_SEL="$2"; shift 2;;
+    --video-duration-selector) VIDEO_DURATION_SEL="$2"; shift 2;;
     --video-url) VIDEO_URLS+=("$2"); shift 2;;
     --video-title-selector) VIDEO_TITLE_SEL="$2"; shift 2;;
     --video-poster-selector) VIDEO_POSTER_SEL="$2"; shift 2;;
@@ -235,6 +252,32 @@ PY
 py() { python3 "$PYDOM" "$@"; }
 norm() { python3 -c 'import sys,html,re;print(re.sub(r"\s+"," ",html.unescape(sys.stdin.read())).strip().lower())'; }
 
+# ── listing-page check shared by search / homepage / quick search ──
+# Fetch each URL, require 200 + ≥1 card, dedupe within/across pages (a card repeating on
+# page 2 = pagination returning the same items = FAIL), write normalized TSV to $6.
+check_listing() {  # $1=urls-array-name $2=prefix $3=selector $4=title_sel $5=poster_sel $6=out.tsv
+  local -n _urls=$1; local prefix=$2 sel=$3 tsel=$4 psel=$5 out=$6
+  local raw=/tmp/verify_${prefix}_raw.tsv i SU F code n dups_out
+  : > "$raw"
+  for i in "${!_urls[@]}"; do
+    SU="${_urls[$i]}"; F="/tmp/verify_${prefix}_$i.html"
+    code=$(curl -sL "${HEADERS[@]}" -o "$F" -w '%{http_code}' --max-time 30 "$SU") || code="ERR"
+    n=$(py count "$sel" "$F")
+    echo "GET $SU → $code; '$sel' matches: $n"
+    if [[ "$code" == ERR ]] || ! [[ "$code" =~ ^2 && $n -ge 1 ]]; then
+      echo "FAIL $prefix ($SU)"; fail=1
+    fi
+    py cards "$sel" "${tsel:--}" "${psel:--}" "$F" \
+      | awk -F'\t' -v p="${prefix}$i" 'BEGIN{OFS="\t"}{print p,$1,$2,$3}' >> "$raw"
+  done
+  dups_out=$(py dups 'href,title,poster' < "$raw")
+  if [[ -n "$dups_out" ]]; then
+    echo "FAIL duplicate $prefix cards (same video twice on a page or across pages):"
+    echo "$dups_out"; fail=1
+  fi
+  py normcards < "$raw" > "$out"
+}
+
 # two-hop embed fallback (filmcdm-style sites: stream lives behind a packed embed page)
 embed_stream_url() {  # video page → first m3u8 from its click-loaded embed pages
   python3 - "$1" <<'PY'
@@ -268,24 +311,24 @@ PY
 
 # ── check 1: search pages ──
 echo "── check 1: search pages (${#SEARCH_URLS[@]})"
-RAW_CARDS=/tmp/verify_cards_raw.tsv
-: > "$RAW_CARDS"
-for i in "${!SEARCH_URLS[@]}"; do
-  SU="${SEARCH_URLS[$i]}"
-  code=$(curl -sL "${HEADERS[@]}" -o "/tmp/verify_search_$i.html" -w '%{http_code}' --max-time 30 "$SU") || code="ERR"
-  n=$(py count "$SEARCH_SELECTOR" "/tmp/verify_search_$i.html")
-  echo "GET $SU → $code; '$SEARCH_SELECTOR' matches: $n"
-  if [[ "$code" != ERR ]]; then [[ "$code" =~ ^2 ]] && (( n >= 1 )) || { echo "FAIL search ($SU)"; fail=1; }
-  else echo "FAIL search (fetch error $SU)"; fail=1; fi
-  py cards "$SEARCH_SELECTOR" "${SEARCH_TITLE_SEL:--}" "${SEARCH_POSTER_SEL:--}" "/tmp/verify_search_$i.html" \
-    | awk -F'\t' -v p="search$i" 'BEGIN{OFS="\t"}{print p,$1,$2,$3}' >> "$RAW_CARDS"
-done
-dups_out=$(py dups 'href,title,poster' < "$RAW_CARDS")
-if [[ -n "$dups_out" ]]; then
-  echo "FAIL duplicate search cards (same video twice on a page or across pages):"
-  echo "$dups_out"; fail=1
+check_listing SEARCH_URLS search "$SEARCH_SELECTOR" "$SEARCH_TITLE_SEL" "$SEARCH_POSTER_SEL" /tmp/verify_cards_norm.tsv
+
+# ── check 1a: homepage pages (getMainPage rows) ──
+echo "── check 1a: homepage pages (${#HOME_URLS[@]})"
+if (( ${#HOME_URLS[@]} >= 1 )); then
+  check_listing HOME_URLS home "${HOME_SELECTOR:-$SEARCH_SELECTOR}" - - /tmp/verify_home_norm.tsv
+  (( ${#HOME_URLS[@]} >= 2 )) || echo "NOTE: single --home-url — add page 2 as well unless FINDINGS records 'homepage does not paginate'"
+else
+  echo "FAIL: no --home-url — homepage rows (getMainPage) unverified"; fail=1
 fi
-py normcards < "$RAW_CARDS" > /tmp/verify_cards_norm.tsv
+
+# ── check 1b: quick search ──
+echo "── check 1b: quick search (${#QSEARCH_URLS[@]})"
+if (( ${#QSEARCH_URLS[@]} >= 1 )); then
+  check_listing QSEARCH_URLS qsearch "${QSEARCH_SELECTOR:-$SEARCH_SELECTOR}" "${SEARCH_TITLE_SEL:--}" "${SEARCH_POSTER_SEL:--}" /tmp/verify_qsearch_norm.tsv
+else
+  echo "NOTE: no --quick-search-url — required when FINDINGS records a distinct quick-search endpoint; its absence must be explicit in FINDINGS"
+fi
 
 # ── checks 2/3: video pages, identity fields, streams ──
 echo "── check 2: video pages (${#VIDEO_URLS[@]} URLs)"
@@ -367,6 +410,27 @@ for col in 4 5; do
     echo "NOTE: no $name on any sampled page — site does not expose it; excluded from distinctness"
   fi
 done
+# ── check 2a: optional field exposure (tags/actors/year/duration) — all-or-none ──
+for fname in tags actors year duration; do
+  eval "sel=\$VIDEO_${fname^^}_SEL"
+  if [[ -z "$sel" ]]; then
+    echo "NOTE: no --video-$fname-selector — exposure not asserted; FINDINGS must state whether the site exposes $fname"
+    continue
+  fi
+  have=0
+  for F in /tmp/verify_video_*.html; do
+    v=$(py field "$sel" text "$F"); [[ -n "$v" ]] && have=$((have+1))
+  done
+  total=${#VIDEO_URLS[@]}
+  if (( have > 0 && have < total )); then
+    echo "FAIL: $fname present on $have/$total video pages — inconsistent page shape (check --video-$fname-selector)"; fail=1
+  elif (( have == 0 )); then
+    echo "NOTE: --video-$fname-selector matches nothing on any sampled page — verify it against FINDINGS"
+  else
+    echo "field '$fname': present on all $total sampled pages"
+  fi
+done
+
 # cross-video distinctness on exposed identity fields
 COLSPEC='href,title,poster'
 [[ $(awk -F'\t' '$5 != ""' "$V_TSV" | wc -l) -eq ${#VIDEO_URLS[@]} ]] && COLSPEC='href,title,poster,plot'
