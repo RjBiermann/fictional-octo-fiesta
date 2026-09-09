@@ -12,6 +12,11 @@ import okhttp3.MultipartBody
 import okhttp3.Request
 import org.jsoup.nodes.Element
 
+// Page-URL builder for main-page rows; top-level (not on the MainAPI subclass) so its
+// unit test can run without the cloudstream stubs on the test runtime classpath.
+fun pagedUrl(url: String, page: Int): String =
+    if (page <= 1) url else url + (if ("?" in url) "&" else "?") + "page=$page"
+
 class Javtiful : MainAPI() {
     override var mainUrl = "https://javtiful.com"
     override var name = "Javtiful"
@@ -53,11 +58,11 @@ class Javtiful : MainAPI() {
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val url = if (page <= 1) request.data else "${request.data}?page=$page"
+        val url = pagedUrl(request.data, page)
         val res = app.get(url).document
         val home = res.select("article.front-video-card:not(.front-partner-card)").mapNotNull {
             it.mainPageResults()
-        }
+        }.distinctBy { it.name } // site lists censored + reducing-mosaic variants of a code under one title
         val hasNext = res.selectFirst("a.front-pagination-link:contains(Next)") != null
         return newHomePageResponse(
             list = HomePageList(
@@ -75,7 +80,7 @@ class Javtiful : MainAPI() {
         val res = app.get(url).document
         val results = res.select("article.front-video-card:not(.front-partner-card)").mapNotNull {
             it.mainPageResults()
-        }
+        }.distinctBy { it.name } // same censored/reducing-mosaic variant dedupe
         val hasNext = res.selectFirst("a.front-pagination-link:contains(Next)") != null
         return newSearchResponseList(results, hasNext)
     }
@@ -111,7 +116,7 @@ class Javtiful : MainAPI() {
                     newMovieSearchResponse(rectitle, rechref, TvType.NSFW) {
                         this.posterUrl = fixUrlNull(recposter)
                     }
-                }
+                }.distinctBy { it.name } // related grid repeats censored/reducing-mosaic variants
 
         val actorslist = res.select("a.front-watch-actor-card").map {
             val name = it.selectFirst("span")?.text()?.trim() ?: ""
