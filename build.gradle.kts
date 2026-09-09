@@ -100,7 +100,6 @@ subprojects {
         implementation("org.mozilla:rhino:1.9.1") // JS engine (JavGuru, Javseen)
         implementation("org.jspecify:jspecify:1.0.1") // annotations referenced by jsoup
         testImplementation("junit:junit:4.13.2") // TDD-first, ADR-0005
-        testImplementation("org.jsoup:jsoup:1.23.2") // unit-test classpath (implementation above isn't exposed)
     }
 }
 
