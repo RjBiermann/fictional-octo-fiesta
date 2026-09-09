@@ -614,8 +614,6 @@ open class Streamwish : ExtractorApi() {
 
 
 
-class Streamhihi : Streamwish() { override var name = "Streamhihi"; override var mainUrl = "https://streamhihi.com" }
-class Javsw : Streamwish() { override var mainUrl = "https://javsw.me"; override var name = "Javsw" }
 
 open class VidHidePro : ExtractorApi() {
     override var name = "VidHidePro"
@@ -661,24 +659,6 @@ open class VidHidePro : ExtractorApi() {
     }
 }
 
-class VidhideVIP : VidHidePro() { override var mainUrl = "https://vidhidevip.com"; override var name = "VidhideVIP" }
-class Javlion : VidHidePro() { override var mainUrl = "https://javlion.xyz"; override var name = "Javlion" }
-class VidHidePro1 : VidHidePro() { override var mainUrl = "https://filelions.live" }
-class VidHidePro2 : VidHidePro() { override var mainUrl = "https://filelions.online" }
-class VidHidePro3 : VidHidePro() { override var mainUrl = "https://filelions.to" }
-class VidHidePro4 : VidHidePro() { override var mainUrl = "https://kinoger.be" }
-class VidHidePro6 : VidHidePro() { override var mainUrl = "https://vidhidepre.com" }
-class VidHidePro7 : VidHidePro() { override var mainUrl = "https://vidhidehub.com" }
-class Dhcplay : VidHidePro() { override var name = "DHC Play"; override var mainUrl = "https://dhcplay.com" }
-class Smoothpre : VidHidePro() { override var name = "EarnVids"; override var mainUrl = "https://smoothpre.com" }
-class Dhtpre : VidHidePro() { override var name = "EarnVids"; override var mainUrl = "https://dhtpre.com" }
-class Peytonepre : VidHidePro() { override var name = "EarnVids"; override var mainUrl = "https://peytonepre.com" }
-class Movearnpre : VidHidePro() { override var name = "EarnVids"; override var mainUrl = "https://movearnpre.com" }
-class Dintezuvio : VidHidePro() { override var name = "EarnVids"; override var mainUrl = "https://dintezuvio.com" }
-class HgLink : VidHidePro() { override var name = "HGLink"; override var mainUrl = "https://hglink.to" }
-class RyderJet : VidHidePro() { override var name = "RyderJet"; override var mainUrl = "https://ryderjet.com" }
-
-class MyCloudZ : VidHidePro() { override var mainUrl = "https://mycloudz.cc"; override var name = "MyCloudZ" }
 class TurbovidVip : Turtleviplay() { override var mainUrl = "https://turbovid.vip"; override var name = "TurboVid" }
 
 // worker4.savedvids.com embed.php?p=... serves `var FIRST = {"playlist": "https://...master.m3u8", ...}`
@@ -704,7 +684,6 @@ class SavedVids : ExtractorApi() {
     }
 }
 class StreamBeastUpn : Playerupnone() { override var mainUrl = "https://streambeast.upn.one"; override var name = "StreamBeast" }
-class Turboplayers : StreamTape() { override var mainUrl = "https://turboplayers.xyz"; override var name = "Streamtape" }
 
 
 
@@ -748,12 +727,8 @@ class Javggvideo : ExtractorApi() {
     }
 }
 
-class swhoi : Filesim() { override var mainUrl = "https://swhoi.com"; override var name = "Streamwish" }
-class MixDropis : MixDrop() { override var mainUrl = "https://mixdrop.is" }
-class Javmoon : Filesim() { override var mainUrl = "https://javmoon.me"; override var name = "FileMoon" }
 
 
-class StbP2P : VidStack() { override var mainUrl = "https://stb.strp2p.com"; override var name = "STBP2P" }
 open class Playerupnone : VidStack() { override var mainUrl = "https://player.upn.one"; override var name = "UPNP2P" }
 
 open class Turtleviplay : ExtractorApi() {
@@ -934,45 +909,6 @@ open class LULUBASE : ExtractorApi() {
     }
 }
 
-open class LULUSTREAM : LULUBASE() {
-    override val name = "LuluStream"
-    override val mainUrl = "https://lulustream.com"
-}
-
-class LULUSTREAMFIT : LULUSTREAM() {
-    override val mainUrl = "https://lulustream.fit"
-}
-
-
-class LULUVDO : LULUBASE() {
-    override val name = "Lulustream"
-    override val mainUrl = "https://luluvdo.com"
-}
-
-class LULUVDOO : LULUBASE() {
-    override val name = "Lulustream"
-    override val mainUrl = "https://luluvdoo.com"
-}
-
-class LULUPVP : LULUBASE() {
-    override val name = "Lulustream"
-    override val mainUrl = "https://lulupvp.com"
-}
-
-class LULUDLC : LULUBASE() {
-    override val name = "Lulustream"
-    override val mainUrl = "https://lulu.dlc.ovh/"
-}
-
-class LULU0 : LULUBASE() {
-    override val name = "Lulustream"
-    override val mainUrl = "https://lulu0.ovh/"
-}
-
-class LULUX08 : LULUBASE() {
-    override val name = "Lulustream"
-    override val mainUrl = "https://x08.ovh/"
-}
 
 
 class VidNest : ExtractorApi() {
@@ -1092,42 +1028,6 @@ open class Player4Me : ExtractorApi() {
 }
 
 
-class Vip4me : Player4Me() {
-    override var mainUrl = "https://vip.player4me.vip"
-    override var name = "Player4Me"
-}
-
-class RPMShare : Player4Me() {
-    override var mainUrl = "https://my.rpmplay.online"
-    override var name = "Player4Me"
-}
-
-class UpnsOnline : Player4Me() {
-    override var mainUrl = "https://my.upns.online"
-    override var name = "Player4Me"
-}
-
-class EmbedSeek : Player4Me() {
-    override var mainUrl = "https://my.embedseek.online"
-    override var name = "Player4Me"
-}
-
-class VipSeekPlayer : Player4Me() {
-    override var mainUrl = "https://vip.seekplayer.vip"
-    override var name = "Player4Me"
-}
-
-class EasyVidPlayer : Player4Me() {
-    override var mainUrl = "https://p.easyvidplayer.com"
-    override var name = "Player4Me"
-}
-
-class VipEasyVidPlayer : Player4Me() {
-    override var mainUrl = "https://vip.easyvidplayer.com"
-    override var name = "Player4Me"
-}
-
-
 
 
 open class DoodStream : ExtractorApi() {
@@ -1176,37 +1076,6 @@ open class DoodStream : ExtractorApi() {
             })
     }
 }
-
-class Playmogo : DoodStream() {
-    override var mainUrl = "https://playmogo.com"
-    override var name = "DoodStream"
-}
-
-class DoodDoply : DoodStream() {
-    override var mainUrl = "https://doply.net"
-    override var name = "DoodStream"
-}
-
-class DoodPmExtractor : DoodStream() {
-    override var mainUrl = "https://dood.pm"
-}
-
-class DoodVideo : DoodStream() {
-    override var mainUrl = "https://vide0.net";
-}
-class Ds2Play : DoodStream() {
-    override var mainUrl = "https://ds2play.com"
-}
-class d000d : DoodStream() {
-    override var mainUrl = "https://d000d.com"
-}
-
-class Dooood : DoodStream() {
-    override var mainUrl = "https://dooood.com"
-}
-
-
-
 
 open class StreamTAPE : ExtractorApi() {
     override val name = "Streamtape"
@@ -1305,37 +1174,6 @@ open class StreamTAPE : ExtractorApi() {
 }
 
 
-
-class Watchadsontape : StreamTAPE() {
-    override var mainUrl = "https://watchadsontape.com"
-}
-class Stape : StreamTAPE() {
-    override var mainUrl = "https://stape.fun"
-}
-
-class StreamTapeNet : StreamTAPE() {
-    override var mainUrl = "https://streamtape.net/"
-}
-
-class StreamTapeXyz : StreamTAPE() {
-    override var mainUrl = "https://streamtape.xyz"
-}
-
-class ShaveTape : StreamTAPE() {
-    override var mainUrl = "https://shavetape.cash"
-}
-
-class Lancewhoisdifficult: Voe() {
-    override var mainUrl = "https://lancewhosedifficult.com"
-}
-
-class Javlesbians: Voe() {
-    override var mainUrl = "https://javlesbians.com"
-}
-
-class Stevenfamilyedge : Voe() {
-    override var mainUrl = "https://stevenfamilyedge.com"
-}
 
 
 
@@ -1617,50 +1455,39 @@ data class ApiResponse(
 )
 
 
+// ---------- Mirror factories (ADR-0002 seam) ----------
+// One factory per embed-host family; HostRegistry holds a (url, name) row per
+// mirror instead of a one-line subclass. Object expressions (not .apply) so
+// this works whether the base pins name/mainUrl as val or var.
+fun filemoon(url: String, nm: String = "Filemoon"): Filemoon =
+    object : Filemoon(url) { override var name = nm }
 
+fun vidHidePro(url: String, nm: String = "VidHidePro"): VidHidePro =
+    object : VidHidePro() { override var mainUrl = url; override var name = nm }
 
-class KPFilemoonSx : Filemoon() { override var name = "Filemoon"; override var mainUrl = "https://filemoon.sx" }
-class KPFilemoonIn : Filemoon() { override var name = "Filemoon"; override var mainUrl = "https://filemoon.in" }
-class KPFilemoonLink : Filemoon() { override var name = "Filemoon"; override var mainUrl = "https://filemoon.link" }
-class KPFilemoonWf : Filemoon() { override var name = "Filemoon"; override var mainUrl = "https://filemoon.wf" }
-class KPFilemoonEu : Filemoon() { override var name = "Filemoon"; override var mainUrl = "https://filemoon.eu" }
-class KPFilemoonArt : Filemoon() { override var name = "Filemoon"; override var mainUrl = "https://filemoon.art" }
-class KPFilemoonNl : Filemoon() { override var name = "Filemoon"; override var mainUrl = "https://filemoon.nl" }
-class KPCinegrab : Filemoon() { override var name = "Cinegrab"; override var mainUrl = "https://cinegrab.com" }
-class KPMoonmov : Filemoon() { override var name = "Moonmov"; override var mainUrl = "https://moonmov.pro" }
-class KPNineSixAr : Filemoon() { override var name = "96ar"; override var mainUrl = "https://96ar.com" }
-class KPKerapoxy : Filemoon() { override var name = "Kerapoxy"; override var mainUrl = "https://kerapoxy.cc" }
-class KPFurher : Filemoon() { override var name = "Furher"; override var mainUrl = "https://furher.in" }
-class KPOneAzayf9w : Filemoon() { override var name = "1azayf9w"; override var mainUrl = "https://1azayf9w.xyz" }
-class KPEightOneU6xl9d : Filemoon() { override var name = "81u6xl9d"; override var mainUrl = "https://81u6xl9d.xyz" }
-class KPSmdfs40r : Filemoon() { override var name = "Smdfs40r"; override var mainUrl = "https://smdfs40r.skin" }
-class KPC1z39 : Filemoon() { override var name = "C1z39"; override var mainUrl = "https://c1z39.com" }
-class KPBf0skv : Filemoon() { override var name = "Bf0skv"; override var mainUrl = "https://bf0skv.org" }
-class KPZ1ekv717 : Filemoon() { override var name = "Z1ekv717"; override var mainUrl = "https://z1ekv717.fun" }
-class KPL1afav : Filemoon() { override var name = "L1afav"; override var mainUrl = "https://l1afav.net" }
-class KPTwoTwoTwoi8x : Filemoon() { override var name = "222i8x"; override var mainUrl = "https://222i8x.lol" }
-class KPEightMhlloqo : Filemoon() { override var name = "8mhlloqo"; override var mainUrl = "https://8mhlloqo.fun" }
-class KPF51rm : Filemoon() { override var name = "F51rm"; override var mainUrl = "https://f51rm.com" }
-class KPXcoic : Filemoon() { override var name = "Xcoic"; override var mainUrl = "https://xcoic.com" }
-class KPBoosteradx : Filemoon() { override var name = "Boosteradx"; override var mainUrl = "https://boosteradx.online" }
-class KPStreamlyplayer : Filemoon() { override var name = "Streamlyplayer"; override var mainUrl = "https://streamlyplayer.online" }
-class KPStreamlyplayero : Filemoon() { override var name = "Streamlyplayero"; override var mainUrl = "https://streamlyplayero.online" }
-class KPBysewihe : Filemoon() { override var name = "Byse"; override var mainUrl = "https://bysewihe.com" }
-class KPByselapuix : Filemoon() { override var name = "Byse"; override var mainUrl = "https://byselapuix.com" }
-class KPEmbedplaybyse : Filemoon() { override var name = "Byse"; override var mainUrl = "https://embedplaybyse.top" }
-class KPSb1254w9megshle : Filemoon() { override var name = "Sb1254w9megshle"; override var mainUrl = "https://sb1254w9megshle.org" }
-class KPMoflixStream : Filemoon() { override var name = "MoflixStream"; override var mainUrl = "https://moflix-stream.link" }
-class KPBysezoxexe : Filemoon() { override var name = "Byse"; override var mainUrl = "https://bysezoxexe.com" }
-class KPF16px : Filemoon() { override var name = "F16px"; override var mainUrl = "https://f16px.com" }
-class KPBysesayeveum : Filemoon() { override var name = "Byse"; override var mainUrl = "https://bysesayeveum.com" }
-class KPBysetayico : Filemoon() { override var name = "Byse"; override var mainUrl = "https://bysetayico.com" }
-class KPBysevepoin : Filemoon() { override var name = "Byse"; override var mainUrl = "https://bysevepoin.com" }
-class KPBysezejataos : Filemoon() { override var name = "Byse"; override var mainUrl = "https://bysezejataos.com" }
-class KPBysekoze : Filemoon() { override var name = "Byse"; override var mainUrl = "https://bysekoze.com" }
-class KPBysesukior : Filemoon() { override var name = "Byse"; override var mainUrl = "https://bysesukior.com" }
-class KPBysejikuar : Filemoon() { override var name = "Byse"; override var mainUrl = "https://bysejikuar.com" }
-class KPBysefujedu : Filemoon() { override var name = "Byse"; override var mainUrl = "https://bysefujedu.com" }
-class KPBysedikamoum : Filemoon() { override var name = "Byse"; override var mainUrl = "https://bysedikamoum.com" }
-class KPBysebuho : Filemoon() { override var name = "Byse"; override var mainUrl = "https://bysebuho.com" }
-class KPByseSx : Filemoon() { override var name = "Byse"; override var mainUrl = "https://byse.sx" }
-class KPByseqekaho : Filemoon() { override var name = "Byse"; override var mainUrl = "https://byseqekaho.com" }
+fun lulu(url: String, nm: String = "Lulustream"): LULUBASE =
+    object : LULUBASE() { override var mainUrl = url; override var name = nm }
+
+fun player4me(url: String, nm: String = "Player4Me"): Player4Me =
+    object : Player4Me() { override var mainUrl = url; override var name = nm }
+
+fun dood(url: String, nm: String = "DoodStream"): DoodStream =
+    object : DoodStream() { override var mainUrl = url; override var name = nm }
+
+fun streamtapeMirror(url: String): StreamTAPE =
+    object : StreamTAPE() { override var mainUrl = url }
+
+fun voeMirror(url: String): Voe =
+    object : Voe() { override var mainUrl = url }
+
+fun streamwishMirror(url: String, nm: String): Streamwish =
+    object : Streamwish() { override var mainUrl = url; override var name = nm }
+
+fun filesimMirror(url: String, nm: String): Filesim =
+    object : Filesim() { override var mainUrl = url; override var name = nm }
+
+fun mixdropMirror(url: String): MixDrop =
+    object : MixDrop() { override var mainUrl = url }
+
+fun vidstackMirror(url: String, nm: String): VidStack =
+    object : VidStack() { override var mainUrl = url; override var name = nm }
