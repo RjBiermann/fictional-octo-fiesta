@@ -185,7 +185,7 @@ Kotlin fix (issue #203): `Parse.homeCards()` dedupes homepage cards by `a.halim-
 `/search/delivery` has no duplicates (6 cards, 6 unique hrefs, re-checked today).
 
 Homepage pagination: **homepage rows do not paginate today** — `/page/2` (and `/page/3`) served
-served by Cloudflare with `cf-cache-status: HIT` return the *same 51 grid items as `/`*;
+by Cloudflare with `cf-cache-status: HIT` return the *same 51 grid items as `/`*;
 category pages still paginate cleanly (`/classic-porn` vs `/classic-porn/page/2` grids differ).
 Homepage page-2 duplication is a site-side cache/shape artifact, not a provider drift — noted
 for verify.sh (`--home-url` page 1 only).
