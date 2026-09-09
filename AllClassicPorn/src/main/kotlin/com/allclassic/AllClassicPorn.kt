@@ -1,5 +1,6 @@
 package com.allclassic
 
+import com.kraptor.registerHostExtractors
 import com.lagradost.api.Log
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
@@ -118,8 +119,9 @@ class AllClassicPorn : MainAPI() {
 }
 
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-class AllClassicPornPlugin : com.lagradost.cloudstream3.plugins.Plugin() {
+class AllClassicPornPlugin : com.lagradost.cloudstream3.plugins.BasePlugin() {
     override fun load() {
         registerMainAPI(AllClassicPorn())
+        registerHostExtractors()
     }
 }

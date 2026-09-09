@@ -5,6 +5,7 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.kraptor.registerHostExtractors
 import org.jsoup.nodes.Element
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
@@ -128,22 +129,10 @@ class Cat3Movie : MainAPI() {
                             }
                         )
                     }
-                } else if (embed.contains("hlsfree.com/embed/hls/")) {
-                    val embedPage = app.get(embed, referer = mainUrl).text
-                    val token = Regex("defaultHlsUrl\\s*=\\s*\"([^\"]*token=([a-f0-9]+))\"")
-                        .find(embedPage)?.groupValues?.get(1) ?: continue
-                    val m3u8 = "https://hlsfree.com/api/hls/serve?token=" + token.substringAfter("token=")
-                    callback.invoke(
-                        newExtractorLink(
-                            source = "HlsFree",
-                            name = "HlsFree",
-                            url = m3u8,
-                            type = ExtractorLinkType.M3U8
-                        ) {
-                            this.referer = "https://hlsfree.com/"
-                            this.quality = Qualities.Unknown.value
-                        }
-                    )
+                } else {
+                    // hlsfree (token dance lives in the shared HlsFree adapter); any
+                    // other host family the registry has an adapter for now matches too
+                    loadExtractor(embed, mainUrl, subtitleCallback, callback)
                 }
             } catch (e: Exception) {
                 Log.d("Cat3Movie", "sv$sv: ${e.message}")
@@ -195,5 +184,6 @@ class Cat3Movie : MainAPI() {
 class Cat3MoviePlugin : com.lagradost.cloudstream3.plugins.BasePlugin() {
     override fun load() {
         registerMainAPI(Cat3Movie())
+        registerHostExtractors()
     }
 }

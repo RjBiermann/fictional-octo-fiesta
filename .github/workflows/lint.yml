@@ -50,3 +50,28 @@ jobs:
       - uses: actions/checkout@v4
       - name: Dependency review
         uses: actions/dependency-review-action@v4
+
+  # One-grep gate (issue #169 addendum 2): every provider registers inline via
+  # BasePlugin() at the bottom of the provider file. Legacy ': Plugin()' classes
+  # and pass-through *Provider.kt registration files creep back otherwise and
+  # Builder runs keep shipping the legacy shape.
+  plugin-shape:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: No legacy Plugin() classes or pass-through provider files
+        run: |
+          # WatchPorn/FullPorner keep Plugin(context) — context-requiring constructors.
+          # Legacy shape is fully-qualified `plugins.Plugin()`; bare `: Plugin()` and
+          # --exclude-dir don't survive the globbed search roots (review #169 round 2).
+          bad=$(grep -rnE --include='*.kt' '(:[[:space:]]*Plugin\(\)|plugins\.Plugin\(\))' \
+            ./*/src/main/kotlin shared/src/main/kotlin 2>/dev/null \
+            | grep -vE '^\./(WatchPorn|FullPorner)/' || true)
+          passthrough=$(find ./*/src/main/kotlin -name '*Provider.kt' 2>/dev/null || true)
+          if [[ -n "$bad" || -n "$passthrough" ]]; then
+            [[ -n "$bad" ]] && { echo "legacy Plugin() class found:"; echo "$bad"; }
+            [[ -n "$passthrough" ]] && { echo "pass-through provider file found:"; echo "$passthrough"; }
+            echo "::error::Register inline BasePlugin() at the bottom of the provider file (issue #169, ADR-0002)"
+            exit 1
+          fi

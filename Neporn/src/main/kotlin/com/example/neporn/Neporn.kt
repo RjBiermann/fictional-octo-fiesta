@@ -1,5 +1,6 @@
 package com.example.neporn
 
+import com.kraptor.registerHostExtractors
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addDuration
@@ -117,8 +118,9 @@ class Neporn : MainAPI() {
 }
 
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-class NepornPlugin : com.lagradost.cloudstream3.plugins.Plugin() {
-    override fun load(context: android.content.Context) {
+class NepornPlugin : com.lagradost.cloudstream3.plugins.BasePlugin() {
+    override fun load() {
         registerMainAPI(Neporn())
+        registerHostExtractors()
     }
 }

@@ -1,5 +1,6 @@
 package com.byayzen
 
+import com.kraptor.registerHostExtractors
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.lagradost.api.Log
@@ -227,8 +228,9 @@ class EPorner : MainAPI() {
     }
     }
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-class EPornerPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
+class EPornerPlugin : com.lagradost.cloudstream3.plugins.BasePlugin() {
     override fun load() {
         registerMainAPI(EPorner())
+        registerHostExtractors()
     }
 }

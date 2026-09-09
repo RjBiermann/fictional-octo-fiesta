@@ -3,6 +3,7 @@
 
 package com.kerimmkirac
 
+import com.kraptor.registerHostExtractors
 import com.lagradost.api.Log
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
@@ -175,5 +176,6 @@ class FreePornVideos : MainAPI() {
 class FreePornVideosPlugin: com.lagradost.cloudstream3.plugins.BasePlugin() {
     override fun load() {
         registerMainAPI(FreePornVideos())
+        registerHostExtractors()
     }
 }

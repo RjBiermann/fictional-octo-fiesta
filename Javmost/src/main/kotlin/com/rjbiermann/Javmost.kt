@@ -1,5 +1,6 @@
 package com.rjbiermann
 
+import com.kraptor.registerHostExtractors
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
@@ -157,5 +158,6 @@ class Javmost : MainAPI() {
 class JavmostPlugin : com.lagradost.cloudstream3.plugins.BasePlugin() {
     override fun load() {
         registerMainAPI(Javmost())
+        registerHostExtractors()
     }
 }

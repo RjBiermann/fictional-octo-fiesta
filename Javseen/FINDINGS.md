@@ -46,3 +46,9 @@
   BEFORE trusting it.
 - CloudWish/StreamTape sample embed tokens 404 quickly; not a provider bug.
 - turbovid/mycloudz streams verified/shape-verified; runner got 403 only on mycloudz's CDN.
+
+## Host-registry refactor verification (issue #169, this run)
+Search: AJAX `…/search/video/?ajax=search_results&s=teacher&o=recent` → 200, JSON html field contains 30 cards (`video-285505` etc.).
+Stream chain: data-embed base64 decode → turbovid.vip embed → m3u8 → 200 `mpegurl` (4/5 posts; 5th post had no data-embed upstream).
+Javhdz embeds present in pages; javhdz/stream 403s from runner (CF, pre-existing & documented) — in-app-only bar.
+Displacement: Javhdz/Javhdz2 adapters moved to `shared/` `com.kraptor.HostAdapters` — code unchanged, registered via `registerHostExtractors()`; javseen's two decode paths (base64 embed and direct) migrated to shared `decodeBase64()`.

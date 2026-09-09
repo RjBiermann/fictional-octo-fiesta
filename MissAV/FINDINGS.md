@@ -36,3 +36,9 @@
 ## Risks / blockers
 - surrit.com Cloudflare-challenges datacenter IPs — stream heard-URL check cannot run in CI; verify in-app (on-device should pass).
 - Bundled recombee JWT (token in public JS) may rotate — recommendations would then degrade to empty list (per-item try/catch keeps load() from breaking).
+
+## Host-registry refactor verification (issue #169, this run)
+Search: `https://missav.live/en/search/teacher` → 200, `grid grid-cols-2` cards (29 video links); `/en/new?sort=published_at` → meta-refresh to `/dmNNN/en/new` form → 200, 12 `/en/<slug>` cards (grmo-347, id-004-16, gana-3443, luxu-1899, hpt-064, cmn-265, instv-732…): provider's redirect handled by NiceHttp follow.
+Stream prepared-page mechanics replicated manually on 5 videos: per-page `eval(function(p,a,c,k,e,d))` unpacked (k key array) → payload decodes to `http[s]://surrit.<n>.com/<uuid>/video.m3u8` + `…/source/listNNNp/playlist.m3u8` variants — surrit UUID assembly in provider code unchanged (page-derived path excluded from seam).
+surrit.com → **403 CF-blocked from runner** (pre-existing & documented) → in-app verification bar.
+Displacement: extractor logic untouched; provider file got `BasePlugin()` + `registerHostExtractors()`.

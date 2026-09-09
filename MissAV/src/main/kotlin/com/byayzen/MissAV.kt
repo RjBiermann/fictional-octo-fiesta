@@ -2,6 +2,7 @@
 
 package com.byayzen
 
+import com.kraptor.registerHostExtractors
 import com.lagradost.api.Log
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
@@ -250,8 +251,9 @@ class MissAV : MainAPI() {
     }
 }
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-class MissAVPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
-    override fun load(context: android.content.Context) {
+class MissAVPlugin : com.lagradost.cloudstream3.plugins.BasePlugin() {
+    override fun load() {
         registerMainAPI(MissAV())
+        registerHostExtractors()
     }
 }

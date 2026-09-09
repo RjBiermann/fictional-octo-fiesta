@@ -2,6 +2,7 @@
 
 package com.byayzen
 
+import com.kraptor.registerHostExtractors
 import com.lagradost.api.Log
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
@@ -199,8 +200,9 @@ class Porntrex : MainAPI() {
     }
 }
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-class PorntrexPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
+class PorntrexPlugin : com.lagradost.cloudstream3.plugins.BasePlugin() {
     override fun load() {
         registerMainAPI(Porntrex())
+        registerHostExtractors()
     }
 }

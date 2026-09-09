@@ -2,6 +2,7 @@
 
 package com.kraptor
 
+import com.kraptor.registerHostExtractors
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.lagradost.api.Log
@@ -194,5 +195,6 @@ class XMoviesForYou : MainAPI() {
 class XMoviesForYouPlugin: com.lagradost.cloudstream3.plugins.BasePlugin() {
     override fun load() {
         registerMainAPI(XMoviesForYou())
+        registerHostExtractors()
     }
 }

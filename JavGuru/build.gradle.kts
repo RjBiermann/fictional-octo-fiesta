@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 21
+version = 22
 
 cloudstream {
     authors     = listOf("kraptor", "ByAyzen")
@@ -8,8 +8,4 @@ cloudstream {
     status  = 1
     tvTypes = listOf("NSFW")
     iconUrl = "https://www.google.com/s2/favicons?domain=jav.guru&sz=%size%"
-}
-android {
-    // Shared extractors (JavGuru/Javseen) compiled into this plugin
-    sourceSets.getByName("main").kotlin.srcDir(rootDir.resolve("shared/src/main/kotlin"))
 }

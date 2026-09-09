@@ -839,14 +839,9 @@ open class Vidguardto : ExtractorApi() {
             val byteValue = Integer.parseInt(v, 16) xor 2
             t += byteValue.toChar()
         }
-        val padding = when (t.length % 4) {
-            2 -> "=="
-            3 -> "="
-            else -> ""
-        }
-        val decoded = Base64.decode(t + padding, Base64.DEFAULT)
+        val decoded = decodeBase64(t) ?: return url
 
-        t = String(decoded).dropLast(5).reversed()
+        t = decoded.dropLast(5).reversed()
         val charArray = t.toCharArray()
         for (i in 0 until charArray.size - 1 step 2) {
             val temp = charArray[i]

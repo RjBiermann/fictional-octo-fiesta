@@ -1,9 +1,10 @@
 package com.sexfilm
 
+import com.kraptor.registerHostExtractors
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-import com.lagradost.cloudstream3.plugins.Plugin
+import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Element
 
@@ -130,8 +131,9 @@ class Sexfilm : MainAPI() {
 }
 
 @CloudstreamPlugin
-class SexfilmPlugin : Plugin() {
+class SexfilmPlugin : BasePlugin() {
     override fun load() {
         registerMainAPI(Sexfilm())
+        registerHostExtractors()
     }
 }

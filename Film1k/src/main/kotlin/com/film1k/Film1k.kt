@@ -1,5 +1,6 @@
 package com.film1k
 
+import com.kraptor.registerHostExtractors
 import android.util.Base64
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addDuration
@@ -242,8 +243,9 @@ class Film1k : MainAPI() {
 }
 
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-class Film1kPlugin : com.lagradost.cloudstream3.plugins.Plugin() {
-    override fun load(context: android.content.Context) {
+class Film1kPlugin : com.lagradost.cloudstream3.plugins.BasePlugin() {
+    override fun load() {
         registerMainAPI(Film1k())
+        registerHostExtractors()
     }
 }

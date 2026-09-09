@@ -1,10 +1,13 @@
-// Extractor registration list shared by JavGuru and Javseen.
-// Order matters where two extractors match the same host (e.g. StreamTape
-// before StreamTAPE) - keep the sequence stable.
+// Host registry (ADR-0002): the single registration point for every extractor
+// adapter the repo ships. Every provider's plugin load() calls
+// registerHostExtractors(); stream dispatch flows exclusively through the
+// framework's loadExtractor. `first` accepts provider-specific adapters that
+// must register ahead of the shared list (ordering-sensitive matches, e.g.
+// StreamTape variants). Iterate order: loadExtractor matches the LAST
+// registered adapter first, so keep the sequence stable.
 package com.kraptor
 
 import com.lagradost.cloudstream3.plugins.BasePlugin
-import com.lagradost.cloudstream3.plugins.Plugin
 import com.lagradost.cloudstream3.extractors.StreamTape
 import com.lagradost.cloudstream3.extractors.EmturbovidExtractor
 import com.lagradost.cloudstream3.extractors.DoodPmExtractor
@@ -12,7 +15,7 @@ import com.lagradost.cloudstream3.extractors.VidStack
 import com.lagradost.cloudstream3.extractors.Voe
 import com.lagradost.cloudstream3.utils.ExtractorApi
 
-fun BasePlugin.registerSharedExtractors(first: List<ExtractorApi> = emptyList()) {
+fun BasePlugin.registerHostExtractors(first: List<ExtractorApi> = emptyList()) {
     first.forEach { registerExtractorAPI(it) }
     listOf(
         StreamTape(),
@@ -137,5 +140,21 @@ fun BasePlugin.registerSharedExtractors(first: List<ExtractorApi> = emptyList())
         KPByseSx(),
         KPByseqekaho(),
         Playmate(),
+        // Formerly per-provider adapters, now host families available to all:
+        MyDaddyExtractor(),
+        Vidara(),
+        Javhdz(),
+        Javhdz2(),
+        PerverZijaExtractor(),
+        HlsFree(),
+        HlsFreeWww(),
     ).forEach { registerExtractorAPI(it) }
+}
+
+// Shared Base64 decode helper (pad-if-needed, NO_WRAP, null on failure).
+fun decodeBase64(token: String): String? = try {
+    val padded = token.trim() + "=".repeat((4 - token.trim().length % 4) % 4)
+    String(android.util.Base64.decode(padded, android.util.Base64.NO_WRAP), Charsets.UTF_8)
+} catch (e: IllegalArgumentException) {
+    null
 }

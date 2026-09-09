@@ -1,5 +1,6 @@
 package com.rjbiermann
 
+import com.kraptor.registerHostExtractors
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
@@ -131,5 +132,6 @@ class PornXP : MainAPI() {
 class PornXPPlugin : BasePlugin() {
     override fun load() {
         registerMainAPI(PornXP())
+        registerHostExtractors()
     }
 }

@@ -1,5 +1,7 @@
 package com.coxju
 
+import com.kraptor.registerHostExtractors
+
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
@@ -118,5 +120,12 @@ class ixiporn : MainAPI() {
         }
 
         return true
+    }
+}
+@com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+class ixipornPlugin : com.lagradost.cloudstream3.plugins.BasePlugin() {
+    override fun load() {
+        registerMainAPI(ixiporn())
+        registerHostExtractors()
     }
 }

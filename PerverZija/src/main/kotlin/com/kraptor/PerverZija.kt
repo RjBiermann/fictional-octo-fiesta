@@ -120,8 +120,11 @@ class PerverZija : MainAPI() {
 
         Log.d("kraptor_$name", "iframe = ${iframe}")
 
-        // player subdomain varies per video (pervl1..pervl6+), so skip loadExtractor
-        // (which matches by mainUrl) and call the extractor directly; referer comes from the url
+        // player subdomain varies per video (pervlN/pervmN/j2/perv...) — call the
+        // shared PerverZijaExtractor directly (referer derived from the url).
+        // loadExtractor matches by mainUrl (=pervl2) and does NOT match the variant
+        // subdomains (FINDINGS #161/#99: fixed-subdomain registration yields no stream),
+        // so it cannot replace this direct call.
         if (iframe.contains("xtremestream.xyz")) {
             PerverZijaExtractor().getUrl(iframe, "${mainUrl}/", subtitleCallback, callback)
         }
@@ -130,9 +133,9 @@ class PerverZija : MainAPI() {
     }
 }
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-class PerverZijaPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
+class PerverZijaPlugin: com.lagradost.cloudstream3.plugins.BasePlugin() {
     override fun load() {
         registerMainAPI(PerverZija())
-        registerExtractorAPI(PerverZijaExtractor())
+        registerHostExtractors()
     }
 }
