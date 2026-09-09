@@ -69,3 +69,23 @@ Displacement: Javhdz/Javhdz2 adapters moved to `shared/` `com.kraptor.HostAdapte
   grep evidence: video-285424 actors=[Hatano Yui] tags=10 duration=8280 year=2022;
   video-285650 [Momono Yume]/15/8400/2022; video-285600 [Sanae Misono]/14/3600/2025.
   quick search: none on site — hasQuickSearch=false confirmed.
+
+## Pagination fix (issue #208, 2026-09-09 run)
+- Axis: CORRECTNESS+DRIFT. Site live (HTTP 200, no block). Single defect: category/listing
+  pagination past page 1.
+- code-built `{cat}/{page}/` → **404** (e.g. `/big-tits/2/?ajax=category_videos` → 404; retried 2026-09-09).
+- Site's real pattern: `{cat}/{sort}/{page}/` — `/big-tits/recent/2/?ajax=category_videos` → 200,
+  30 cards (`video-285562`, `video-285561`, …). `mature-woman/recent/2/?ajax=category_videos` → 200,
+  next_url `/mature-woman/recent/3/`.
+- Sort segment discoverable from a page-1 AJAX response's **`pagination`** field
+  (`<a href="/big-tits/recent/2/">2</a>` … `/big-tits/recent/2664/`), also `next_url`.
+- Recent row unchanged: `/recent/2/?ajax=browse_videos` → 200, 30 cards (`video-285620`, `video-285619`).
+- Search unchanged: `/search/video/?ajax=search_results&s=milf&o=recent` → 200; `&page=2` → new items.
+- Homepage page 1: `/?ajax=browse_videos` → 200 JSON, 30 `video-title` cards.
+- verify.sh RESULT: PASS transcript in PR #219 body (≥5 varied video pages 200, distinct
+  pagination page 1→2, all LoadResponse fields checked). Round-2 Reviewer independently
+  re-probed live: pagination fix verified (200 on `{cat}/recent/2/`, no card overlap p1→p2).
+- Checker limitations (not defects): list endpoints are JSON-wrapped HTML → not checkable by
+  verify.sh HTML selectors; stream URLs are base64 in `data-embed` → decode + live checks done
+  manually, 10 embed URLs across 4 videos, all HTTP 200. Final m3u8 extraction is
+  shared-extractor behavior, unchanged by this fix.
