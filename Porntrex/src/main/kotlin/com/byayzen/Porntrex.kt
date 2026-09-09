@@ -129,8 +129,9 @@ class Porntrex : MainAPI() {
         val tags        = document.select("div.js-categories a.js-cat").map { it.text() } +
                 document.select("div.item:has(span.title-item:contains(Tags)) div.items-holder a").map { it.text() }
         val actors      = document.select("div.block-details div.item:has(span.title-item:contains(Models:)) div.items-holder a").map { it.ownText().trim() }.filter { it.isNotEmpty() }
-        val duration    = document.selectFirst("i.fa-clock-o")?.parent()?.text()?.trim()
-            ?.let { Regex("(\\d+)").find(it)?.value }?.toIntOrNull()
+        // issue #215: bare i.fa-clock-o first matches the navbar "Latest" icon -> always null;
+        // scope to the details stats row and parse properly into seconds.
+        val duration    = PorntrexParse.durationOf(document)
         var recommendations = document.select("div.video-list div.video-item").mapNotNull { it.toRecommendationResult() }
         // issue #171: shell pages render no related list; fall back to the live related-videos endpoint.
         if (recommendations.isEmpty() && videoId(url) != null) {
@@ -199,6 +200,30 @@ class Porntrex : MainAPI() {
         return true
     }
 }
+// Issue #215: pure parsing helpers, unit-tested against src/test/resources fixtures.
+object PorntrexParse {
+
+    /** "6min 09sec" -> 369; "1:06:09" -> 3669+360+9; "10min" -> 600; junk -> null. */
+    fun parseDurationSeconds(text: String?): Int? {
+        if (text == null) return null
+        val t = text.trim().lowercase()
+        if (t.contains(':')) {
+            val parts = t.split(':').map { it.trim().toIntOrNull() ?: return null }
+            if (parts.size < 2 || parts.any { it < 0 }) return null
+            return parts.fold(0) { acc, p -> acc * 60 + p }
+        }
+        val mins = Regex("(\\d+)\\s*min").find(t)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        val secs = Regex("(\\d+)\\s*sec").find(t)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        return if (mins == 0 && secs == 0) null else mins * 60 + secs
+    }
+
+    /** Duration from the video details stats row (i.fa-clock-o inside block-details), in seconds. */
+    fun durationOf(document: org.jsoup.nodes.Document): Int? =
+        parseDurationSeconds(
+            document.selectFirst("div.block-details div.item span:has(i.fa-clock-o) em.badge")?.text()
+        )
+}
+
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 class PorntrexPlugin : com.lagradost.cloudstream3.plugins.BasePlugin() {
     override fun load() {

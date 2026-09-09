@@ -53,3 +53,30 @@ Provider change (version 4 → 5): `load()` and `loadLinks()` fall back to
 ## Risks / blockers
 - None blocking. If guest shells ever regress to requiring login, /embed/ is the
   remaining guest surface.
+
+## Duration field fix (issue #215, 2026-09-09 probe)
+
+- The stats row on fully-rendered video pages carries the real duration
+  (`<span><i class="fa fa-clock-o"></i> <em class="badge">6min 09sec</em></span>` in
+  `div.block-details div.item`). The old selector (bare `i.fa-clock-o` + first parent) matched
+  the **navbar "Latest" icon** first → `duration = null` on every video, and if the navbar
+  icon disappeared it would have parsed "6min 09sec" as 6.
+- Fix (version 6 → 7): `PorntrexParse.parseDurationSeconds()` parses `Nmin Nsec`, `M:SS` and
+  `H:MM:SS` into **seconds**; selector scoped to
+  `div.block-details div.item span:has(i.fa-clock-o) em.badge`. Duration is not present on the
+  `/embed/{id}/` fallback page, so guest-shell videos legitimately return null duration.
+- TDD: `Porntrex/src/test/resources/porntrex_video_page.html` fixture
+  (transcript pattern from the issue) + `PorntrexParseTest` — red (unresolved `PorntrexParse`)
+  → green (369s for "6min 09sec", 3969s for "1:06:09", null for "Latest"). `gradlew Porntrex:test`
+  AND `Porntrex:make` clean.
+
+## Verification (verify.sh, this run) — RESULT: PASS
+
+- search `/search/massage/` + async page 2: 200, 85 cards each, no dupes across pages
+- home `/categories/teen/` + async pagination page 2: 200, 120 cards each, no dupes
+- video pages via `/embed/{id}/` (guest direct pages are shells, see #171): both 200, stream
+  `get_file/.../{id}.mp4/` → 302 CDN → **206 video/mp4** (both sampled videos)
+- NOTE (expected): duration selector matches nothing on the sampled *guest shell* embed pages —
+  the row only materializes on fully-rendered pages; parsing correctness is proven by the unit
+  test on the real stats-row markup. Tags/actors/plot/poster likewise absent on shells and
+  resolved by the #171 embed fallback.
