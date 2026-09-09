@@ -4,12 +4,26 @@ package com.kraptor
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import kotlin.text.Regex
 import android.util.Log
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import org.jsoup.Jsoup
 import java.net.URI
+
+/** Pure parse functions for the video meta block — kept off MainAPI so unit tests can load them. */
+object JavGuruParse {
+    /** Actors come from the Actress row only; selecting on the <li> skips Tags and Series rows. */
+    fun parseActors(document: Document): List<String> =
+        document.select("li.w1:has(strong:containsOwn(Actress)) a").mapNotNull { it.text() }
+
+    /** Live pages use h1.titl (the old h1.tit1 never matched); h1 fallback guarded. */
+    fun parseTitle(document: Document): String =
+        document.selectFirst("h1.titl")?.text()?.trim()
+            ?: document.selectFirst("h1")?.text()?.trim()
+            ?: "Unknown"
+}
 
 
 class JavGuru : MainAPI() {
@@ -125,9 +139,7 @@ class JavGuru : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url, headers = mainHeaders).document
 
-        val title = document.selectFirst("h1.tit1")?.text()?.trim()
-            ?: document.selectFirst("h1")?.text()?.trim()
-            ?: "Unknown"
+        val title = JavGuruParse.parseTitle(document)
 
         val poster = fixUrlNull(document.selectFirst("div.large-screenshot img")?.attr("src"))
 
@@ -143,8 +155,7 @@ class JavGuru : MainAPI() {
 
         val recommendations = document.select("li").mapNotNull { it.toRecommendationResult() }
 
-        val actors =
-            document.select("li.w1 strong:not(:contains(tags)) ~ a").mapNotNull { Actor(it.text()) }
+        val actors = JavGuruParse.parseActors(document).map { Actor(it) }
 
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster
