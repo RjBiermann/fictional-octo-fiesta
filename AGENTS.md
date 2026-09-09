@@ -63,6 +63,10 @@ This repo runs an automated pipeline (spec: issue #1, vocabulary: `CONTEXT.md`):
 - **Task agent** — issues labeled `ready-for-agent` (fully specified, e.g. audits) run the same
   runtime with a generic prompt (`.github/workflows/ai-task.yml`). The issue body is the task
   spec; the agent may apply non-trigger labels only.
+- **Maintenance** — manual `workflow_dispatch` runs (`.github/workflows/ai-maintenance.yml`):
+  pick `ponytail-audit` (repo-wide over-engineering audit → apply the safe cuts) or
+  `improve-codebase-architecture` (deepening candidates → apply the top pick). Each run
+  creates its own tracking issue and delivers a PR from `ai/issue-<n>`; humans merge.
 - **Monitor** runs twice weekly — Mondays and Thursdays (`.github/workflows/monitor.yml`,
   manual `workflow_dispatch` for testing): a cheap drift probe per provider (search + one video + one stream — not a full
   FINDINGS probe), a verdict table on the `provider-health` tracking issue, and `needs-triage`
