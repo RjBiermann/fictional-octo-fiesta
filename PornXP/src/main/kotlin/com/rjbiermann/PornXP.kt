@@ -70,7 +70,8 @@ class PornXP : MainAPI() {
     override suspend fun load(url: String): LoadResponse? {
         try {
             val document = app.get(url).document
-            val title = document.selectFirst("h1")?.text()?.trim() ?: return null
+// header carries a banner <h1> (backup-domain notice); the video title is the h1 inside .player_details
+            val title = document.selectFirst(".player_details h1")?.text()?.trim() ?: return null
             // Poster lives on the <video id="player"> poster attribute (no og:image on these pages)
             val poster = document.selectFirst("#player")?.attr("poster")?.let { fixUrl(it) }
             val description = document.selectFirst("#desc")?.text()?.trim()

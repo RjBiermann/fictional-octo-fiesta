@@ -1,6 +1,17 @@
-# FINDINGS — pxp.news (2026-09 audit + 2026-09 fix for #151)
+# FINDINGS — pxp.news (2026-09 audit + 2026-09 fixes for #151 and #235)
 
-## Verdict: OK (fixed — item-card markup changed, provider selector stale)
+## Verdict: OK (fixed #235 — second header <h1> shadowed the video title)
+
+## Root cause of #235 (load() title wrong)
+pxp.news video pages now carry a SECOND `<h1>` in the header — a backup-domain notice:
+```
+<h1 style="font-size:30pt">New Backup Domain: <a href="//porn-xp.eu/videos/80377921180">porn-xp.eu</a></h1>
+...
+<div class="player_details"><h1>Lusty Girlfriends</h1>...
+```
+`selectFirst("h1")` matched the banner, so load() titled every video "New Backup Domain: porn-xp.eu". Search cards were always correct (they use `.item_title`), so posters and titles disagreed. Fix: select `.player_details h1`.
+
+Note: the banner `<a href>` headlines `/videos/<own id>` — never use bare `a[href*=videos]` for related/recs on this site.
 
 ## Root cause of #151 (blank homepage feed)
 The card markup changed: the `<a href="/videos/...">` is now an **ancestor** wrapping
@@ -31,6 +42,11 @@ Probed ≥5 pages across home/search/paginated listings, e.g. `/videos/803779211
 `/videos/629192201007`, `/videos/24078228504`, `/videos/322543611680` — all 200, `h1` title,
 `#player video poster`, `#desc` (date + description), `.tags a` tags, related `div.item_cont`.
 
+2026-09 recheck (#235): title source is `.player_details h1` (not the first `h1`); poster is
+`<video id="player" poster="/....jpg">`; og:/JSON-LD metas are NOT rendered — video-page
+identity fields live only in this element markup. Manual agreement for `/videos/322543611680`:
+listing card title == load `h1` == "Alessia & Juliana Friends spanking bums".
+
 ## Related videos
 Video pages contain 25–36 additional `.item_cont` cards → recommendations.
 
@@ -51,4 +67,16 @@ kept on links.
 `?page=N` appended to listing URL; next pages return fresh cards (20–36).
 
 ## Risks / blockers
-None observed: no CF, no age wall, no UA sensitivity (tested android UA + no UA).
+- verify.sh harness limits on this site (not provider bugs, evidence in PR): (a) per-video
+  title/poster/plot extraction is hardcoded to a `content` attribute (og-meta), which pxp.news
+  does not render → check 2 "video title missing" is structurally unavoidable; (b) the
+  regex-DOM card parser truncates the nested `div.item_cont > a > ...` card at the first
+  `</div>`, so unattributed card titles fall back to card text (durations) → spurious
+  "duplicate" hits on common durations; (c) `?q=`/`?s=` search returns the same recent-feed
+  card set (site-level — no title filtering), and two distinct videos legitimately share the
+  title "Anal & MILFY #02" (/videos/17087088550, /videos/181515081820).
+- For the same reason use anchor-based card selectors (`a[href*="/videos/"]`) —
+  verify.sh's reader resolves `href` from the matched element's own attributes.
+Partially observed: no CF, no age wall, no UA sensitivity (tested android UA + no UA).
+Manual evidence collected after passing checks: title fix verified by direct grep of live
+HTML; streams 206 video/mp4.
