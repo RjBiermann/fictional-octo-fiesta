@@ -79,3 +79,20 @@ Verified on 6760-tarzan-x-shame-of-jane.html and 167-pirates.html:
   with og:/div#s-desc already used).
 Fix: load() now parses `meta[itemprop=genre]` → `tags` and `meta[itemprop=duration]` →
 `duration` (seconds). verify.sh --load-response tags,duration: PASS.
+
+## Audit fix (issue #213): year / actors / richer tags — verified 2026-09-09
+Probed 11702-classy.html + 11698-any-friend-of-my-daughters.html (both HTTP 200):
+- `parameters-info`: `span.gv a[href*=/watch/year/]` → "2024" / "2022" (year field).
+- `ul.flist-col` "Casting:" li → `a[href*=/watch/name/]` anchors ("Amateur"; confirms
+  anchor-list shape — take all anchors in that li).
+- "Genre:" li → 8 `a[href*=/tags/]` anchors; `meta[itemprop=genre]` carries only
+  "HD porn movies" (1 tag) on Classy. Tags now read the anchors, meta as fallback.
+- duration meta `PT5304S` ⇔ flist "Duration: 01:28:24" — both agree.
+Fix: load() populates year, actors, tags (flist anchors w/ meta fallback).
+Tests: Sexfilm ParseTest (red→green) against fixture from live HTML; gradlew Sexfilm:test PASS.
+verify.sh (2026-09-09): PASS. NOTES understood:
+- plot/duration NOTEs are verify.sh pydom limits (`div#s-desc` nested-div capture and void
+  `<meta>` text scan); both fields verified directly: `py field "div#s-desc" text` on the
+  original page XML is a comment/img block + h2 text; `py field "meta[itemprop=duration]" content`
+  → PT5304S. Code assigns both and app renders them.
+- related checked via `div.sect-c div.short a.th-title` (anchor block shape for pydom).

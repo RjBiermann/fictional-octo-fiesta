@@ -8,6 +8,27 @@ import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Element
 
+/** Pure field-parsing helpers for load(); unit-tested against live-page fixtures. */
+object Parse {
+    // meta[itemprop=genre] holds only "HD porn movies"; the real Genre row is the /tags/ anchors
+    fun tags(doc: Element): List<String> {
+        val fromRow = doc.select("ul.flist-col li a[href*=/tags/]").map { it.text().trim() }.filter { it.isNotEmpty() }
+        if (fromRow.isNotEmpty()) return fromRow
+        return doc.selectFirst("meta[itemprop=genre]")?.attr("content")
+            ?.split("\u00a0,\u00a0", ",")?.map { it.trim() }?.filter { it.isNotEmpty() }
+            ?: emptyList()
+    }
+
+    fun actors(doc: Element): List<String> =
+        doc.select("ul.flist-col li")
+            .firstOrNull { it.selectFirst("span")?.text()?.contains("Casting") == true }
+            ?.select("a[href*=/watch/name/]")?.map { it.text().trim() }
+            ?.filter { it.isNotEmpty() } ?: emptyList()
+
+    fun year(doc: Element): Int? =
+        doc.selectFirst("span.gv a[href*=/watch/year/]")?.text()?.trim()?.toIntOrNull()
+}
+
 class Sexfilm : MainAPI() {
     override var mainUrl = "https://en.sex-film.biz"
     override var name = "Sexfilm"
@@ -59,15 +80,15 @@ class Sexfilm : MainAPI() {
         val poster = doc.selectFirst("meta[property=og:image]")?.attr("content")
         val desc = doc.selectFirst("div#s-desc")?.text()?.trim()
         val recommendations = doc.select("div.sect-c div.short").mapNotNull { it.toSearchResult() }
-        // meta[itemprop=genre] is "Tag1\u00a0,\u00a0Tag2...", meta[itemprop=duration] is ISO-8601 PT8173S
-        val tags = doc.selectFirst("meta[itemprop=genre]")?.attr("content")
-            ?.split("\u00a0,\u00a0", ",")?.map { it.trim() }?.filter { it.isNotEmpty() }
+        // meta[itemprop=duration] is ISO-8601 PT8173S
         val duration = doc.selectFirst("meta[itemprop=duration]")?.attr("content")
             ?.let { Regex("PT(\\d+)S").find(it)?.groupValues?.get(1)?.toIntOrNull() }
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster
             this.plot = desc
-            this.tags = tags
+            this.tags = Parse.tags(doc)
+            this.actors = Parse.actors(doc).map { ActorData(Actor(it)) }
+            this.year = Parse.year(doc)
             this.duration = duration
             this.recommendations = recommendations
         }
