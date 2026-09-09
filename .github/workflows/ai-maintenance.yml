@@ -31,6 +31,7 @@ permissions:
   contents: write
   issues: write
   pull-requests: write
+  actions: write # mechanical Fix-request firing: gh workflow run (ADR-0003)
 
 concurrency:
   group: ai-maintenance-${{ inputs.task }}
@@ -358,7 +359,11 @@ jobs:
           touch /tmp/created-issues.txt
           while read -r n; do
             [[ -n "$n" ]] || continue
+            # Label with GITHUB_TOKEN (fine — no workflow trigger needed), then
+            # fire via workflow_dispatch: GITHUB_TOKEN *label events* never
+            # trigger other workflows (ADR-0003); dispatch is the reliable path.
             gh issue edit "$n" --add-label ai-fix \
+              && gh workflow run ai-build.yml -f issue="$n" -f kind=ai-fix \
               && echo "fired Builder for #$n"
           done < /tmp/created-issues.txt
 

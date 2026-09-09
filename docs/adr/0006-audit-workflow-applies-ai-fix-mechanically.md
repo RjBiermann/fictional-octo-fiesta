@@ -21,3 +21,10 @@ Consequence: a misfired audit dispatch can open fix issues and fire Builder
 runs without further confirmation. Mitigation is upstream, not in-run: the
 dispatch is manual, dedup rules skip providers with open issues/PRs, and
 dead/Blocked sites get reports instead of Fix requests.
+
+Post-merge correction (learned on the first live run): labeling with
+`GITHUB_TOKEN` does not fire the Builder at all — GITHUB_TOKEN label events
+never trigger other workflows (ADR-0003). The mechanical step now applies the
+label for state *and* calls `gh workflow run ai-build.yml -f issue=N
+-f kind=ai-fix` — the same dispatch path `/retry` uses — which is why the
+workflow needs `actions: write`.
