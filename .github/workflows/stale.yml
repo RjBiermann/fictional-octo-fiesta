@@ -1,3 +1,4 @@
+# delivery-token probe — extraheader fix verification (issue #186; delete via PR close)
 name: Stale
 
 # Expiry (see CONTEXT.md): needs-info issues where the reporter never answers
