@@ -120,11 +120,13 @@ class PerverZija : MainAPI() {
 
         Log.d("kraptor_$name", "iframe = ${iframe}")
 
-        // player subdomain varies per video (pervlN/pervmN/j2/perv...) — the shared
-        // PerverZijaExtractor adapter handles any subdomain (referer derived from the
-        // url); the framework's Levenshtein mirror fallback matches the variant domains.
+        // player subdomain varies per video (pervlN/pervmN/j2/perv...) — call the
+        // shared PerverZijaExtractor directly (referer derived from the url).
+        // loadExtractor matches by mainUrl (=pervl2) and does NOT match the variant
+        // subdomains (FINDINGS #161/#99: fixed-subdomain registration yields no stream),
+        // so it cannot replace this direct call.
         if (iframe.contains("xtremestream.xyz")) {
-            loadExtractor(iframe, "${mainUrl}/", subtitleCallback, callback)
+            PerverZijaExtractor().getUrl(iframe, "${mainUrl}/", subtitleCallback, callback)
         }
 
         return true
