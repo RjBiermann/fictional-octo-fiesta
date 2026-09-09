@@ -1,0 +1,102 @@
+name: 'Agent run (primary → fallback model pair)'
+description: >
+  Run pi once on the primary model; on failure, run the fallback. The prompt
+  file is piped over stdin, never argv (a >128KB single argument hits E2BIG).
+  Optional bounded retries per model (shared free pools rate-limit transiently).
+  Caller composes the prompt and passes env (GH_TOKEN, OPENCODE_API_KEY) at the
+  call site. Outputs: outcome (success/failure of the pair) plus the raw step
+  outcomes so callers can distinguish a Superseded (cancelled) run.
+inputs:
+  prompt:
+    description: 'Path to the prompt file (piped over stdin)'
+    required: true
+  skills:
+    description: 'Space-separated skill paths passed as --skill (optional)'
+    required: false
+    default: ''
+  thinking:
+    description: 'Thinking level passed to pi (low | off)'
+    required: false
+    default: 'low'
+  primary:
+    description: 'Primary model id'
+    required: false
+    default: 'go/glm-5.3-flash'
+  fallback:
+    description: 'Fallback model id'
+    required: false
+    default: 'go/deepseek-v4-flash'
+  retries:
+    description: 'Bounded attempts per model (backoff between tries)'
+    required: false
+    default: '1'
+outputs:
+  outcome:
+    description: "success if either model attempt succeeded, else failure"
+    value: ${{ steps.verdict.outputs.outcome }}
+  primary_outcome:
+    description: 'Raw outcome of the primary run (success | failure | cancelled)'
+    value: ${{ steps.primary.outcome }}
+  fallback_outcome:
+    description: 'Raw outcome of the fallback run (success | failure | cancelled | skipped)'
+    value: ${{ steps.fallback.outcome }}
+runs:
+  using: composite
+  steps:
+    - name: Agent run (primary model)
+      id: primary
+      continue-on-error: true
+      shell: bash
+      env:
+        PROMPT: ${{ inputs.prompt }}
+        SKILLS: ${{ inputs.skills }}
+        THINKING: ${{ inputs.thinking }}
+        MODEL: ${{ inputs.primary }}
+        RETRIES: ${{ inputs.retries }}
+      run: |
+        args=""
+        for s in $SKILLS; do args="$args --skill $s"; done
+        for i in $(seq 1 "$RETRIES"); do
+          pi --no-session --mode text \
+            --model "$MODEL" --thinking "$THINKING" \
+            $args \
+            -e .pi/ci/extensions/rtk.ts \
+            -p < "$PROMPT" && exit 0
+          [[ "$i" -lt "$RETRIES" ]] && sleep $((i * 60))
+        done
+        exit 1
+
+    - name: Agent run (fallback model)
+      id: fallback
+      if: steps.primary.outcome == 'failure'
+      continue-on-error: true
+      shell: bash
+      env:
+        PROMPT: ${{ inputs.prompt }}
+        SKILLS: ${{ inputs.skills }}
+        THINKING: ${{ inputs.thinking }}
+        MODEL: ${{ inputs.fallback }}
+        RETRIES: ${{ inputs.retries }}
+      run: |
+        args=""
+        for s in $SKILLS; do args="$args --skill $s"; done
+        for i in $(seq 1 "$RETRIES"); do
+          pi --no-session --mode text \
+            --model "$MODEL" --thinking "$THINKING" \
+            $args \
+            -e .pi/ci/extensions/rtk.ts \
+            -p < "$PROMPT" && exit 0
+          [[ "$i" -lt "$RETRIES" ]] && sleep $((i * 60))
+        done
+        exit 1
+
+    - name: Verdict
+      id: verdict
+      if: always()
+      shell: bash
+      run: |
+        if [[ "${{ steps.primary.outcome }}" == "success" || "${{ steps.fallback.outcome }}" == "success" ]]; then
+          echo "outcome=success" >> "$GITHUB_OUTPUT"
+        else
+          echo "outcome=failure" >> "$GITHUB_OUTPUT"
+        fi

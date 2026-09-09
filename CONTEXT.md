@@ -18,6 +18,10 @@ _Avoid_: critic, checker, self-review
 One headless agent invocation, bounded by hard caps (max turns, wall-clock timeout). The unit of cost and retry.
 _Avoid_: session, job (job = the CI wrapper, not the agent invocation)
 
+**Agent-run action**:
+The shared composite action (`.github/actions/agent-run`) behind every Agent run's model execution: small interface (prompt file, skills, thinking level, primary/fallback models, retries) hiding the primary→fallback pair, bounded retry, and stdin prompt delivery. One seam; every workflow is a thin call site. Reads `outcome` (verdict of the pair) and raw `primary_outcome`/`fallback_outcome` (to distinguish Superseded).
+_Avoid_: model runner, fallback step
+
 **Round**:
 One Reviewer pass over a pull request. Bounded: 2 rounds maximum, tracked by a round label. A Round is spent only by a completed pass — a Superseded or failed run spends nothing. Fixes pushed by a Reviewer may trigger a new Round but never a new PR.
 _Avoid_: iteration, loop

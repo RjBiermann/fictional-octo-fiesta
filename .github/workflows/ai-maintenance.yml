@@ -124,46 +124,22 @@ jobs:
           } > /tmp/prompt.md
           wc -c /tmp/prompt.md
 
-      - name: Maintenance run (Go glm-5.3-flash)
-        id: run1
-        continue-on-error: true
+      # Shared Agent run module (.github/actions/agent-run): primary → fallback
+      # pair, prompt over stdin (never argv — E2BIG). Verdict via steps.agent.outputs.outcome.
+      - name: Maintenance run (Go glm-5.3-flash → deepseek-v4-flash fallback)
+        id: agent
+        uses: ./.github/actions/agent-run
+        with:
+          prompt: /tmp/prompt.md
+          skills: ${{ inputs.task == 'improve-codebase-architecture' && '.agents/skills/codebase-design .agents/skills/improve-codebase-architecture' || '' }}
+          thinking: low
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-        run: |
-          skills=""
-          if [[ "$TASK" == "improve-codebase-architecture" ]]; then
-            skills="--skill .agents/skills/codebase-design --skill .agents/skills/improve-codebase-architecture"
-          fi
-          # shellcheck disable=SC2086  # $skills is intentionally word-split
-          pi --no-session --mode text \
-            --model go/glm-5.3-flash --thinking low \
-            $skills \
-            -e .pi/ci/extensions/rtk.ts \
-            -p "$(cat /tmp/prompt.md)"
-
-      - name: Maintenance run (Go deepseek-v4-flash fallback)
-        id: run2
-        if: steps.run1.outcome == 'failure'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_TOKEN: ${{ github.token }}
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-        run: |
-          skills=""
-          if [[ "$TASK" == "improve-codebase-architecture" ]]; then
-            skills="--skill .agents/skills/codebase-design --skill .agents/skills/improve-codebase-architecture"
-          fi
-          # shellcheck disable=SC2086  # $skills is intentionally word-split
-          pi --no-session --mode text \
-            --model go/deepseek-v4-flash --thinking low \
-            $skills \
-            -e .pi/ci/extensions/rtk.ts \
-            -p "$(cat /tmp/prompt.md)"
 
       - name: Preserve tree (delivery-failure insurance)
-        if: steps.run1.outcome == 'success' || steps.run2.outcome == 'success'
+        if: steps.agent.outputs.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: tree-maintenance-${{ env.ISSUE }}
@@ -172,7 +148,7 @@ jobs:
 
       - name: Deliver branch + PR (mechanical)
         id: deliver
-        if: steps.run1.outcome == 'success' || steps.run2.outcome == 'success'
+        if: steps.agent.outputs.outcome == 'success'
         uses: ./.github/actions/deliver-pr
         with:
           issue: ${{ env.ISSUE }}
@@ -186,7 +162,7 @@ jobs:
           # shellcheck disable=SC2086  # $skills is intentionally word-split
           n="${{ env.ISSUE }}"
           after=$(gh issue view "$n" --json comments -q '.comments|length' || echo 0)
-          if [[ "${{ steps.run1.outcome }}" == "success" || "${{ steps.run2.outcome }}" == "success" ]]; then
+          if [[ "${{ steps.agent.outputs.outcome }}" == "success" ]]; then
             if [[ "${{ steps.deliver.outcome }}" != "success" ]]; then
               echo "agent run succeeded but branch/PR delivery failed"
               gh issue comment "$n" --body "Maintenance run produced no deliverable — delivery failed, but its working tree is preserved as artifact \`tree-maintenance-$n\` on run ${{ github.run_id }}. Deliver manually instead of re-running. Logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
