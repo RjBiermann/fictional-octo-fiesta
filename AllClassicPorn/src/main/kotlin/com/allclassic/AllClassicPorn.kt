@@ -70,10 +70,14 @@ class AllClassicPorn : MainAPI() {
 
         // h1[itemprop=name] matches the card title (div.th-description), incl. the "- (yyyy)" suffix; og:title omits it (issue #204).
         val title = AllClassicPornParse.parseTitle(document) ?: return null
+        val html = document.outerHtml()
+        // Note: KVS video pages expose actors/tags/categories in the inline flashvars JS (issue #205, D1);
+        // empty video_models on some videos (e.g. 6161) is handled gracefully by parseActors.
+        val actors = AllClassicPornParse.parseActors(html)
+        val tags = (AllClassicPornParse.parseTags(html) + AllClassicPornParse.parseCategories(html)).distinct()
         val poster = fixUrlNull(document.selectFirst("meta[property=\"og:image\"]")?.attr("content"))
         val description = document.selectFirst("meta[property=\"og:description\"]")?.attr("content")
             ?.replace(Regex("<[^>]+>"), "")?.trim()
-        // Note: KVS video pages expose only global nav category links, no per-video tags section (verified) — no tags.
         val duration = document.selectFirst("meta[itemprop=\"duration\"]")?.attr("content")
             ?.let { Regex("PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?").find(it) }
             ?.let { m -> (m.groupValues[1].toIntOrNull() ?: 0) * 60 + (m.groupValues[2].toIntOrNull() ?: 0) } // minutes, repo convention
@@ -81,12 +85,14 @@ class AllClassicPorn : MainAPI() {
         val recommendations = document
             .select("#list_videos_related_videos_items a.th.item")
             .mapNotNull { it.toSearchResult() }
-
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster
             this.plot = description
             this.duration = duration
             this.recommendations = recommendations
+            this.actors = actors.map { ActorData(Actor(it)) }
+            this.tags = tags
+            this.year = AllClassicPornParse.parseYear(title)
         }
     }
 

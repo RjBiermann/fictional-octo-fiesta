@@ -73,3 +73,33 @@ None. No Cloudflare, no age wall. Curl with plain Mozilla UA gets 200 everywhere
   3. check-5 title comparison cannot read the new source: the script's mini-DOM only extracts `content` attrs
      and its tag regex requires `[a-zA-Z]+` (fails on `h1`). Provider's new title source is the h1 text;
      agreement is evidenced by the unit test + the live h1/card matches above instead.
+
+## Audit #205 (2026-09-09) — data-completeness: actors/tags/categories/year
+
+- KVS `flashvars` on every video page exposes `video_models`, `video_tags`, `video_categories`
+  (comma+", "-separated; `video_models` empty string on some videos, e.g. 6161). Live evidence:
+  2252 → 13 models ("Anna Romeo, … Keven James"), 1573 → names incl. escaped apostrophe
+  ("Tracy O\'…"), 549 → same models as 2252 + tags; year is the canonical "(yyyy)" h1 suffix
+  (2252 → "Zazel, Full movie (1996)", 1573 → "Casanova 2, Uncut Movie (1982)",
+  549 → "Zazel: Parfum d'Amour, Uncut (1996)").
+- Provider fix: `AllClassicPornParse.parseActors/parseTags/parseCategories` (flashvars; handles
+  both `field: '…'` and `flashvars['field'] = '…'` forms; unescapes `\'`) and `parseYear`
+  ("(yyyy)" title suffix). `load()` now sets actors/tags(+categories distinct)/year;
+  duration/plot/recommendations unchanged.
+- Fixtures from live probes: `video-2252.html`, `video-1573.html`, `video-549.html`
+  (plus existing `video-6161.html`). Unit tests cover actors (incl. escape + empty), tags,
+  categories, year.
+- verify.sh script-side artifacts (2026-09-09 re-run, additions to the list above — none are
+  provider defects; all evidenced live):
+  4. check-1a "FAIL duplicate home cards": the homepage (`/page/`) renders three KVS sections —
+     `list_videos_most_popular_videos_items`, `list_videos_recommended_videos_items`,
+     `list_videos_most_recent_videos_items` — and ~17 videos legitimately appear in 2–3 of
+     them (e.g. 5431 in popular+recommended+recent). No section contains an internal duplicate.
+     Whole-page `a.th.item` counting conflates sections.
+  5. check-4 "FAIL related videos -1": `#list_videos_related_videos_items` (id-only, no tag)
+     cannot be parsed by the script's mini-DOM (regex requires `[a-zA-Z]+`); chained variant
+     also fails. `a.th.item` alone counts 17–30 per video page, ≥1 — related-videos fetches OK.
+     6161 and 2208 recommendation sets are disjoint (0 overlap), so recommendations are real.
+  6. --video-tags/actors/year/duration selectors omitted: these are JS flashvars/h1 values,
+     not DOM text; script's `field` cmd can't assert them. Exposure is evidenced by the live
+     greps above + unit tests + check-6 assignments (actors/tags/year ≥1).
