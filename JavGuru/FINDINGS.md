@@ -65,3 +65,24 @@ iframe_url base64 → searcho (base/rtype/cid keyed attrs, reversed token) → 3
 Displacement: PerverZijaExtractor Vidara adapter moved to `shared/` — code byte-identical, registration via `registerHostExtractors()` (`loadExtractor` prefix-matched on mainUrl; reverse order = priority; Levenshtein >80 mirror-domain fallback overrides PerverZija schema/subdomain variance).
 LoadResponse fields present in provider (verify.sh check 6: recommendations 2, tags 2, year 1, actors 3).
 NOTE: verify.sh `field` bar cannot express `h1.titl` (mini-selector regex `[a-zA-Z]+` rejects digit tag names) and no m3u8 in page HTML (multi-hop) → check 2 stream bar N/A here, chain replicated above. og:meta absent on video pages (WP theme, anything-for-titles).
+
+## Fix run 2026-09-09 (issue #210 — actors pollution + dead h1 selector)
+- Actors selector was `li.w1 strong:not(:contains(tags)) ~ a` — the jsoup `:contains`
+  excludes the Tags li but NOT the Series li, so the series name was fed to addActors
+  (live-confirmed on jjbk-087: Series row "Mature Women Only: Home Visit" appeared in actors).
+- Fix: actors now parsed from the Actress row only — `li.w1:has(strong:containsOwn(Actress)) a`
+  (pure `JavGuruParse.parseActors`), live on 5 varied pages: actress rows yield 0..4 <a>
+  anchors each; pages without an Actress row yield none; no Tags/Series leakage.
+- Title selector `h1.tit1` never matched (live pages carry `h1.titl`) — parseTitle now uses
+  `h1.titl` guarded by the plain-`h1` fallback (unchanged behavior).
+- TDD: fixture `JavGuru/src/test/resources/jav-guru-video-meta.html` (real meta markup incl.
+  multi-actress row) → `JavGuruParseTest` 2 tests red→green; `gradlew JavGuru:test` + `make` clean.
+- Version 22 → 23.
+- verify.sh: search ×2 + home ×2 all 200 with 24 × `div.inside-article` (checks 1/1a PASS).
+  Check 2/2a selectors remain NOT expressible in verify.sh's mini-selectors (h-tag names with
+  digits, `li:has(...)` colon pseudos), og:meta absent, and streams need the 4-hop searcho
+  chain (per precedent) — chain replicated manually for the issue video:
+  iframe_url(base64) → searcho cfg (cid cb0c29d, keys data-d91eb/6d6ea/cc5d6) → reverse-concat
+  token `6d763666337932777763366b` → `?xr=` 302 → javclan.com/e/mv6f3y2wwc6k (packed-eval)
+  → unpacked hls2 master.m3u8 → **200 application/vnd.apple.mpegurl, #EXTM3U body**.
+- quick search: still absent (no distinct endpoint; hasQuickSearch=false).
