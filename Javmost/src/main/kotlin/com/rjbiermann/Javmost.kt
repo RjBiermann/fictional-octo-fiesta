@@ -8,6 +8,21 @@ import org.jsoup.nodes.Element
 
 // Shape: embed/extractor site. Selectors + endpoints from FINDINGS.md.
 class Javmost : MainAPI() {
+
+    object Parse {
+        data class Info(val year: Int?, val duration: Int?, val actors: List<String>, val tags: List<String>)
+
+        /** Video-page card-block: Release date, Time minutes, star/category anchors. */
+        fun cardBlock(root: org.jsoup.nodes.Element): Info {
+            val block = root.selectFirst("div.card-block") ?: return Info(null, null, emptyList(), emptyList())
+            val text = block.text()
+            val year = Regex("Release (\\d{4})-").find(text)?.groupValues?.get(1)?.toInt()
+            val duration = Regex("Time (\\d+)").find(text)?.groupValues?.get(1)?.toInt()
+            val actors = block.select("a[href*='/star/']").map { it.text().trim() }.filter { it.isNotBlank() }
+            val tags = block.select("a[href*='/category/']").map { it.text().trim() }.filter { it.isNotBlank() }
+            return Info(year, duration, actors, tags)
+        }
+    }
     override var mainUrl        = "https://www.javmost.ws"
     override var name           = "Javmost"
     override val hasMainPage    = true
@@ -76,8 +91,12 @@ class Javmost : MainAPI() {
         // FINDINGS: og:title = "Watch {CODE} JAV movie online free streaming. Genre: X."
         val ogTitle = document.selectFirst("meta[property=\"og:title\"]")?.attr("content") ?: ""
         val title = ogTitle.removePrefix("Watch ").substringBefore(" JAV movie").trim().ifBlank { url }
-        val tags = Regex("Genre: (.+?)\\.").find(ogTitle)?.groupValues?.get(1)
-            ?.split(",")?.map { it.trim() } ?: emptyList()
+        // FINDINGS 2026-09-09: card-block carries full metadata (year, duration, actors, genres)
+        val info = Parse.cardBlock(document)
+        val tags = info.tags.ifEmpty {
+            Regex("Genre: (.+?)\\.").find(ogTitle)?.groupValues?.get(1)
+                ?.split(",")?.map { it.trim() } ?: emptyList()
+        }
         val poster = document.selectFirst("meta[property=\"og:image\"]")?.attr("content")
 
         val recommendations = document.select("div.card").mapNotNull {
@@ -87,6 +106,9 @@ class Javmost : MainAPI() {
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = fixUrlNull(poster)
             this.tags = tags
+            this.year = info.year
+            this.duration = info.duration
+            this.actors = info.actors.map { ActorData(Actor(it)) }
             this.recommendations = recommendations
         }
     }

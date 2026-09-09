@@ -9,6 +9,14 @@ import com.lagradost.cloudstream3.utils.*
 
 
 class Eroticmv : MainAPI() {
+    companion object {
+        // Stars block: .actor-element.single-element with <a href=".../actor/slug/" title="Name">
+        fun parseActors(document: Element): List<String> =
+            document.select(".actor-element.single-element a[href*='/actor/']")
+                .mapNotNull { it.attr("title").trim().takeIf { t -> t.isNotEmpty() } }
+                .distinct()
+    }
+
     override var mainUrl = "https://eroticmv.com"
     override var name = "Eroticmv"
     override val hasMainPage = true
@@ -79,6 +87,7 @@ class Eroticmv : MainAPI() {
         val raw = jsonLd.substringAfter("articleSection", "").substringAfter("[", "").substringBefore("]")
         val tags = raw.split(",").map { it.trim('"', ' ') }.filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }
         val year = Regex("\\((\\d{4})\\)").find(title)?.groupValues?.get(1)?.toIntOrNull()
+        val actors = parseActors(document)
 
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster
@@ -86,6 +95,7 @@ class Eroticmv : MainAPI() {
             this.recommendations = recommendations
             this.tags = tags
             this.year = year
+            this.actors = actors.map { ActorData(Actor(it)) }
         }
     }
 
