@@ -27,3 +27,18 @@ Date: 2026-09-13 · UA: Firefox 130 desktop
 - Related selector `div[class*=related] div[class*=video-block]` → 12 matches on every page.
 - Note: /indian-desi-mother-fucked-your-priya-desi-hindi-porn-video stream URL returns 404 from the CDN (dead file on the site itself) — replaced with a fresh video in the verify run.
 - verify.sh patched: first_stream_url now also recognizes `itemprop="contentUrl" content=` meta (selector came from FINDINGS, not invented).
+
+## Pagination probe (issue #217)
+
+Date: 2026-09-09 · UA: Firefox 130 desktop
+
+- DEFECT: "Latest Release" home row base `?filter=latest/page/` — `?filter=latest/page/2` returns the same 30 cards as page 1 (curl: p1/p2 card sets identical). WordPress ignores `filter=...` as a filter value.
+- FIX: home row base changed to `${mainUrl}/page/` (plain /page/N/ is the same latest listing) — version bump 19 → 20.
+- Verified: ixiporn.org/page/1/ vs /page/2/ → 200 ×30 `div.video-block` cards, overlap 0 (disjoint), p2 first card `/bade-boobs-wali-bhabhi-ji-2026-hunter-asia-hindi-uncut-porn-video`.
+- Other rows untouched; tag/search rows paginate correctly (per audit).
+- Search p2 at `?s=`'s correct WP form is `page/2/?s=indian` (200, 30 cards, disjoint from p1).
+- Checker note: raw-regex stream extraction doesn't HTML-decode entities (`&#039;` in `contentUrl` filename) — one card's stream hand-verified OK with decoded URL (+Referer): 200 video/mp4; jsoup `.attr()` decodes, provider code correct.
+
+## verify.sh (issue #217) — PASS
+
+Search p1/p2, home p1/p2 (new `/page/N/` base), 3 video pages × (contentUrl ×1, 12 recs, 206 video/mp4 streams with Referer), tags on all pages, LoadResponse fields populated → RESULT: PASS.
