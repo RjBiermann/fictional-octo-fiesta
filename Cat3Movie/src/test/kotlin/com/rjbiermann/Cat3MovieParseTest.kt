@@ -2,7 +2,6 @@ package com.rjbiermann
 
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -28,8 +27,11 @@ class Cat3MovieParseTest {
         assertEquals(hrefs.distinct(), parsed.mapNotNull { it.selectFirst("a.halim-thumb")?.attr("href") })
     }
 
-    @Test fun `search row untouched by dedupe`() {
-        // search pages have no duplicates; the shared select stays available for search
-        assertTrue(Parse.searchCards(Jsoup.parse(html)).size >= 0)
+    @Test fun `search keeps duplicates (dedupe is homepage-only)`() {
+        // search pages have no duplicates, but the passthrough must not dedupe or drop the
+        // linkless widgets either — all 61 cards are kept, incl. the 10 newest ×2
+        val cards = Parse.searchCards(Jsoup.parse(html))
+        assertEquals(61, cards.size)
+        assertEquals(58, cards.mapNotNull { it.selectFirst("a.halim-thumb")?.attr("href") }.size)
     }
 }
