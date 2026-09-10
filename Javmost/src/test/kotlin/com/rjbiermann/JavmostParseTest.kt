@@ -58,4 +58,7 @@ class JavmostParseTest {
             Javmost.Parse.dooStream("{\"ok\":true,\"url\":\"https:\\/\\/cdn.mostplayer.com\\/stream?t=abc\"}")
         )
     }
+
+    @Test fun `dooStream null on error response without url key`() =
+        assertNull(Javmost.Parse.dooStream("{\"ok\":false,\"error\":\"bad token\"}"))
 }

@@ -230,3 +230,31 @@ JS-only (204). dooplayer is now server-resolvable:
   1PONDO-082726-001 (dooplayer → cdn.mostplayer.com mp4, 200 video/mp4), AVSA-457,
   DLDSS-529, AVOP-364, CPZ69-015, FTHTD-192 (emturbovid → turboviplay m3u8,
   200 application/vnd.apple.mpegurl). 8 distinct stream URLs, no repeats.
+
+### Reviewer re-probe 2026-09-10 (POST contract + error shape)
+Fresh 1PONDO-082726-001 chain re-run end-to-end against the live site:
+
+    $ curl -s 'https://www.javmost.ws/1PONDO-082726-001/' | grep YWRzMQo        # ads1 value
+    $ curl -s 'https://www.javmost.ws/ri3123o235r/' -H 'Referer: <video page>' \
+        --data-urlencode group=62 --data-urlencode part=1 --data-urlencode code=… \
+        --data-urlencode code2=… --data-urlencode code3=… --data-urlencode value=… --data-urlencode sound=av
+    {"status":"success","msg":"","data":["https:\/\/www.dooplayer.com\/embed\/e\/MTEyNzY1.78f62c066bdc5291"]}
+
+    $ curl -s '<embed>' -H 'Sec-Fetch-Dest: iframe' -H 'Referer: <video page>'   # 200 + metas
+    <meta content="MTEyNzY1.78f62c066bdc5291"name=x-embed-token>
+    <meta content="https://www.dooplayer.com/api/stream/"name=x-embed-api>
+    <meta content="1789010334"name=x-embed-et>
+    <meta content="<sig>"name=x-embed-sig>
+
+    # POST with headers X-Embed-Auth: 1 / X-Embed-ET / X-Embed-SIG — server accepts BOTH encodings:
+    #   JSON  Content-Type: application/json  body {"ref":"<embed>"}
+    #   form  ref=<embed>
+    {"ok":true,"url":"https://cdn.mostplayer.com/stream?t=c7c0rYlGIeNu23EJWUMzZAlCEqg1TLDhKr-bwtW4NIKAII5QSvj5HOOGb0Oyd7zatGYkKnhb4nEM3cZ1"}
+    # stream GET with Referer: <embed> → HTTP 200 video/mp4 (903 MB)
+
+    # invalid-signature POST → error shape (no url key):
+    {"ok":false,"error":"bad token"}
+
+`Parse.dooStream` previously returned `"{"` on that error body (the `substringAfter`
+missing-delimiter default); fixed to pass `""` so a malformed/failed response yields null,
+never a bogus `{` link. Unit test added.

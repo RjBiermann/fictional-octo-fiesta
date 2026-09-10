@@ -41,9 +41,10 @@ class Javmost : MainAPI() {
             return DooInfo(meta("x-embed-api"), meta("x-embed-token"), meta("x-embed-et"), meta("x-embed-sig"))
         }
 
-        /** dooplayer POST response {"ok":true,"url":"https:\/\/cdn.mostplayer.com\/stream?t=..."} → direct mp4. */
+        /** dooplayer POST response {"ok":true,"url":"https:\/\/cdn.mostplayer.com\/stream?t=..."} → direct mp4.
+         *  Error responses ({"ok":false,"error":"bad token"}) have no url key → null, never "{". */
         fun dooStream(json: String): String? =
-            json.substringAfter("\"url\":\"").substringBefore("\"").replace("\\/", "/").ifBlank { null }
+            json.substringAfter("\"url\":\"", "").substringBefore("\"").replace("\\/", "/").ifBlank { null }
     }
     override var mainUrl        = "https://www.javmost.ws"
     override var name           = "Javmost"
