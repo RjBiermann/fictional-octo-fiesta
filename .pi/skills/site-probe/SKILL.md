@@ -102,8 +102,10 @@ to full search) — record the distinct suggest/live-typing endpoint with eviden
 Probe **at least 5 video pages** from *different listings*: most-recent, a genre/category page,
 and one pulled from a related-videos section — variety across recency and genre. More the
 better beyond that floor. For each page identify: title, poster, tags/categories, description,
-duration, upload date — each with a selector proven against the fetched page (`og:` meta tags
-are often the cheapest source — they are also verify-provider's default selectors). Record the
+duration, upload date — each with a selector proven against the fetched page. Check JSON-LD
+first: a `<script type="application/ld+json">` `VideoObject` block usually carries name,
+thumbnailUrl, description, duration, and uploadDate in one parse — then `og:` meta tags, then
+page markup (these are also verify-provider's default selectors). Record the
 extracted values per page: verify-provider asserts they differ across videos (Distinct bar).
 Record the exposure inventory explicitly, per field — including "site does not expose X" for
 anything the provider won't populate; verify-provider NOTEs omitted field selectors only when
@@ -121,8 +123,8 @@ On every probed video page, find the related/recommended-videos selector (`secti
 For each probed video page, enumerate **every** source on it — do not stop at the first one
 that works. A single video can carry several sources, and different videos on the same site
 can carry different sets. For each page, in this order:
-1. Direct: `<video><source>` / `og:video` / player config in inline JS (`video_url`, `contentUrl`,
-   `flashvars`, `setVideoUrl*`) — all qualities and mirrors
+1. Direct: `<video><source>` / `og:video` / JSON-LD `contentUrl` / player config in inline JS
+   (`video_url`, `contentUrl`, `flashvars`, `setVideoUrl*`) — all qualities and mirrors
 2. m3u8/HLS: search the page and its JS for `.m3u8`
 3. Embed iframes: record **every** embed domain and URL pattern. Then
    **check the repo's existing extractors first** (grep the provider directories for that
