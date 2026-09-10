@@ -37,10 +37,10 @@ class Cat3MovieParseTest {
 }
 
 /**
- * Issue #250: loadLinks silently returned no sources ("video doesn't play") whenever the
- * watch page lacked body[data-nonce] (CF-cached/older page shapes) or the embed iframe used
- * single quotes. StreamConfig must extract post_id + nonce with the halim_cfg fallback and
- * parse embed iframes regardless of quote style.
+ * Issue #250: StreamConfig must extract post_id + nonce, falling back to a page-level
+ * `"nonce"` JSON entry when body[data-nonce] is missing, and parse embed iframes
+ * regardless of quote style. (Live watch pages all carry body[data-nonce]; halim_cfg has
+ * no nonce key, so the fallback is the first `"nonce"` JSON entry on the page.)
  */
 class Cat3MovieStreamConfigTest {
 
@@ -54,7 +54,7 @@ class Cat3MovieStreamConfigTest {
         assertEquals("e7a09473dd", cfg?.nonce)
     }
 
-    @Test fun `halim_cfg nonce fallback when body nonce missing`() {
+    @Test fun `page-level nonce fallback when body nonce missing`() {
         val cfg = Parse.streamConfig(Jsoup.parse(res("player-page-no-body-nonce.html")))
         assertEquals(34514, cfg?.postId)
         assertEquals("276322d4c6", cfg?.nonce)

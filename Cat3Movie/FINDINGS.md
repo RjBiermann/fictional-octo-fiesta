@@ -262,9 +262,14 @@ watch-page shape today (heat-1986, women-at-play-1985):
   tags    : p.category a                                      → GONE on watch pages
   actors  : p.actors                                          → GONE on watch pages
 ```
-Provider changes: nonce/post_id parse falls back to the halim_cfg entries (older/CF-cached
-page shapes without body[data-nonce] previously returned false = silent no-source player);
-player.php GETs are cache-busted and carry a correctly built per-server Referer (the old
-"$mainUrl/watch-$slug/…" concat produced malformed referers whether data was the base watch
-URL or an episode page); year falls back to the title's `(1985)` suffix. Tags/actors stay
-wired — the site just does not expose them on watch pages today (payload-escaped only).
+Provider changes: nonce/post_id parse keeps a fallback for page shapes without
+body[data-nonce] — **reviewer correction (2026-09-10, 10/10 pages sampled): body[data-nonce]
+is always present, and halim_cfg has no `"nonce"` key at all, so the regex fallback takes the
+first page-level `"nonce"` JSON entry (`ajax_player`), which player.php does not validate
+(deadbeef → 200)**; player.php GETs now carry a correctly built per-server Referer (the old
+"$mainUrl/watch-$slug/…" concat produced a malformed referer when data was an episode URL,
+but **player.php ignores the referer: the old malformed value still returns 200**), plus a
+cache-buster (`_` param — 200 with and without it); year falls back to the title's `(1985)`
+suffix, the one change that fixes a verified gap (episode pages lack `p.released`; base movie
+pages, which `load` normally receives, still have it). Tags/actors stay wired — the site just
+does not expose them on watch pages today (payload-escaped only).

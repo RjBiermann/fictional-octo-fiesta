@@ -99,9 +99,10 @@ class Cat3Movie : MainAPI() {
             null
         } ?: return false
 
-        // issue #250: body[data-nonce] is absent on CF-cached/older page shapes — the
-        // halim_cfg "nonce":"<hex>" entry is the fallback; without a fallback loadLinks
-        // used to return false and the player silently showed no sources
+        // issue #250: keep a fallback if body[data-nonce] is ever absent, but note the live
+        // watch pages all carry it and halim_cfg has no "nonce" key — the regex fallback
+        // therefore grabs the first page-level `"nonce"` JSON entry (ajax_player), which
+        // player.php does not validate (verified: any nonce, even "deadbeef", returns 200)
         val cfg = Parse.streamConfig(document) ?: return false
         val postId = cfg.postId.toString()
         val nonce = cfg.nonce
@@ -211,8 +212,9 @@ object Parse {
     fun searchCards(document: org.jsoup.nodes.Document): List<Element> =
         document.select("article.thumb").toList()
 
-    /** post_id + player nonce for the watch page ([data-post_id]/body[data-nonce], with the
-     *  halim_cfg entries as fallbacks — issue #250's silent no-sources case). */
+    /** post_id + player nonce for the watch page ([data-post_id]/body[data-nonce]). The
+     *  fallbacks only fire on a page shape not observed live (body[data-nonce] present on
+     *  10/10 sampled pages); player.php ignores nonce, so the fallback value is cosmetic. */
     fun streamConfig(document: org.jsoup.nodes.Document): StreamConfig? {
         val html = document.html()
         val postId = Regex("\"post_id\":(\\d+)").find(html)?.groupValues?.get(1)?.toIntOrNull()
