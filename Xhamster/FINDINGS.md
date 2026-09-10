@@ -1,5 +1,23 @@
 # FINDINGS — xhamster.com (re-probe 2026-09-09, fix for issue #216)
 
+## 2026 re-probe for issue #242 (masked card titles + load poster not loading)
+- Masked/starred card titles: **not reproducible server-side from this runner** — desktop fetches
+  of search/home/video pages across `?geo=us`, no-geo, `geo=de`, de/fr Accept-Language, and
+  cookie on/off all return full unmasked titles (grep `\*{3,}` = 0 hits on every page).
+  Hypothesis: guest "safe/censored-title" variant served to age-verification locales
+  (UK Online Safety Act pattern). Defensive fix: cards and recommendations now prefer the
+  server-rendered `title` attribute of `a.video-thumb-info__name` (always the real title on
+  every probed page) and fall back to inner text. Note: related-video inner text IS present on
+  video pages; the verify script's regex-DOM truncates nested-div cards — verify uses the
+  anchor itself (`a.video-thumb-info__name`) as the related card.
+- Load poster: old parse (`style` → substringAfter "https:") stripped the scheme. Fix: poster
+  comes from `window.initials.videoModel.thumbURL` (2560x1440 webp, live-verified on 4 video
+  pages: `https://ic-vt-nss.xhcdn.com/a/.../030/711/276/v2/2560x1440.201.webp`), fallback
+  `parsePreloadPoster` regex extracts the full `https://...` URL from `div.xp-preload-image`
+  style. `VideoModel` data class gained the `thumbURL` field.
+- og:image meta remains populated on video pages (used by verify). Stream side unchanged;
+  4/4 sampled pages serve HLS 206.
+
 ## Context: the SPA-shell window closed
 The issue reported every surface returning a contentless `isBare:true` SPA shell
 (41 KB HTML, 0 cards, 0 m3u8). Re-probing on 2026-09-09 shows the site now

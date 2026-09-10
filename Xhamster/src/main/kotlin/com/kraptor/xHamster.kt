@@ -71,8 +71,11 @@ class xHamster : MainAPI() {
 
 
     private fun Element.toSearchResult(): SearchResponse? {
-        val title = this.selectFirst("a.video-thumb-info__name")?.text() ?: return null
-        val href = fixUrl(this.selectFirst("a.video-thumb-info__name")!!.attr("href"))
+        val card = this.selectFirst("a.video-thumb-info__name") ?: return null
+        // Server-rendered inner text can be masked/starred or empty; the title
+        // attribute always carries the real title (issue #242).
+        val title = card.attr("title").takeIf { it.isNotBlank() } ?: card.text()
+        val href = fixUrl(card.attr("href"))
         val posterUrl = fixUrlNull(this.select("img.thumb-image-container__image").attr("src"))
 
         return newMovieSearchResponse(title, href, TvType.NSFW) { this.posterUrl = posterUrl }
@@ -107,10 +110,12 @@ class xHamster : MainAPI() {
         val videoModel = initialData?.videoModel
         val title = videoModel?.title
             ?: document.selectFirst("h1")?.text()?.trim().orEmpty()
-        val poster = fixUrlNull(
-            document.selectFirst("div.xp-preload-image")?.attr("style")?.substringAfter("https:")
-                ?.substringBefore("\');")
-        )
+        // thumbURL (2560x1440 webp) is the reliable poster; preload-image is the
+        // css fallback. The old substringAfter("https:") parse dropped the scheme
+        // leaving a protocol-relative URL that may not resolve (issue #242).
+        val poster = videoModel?.thumbURL?.takeIf { it.isNotBlank() }
+            ?: parsePreloadPoster(document.selectFirst("div.xp-preload-image")?.attr("style"))
+        val posterFixed = fixUrlNull(poster)
         val description = videoModel?.description?.replace("\\s+".toRegex(), " ")
 
         val actors = document.select("a.entity-author-container__name").map { aTag ->
@@ -137,7 +142,7 @@ class xHamster : MainAPI() {
         }
 
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
-            this.posterUrl = poster
+            this.posterUrl = posterFixed
             this.plot = description
             this.duration = videoModel?.duration
             this.tags = tags
@@ -247,7 +252,8 @@ class xHamster : MainAPI() {
     data class VideoModel(
         val title: String? = null,
         val duration: Int? = null,
-        val description: String? = null
+        val description: String? = null,
+        val thumbURL: String? = null
     )
 
     data class XPlayerSettings(
@@ -344,6 +350,11 @@ class xHamster : MainAPI() {
             Log.e("xHamster", "decodeXhUrl failed: ${e.message}")
             null
         }
+    }
+
+    internal fun parsePreloadPoster(style: String?): String? {
+        if (style.isNullOrEmpty()) return null
+        return Regex("""url\(['"]([^'"]+)""").find(style)?.groupValues?.get(1)
     }
 
     internal fun getInitialsJson(html: String): InitialsJson? {
