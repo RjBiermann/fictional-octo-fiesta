@@ -14,9 +14,9 @@ import java.net.URI
 
 /** Pure parse functions for the video meta block — kept off MainAPI so unit tests can load them. */
 object JavGuruParse {
-    /** Actors come from the Actress row only; selecting on the <li> skips Tags and Series rows. */
+    /** Actors come from the Actor and Actress rows; selecting on the <li> skips Tags and Series rows. */
     fun parseActors(document: Document): List<String> =
-        document.select("li.w1:has(strong:containsOwn(Actress)) a").mapNotNull { it.text() }
+        document.select("li.w1:has(strong:matchesOwn(Actor:|Actress:)) a").mapNotNull { it.text() }
 
     /** Live pages use h1.titl (the old h1.tit1 never matched); h1 fallback guarded. */
     fun parseTitle(document: Document): String =

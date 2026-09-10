@@ -86,3 +86,49 @@ NOTE: verify.sh `field` bar cannot express `h1.titl` (mini-selector regex `[a-zA
   token `6d763666337932777763366b` → `?xr=` 302 → javclan.com/e/mv6f3y2wwc6k (packed-eval)
   → unpacked hls2 master.m3u8 → **200 application/vnd.apple.mpegurl, #EXTM3U body**.
 - quick search: still absent (no distinct endpoint; hasQuickSearch=false).
+
+## Fix run 2026-09-10 (issue #267 — male-actor row completeness)
+- parseActors previously matched the Actress row only; the site's separate `Actor:` row
+  (male actors, on ~60% of JAV posts) never reached addActors.
+- Fix: `li.w1:has(strong:matchesOwn(Actor:|Actress:)) a` — matches both rows, still skips
+  Tags/Series (#210 regression held). First attempt used a comma-separated selector
+  (`…Actor)), …Actress)) a`) — jsoup's comma splits selectors, so the actor `li` itself
+  leaked in as a text blob; matchesOwn is the one-selector fix.
+- TDD: fixture `/jav-guru-video-meta.html` extended with an Actor row (two names, real
+  mixed markup `Name</a> , <a`), new test asserts Actor names precede Actress names;
+  new `/jav-guru-uncensored-meta.html` (Tags-only, no actor rows) guards the #210
+  regression. `JavGuru:test` + `make` clean, version 24 → 25.
+- Live re-check: /1051298 (Yuta Aoi/Miru), /1047618 (Shinya Matsuyama/Amau Ririka),
+  /1050913 (Narcissus Kobayashi, Tyson Tsubasa/Suzumori Remu) — all on the page.
+- verify.sh (2026-09-10): search 24/page1, home 24+24, 3 videos → streams
+  turboviplay + vidara-API m3u8s all 206 application/vnd.apple.mpegurl; tags+actors
+  present on all 3. RESULT: PASS. (plot/poster remain N/A — site-wide meta only.)
+- Chain reproduction note: emturbovid 302 hop carries raw control bytes in the Location;
+  urllib/python redirects that lose the raw bytes end up on a tokenless player page with
+  no m3u8. NiceHttp follows them raw, which is why the Kotlin provider still works.
+
+## Reviewer verification 2026-09-10 (PR #272 review of the #267 fix)
+- Independent live probe (reviewer, not Builder evidence): `parseActors`' exact selector
+  `li.w1:has(strong:matchesOwn(Actor:|Actress:)) a` on live /1051298, /1047618, /1050913
+  returns the actor+actress anchors only — e.g. /1050913 → Narcissus Kobayashi, Tyson
+  Tsubasa, Suzumori Remu; the pre-fix `containsOwn(Actress)` selector misses the Actor row
+  (bug claim confirmed); no Tags/Series leak. jsoup 1.23.2 (same as the unit-test
+  classpath). Fixture Actor row made byte-exact vs the live /1050913 row (`</strong> <a`,
+  `</a>, <a`).
+- `JavGuru:test`: 26/26 pass (debug + release), `JavGuru:make` clean, version 24 → 25.
+- verify.sh re-run by reviewer, 5 varied video URLs (issue #267 ×3 + most-watched-rank
+  /1050095, /1043863): **RESULT: PASS** — search 24/page1, home 24+24; all 5 video pages
+  200 with `h1.titl` + related block `div.woo-sc-related-posts` (5/5); streams via the
+  FINDINGS 4-hop chain (replicated): turboviplay literal m3u8 ×4 + vidara-API
+  streaming_url ×1, all **206 application/vnd.apple.mpegurl** (vidara token is IP-bound,
+  regenerated per run).
+- verify.sh bars that stay N/A for this site (unchanged limitation, see #210 note): check
+  2a field bars (colon pseudos like `li:has(...)` not expressible — actors/tags exposure
+  asserted by TDD fixture + the probe above, not by bars); check 5 (search-card extraction
+  is truncated by the theme's nested grid — verify.sh regex-DOM limit). No bar exists for
+  a card grid wrapped in an ancestor div, so card-based checks get empty TSVs.
+- Stream drift noted for the Monitor (streams untouched by this PR; all 5 sampled above
+  play): the searcho `?ur=` hop is CF-cached 200-empty for some posts — /1051244 and
+  /1051278 currently resolve NO working mirror (emturbovid hop → jwplayer JS player page
+  with no literal m3u8; xd/td/hd/od mirrors dead/unsupported per FINDINGS). Last verified
+  full-play sample set: 5/5 above.
