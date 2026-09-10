@@ -141,3 +141,56 @@ NOTES at run time: no poster/plot on the embed surface (excluded from distinctne
 quick-search endpoint exists (site search is the only lookup); tags/actors/duration are
 further exposed on fully-rendered pages only. `--load-response` lists
 recommendations,tags,plot,duration,actors,posters — all present in the Kotlin.
+
+## Tags from embed flashvars + quick-search verdict (issue #275, 2026-09-10 probe)
+
+**Finding 1 — tags on guest-shell video pages.** Direct `/video/{id}/{slug}/` pages are empty
+shells again (same shape as #171: 0 flashvars, empty Tags/Models holders). The
+`/embed/{id}/` page exposes both keys in its flashvars (live, 2026-09-10):
+
+```
+video_categories: 'Milf, Hardcore, Red Head, Lingerie'
+video_tags: 'Anna, maria, Busty Redhead, Reverse Cowgirl, ...'   (59 flashvar pairs total)
+```
+
+Fix (version 9 → 10): `PorntrexParse.embedTags(document)` parses `video_categories` +
+`video_tags` (categories first, deduped); `load()` merges them when the page yields no tags.
+The embed page is already fetched for title/poster on shells (#171), so no extra request on
+the common path. TDD: new fixture `porntrex_embed_page.html` built from the live
+/embed/2913997/ flashvars block (real 59 pairs) + `embedTags` tests in `PorntrexParseTest`
+— red → green; `Porntrex:test` and `Porntrex:make` BUILD SUCCESSFUL.
+NOTE: plot, duration and actors are NOT exposed anywhere on the embed response (no
+`video_duration`, no description key, no model list) — they legitimately stay null on shell
+pages, not chased.
+
+**Finding 2 — quick search.** The site has a quick-search endpoint
+`/search_results.php?q=...` (easyAutocomplete in main.min.min.js →
+`url: "/search_results.php?q="+e`). Probed live with 6 queries (milf, teen, asian,
+hardcore, big tits, redhead): HTTP 200 every time, but the returned `"search"` array is
+**empty on every query** — the suggestions are albums (`"album"` key, `/albums/...` links),
+categories (`"category"`) and models ("model"), i.e. no video links. Albums are not videos:
+the provider's `load()` only handles `/video/{id}/` pages, so surfacing album suggestions
+would produce dead entries. Verdict: album-suggestion only → `hasQuickSearch = false`
+(explicitly set with the recorded reason in Porntrex.kt), no quickSearch override. Recorded
+sample shape (q=milf): `{"search": [], "album": [{"text": "Blonde MILF riding cock",
+"website-link": "/albums/31600/blonde-milf-riding-cock/", "videos": "1"}, ...]}`.
+
+## Verification (verify.sh, this run, live) — RESULT: PASS
+
+- search `/search/massage/` + async page 2: 200, 85 `p.inf` cards each, no dupes
+- home `/categories/busty/` + async page 2: 200, 120 cards each, no dupes
+- 5 video URLs via `/embed/{id}/` (2491818, 2913997, 3074115, 1122515, 1231055): all 200,
+  `div#kt_player` matched 1 each; streams `get_file/.../{id}.mp4/` → **206 video/mp4 on all 5**
+- related videos (separate endpoint surface, no per-URL flag in verify.sh — checked manually
+  like the #256 run): `related_videos_html/2913997/` → 200, 45 `a.player-related-videos-item`
+  items. NOTE: verify.sh applies `--related-selector` to the --video-url page itself; the
+  embed page does not embed the related block, so the selector is omitted from the script run
+  and the endpoint is verified by direct request instead.
+- LoadResponse fields: recommendations,tags,plot,duration,actors,posters all assigned in Kotlin.
+- quick-search check 1b: NOTE (no --quick-search-url) — recorded verdict above: endpoint is
+  album-suggestion only, provider `hasQuickSearch = false` by issue-#275 decision.
+- Site-native home churn (noted during probing, not a provider defect): the site's own
+  pagination repeats 1–5 recent videos between page 1 and page 2 depending on the category
+  and fetch moment (teen p1/p2 shared 1 href, teen p1 vs the site's own `/2/` page shares
+  the same 1 — confirmed site-side; milf 2, blonde 3, hardcore 5, amateur 43; busty and
+  webcam sampled clean this run). getMainPage is untouched by this PR.
