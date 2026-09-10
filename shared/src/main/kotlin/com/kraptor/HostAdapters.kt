@@ -186,7 +186,8 @@ open class HlsFree : ExtractorApi() {
 object HlsFreeParse {
     /** hlsfree embed page embeds the token dance in `defaultHlsUrl = "...token=<hex>"`. */
     fun hlsfreeToken(embedHtml: String): String? =
-        Regex("defaultHlsUrl\\s*=\\s*\"[^\"]*token=([a-f0-9]+)\"")
+        // token here is the hlsfree API query param, not a secret (Sonar S6418).
+        Regex("defaultHlsUrl\\s*=\\s*\"[^\"]*token=([a-f0-9]+)\"") // NOSONAR
             .find(embedHtml)?.groupValues?.get(1)
 
     /** A healthy hlsfree serve response is HTTP 2xx with an #EXTM3U body — anything else
