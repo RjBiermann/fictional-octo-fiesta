@@ -22,6 +22,29 @@ class Javmost : MainAPI() {
             val tags = block.select("a[href*='/category/']").map { it.text().trim() }.filter { it.isNotBlank() }
             return Info(year, duration, actors, tags)
         }
+
+        /** Poster URL from a listing/related card: prefer <source data-srcset> (real image);
+         *  img[data-src]/src are the white lazyload placeholder (issue #239) — never returned. */
+        fun parseCardUrl(card: Element): String? {
+            val set = card.selectFirst("source[data-srcset]")?.attr("data-srcset")?.trim()
+            if (!set.isNullOrBlank()) return set
+            val img = card.selectFirst("img[data-src]")?.attr("data-src")?.takeIf { !it.contains("preload") }
+                ?: card.selectFirst("img")?.attr("src")?.takeIf { !it.contains("preload") }
+            return img?.takeIf { it.isNotBlank() }
+        }
+
+        data class DooInfo(val api: String, val token: String, val et: String, val sig: String)
+
+        /** dooplayer embed page: x-embed-token/api/et/sig meta tags drive the stream API (issue #239). */
+        fun dooPlayer(doc: org.jsoup.nodes.Document): DooInfo {
+            fun meta(name: String) = doc.selectFirst("meta[name=$name]")?.attr("content") ?: ""
+            return DooInfo(meta("x-embed-api"), meta("x-embed-token"), meta("x-embed-et"), meta("x-embed-sig"))
+        }
+
+        /** dooplayer POST response {"ok":true,"url":"https:\/\/cdn.mostplayer.com\/stream?t=..."} → direct mp4.
+         *  Error responses ({"ok":false,"error":"bad token"}) have no url key → null, never "{". */
+        fun dooStream(json: String): String? =
+            json.substringAfter("\"url\":\"", "").substringBefore("\"").replace("\\/", "/").ifBlank { null }
     }
     override var mainUrl        = "https://www.javmost.ws"
     override var name           = "Javmost"
@@ -79,8 +102,8 @@ class Javmost : MainAPI() {
             selectFirst("h2.card-title")?.text() ?: ""
         }.trim()
         if (title.isBlank()) return null
-        val poster = selectFirst("img[data-src]")?.attr("data-src")
-            ?: selectFirst("source[data-srcset]")?.attr("data-srcset")
+        // FINDINGS: shared/recommended cards use <picture><source data-srcset=<real>> —  img[data-src] is the white lazyload placeholder (issue #239)
+        val poster = Parse.parseCardUrl(this)
         return newMovieSearchResponse(title, href, TvType.NSFW) {
             posterUrl = fixUrlNull(poster)
         }
@@ -158,16 +181,45 @@ class Javmost : MainAPI() {
                 // JSON escapes slashes (https:\/\/...) — unescape
                 val embed = body.substringAfter("\"data\":[\"").substringBefore("\"")
                     .replace("\\/", "/").takeIf { it.contains("http") } ?: continue
-                // FINDINGS: dooplayer embeds are JS-only (204) — only emturbovid resolves server-side
-                if (!embed.contains("emturbovid.com")) continue
-                val m3u8 = resolveEmturbovid(embed, data) ?: continue
-                callback.invoke(
-                    newExtractorLink(name, name, m3u8) {
-                        this.referer = "$mainUrl/"
-                        this.quality = Qualities.Unknown.value
-                        this.type = ExtractorLinkType.M3U8
-                    }
-                )
+                if (embed.contains("emturbovid.com")) {
+                    val m3u8 = resolveEmturbovid(embed, data)
+                    if (m3u8 == null) continue
+                    callback.invoke(
+                        newExtractorLink(name, name, m3u8) {
+                            this.referer = "$mainUrl/"
+                            this.quality = Qualities.Unknown.value
+                            this.type = ExtractorLinkType.M3U8
+                        }
+                    )
+                } else if (embed.contains("dooplayer.com")) {
+                    // FINDINGS (issue #239): dooplayer pages now expose x-embed-* metas; POST api/stream/<token> → direct mp4
+                    // FINDINGS: dooplayer serves 204 unless Sec-Fetch-Dest: iframe + Referer are sent
+                    val doc = app.get(
+                        embed,
+                        referer = data,
+                        headers = mapOf("Sec-Fetch-Dest" to "iframe")
+                    ).document
+                    val info = Parse.dooPlayer(doc)
+                    if (info.token.isBlank() || info.api.isBlank()) continue
+                    val json = app.post(
+                        info.api + java.net.URLEncoder.encode(info.token, "UTF-8"),
+                        headers = mapOf(
+                            "Referer" to embed,
+                            "X-Embed-Auth" to "1",
+                            "X-Embed-ET" to info.et,
+                            "X-Embed-SIG" to info.sig,
+                        ),
+                        json = mapOf("ref" to embed),   // FINDINGS: body is JSON {"ref":"<embed url>"}
+                    ).text
+                    val stream = Parse.dooStream(json) ?: continue
+                    callback.invoke(
+                        newExtractorLink(name, name, stream) {
+                            this.referer = embed
+                            this.quality = Qualities.Unknown.value
+                            this.type = ExtractorLinkType.VIDEO
+                        }
+                    )
+                } else continue
             } catch (e: Exception) {
                 Log.d(name, "loadLinks: ${e.message}")
             }
