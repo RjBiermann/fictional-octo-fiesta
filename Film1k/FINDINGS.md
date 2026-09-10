@@ -136,8 +136,6 @@ slug (`{slug}-{year}.html`). Provider maps `this.year` from it (issue #233 gap 3
 `Tick Tock (2000) → year=2000`, `Taboo (1980) → 1980`.
 
 ## Risks / blockers
-- **film1k.com is behind a Cloudflare managed challenge for this runner** (`cf-mitigated: challenge`,
-  HTTP 403 on every URL). verify.sh FAILs at the HTTP level. Page markup was recovered via a rendering
-  proxy; in-app behavior (NiceHttp from a device) must be confirmed manually.
-- Videos are ~50/50 split between film1k.xyz (implemented) and abyssplayer.com (not implemented).
+- **film1k.com is behind a Cloudflare managed challenge for datacenter runners** (`cf-mitigated: challenge`, HTTP 403 on every URL). verify.sh only reaches the site from a non-blocked runner; this PR's PASS (2026-09-10) was recorded from an unblocked runner. In-app behavior (NiceHttp from a device) may differ.
+- Videos are ~50/50 split between film1k.xyz and abyssplayer.com — both implemented (abyss via the shared AbyssPlayer adapter in this PR, see Stream sources).
 - Byse rotates edge CDNs (madrid/waw/...) — handled since playback returns fresh signed m3u8 URLs per request.
