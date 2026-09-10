@@ -2,22 +2,25 @@
 
 Distilled from the real source — recloudstream/cloudstream `master @ fe981345` (tag
 `pre-release`), the exact artifact `com.lagradost:cloudstream3:pre-release` in
-`build.gradle.kts` resolves to (`MainAPI.kt`, `utils/ExtractorApi.kt`). Use these signatures
+`build.gradle.kts` resolves to (`MainAPI.kt`, `utils/ExtractorApi.kt`, `plugins/BasePlugin.kt`,
+`app/plugins/Plugin.kt`, `plugins/CloudstreamPlugin.kt`). Use these signatures
 exactly; when in doubt, read the sibling providers in this repo.
 
-## MainAPI overrides (NSFW provider subset)
+## MainAPI override contract (learned from MainAPI.kt @ master, the real superclass)
 
 ```kotlin
 class X : MainAPI() {
-    override var mainUrl = "https://…"
-    override var name = "X"
-    override val hasMainPage = true
+    // ---- required identity ----
+    override var mainUrl = "https://…"      // also the clone-site override target
+    override var name = "X"                 // plugin name shown in UI
     override var lang = "en"
     override val supportedTypes = setOf(TvType.NSFW)
 
-    override val mainPage = mainPageOf(
+    // ---- homepage (hasMainPage=false default) ----
+    override val hasMainPage = true
+    override val mainPage = mainPageOf(     // one entry = one homepage row
         "$mainUrl/…" to "Section label",
-        // mainPage(url, name, horizontalImages) for horizontal card layouts
+        // mainPage(url, name, horizontalImages = true) for horizontal card layouts
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse
@@ -31,8 +34,46 @@ class X : MainAPI() {
 }
 ```
 
-`search(query: String, page: Int)` has a default implementation that delegates to
-`search(query)` — a single-page provider may override only `search(query)`.
+The app calls methods with **no try/catch** — "Every provider will **not** have try catch built
+in" (comment in MainAPI.kt). One thrown exception kills the whole call; wrap per-item parsing.
+
+### Data flow (what each method receives)
+
+- `getMainPage(page, request)` is called **once per `mainPage` row**; `request.data` is the url
+  you put in `mainPageOf`, `request.name` the label, `request.horizontalImages` the layout flag.
+  `page` starts at 1 and increments on infinite scroll — translate `page` → URL yourself
+  (path-based `"$data/$page/"` vs query `"$data?page=$page"` per the site).
+- `search(query, page)` same page semantics, starts at 1. There is also `search(query)`
+  (single-page, default `search(query, page)` delegates to it with `hasNext=false`) —
+  override the paginated one.
+- `quickSearch(query)` → `List<SearchResponse>?` — only called when `hasQuickSearch = true`
+  (default false). If the site has no distinct quick-search endpoint, leave the default.
+- `load(url)` gets a URL **from a SearchResponse you returned** (search, homepage row, or
+  recommendations) — every URL you emit must be loadable. Return `LoadResponse?` (null =
+  broken card, app handles it).
+- `loadLinks(data, …)`: `data` is the **dataUrl** you set in `newMovieLoadResponse(…, dataUrl)`
+  (or, for series, the `Episode.data` of the chosen episode). Anything non-blank works — a URL,
+  a JSON blob, an id. Blank dataUrl sets `comingSoon = true` → video never plays.
+  `callback` fires per `ExtractorLink` found, `subtitleCallback` per subtitle; return `true` on
+  success.
+
+### Secondary overrides (rarely needed — skip unless the site forces it)
+
+```kotlin
+override val hasQuickSearch = true                 // only with a real distinct endpoint
+override val sequentialMainPage = true             // site rate-limits parallel homepage requests
+override val sequentialMainPageDelay: Long = 0L    // + scroll variant, ms
+override val hasChromecastSupport = false          // links need referer / can't chromecast
+override val hasDownloadSupport = false            // encrypted links
+override val usesWebView = true                    // disabled if no WebView
+override val loadLinksTimeoutMs: Long? = null      // hint timeouts, only for very slow extractions
+override suspend fun extractorVerifierJob(extractorData: String?)  // background job while playing
+override fun getVideoInterceptor(link: ExtractorLink): Interceptor? // okhttp interceptor at playback
+override val supportedSyncNames = setOf<SyncIdName>() + override suspend fun getLoadUrl(name, id) // sync deep links
+```
+
+`name`/`mainUrl` can be overridden at runtime by the clone-site feature (`canBeOverridden`,
+`storedCredentials`); `sourcePlugin` is set by the app — don't touch.
 
 ## Builders (all are `MainAPI.` extensions)
 
@@ -55,8 +96,16 @@ newMovieLoadResponse(
     title: String, url: String, type: TvType, dataUrl: String,
     initializer: suspend MovieLoadResponse.() -> Unit = {},
 )   // ALSO a generic overload: data: T? — non-String data is toJson()'d into dataUrl
+    // dataUrl is exactly what loadLinks receives as `data` — keep them consistent
     // blank dataUrl silently sets comingSoon = true → video never plays; never emit ""
     // in initializer: posterUrl, plot, tags, actors, year, duration, recommendations, score
+
+newEpisode(
+    data: T,  // String url or any object → toJson()'d; becomes Episode.data → loadLinks data
+    initializer: Episode.() -> Unit = {},
+)   // series only; in initializer: name, season, episode, posterUrl, addDate("yyyy-MM-dd")
+newTvSeriesLoadResponse(name, url, type, episodes: List<Episode>) // series shape (not used by NSFW tube sites)
+newTvSeriesSearchResponse / newAnimeSearchResponse / newLiveSearchResponse / newTorrentSearchResponse — same initializer pattern
 
 newExtractorLink(
     source: String, name: String, url: String,
@@ -66,13 +115,82 @@ newExtractorLink(
     // suspend — call inside loadLinks
 ```
 
-## ExtractorLink fields (the floor)
+## Plugin registration (the entrypoint — BasePlugin.kt + Plugin.kt @ master)
 
-`url / referer / quality: Int / type: ExtractorLinkType (VIDEO, M3U8, DASH, TORRENT, MAGNET) /
-headers / audioTracks` — plus `extractorData` (extractorVerifierJob) and `isM3u8`/`isDash`
-helpers. Set `quality` from the page (`getQualityFromName`), `referer` when the host requires
-it, and let type infer unless the URL hides the container. `Qualities.Unknown.value = 400` —
-never ship it when the site states a quality.
+Extensions don't subclass `MainAPI` and expect discovery — the plugin class is the entrypoint.
+The app's `PluginManager` scans the compiled jar for classes annotated `@CloudstreamPlugin`,
+instantiates them, and calls `load(context)`.
+
+```kotlin
+@CloudstreamPlugin                              // com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+class XPlugin : BasePlugin() {                  // app-side: abstract class Plugin : BasePlugin()
+    override fun load() {                       // cross-platform Plugin.load(context) falls back to this
+        registerMainAPI(X())                    // sets sourcePlugin, adds to APIHolder.allProviders
+        registerExtractorAPI(SomeExtractor())   // adds to global extractorApis list (optional)
+    }
+}
+```
+
+`registerMainAPI`/`registerExtractorAPI` live on `BasePlugin` and stamp `element.sourcePlugin =
+filename` — registration IS discovery; nothing happens without it. Also on `Plugin` (not
+`BasePlugin`): `registerVideoClickAction`, `resources`, `openSettings` — out of scope for this
+repo. `beforeUnload()` exists for cleanup; NSFW providers don't need it. The repo routes ALL
+extractor registration through `shared/` HostRegistry's `BasePlugin.registerHostExtractors()`
+(ADR-0002) — a provider's plugin `load()` calls that instead of hand-registering extractors.
+
+## ExtractorApi contract (ExtractorApi.kt @ master)
+
+```kotlin
+class SomeHost : ExtractorApi() {
+    override val name = "SomeHost"            // shown in player source list
+    override val mainUrl = "https://host.tld" // loadExtractor matches by prefix of this
+    override val requiresReferer = true
+
+    override suspend fun getUrl(              // the NEW 4-arg style — override this one
+        url: String,
+        referer: String?,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit,
+    ) {
+        // resolve page → stream URL(s); emit via callback(newExtractorLink(…) { … })
+        // subtitles via subtitleCallback(newSubtitleFile(lang, url))
+    }
+    // old 2-arg getUrl(url, referer): List<ExtractorLink>? still exists (delegates default);
+    // the 4-arg default calls it and forEach(callback) — override exactly one style.
+    override fun getExtractorUrl(id: String) = id   // rarely overridden
+}
+```
+
+No try/catch inside `getUrl` either — `loadExtractor` catches (and rethrows
+CancellationException), but a direct call from `loadLinks` needs its own guard.
+
+### loadExtractor matching (know the rules before registering)
+
+- Compares `url.lowercase().strip(scheme/www)` against each registered extractor's `mainUrl`;
+  **iterates the list in reverse — the LAST registered matching extractor wins**. That's why the
+  repo's `HostRegistry` row order is load-bearing and must stay stable.
+- Prefix match first; fallback pass matches mirror domains by `Levenshtein.partialRatio > 80`.
+  Register a mirror explicitly if Levenshtein isn't a safe proxy.
+- Returns `true` if an extractor handled the URL — the repo's embed ladder ends with
+  `loadExtractor(...)` for this reason.
+
+## ExtractorLink family (ExtractorApi.kt)
+
+```kotlin
+newExtractorLink(source, name, url, type = null, initializer)   // null type = INFER_TYPE
+newDrmExtractorLink(source, name, url, type, uuid: java.util.UUID, initializer)
+    // kotlin-uuid overload is @Prerelease — use the java.util.UUID one on stable
+ExtractorLinkPlayList(source, name, playlist: List<PlayListItem>, referer, quality, …)
+    // unorthodox m3u8 systems of concatenated small videos; PlayListItem(url, durationUs: Long)
+```
+
+- `ExtractorLinkType`: `VIDEO / M3U8 / DASH / TORRENT / MAGNET` — M3U8 supports encrypted
+  playlists + download; DASH has no download; TORRENT/MAGNET no playback support.
+- `link.getVideoSize(timeoutSeconds = 3)` — HEAD request, VIDEO type only, caches.
+- `link.getAllHeaders()` merges referer into headers.
+- `DrmExtractorLink` initializer fields: `kid`, `key`, `uuid` (CLEARKEY/WIDEVINE/PLAYREADY
+  DRM_UUID), `kty = "oct"`, `keyRequestParameters`, `licenseUrl`.
+- `Qualities`: P144…P2160, `Unknown.value = 400`; `getQualityFromName("1080p"|"4k") → Int`.
 
 ## Helpers
 
@@ -92,6 +210,12 @@ app.get(url).text                                    // raw body
 Log.d(tag, msg)                                      // com.lagradost.api.Log
 newSubtitleFile(lang, url) { headers = … }           // suspend builder, headers optional
 MainAPI.updateUrl(url)                               // rebase an old link onto the current mainUrl (clone-site)
+ExtractorApi.fixUrl(url)                             // relative→absolute against mainUrl ("//x"→https://x)
+httpsify(url)                                        // "//host" → "https://host"
+getAndUnpack(html)                                   // decode eval(function(p,a,c,k,e,…)) packed JS
+unshortenLinkSafe(url)                               // resolve shortlinks, safe fallback to input
+getPostForm(requestUrl, html)                        // generic op/id/mode/hash form submit + 5s delay
+loadExtractor(url, referer?, subtitleCallback, callback): Boolean   // dispatch to registered extractor
 ```
 
 `sequentialMainPage = true` (+ `sequentialMainPageDelay`) when the site rate-limits parallel

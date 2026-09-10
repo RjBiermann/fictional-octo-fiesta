@@ -6,6 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.kraptor.searchCard
 import com.lagradost.api.Log
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
@@ -64,7 +65,7 @@ class FullPorner(private val context: Context) : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get("${request.data}${page}", interceptor = interceptor).document
-        val home     = document.select("div.video-block div.video-card").mapNotNull { it.toSearchResult() }
+        val home     = document.select("div.video-block div.video-card").mapNotNull { searchCard(it, "div.video-card-body div.video-title a", posterSel = "div.video-card-image a img") }
 
         return newHomePageResponse(
             list    = HomePageList(
@@ -76,19 +77,11 @@ class FullPorner(private val context: Context) : MainAPI() {
         )
     }
 
-    private fun Element.toSearchResult(): SearchResponse? {
-        val title     = this.selectFirst("div.video-card div.video-card-body div.video-title a")?.text() ?: return null
-        val href      = fixUrl(this.selectFirst("div.video-card div.video-card-body div.video-title a")!!.attr("href"))
-        val posterUrl = fixUrlNull(this.select("div.video-card div.video-card-image a img").attr("data-src"))
-
-        return newMovieSearchResponse(title, href, TvType.NSFW) { this.posterUrl = posterUrl }
-    }
-
     override suspend fun search(query: String, page: Int): SearchResponseList {
 
             val document = app.get("${mainUrl}/search?q=${query.replace(" ", "+")}&p=$page", interceptor = interceptor).document
 
-            val aramaCevap = document.select("div.video-block div.video-card").mapNotNull { it.toSearchResult() }
+            val aramaCevap = document.select("div.video-block div.video-card").mapNotNull { searchCard(it, "div.video-card-body div.video-title a", posterSel = "div.video-card-image a img") }
 
             return newSearchResponseList(aramaCevap, hasNext = true)
         }
@@ -262,7 +255,7 @@ class FullPorner(private val context: Context) : MainAPI() {
         val tags            = document.select("div.video-block div.single-video-left div.single-video-title p.tag-link span a").map { it.text() }
         val description     = document.selectFirst("div.video-block div.single-video-left div.single-video-title h2")?.text()?.trim().toString()
         val actors          = document.select("div.video-block div.single-video-left div.single-video-info-content p a").map { it.text() }
-        val recommendations = document.select("div.video-block div.video-recommendation div.video-card").mapNotNull { it.toSearchResult() }
+        val recommendations = document.select("div.video-block div.video-recommendation div.video-card").mapNotNull { searchCard(it, "div.video-card-body div.video-title a", posterSel = "div.video-card-image a img") }
 
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl       = posterAl

@@ -28,6 +28,7 @@ supplies what to check (judgment, from FINDINGS + the provider's Kotlin), the sc
   --video-url 'https://site.com/cat/slug-d/012/' \
   --video-url 'https://site.com/cat/slug-e/345/' \
   --stream-selector 'source[src]' \
+  [--stream-url 'https://cdn…/video.mp4' …] \
   [--stream-quality-attr res] \
   [--related-selector 'section#related a.card'] \
   [--video-title-selector 'h1'] [--video-poster-selector 'meta[property=og:image]'] \

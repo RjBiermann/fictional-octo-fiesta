@@ -1,5 +1,6 @@
 package com.allclassic
 
+import com.kraptor.JsonLdParse
 import com.kraptor.registerHostExtractors
 import com.lagradost.api.Log
 import org.jsoup.nodes.Element
@@ -79,9 +80,7 @@ class AllClassicPorn : MainAPI() {
         val description = document.selectFirst("meta[property=\"og:description\"]")?.attr("content")
             ?.replace(Regex("<[^>]+>"), "")?.trim()
         val duration = document.selectFirst("meta[itemprop=\"duration\"]")?.attr("content")
-            ?.let { Regex("PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?").find(it) }
-            ?.let { m -> (m.groupValues[1].toIntOrNull() ?: 0) * 60 + (m.groupValues[2].toIntOrNull() ?: 0) } // minutes, repo convention
-            ?.takeIf { it > 0 }
+            ?.let { JsonLdParse.minutes(it) } // shared ISO-8601 grammar (glossary: JSON-LD meta parse)
         val recommendations = AllClassicPornParse.distinctByHref(
             document.select("#list_videos_related_videos_items a.th.item")
         ).mapNotNull { it.toSearchResult() }  // site serves duplicated related entries (issue #266)

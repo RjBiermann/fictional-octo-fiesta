@@ -17,8 +17,12 @@ seen live is a guess.
    with the in-app-verification note instead of guessing.
 2. **Diagnose**: diff what the provider's Kotlin expects (its selectors/URL patterns) against
    what the live site serves. The gap is the bug list.
-3. **Fix**: minimal change inside the provider's directory only. Update selectors/URLs/parsing
-   per the evidence. Follow the new-provider skill's implementation rules (real API signatures,
+3. **Fix**: minimal change; default scope is the provider's directory, but the fix follows
+   the evidence, not the boundary: if the diff shows the break is in a **shared** HostRegistry
+   adapter or shared Parse function (providers route streams through both — ADR-0002), fix it
+   there with its Parse test red → green, and bump the version of every affected provider.
+   Otherwise update selectors/URLs/parsing per the evidence inside the provider's directory.
+   Follow the new-provider skill's implementation rules (real API signatures,
    per-item try/catch, extractor ladder). **Also restore missing data** the fresh FINDINGS
    exposes: if the provider doesn't populate `recommendations` (or other `LoadResponse` fields)
    or doesn't emit sources FINDINGS shows the site serving, fix that too — a fix PR must leave

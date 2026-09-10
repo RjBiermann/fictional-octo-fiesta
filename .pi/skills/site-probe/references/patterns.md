@@ -31,7 +31,7 @@ Evidence:
 Streams usually arrive as embed iframes to an aggregator domain — record the embed pattern and
 check the repo's extractors for that domain before planning anything new.
 
-In-repo reference: WatchPorn, XXXParodyHD.
+In-repo reference: Cat3Movie, JavGuru.
 
 ## Big custom engines
 
@@ -53,4 +53,11 @@ These are their own engines — do not force them into KVS/WP patterns:
 - `og:video`, `og:image`, `og:title` meta tags are the cheapest title/poster/preview source.
 - Stream URLs appearing URL-encoded or base64: decode, then verify with a real request +
   content-type check. A player URL that returns HTML is not the stream.
-- Lazyload images: real URL lives in `data-src` / `data-original`, not `src`.
+- Lazyload images: real URL lives in `data-src` / `data-original`, not `src`. `data:` URIs and
+  placeholder pixels are not posters — grab the lazyload source or omit the poster.
+- Age/consent walls: try the unlock cookie/param (`age_verified`, `ageGate=passed`) before
+  declaring Blocked; record the unlock — an unpassable wall goes under Risks/blockers.
+- Record the runner's IP country once (`curl -s https://ipinfo.io/country`): catalogs and
+  streams may be geo-gated, and FINDINGS must say which region it describes.
+- A stream that 30x-redirects: record both the original and final URL; send referer/UA to the
+  host you call, not the redirect destination.

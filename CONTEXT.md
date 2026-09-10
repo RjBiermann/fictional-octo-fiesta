@@ -56,6 +56,14 @@ _Avoid_: testing, validation, smoke test
 The live site refused the runner (Cloudflare, IP ban). A PR may open as Blocked with an explicit note; the human verifies in-app instead.
 _Avoid_: failure (a failure stops the run; Blocked completes it with a caveat)
 
+**Age gate**:
+An 18+/consent wall the runner can pass with a recorded unlock — a cookie or query parameter. FINDINGS records the unlock (Headers/referer section); the provider ships it in its request headers. A wall with no unlock is Blocked, not an Age gate.
+_Avoid_: consent wall (that is the UI), 18+ check
+
+**Geo-gate**:
+Region-dependent catalog or streams — the runner's IP country sees different (or fewer) items than a user's device. FINDINGS records the probed region; PRs for geo-gated sites carry the in-app-verification note. Distinct from Blocked: the site answers, just differently.
+_Avoid_: region lock, geo block (implies refusal; a Geo-gate varies content)
+
 **Delivery**:
 The mechanical commit-and-PR step performed by the workflow (the `deliver-pr` action), never by the agent: commit the working tree to `ai/issue-N`, force-push, create-or-update the PR. A run that produces changes but no Delivery is a failed run.
 _Avoid_: push, publish, ship
@@ -89,7 +97,7 @@ A cheap scheduled per-provider live check (search + one video page + one stream)
 _Avoid_: monitoring, health check (the report is a Health report; the probe is the action)
 
 **Health report**:
-The weekly verdict table the Monitor posts on the `provider-health` tracking issue: per provider, OK / drift / Blocked.
+The twice-weekly (Mon + Thu) verdict table the Monitor posts on the `provider-health` tracking issue: per provider, OK / GAP (a Drift finding) / Blocked.
 _Avoid_: status update, monitor output
 
 **Chronic**:

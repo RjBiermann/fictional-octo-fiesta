@@ -1,5 +1,6 @@
 package com.byayzen
 
+import com.kraptor.searchCard
 import com.kraptor.registerHostExtractors
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -32,37 +33,18 @@ class EPorner : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = if (page <= 1) request.data else "${request.data.removeSuffix("/")}/$page/"
-        val home = app.get(url).document.select("div#vidresults div.mb").mapNotNull { it.toSearchResult() }
+        val home = app.get(url).document.select("div#vidresults div.mb").mapNotNull { searchCard(it, "p.mbtit a", posterSel = "div.mbimg img") }
         return newHomePageResponse(HomePageList(request.name, home, true), true)
     }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
         val formattedQuery = query.replace(" ", "-")
         val url = if (page <= 1) "$mainUrl/search/$formattedQuery/" else "$mainUrl/search/$formattedQuery/$page/"
-        val results = app.get(url).document.select("div#vidresults div.mb").mapNotNull { it.toSearchResult() }
+        val results = app.get(url).document.select("div#vidresults div.mb").mapNotNull { searchCard(it, "p.mbtit a", posterSel = "div.mbimg img") }
         return newSearchResponseList(results, true)
     }
 
     override suspend fun quickSearch(query: String): List<SearchResponse>? = search(query, 1).items
-
-    private fun Element.toSearchResult(): SearchResponse? {
-        val titleElement = this.selectFirst("p.mbtit a") ?: return null
-        val img = this.selectFirst("div.mbimg img")
-
-        val poster = fixUrlNull(
-            img?.attr("data-src")?.takeIf { it.isNotEmpty() && !it.startsWith("data:") }
-                ?: img?.attr("src")
-        )
-
-        return newMovieSearchResponse(
-            titleElement.text(),
-            fixUrl(titleElement.attr("href")),
-            TvType.NSFW
-        ) {
-            this.posterUrl = poster
-        }
-    }
-
 
     override suspend fun load(url: String): LoadResponse? {
         val document = app.get(url).document
@@ -78,7 +60,7 @@ class EPorner : MainAPI() {
         val description =
             document.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
         val recommendations =
-            document.select("div#relateddiv div.mb").mapNotNull { it.toRecommendationResult() }
+            document.select("div#relateddiv div.mb").mapNotNull { searchCard(it, "p.mbtit a", posterSel = "div.mbimg img") }
         // Cast markup was removed from video pages; actor lives in JSON-LD VideoObject
         // ("actor": [{"@type":"Person","name":...}]) and, sometimes, in og:description.
         val actors = document.select("span.valor a").map { Actor(it.text()) }
@@ -123,22 +105,6 @@ class EPorner : MainAPI() {
         }
         return emptyList()
     }
-
-    private fun Element.toRecommendationResult(): SearchResponse? {
-        val titleElement = this.selectFirst("p.mbtit a") ?: return null
-        val posterUrl = fixUrlNull(
-            this.selectFirst("div.mbimg img")?.attr("data-src") ?: this.selectFirst("div.mbimg img")
-                ?.attr("src")
-        )
-        return newMovieSearchResponse(
-            titleElement.text(),
-            fixUrl(titleElement.attr("href")),
-            TvType.NSFW
-        ) {
-            this.posterUrl = posterUrl
-        }
-    }
-
 
     override suspend fun loadLinks(
         data: String,

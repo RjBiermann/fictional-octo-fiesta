@@ -645,8 +645,9 @@ open class VidHidePro : ExtractorApi() {
         )
 
         val response = app.get(getEmbedUrl(url), referer = referer)
-        val script = if (!getPacked(response.text).isNullOrEmpty()) {
-            var result = getAndUnpack(response.text)
+        val packed = PackedJs.unpack(response.text)  // shared fixture-tested grammar (glossary: Packed-JS unpack)
+        val script = if (packed != null) {
+            var result = packed
             if (result.contains("var links")) { result = result.substringAfter("var links") }
             result
         } else {
@@ -709,7 +710,7 @@ open class Javclan : ExtractorApi() {
         val packed = res.document.select("script").firstOrNull {
             it.data().contains("eval(function(p,a,c,k,e,d)")
         }?.data() ?: return null
-        val unpacked = JsUnpacker(packed).unpack() ?: return null
+        val unpacked = PackedJs.unpack(packed) ?: return null
         val links = Regex("\\\"(hls[234])\\\":\\\"([^\\\"]*)\\\"").findAll(unpacked)
             .map { it.groupValues[1] to it.groupValues[2] }
             .toMap()
@@ -885,7 +886,7 @@ open class LULUBASE : ExtractorApi() {
 
         if (packed == null) return
 
-        val unpacked = JsUnpacker(packed).unpack()
+        val unpacked = PackedJs.unpack(packed)
         Log.d("LULUSTREAM", "unpacked | ${unpacked != null} | ${unpacked?.take(200)}")
 
         if (unpacked == null) return

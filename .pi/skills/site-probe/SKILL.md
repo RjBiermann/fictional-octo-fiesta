@@ -54,22 +54,35 @@ content-type check. Different videos can carry different sources. Record every s
 verify-provider asserts no stream path repeats across videos.>
 
 ## Headers / referer
-<what requests require, evidence>
+<what requests require, evidence — including any cookie/query parameter that
+passes the site's age/consent wall (see Rules: Age gate)>
 
 ## Pagination
 <per surface — search, homepage, related-videos: pattern (path-based vs query param vs AJAX),
 page-2 URL, and transcript evidence that page 2 returns different items. verify-provider
 requires page-2 URLs for search and homepage unless a surface explicitly records "does not
-paginate".>
+paginate". Also record what the site serves past the last page — clamps to page 1 (duplicate
+flood), 404, or empty list.>
 
 ## Risks / blockers
-<Cloudflare, age walls, IP blocks, anything that would break a runner>
+<Cloudflare, age walls, IP blocks, region walls — probed from which IP country (Geo-gate) —
+anything that would break a runner>
 ```
 
 Rules:
 - Every selector and endpoint gets a curl transcript in the doc (`curl -s ... | grep ...` is fine).
 - Prove the stream actually serves video: HTTP 200 + `Content-Type: video/*` or m3u8 playlist body.
 - Test at least two search URL patterns; keep the one that returns results.
+- **Age gate**: an age/consent wall is not automatically Blocked — if a cookie or query param
+  unlocks the site (e.g. `age_verified=1`), replay with it and record the unlock in
+  Headers/referer; the provider ships it. A wall with no unlock is Blocked.
+- **Geo-gate**: record the probing region (runner IP country) — catalogs and streams can differ
+  per region. A provider verified from a different region than the user's device carries the
+  in-app-verification note in its PR.
+- **Posters**: ignore `data:` URIs and placeholder pixels — the real URL lives in
+  `data-src`/`data-original` or a nearby `<noscript>`; never record a placeholder as the poster.
+- **Redirecting streams**: if a stream URL 30x-redirects, record both the original and the
+  final URL — referer/UA applies to the host you call, not necessarily the destination.
 - If the site blocks the probing machine (Cloudflare challenge, IP ban), record it under
   Risks/blockers with the response evidence — Blocked is a valid FINDINGS outcome, not a failure.
 

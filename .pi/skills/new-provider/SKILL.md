@@ -54,11 +54,16 @@ Read a working provider with the same shape before writing yours — the repo is
   - `type` accurate: let `INFER_TYPE` infer from the URL; pass it explicitly when the URL
     doesn't reveal the container (an m3u8 claiming `VIDEO` fails verification)
   - `referer` set when FINDINGS says the host requires it
-- Embed extractor ladder — for each embed domain in FINDINGS, in order: (1) reuse a repo
-  extractor (grep the provider directories for that domain); (2) fall through to CloudStream's
-  built-in `loadExtractor(...)`; (3) only if neither handles it, write a new extractor inside
-  the provider's directory.
+- Embed extractor ladder — for each embed domain in FINDINGS, in order: (1) check the **Host
+  registry** first — `shared/src/main/kotlin/com/kraptor/HostRegistry.kt` is the single
+  registration point (ADR-0002); a host already listed there is covered, reuse it, never
+  register a duplicate (last-registered wins and silently kills the earlier row); (2) only
+  otherwise fall through to CloudStream's built-in `loadExtractor(...)`; (3) only if neither
+  handles it, write a new extractor inside the provider's directory.
 - Wrap per-item parsing in `try/catch` returning null (one broken card must not kill the list).
+- Posters: skip `data:` URIs and placeholder pixels — take `data-src`/`data-original` when the
+  theme lazyloads, else omit the poster; never fabricate. If FINDINGS records an unlockable
+  age/consent wall (Age gate), ship that cookie/parameter in the provider's request headers.
 
 ## Red → green (TDD-first, ADR-0005)
 

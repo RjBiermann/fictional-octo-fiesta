@@ -1,0 +1,18 @@
+<div class="card-list">
+  <!-- KVS-style card: title anchor + lazyload poster (EPorner shape) -->
+  <div class="mb">
+    <div class="mbimg"><img data-src="/contents/videos_screenshots/1000/1234/preview.jpg" src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" /></div>
+    <p class="mbtit"><a href="/videos/1234/hot-scene/">Hot Scene</a></p>
+  </div>
+  <!-- card root wraps the link: title/href come from the inner <a>, plain src poster -->
+  <div class="card">
+    <a href="/videos/5678/other-scene/">
+      <img src="/thumbs/5678.jpg" />
+      <span class="name">Other Scene &amp; Friends</span>
+    </a>
+  </div>
+  <!-- broken card: no title — must yield null -->
+  <div class="mb">
+    <div class="mbimg"><img src="/thumbs/9999.jpg" /></div>
+  </div>
+</div>

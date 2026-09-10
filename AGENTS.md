@@ -43,7 +43,10 @@ CI (`.github/workflows/build.yml`) builds all providers on push to `master`/`mai
 - Shared extractor code lives in `shared/src/main/kotlin/` (not a Gradle subproject); providers get it via `sourceSets` splicing in the root `build.gradle.kts`. `registerHostExtractors()` there (HostRegistry.kt) is the single registration point for every extractor adapter — all providers call it from their plugin `load()`. Do not copy-paste extractor files between providers — extend `shared/`.
 - Before pushing changes under `.github/**`, run `actionlint` (installed locally) — CI `lint.yml` runs it too, but only after the push.
 - Agents change `.github/workflows/` only when the issue spec explicitly names it. Delivery of such changes requires the `AGENT_PAT` secret (see ADR-0004) — without it the push is rejected and the run's work is discarded.
-- Keep provider changes self-contained in the provider's directory. Root `build.gradle.kts` changes affect every provider — make them only when required by all.
+- Keep provider changes self-contained in the provider's directory — unless the evidence
+  shows the root cause lives in `shared/` (HostRegistry adapter, Parse function); then fix
+  there, test red → green, and bump every affected provider. Root `build.gradle.kts` changes
+  affect every provider — make them only when required by all.
 - **TDD-first** (ADR-0005): extract parsing into pure Parse functions and test them first (red → green, JUnit4) against fixtures in `src/test/resources/`; `shared/src/test/kotlin` runs with every provider's `test` task. No HTTP mocking — `MainAPI`/HTTP flows stay covered by pipeline Verification, not unit tests.
 
 ## Agent skills
