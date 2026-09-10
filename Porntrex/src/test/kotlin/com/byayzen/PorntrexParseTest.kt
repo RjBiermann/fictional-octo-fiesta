@@ -51,4 +51,22 @@ class PorntrexParseTest {
         assertEquals(null, links[0].first)
         assertEquals("1080p FHD" to "https://x/get_file/c/2491818_1080p.mp4/", links[2])
     }
+
+    /**
+     * Issue #256: live /embed/ flashvars mark alt variants with `<n>_redirect: '1'` and the URL
+     * is the video page (text/html), not a stream. Those must not become ExtractorLinks.
+     */
+    @Test fun `qualityLinks skips redirect variants and keeps the direct base`() {
+        val fv = """video_url: 'https://x/get_file/a/2491818.mp4/?embed=true',
+            video_url_text: '480p',
+            video_alt_url: 'https://x/video/2491818/octavia-red-horny-cheerleader',
+            video_alt_url_redirect: '1',
+            video_alt_url_text: '720p HD',
+            video_alt_url2: 'https://x/video/2491818/octavia-red-horny-cheerleader',
+            video_alt_url2_redirect: '1',
+            video_alt_url2_text: '1080p FHD'"""
+        val links = PorntrexParse.qualityLinks(fv)
+        assertEquals(1, links.size)
+        assertEquals("480p" to "https://x/get_file/a/2491818.mp4/?embed=true", links[0])
+    }
 }

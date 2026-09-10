@@ -99,20 +99,24 @@ Direct video pages **now render fully again** (og:title/og:image/og:description 
   (the site's own `/2/` URL overlaps the same 20; async p2 ≡ native p2, 120/120).
   getMainPage is untouched by this PR; no action taken.
 
-## Quality variants (issue #256, 2026-09-10 probe)
+## Quality variants (issue #256, 2026-09-10 probe; corrected by Reviewer)
 
-Direct `/video/{id}/{slug}/` pages now render full guest flashvars again (shell regression
-from issue #171 is gone). KVS config carries multiple direct streams:
+Direct `/video/{id}/{slug}/` pages still render the **empty shell** for guests (5 probed
+IDs: 433943-byte body, no `og:title`, no `flashvars`, body class `video-page-not`). The
+`/embed/{id}/` fallback is the only guest surface.
 
-- `video_url` (base, usually 480p) — no `_text` label
-- `video_alt_url` + `video_alt_url_text` ('720p HD') + `video_alt_url_hd`
-- `video_alt_url2` + `video_alt_url2_text` ('1080p FHD')
-- `/embed/{id}/` exposes the same set (`video_alt_url3` = 4K seen there)
+Embed flashvars do list quality labels, but the alternate URLs are **page redirects, not
+media**:
 
-The `get_file/..._<res>.mp4` variant URLs redirect 302 → pcdn.cdntrex.com and serve real
-video/mp4 (verified 2491818_720p.mp4 → 519 MB video/mp4). Fix (version 8 → 9):
-`loadLinks` emits every variant (base + alts with labels); tested via
-`PorntrexParse.qualityLinks` (JUnit).
+- `video_url` (base) → real `get_file/.../{id}.mp4/` file
+- `video_alt_url` ('720p HD'), `video_alt_url2` ('1080p FHD'), `video_alt_url3` ('2160p 4K')
+  each carry `video_alt_url<n>_redirect: '1'` and point at
+  `https://www.porntrex.com/video/{id}/{slug}` — a text/html page
+
+Live check (5 videos): base `get_file/.../2491818.mp4` → 302 → `pcdn.cdntrex.com`
+video/mp4; the alt URL returns 200 text/html; hand-built `..._720p.mp4` variants 404.
+Emitting the alt URLs as ExtractorLinks yields 3 dead links per video. Fix: `qualityLinks`
+skips variants flagged `video_<n>_redirect: '1'` (JUnit covers it); base 480p stays.
 
 Verify notes: verify.sh run with `--home-selector p.inf` because the script's regex-DOM
 card block for `div.video-preview-screen.video-item` truncates inner text to the quality

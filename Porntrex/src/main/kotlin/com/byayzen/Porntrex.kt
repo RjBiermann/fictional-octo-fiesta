@@ -223,13 +223,16 @@ object PorntrexParse {
         )
 
     /**
-     * Issue #256: KVS flashvars carry multiple qualities as video_url plus video_alt_url,
-     * video_alt_url2..4, each with an optional <n>_text label. Return (label, url) pairs,
-     * ordered best-first (alt variants arrive descending on KVS pages). Skip non-http junk.
+     * Issue #256: KVS flashvars carry video_url plus video_alt_url, video_alt_url2..4, each
+     * with an optional <n>_text label. Variants flagged `video_<n>_redirect: '1'` hold the
+     * video page URL (text/html), not a media file, so they are skipped. Returned (label, url)
+     * pairs are in flashvar order (base first).
      */
     fun qualityLinks(flashvars: String): List<Pair<String?, String>> {
         val out = mutableListOf<Pair<String?, String>>()
         for (key in listOf("url", "alt_url", "alt_url2", "alt_url3", "alt_url4")) {
+            // KVS's own redirect flag: 1 means the alt URL is a page, never an ExtractorLink.
+            if (Regex("video_${key}_redirect:\\s*'1'").containsMatchIn(flashvars)) continue
             val url = Regex("video_${key}:\\s*'([^']+)'").find(flashvars)?.groupValues?.get(1) ?: continue
             val label = Regex("video_${key}_text:\\s*'([^']+)'").find(flashvars)?.groupValues?.get(1)
             out.add(label to url)
