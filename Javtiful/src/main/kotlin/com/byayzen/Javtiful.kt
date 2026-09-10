@@ -2,6 +2,7 @@
 
 package com.byayzen
 
+import com.kraptor.JsonLdParse
 import com.kraptor.registerHostExtractors
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -130,10 +131,7 @@ class Javtiful : MainAPI() {
         val datetext =
             res.selectFirst("div.front-watch-detail:contains(Added on) time")?.attr("datetime")
         val year = datetext?.split("-")?.firstOrNull()?.toIntOrNull()
-        val duration = Regex("\\\"duration\\\":\\\"PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?\\\"")
-            .find(res.html())?.groupValues?.let { g ->
-                (g[1].toIntOrNull() ?: 0) * 60 + (g[2].toIntOrNull() ?: 0)
-            }?.takeIf { it > 0 }
+        val duration = JsonLdParse.minutes(res.html())
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.duration = duration
             this.posterUrl = fixUrlNull(poster)

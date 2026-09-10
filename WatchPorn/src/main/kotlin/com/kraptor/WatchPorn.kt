@@ -134,11 +134,8 @@ class WatchPorn(context: Context) : MainAPI() {
         val ldJson = document.select("script[type=application/ld+json]")
             .firstOrNull { it.data().contains("\"@type\": \"VideoObject\"") || it.data().contains("\"@type\":\"VideoObject\"") }
             ?.data()
-        val durationText = ldJson?.let { Regex("\"duration\"\\s*:\\s*\"(PT[^\"]+)\"").find(it)?.groupValues?.get(1) }
-        val hours = durationText?.let { Regex("(\\d+)H").find(it)?.groupValues?.get(1)?.toIntOrNull() } ?: 0
-        val minutes = durationText?.let { Regex("(\\d+)M").find(it)?.groupValues?.get(1)?.toIntOrNull() } ?: 0
-        val totalMinutes = if (hours + minutes > 0) hours * 60 + minutes else null
-        val year = WatchPornParse.parseUploadYear(ldJson)
+        val duration = JsonLdParse.minutes(ldJson)
+        val year = JsonLdParse.year(ldJson)
 
         val plot = document.selectFirst("p.single__content-description")?.text()?.trim()
 
@@ -155,7 +152,7 @@ class WatchPorn(context: Context) : MainAPI() {
             )
             this.tags = tags
             this.plot = plot
-            this.duration = totalMinutes
+            this.duration = duration
             this.year = year
             this.recommendations = recommendations
             addActors(actors)
@@ -278,15 +275,6 @@ class WatchPorn(context: Context) : MainAPI() {
         return videoUrls.isNotEmpty()
     }
 }
-/** Pure parsing helpers (ADR-0005) — tested against fixtures under src/test/resources/. */
-object WatchPornParse {
-    /** Pull the year out of the JSON-LD VideoObject uploadDate field, e.g. "2022-07-02T13:09:00Z" → 2022. */
-    fun parseUploadYear(ldJson: String?): Int? =
-        ldJson?.let {
-            Regex("\"uploadDate\"\\s*:\\s*\"(\\d{4})-").find(it)?.groupValues?.get(1)?.toIntOrNull()
-        }
-}
-
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 class WatchPornPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
     override fun load(context: android.content.Context) {

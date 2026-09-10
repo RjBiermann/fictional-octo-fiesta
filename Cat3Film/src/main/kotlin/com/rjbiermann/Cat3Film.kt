@@ -1,5 +1,6 @@
 package com.rjbiermann
 
+import com.kraptor.JsonLdParse
 import com.kraptor.registerHostExtractors
 import com.lagradost.api.Log
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -83,12 +84,9 @@ class Cat3Film : MainAPI() {
         }?.select("a")?.map { it.text() } ?: emptyList()
 
         val year = document.selectFirst(".badges a[href^=\"/year/\"]")?.text()?.trim()?.toIntOrNull()
-            ?: Regex("datePublished\\D*?(\\d{4})").find(document.html())?.groupValues?.get(1)?.toIntOrNull()
+            ?: JsonLdParse.year(document.html())
 
-        val duration = Regex("duration\\\":\\\"PT(?:(\\d+)H)?(?:(\\d+)M)?")
-            .find(document.html())
-            ?.let { (it.groupValues[1].toIntOrNull() ?: 0) * 60 + (it.groupValues[2].toIntOrNull() ?: 0) }
-            ?.takeIf { it > 0 }
+        val duration = JsonLdParse.minutes(document.html())
 
         val recommendations = document.select("section#related a.card").mapNotNull {
             try { it.toSearchResult() } catch (e: Exception) { null }
