@@ -1,6 +1,7 @@
 package com.rjbiermann
 
 import com.kraptor.registerHostExtractors
+import com.kraptor.searchCard
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
@@ -25,7 +26,7 @@ class PornXP : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = if (page <= 1) request.data else "${request.data.removeSuffix("/")}/?page=$page"
         val document = app.get(url).document
-        val videos = document.select(".item_cont").mapNotNull { it.toSearchResult() }
+        val videos = document.select(".item_cont").mapNotNull { searchCard(it, ".item_title", hrefSel = "a[href*=videos]", posterSel = ".item_thumb img") }
         return newHomePageResponse(
             list = HomePageList(
                 name = request.name,
@@ -39,28 +40,8 @@ class PornXP : MainAPI() {
     override suspend fun search(query: String, page: Int): SearchResponseList {
         val url = if (page <= 1) "$mainUrl/?q=$query" else "$mainUrl/?q=$query&page=$page"
         val document = app.get(url).document
-        val videos = document.select(".item_cont").mapNotNull { it.toSearchResult() }
+        val videos = document.select(".item_cont").mapNotNull { searchCard(it, ".item_title", hrefSel = "a[href*=videos]", posterSel = ".item_thumb img") }
         return newSearchResponseList(videos, hasNext = true)
-    }
-
-    // 2026-08 markup: <a href> is an ancestor wrapping .item_title (title inside); lazy posters in data-src
-    private fun Element.toSearchResult(): SearchResponse? {
-        try {
-            val link = this.selectFirst("a[href*=videos]") ?: return null
-            val title = this.selectFirst(".item_title")?.text()?.trim() ?: return null
-            val imgElement = this.selectFirst(".item_thumb img")
-            val poster = imgElement?.let { img -> if (img.hasAttr("data-src") && img.attr("data-src").isNotEmpty()) img.attr("data-src") else img.attr("src") }?.let { fixUrl(it) }
-
-            return newMovieSearchResponse(
-                title,
-                fixUrl(link.attr("href")),
-                TvType.NSFW
-            ) {
-                this.posterUrl = poster
-            }
-        } catch (e: Exception) {
-            return null
-        }
     }
 
     override suspend fun quickSearch(query: String): List<SearchResponse>? {
@@ -82,7 +63,7 @@ class PornXP : MainAPI() {
             }
             
             // Get recommendations from related videos
-            val recommendations = document.select(".item_cont").mapNotNull { it.toSearchResult() }
+            val recommendations = document.select(".item_cont").mapNotNull { searchCard(it, ".item_title", hrefSel = "a[href*=videos]", posterSel = ".item_thumb img") }
 
             return newMovieLoadResponse(title, url, TvType.NSFW, url) {
                 this.posterUrl = poster

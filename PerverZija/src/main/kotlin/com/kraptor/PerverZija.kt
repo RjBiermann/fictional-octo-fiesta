@@ -58,15 +58,6 @@ class PerverZija : MainAPI() {
         return newSearchResponseList(aramaCevap, hasNext = true)
     }
 
-    private fun Element.toSearchResult(): SearchResponse? {
-        val title     = this.selectFirst("div.title a")?.text() ?: return null
-        val href      = fixUrlNull(this.selectFirst("div.title a")?.attr("href")) ?: return null
-        val posterUrl = fixUrlNull(this.selectFirst("img")?.attr("src"))
-
-        return newMovieSearchResponse(title, href, TvType.NSFW) { this.posterUrl = posterUrl }
-    }
-
-
     override suspend fun load(url: String): LoadResponse? {
         val document = app.get(url).document
 
