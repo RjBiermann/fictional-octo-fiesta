@@ -226,3 +226,45 @@ Search: `https://cat3movie.org/?s=teacher` → 200, 6 articles (`div.thumb.grid-
 Stream chain replicated manually (5 movies): player.php?episode_slug=full&server_id=1..3&post_id&nonce via XHR headers → iframe src = `https://hlsfree.com/embed/hls/875` / `/856` (2), hlsfast `#<hash>` (2; API 200/AES path intact — inline AES stays), 1 dead upstream.
 HlsFree chain: embed page → `defaultHlsUrl … token=<hex>` → `GET /api/hls/serve?token` → **200 `application/vnd.apple.mpegurl` #EXTM3U, 2/2**. Shared `HlsFree` adapter in `com.kraptor.HostAdapters` — provider code replaced by `loadExtractor(embed, …)`.
 </details>
+
+## 2026-09-10 re-probe (issue #250 — reported video doesn't play)
+
+Reported URL /watch-women-at-play-1985/full-sv1.html — whole chain replayed on this runner,
+**all healthy** (the symptom does not reproduce server-side):
+
+```
+women-at-play-1985   post_id=34514  nonce=e7a09473dd
+  sv1 hlsfree/937  → embed 200 (any referer) → token → GET /api/hls/serve → 200 #EXTM3U
+                     (489 segments; token reused OK, CF cache max-age=86400 on manifest)
+  segment https://s1.cat3hls.com/0dd2ec367e36e79d/daa556d9fc629eff.jpg → no referer 403,
+                     Referer: https://hlsfree.com/ → 200, 3.4 MB MPEG-TS (image/png type)
+  sv2 loadvid  → embed page 403 (blob-gated, no adapter — unchanged)
+  sv3 hlsfast/#9qgavp → with Referer: https://hlsfast.com/ → 404 "Video not found or
+                     deleted" (deleted upstream — site-side, like bamboo-house-of-dolls)
+heat-1986 / joy-1983 chain replays identical (sv1 manifest 200 + segment 200 w/ referer).
+```
+
+If the player-side still fails for the user, the remaining suspect is segment-level referer
+not reaching cat3hls.com on the user's app/datasource path (2004) — verify in-app.
+
+**Provider fragility found and fixed on this run (root-cause hardening for "no sources"):**
+
+```
+watch-page shape today (heat-1986, women-at-play-1985):
+  post_id : data-post_id / halim_cfg "post_id":34514          → still present
+  nonce   : body[data-nonce="…"]                              → still present (single-watch)
+  title   : h1.entry-title a.tl ("Watch Heat (1986)  ")       → still present
+  poster  : meta[property=og:image]                           → still present
+  plot    : div.entry-content article.item-content p          → still present (1 article)
+  year    : p.released a[href*=/release/]                     → GONE (raw markup 0 hits:
+              the year/genres/country now live only in ESCAPED payloads of the RELATED cards'
+              data-content attributes, not the movie's own markup)
+  tags    : p.category a                                      → GONE on watch pages
+  actors  : p.actors                                          → GONE on watch pages
+```
+Provider changes: nonce/post_id parse falls back to the halim_cfg entries (older/CF-cached
+page shapes without body[data-nonce] previously returned false = silent no-source player);
+player.php GETs are cache-busted and carry a correctly built per-server Referer (the old
+"$mainUrl/watch-$slug/…" concat produced malformed referers whether data was the base watch
+URL or an episode page); year falls back to the title's `(1985)` suffix. Tags/actors stay
+wired — the site just does not expose them on watch pages today (payload-escaped only).
