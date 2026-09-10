@@ -59,7 +59,7 @@ class XhamsterParseTest {
         val decoded = xHamster().decodeXhUrl(hex)
         assertTrue(
             "decode failed: $decoded",
-            decoded != null && (decoded!!.startsWith("https://") || decoded.startsWith("//"))
+            decoded != null && (decoded.startsWith("https://") || decoded.startsWith("//"))
         )
     }
 
