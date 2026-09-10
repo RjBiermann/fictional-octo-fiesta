@@ -47,10 +47,12 @@ class Sexfilm : MainAPI() {
     override val mainPage = mainPageOf(
         "$mainUrl/movies/" to "Movies",
         "$mainUrl/porno-video/" to "Porno Video",
-        "$mainUrl/hd-porno-movies/" to "HD Porno Movies",
-        "$mainUrl/fullhd-porn-movie/" to "FullHD Movies",
-        "$mainUrl/porno-parodies/" to "Parodies",
-        "$mainUrl/vintagexxx/" to "Vintage",
+        // these 4 sections 301 from top-level to /movies/<sub>/; use canonical paths
+        // so page/N pagination hits the right page instead of redirecting to page 1
+        "$mainUrl/movies/hd-porno-movies/" to "HD Porno Movies",
+        "$mainUrl/movies/fullhd-porn-movie/" to "FullHD Movies",
+        "$mainUrl/movies/porno-parodies/" to "Parodies",
+        "$mainUrl/movies/vintage/" to "Vintage",
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
