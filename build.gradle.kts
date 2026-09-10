@@ -64,6 +64,8 @@ subprojects {
         // Unit tests (ADR-0005): shared test sources splice into every provider,
         // so `gradlew <Provider>:test` runs them all. Same pattern providers use for main.
         sourceSets.getByName("test").kotlin.srcDir(rootDir.resolve("shared/src/test/kotlin"))
+        // shared test fixtures land on every provider's test classpath too
+        sourceSets.getByName("test").resources.srcDir(rootDir.resolve("shared/src/test/resources"))
         // Host registry + shared adapters (ADR-0002) compile into every provider.
         sourceSets.getByName("main").kotlin.srcDir(rootDir.resolve("shared/src/main/kotlin"))
 

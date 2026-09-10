@@ -42,8 +42,12 @@ class Film1k : MainAPI() {
         val href = a.attr("href") ?: return null
         val title = this.selectFirst("h2.entry-title")?.text()?.trim() ?: return null
         val img = this.selectFirst("figure img")
-        val poster = img?.attr("data-src")?.takeIf { it.contains("img.film1k.com") }
-            ?: img?.attr("src")
+        // lazy-poster theme: src is a data: placeholder, the real image is data-src (any host —
+        // related cards are mostly i.imgur.com/blogger, not just img.film1k.com)
+        val src = img?.attr("src").orEmpty()
+        val poster = img?.attr("data-src")?.takeIf {
+            it.startsWith("http") && (src.isBlank() || src.startsWith("data:"))
+        } ?: src
         return newMovieSearchResponse(title, href, TvType.NSFW) { this.posterUrl = poster }
     }
 
@@ -87,6 +91,14 @@ class Film1k : MainAPI() {
             this.plot = plot
             this.tags = tags
             this.actors = actors.map { ActorData(Actor(it)) }
+            this.year = Film1kParse.yearOf(
+                doc.selectFirst("meta[property=og:title]")?.attr("content")
+            )
+            // issue #233 gap 1: site exposes a Related Videos block on every page — same
+            // article.loop-post card markup as listings, so the card parser is reused
+            this.recommendations = Film1kParse.relatedOf(doc).mapNotNull {
+                try { it.toResult() } catch (e: Exception) { null }
+            }.distinctBy { it.url }
             addDuration(runtime?.replace("mins", "min")?.trim())
         }
     }
@@ -148,21 +160,30 @@ class Film1k : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val html = app.get(data).text
-        val code = Regex("""film1k\.xyz/e/([a-zA-Z0-9]+)/""").find(html)?.groupValues?.get(1)
+        val byse = Regex("""film1k\.xyz/e/([a-zA-Z0-9]+)/""").find(html)?.groupValues?.get(1)
+        if (byse != null) {
+            val (streamUrl, quality) = bysePlayback(byse) ?: return false
+            callback(
+                newExtractorLink(
+                    name = name,
+                    source = name,
+                    url = streamUrl,
+                    type = ExtractorLinkType.M3U8
+                ) {
+                    this.referer = "https://film1k.xyz/"
+                    this.quality = getQualityFromName(quality)
+                }
+            )
+            return true
+        }
+        // issue #233 gap 2: abyssplayer embeds (SoTrym/enc-dec chain) — shared adapter
+        val abyssUrl = Regex("""abyssplayer\.com/\?v=[A-Za-z0-9]+""").find(html)?.value
             ?: return false
-        val (streamUrl, quality) = bysePlayback(code) ?: return false
-        callback(
-            newExtractorLink(
-                name = name,
-                source = name,
-                url = streamUrl,
-                type = ExtractorLinkType.M3U8
-            ) {
-                this.referer = "https://film1k.xyz/"
-                this.quality = getQualityFromName(quality)
-            }
-        )
-        return true
+        return try {
+            loadExtractor("https://$abyssUrl", mainUrl, subtitleCallback, callback)
+        } catch (e: Exception) {
+            false
+        }
     }
 }
 

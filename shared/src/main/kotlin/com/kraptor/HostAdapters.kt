@@ -5,6 +5,7 @@ package com.kraptor
 
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.SubtitleFile
+import com.lagradost.cloudstream3.USER_AGENT
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.utils.*
 
@@ -200,4 +201,81 @@ object HlsFreeParse {
 class HlsFreeWww : HlsFree() {
     override val name = "HlsFree"
     override val mainUrl = "https://www.hlsfree.com"
+}
+
+/** Pure abyssplayer.com helpers (issue #233) — test-safe (no org.json / android stubs). */
+object AbyssParse {
+    /** The embed page carries the whole player config base64-encoded in `const datas = "..."`. */
+    fun datasFromEmbed(embedHtml: String): String? =
+        Regex("""const\s+datas\s*=\s*"([^"]+)"""") // datas is a config blob, not a secret (Sonar S6418)
+            .find(embedHtml)?.groupValues?.get(1)
+
+    /** Map the dec-abyss response to playable sources; status!=true entries are dead. */
+    fun sourcesFromResult(resultJson: String): List<AbyssSource> = try {
+        val root = com.fasterxml.jackson.databind.ObjectMapper().readTree(resultJson)
+        val sources = root.path("result").path("sources")
+        (0 until sources.size()).mapNotNull { i ->
+            val s = sources.get(i) ?: return@mapNotNull null
+            val url = s.path("url").asText("")
+            if (!s.path("status").asBoolean(false) || !url.startsWith("http")) return@mapNotNull null
+            AbyssSource(url, Regex("\\d{3,4}").find(s.path("type").asText(""))?.value?.toIntOrNull() ?: 0)
+        }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    data class AbyssSource(val url: String, val quality: Int)
+}
+
+/** abyssplayer.com (issue #233): SoTrym/jwplayer embed whose `datas` blob carries the
+ *  encrypted media config. The site's obfuscated core.bundle.js decrypts it locally
+ *  (AES-256-CTR, key = md5hex-ASCII("user_id:slug:md5_id"), IV = key[0..16]) and builds
+ *  sora CDN links with a second md5/CTR token — that token scheme is NOT reproduced here;
+ *  the public enc-dec.app decrypt API does the full chain instead. */
+open class AbyssPlayer : ExtractorApi() {
+    override val name = "AbyssPlayer"
+    override val mainUrl = "https://abyssplayer.com"
+    override val requiresReferer = true
+
+    override suspend fun getUrl(
+        url: String,
+        referer: String?,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        val html = try {
+            app.get(url, referer = referer ?: mainUrl).text
+        } catch (e: Exception) {
+            Log.d(name, "embed: ${e.message}")
+            return
+        }
+        val datas = AbyssParse.datasFromEmbed(html) ?: return
+        val res = try {
+            app.post(
+                "https://enc-dec.app/api/dec-abyss",
+                json = mapOf("text" to datas),
+                headers = mapOf("Origin" to "https://enc-dec.app")
+            ).text
+        } catch (e: Exception) {
+            Log.d(name, "dec-abyss: ${e.message}")
+            return
+        }
+        for (s in AbyssParse.sourcesFromResult(res)) {
+            callback.invoke(
+                newExtractorLink(
+                    source = name,
+                    name = name,
+                    url = s.url,
+                    type = if (s.url.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                ) {
+                    this.referer = mainUrl
+                    this.quality = getQualityFromName(if (s.quality > 0) "${s.quality}p" else "")
+                    this.headers = mapOf(
+                        "User-Agent" to USER_AGENT,
+                        "Referer" to mainUrl
+                    )
+                }
+            )
+        }
+    }
 }
