@@ -38,7 +38,7 @@ class JavmostParseTest {
     ).selectFirst("div.card")!!
 
     @Test fun `poster prefers data-srcset over lazyload placeholder`() =
-        assertEquals("https://img3.javmost.ws/images/480/OKS-148.webp", Javmost.Parse.posterUrl(card()))
+        assertEquals("https://img3.javmost.ws/images/480/OKS-148.webp", Javmost.Parse.parseCardUrl(card()))
 
     @Test fun `poster null when only preload placeholder present`() =
         assertNull(Javmost.Parse.parseCardUrl(Jsoup.parse(

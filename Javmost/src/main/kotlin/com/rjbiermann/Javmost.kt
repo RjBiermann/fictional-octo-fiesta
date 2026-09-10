@@ -33,9 +33,6 @@ class Javmost : MainAPI() {
             return img?.takeIf { it.isNotBlank() }
         }
 
-        /** Video-page card-block poster (og:image) — see load(). */
-        fun posterUrl(card: Element): String? = parseCardUrl(card)
-
         data class DooInfo(val api: String, val token: String, val et: String, val sig: String)
 
         /** dooplayer embed page: x-embed-token/api/et/sig meta tags drive the stream API (issue #239). */
@@ -211,7 +208,7 @@ class Javmost : MainAPI() {
                             "X-Embed-ET" to info.et,
                             "X-Embed-SIG" to info.sig,
                         ),
-                        data = mapOf("ref" to embed),
+                        json = mapOf("ref" to embed),   // FINDINGS: body is JSON {"ref":"<embed url>"}
                     ).text
                     val stream = Parse.dooStream(json) ?: continue
                     callback.invoke(
