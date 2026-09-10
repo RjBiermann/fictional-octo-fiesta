@@ -3,12 +3,24 @@
 package com.byayzen
 
 import com.kraptor.registerHostExtractors
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
+
+/** Pure parse functions for the video meta rows — kept off MainAPI so unit tests can load them. */
+object MissAVParse {
+    /** Meta rows are div.text-secondary with a label span; match the span's OWN text so
+     *  the Genre row (which always contains the link "Av Actress") can't pollute actors. */
+    fun parseActors(document: Document): List<String> =
+        document.select("div.text-secondary:has(> span:containsOwn(actress)) a").map { it.text().trim() }
+
+    fun parseTags(document: Document): List<String> =
+        document.select("div.text-secondary:has(> span:containsOwn(genre)) a").map { it.text().trim() }
+}
 
 class MissAV : MainAPI() {
     override var mainUrl = "https://missav.live"
@@ -119,10 +131,8 @@ class MissAV : MainAPI() {
         val poster = fixUrlNull(document.selectFirst("meta[property='og:image']")?.attr("content"))
         val year = document.selectFirst("time")?.text()?.split("-")?.firstOrNull()?.toIntOrNull()
 
-        val tags = document.select("div.text-secondary:contains(genre) a").map {
-            it.text().trim() }
-        val actresses = document.select("div.text-secondary:contains(actress) a").map {
-            Actor(it.text().trim()) }
+        val tags = MissAVParse.parseTags(document)
+        val actresses = MissAVParse.parseActors(document).map { Actor(it) }
         val plot = document.selectFirst("head meta[property='og:description']")?.attr("content")
         val duration = document.selectFirst("head meta[property='og:video:duration']")?.attr("content")?.toIntOrNull()
         val dvdId = url.trimEnd('/').substringAfterLast('/')
