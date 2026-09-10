@@ -87,4 +87,20 @@ class AllClassicPornParseTest {
         val actors = AllClassicPornParse.parseActors(html)
         assertTrue("Tracy O'Neil should be present from the real load() html", actors.contains("Tracy O'Neil"))
     }
+
+    @Test fun `homepage fixture duplicates are deduped by href (issue #266)`() {
+        val doc = org.jsoup.Jsoup.parse(javaClass.getResourceAsStream("/home-page.html")!!.readBytes().decodeToString())
+        val cards = doc.select("a.th.item")
+        assertEquals(84, cards.size)  // site serves 7 hrefs twice in-page
+        assertEquals(77, AllClassicPornParse.distinctByHref(cards).size)
+    }
+
+    @Test fun `distinctByHref keeps unique blocks`() {
+        val doc = org.jsoup.Jsoup.parse(
+            """<a class="th item" href="/videos/1/a/"></a>
+               |<a class="th item" href="/videos/1/a/"></a>
+               |<a class="th item" href="/videos/2/b/"></a>""".trimMargin()
+        )
+        assertEquals(2, AllClassicPornParse.distinctByHref(doc.select("a.th.item")).size)
+    }
 }

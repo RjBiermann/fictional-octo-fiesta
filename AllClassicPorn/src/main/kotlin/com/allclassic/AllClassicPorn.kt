@@ -32,7 +32,8 @@ class AllClassicPorn : MainAPI() {
         val url = if (page > 1) "${request.data}$page/" else request.data
         val document = app.get(url, referer = mainUrl).document
 
-        val home = document.select("a.th.item").mapNotNull { it.toSearchResult() }
+        val home = AllClassicPornParse.distinctByHref(document.select("a.th.item"))
+            .mapNotNull { it.toSearchResult() }
 
         return newHomePageResponse(
             HomePageList(request.name, home, isHorizontalImages = false),
@@ -81,9 +82,9 @@ class AllClassicPorn : MainAPI() {
             ?.let { Regex("PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?").find(it) }
             ?.let { m -> (m.groupValues[1].toIntOrNull() ?: 0) * 60 + (m.groupValues[2].toIntOrNull() ?: 0) } // minutes, repo convention
             ?.takeIf { it > 0 }
-        val recommendations = document
-            .select("#list_videos_related_videos_items a.th.item")
-            .mapNotNull { it.toSearchResult() }
+        val recommendations = AllClassicPornParse.distinctByHref(
+            document.select("#list_videos_related_videos_items a.th.item")
+        ).mapNotNull { it.toSearchResult() }  // site serves duplicated related entries (issue #266)
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster
             this.plot = description
