@@ -80,7 +80,7 @@ class PerverZija : MainAPI() {
         val score          = document.selectFirst("span.dt_rating_vgs")?.text()?.trim()
         // span.runtime is gone from the site; duration now comes from JSON-LD VideoObject (PT#H#M#S)
         val duration        = JsonLdParse.minutes(jsonLd)
-        val recommendations = document.select("div.srelacionados article").mapNotNull { it.toRecommendationResult() }
+        val recommendations = PerverZijaParse.related(document).mapNotNull { it.toRecommendationResult() }
         val actors          = document.select("div.item-tax-list div:has(strong:contains(Stars)) a").map { Actor(it.text()) }
         val trailer         = Regex("""embed\/(.*)\?rel""").find(document.html())?.groupValues?.get(1)?.let { "https://www.youtube.com/embed/$it" }
 
@@ -98,9 +98,9 @@ class PerverZija : MainAPI() {
     }
 
     private fun Element.toRecommendationResult(): SearchResponse? {
-        val title     = this.selectFirst("a img")?.attr("alt") ?: return null
+        val title     = PerverZijaParse.titleOf(this) ?: return null
         val href      = fixUrlNull(this.selectFirst("a")?.attr("href")) ?: return null
-        val posterUrl = fixUrlNull(this.selectFirst("a img")?.attr("data-src"))
+        val posterUrl = fixUrlNull(PerverZijaParse.posterOf(this))
 
         return newMovieSearchResponse(title, href, TvType.NSFW) { this.posterUrl = posterUrl }
     }
