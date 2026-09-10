@@ -17,6 +17,11 @@ import org.jsoup.nodes.Element
 fun pagedUrl(url: String, page: Int): String =
     if (page <= 1) url else url + (if ("?" in url) "&" else "?") + "page=$page"
 
+/** HLS only when the MIME says mpegurl or the URL ends in .m3u8 — anything else is MP4. */
+fun isHls(src: String, mimeType: String?): Boolean =
+    mimeType?.contains("mpegurl", ignoreCase = true) == true ||
+        src.substringBefore('?').endsWith(".m3u8")
+
 class Javtiful : MainAPI() {
     override var mainUrl = "https://javtiful.com"
     override var name = "Javtiful"
@@ -172,8 +177,10 @@ class Javtiful : MainAPI() {
                 ) {
                     this.quality = source.size ?: Qualities.Unknown.value
                     this.referer = "$mainUrl/"
+                    // config carries the MIME ("video/mp4"); extensionless stream URLs
+                    // broke extension sniffing (issue #240, ExoPlayer 3002)
                     this.type =
-                        if (source.src.contains(".mp4")) ExtractorLinkType.VIDEO else ExtractorLinkType.M3U8
+                        if (isHls(source.src, source.type)) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
                 }
             )
         }
