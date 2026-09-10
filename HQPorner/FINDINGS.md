@@ -74,13 +74,13 @@ Search-result urls embed the poster as `href + "kraptor" + posterUrl`, but a lib
 item carries only the `LoadResponse` url (`currentUrl`, from `newMovieLoadResponse`) — no
 separator → `split()` yields 1 element → hard crash.
 
-Fix: guard the split (`getOrNull(1)`); poster falls back to the video page's first
-`img[src*=imgs]` gallery/thumbnail image. Verified the fallback source is live:
-
-```
-video page  img src = //fastporndelivery.hqporner.com/imgs/73/48/fbc492300af51f8.jpg…
-            (same fastporndelivery image family as the search card's _main.jpg)
-```
+Fix: guard the split (`getOrNull(1)`); a library-saved item (no separator) gets a null
+poster. The video page's static HTML does not embed the current video's image (iframe
+player, no og:image / JSON-LD / own `<img>`), so no truthful fallback exists. `img[src*=imgs]`
+first match on a video page is a **related** card's cover (`cover_<id>`, doc order line ~476),
+e.g. `/hdporn/127769-…` → first img `cover_127782` ("i know your problem, stepmom") — dropping
+it as a fallback would show another video's poster. Verified on 124908/127787/127769/124921.
+(Search↔load keeps the embedded poster; only library reloads take the null path.)
 
 ## Live verify (re-run for #237, desktop UA)
 - search `?q=milf|stepsis&p=1/2` → 200, 50 cards each, page 2 new items (verify.sh
