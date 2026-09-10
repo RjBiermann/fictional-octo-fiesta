@@ -70,6 +70,35 @@ class Cat3MovieStreamConfigTest {
     }
 }
 
+/** Issue #250: embed src parse from the player.php response — double (current site) and
+ *  single quotes (the fallback the quest parse claims). Regression-test the actual player.php
+ *  HTML shape too (iframe carries a class between the tag and src). */
+class Cat3MovieEmbedTest {
+
+    private fun res(name: String) =
+        javaClass.getResourceAsStream("/$name")?.readBytes()?.toString(Charsets.UTF_8)
+            ?: error("fixture $name missing")
+
+    @Test fun `embed src parsed from double-quoted iframe`() {
+        assertEquals("https://hlsfree.com/embed/hls/937",
+            Parse.embedIframe("<div class=\"embed-responsive\"><iframe class=\"embed-responsive-item\" src=\"https://hlsfree.com/embed/hls/937\" allowfullscreen></iframe></div>"))
+    }
+
+    @Test fun `embed src parsed from single-quoted iframe`() {
+        assertEquals("https://hlsfree.com/embed/hls/937",
+            Parse.embedIframe("<div><iframe class=\"x\" src='https://hlsfree.com/embed/hls/937' allowfullscreen></iframe></div>"))
+    }
+
+    @Test fun `no iframe yields null`() {
+        assertEquals(null, Parse.embedIframe("<div>no player here</div>"))
+    }
+
+    @Test fun `player-page fixture yields the embed`() {
+        assertEquals("https://hlsfree.com/embed/hls/937",
+            Parse.embedIframe(res("player-page.html")))
+    }
+}
+
 /** Issue #250 re-probe: watch pages dropped the raw p.released markup — year comes from the
  *  title's "Movie (1985)" suffix (every halimmovies watch-page h1 carries it). */
 class Cat3MovieYearTest {
