@@ -14,6 +14,7 @@ class EPorner : MainAPI() {
     override var mainUrl = "https://www.eporner.com"
     override var name = "EPorner"
     override val hasMainPage = true
+    override val hasQuickSearch = true
     override var lang = "en"
     override val supportedTypes = setOf(TvType.NSFW)
 
@@ -41,6 +42,8 @@ class EPorner : MainAPI() {
         val results = app.get(url).document.select("div#vidresults div.mb").mapNotNull { it.toSearchResult() }
         return newSearchResponseList(results, true)
     }
+
+    override suspend fun quickSearch(query: String): List<SearchResponse>? = search(query, 1).items
 
     private fun Element.toSearchResult(): SearchResponse? {
         val titleElement = this.selectFirst("p.mbtit a") ?: return null
