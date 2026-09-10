@@ -13,6 +13,11 @@ class Porntrex : MainAPI() {
     override var name = "Porntrex"
     override val hasMainPage = true
     override var lang = "en"
+
+    // issue #275: the site's quick-search endpoint /search_results.php?q=... returns an empty
+    // "search" array for every sampled query (2026-09-10: milf, teen, asian, hardcore, big
+    // tits, redhead) — suggestions are albums/categories/models, none loadable as videos.
+    override val hasQuickSearch = false
     override val supportedTypes = setOf(TvType.NSFW)
     override val vpnStatus = VPNStatus.MightBeNeeded
 
@@ -116,16 +121,20 @@ class Porntrex : MainAPI() {
         // no title/details). The /embed/{id}/ page still carries the full KVS player config.
         var title = document.selectFirst("p.title-video")?.text()?.trim()
         var poster = fixUrlNull(document.selectFirst("#tab_screenshots img.thumb")?.attr("data-src"))
+        var embed: org.jsoup.nodes.Document? = null
         if (title.isNullOrEmpty() && videoId(url) != null) {
-            val embed = app.get("${mainUrl}/embed/${videoId(url)}/").text
-            title = Regex("title: '([^']+)'").find(embed)?.groupValues?.get(1)?.trim()
+            embed = app.get("${mainUrl}/embed/${videoId(url)}/").document
+            title = Regex("title: '([^']+)'").find(embed.html())?.groupValues?.get(1)?.trim()
             if (poster == null)
-                poster = fixUrlNull(Regex("preview_url: '([^']+)'").find(embed)?.groupValues?.get(1))
+                poster = fixUrlNull(Regex("preview_url: '([^']+)'").find(embed.html())?.groupValues?.get(1))
         }
         title ?: return null
         val description = document.selectFirst("div.videodesc em.des-link")?.text()?.trim()
         val tags        = document.select("div.js-categories a.js-cat").map { it.text() } +
                 document.select("div.item:has(span.title-item:contains(Tags)) div.items-holder a").map { it.text() }
+        // issue #275: shell pages carry no tag markup, but the embed flashvars still expose
+        // video_categories + video_tags — merge them in when the page yields nothing.
+        val resolvedTags = if (tags.isEmpty()) embed?.let { PorntrexParse.embedTags(it) } ?: emptyList() else tags
         val actors      = document.select("div.block-details div.item:has(span.title-item:contains(Models:)) div.items-holder a").map { it.ownText().trim() }.filter { it.isNotEmpty() }
         // issue #215: bare i.fa-clock-o first matches the navbar "Latest" icon -> always null;
         // scope to the details stats row and parse properly into seconds.
@@ -141,7 +150,7 @@ class Porntrex : MainAPI() {
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl       = poster
             this.plot            = description
-            this.tags            = tags
+            this.tags            = resolvedTags
             this.actors          = actors.map { ActorData(Actor(it)) }
             this.duration        = duration
             this.recommendations = recommendations
@@ -238,6 +247,19 @@ object PorntrexParse {
             out.add(label to url)
         }
         return out
+    }
+
+    /**
+     * Issue #275: on guest-shell video pages the /embed/{id}/ flashvars still expose
+     * `video_categories: 'A, B'` and `video_tags: 'x, y'`. Returns categories followed by
+     * tags (deduped, order preserved); empty when neither key exists.
+     */
+    fun embedTags(document: org.jsoup.nodes.Document): List<String> {
+        val flashvars = document.selectFirst("script:containsData(var flashvars)")?.data() ?: return emptyList()
+        fun key(name: String): List<String> =
+            Regex("$name:\\s*'([^']*)'").find(flashvars)?.groupValues?.get(1)
+                ?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
+        return (key("video_categories") + key("video_tags")).distinct()
     }
 }
 

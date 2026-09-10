@@ -1,5 +1,5 @@
 // ! This Extension Made By @ByAyzen for GizliKeyif
-version = 9
+version = 10
 
 cloudstream {
     authors     = listOf("ByAyzen")

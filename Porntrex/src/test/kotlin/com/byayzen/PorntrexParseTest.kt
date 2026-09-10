@@ -3,6 +3,7 @@ package com.byayzen
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
@@ -50,6 +51,27 @@ class PorntrexParseTest {
         assertEquals("720p HD" to "https://x/get_file/b/2491818_720p.mp4/", links[1])
         assertEquals(null, links[0].first)
         assertEquals("1080p FHD" to "https://x/get_file/c/2491818_1080p.mp4/", links[2])
+    }
+
+    /**
+     * Issue #275: guest-shell pages yield no tags; the /embed/{id}/ flashvars carry them as
+     * `video_tags: 'a, b, c'` and `video_categories: '...'`. Parse into a merged tag list.
+     */
+    @Test fun `embedTags parses tags plus categories from embed flashvars`() {
+        val doc = Jsoup.parse(File("src/test/resources/porntrex_embed_page.html").readText())
+        val tags = PorntrexParse.embedTags(doc)
+        assertTrue(tags.contains("Milf"))
+        assertTrue(tags.contains("Red Head"))
+        assertTrue(tags.contains("Busty Redhead"))
+        assertTrue(tags.contains("Reverse Cowgirl"))
+        // categories come first, then tags, no dupes
+        assertEquals("Milf", tags.first())
+        assertEquals(tags.size, tags.toSet().size)
+    }
+
+    @Test fun `embedTags returns empty when no flashvars`() {
+        val doc = Jsoup.parse("<html><body>shell</body></html>")
+        assertTrue(PorntrexParse.embedTags(doc).isEmpty())
     }
 
     /**
