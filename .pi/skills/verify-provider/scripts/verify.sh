@@ -369,7 +369,7 @@ for i in "${!VIDEO_URLS[@]}"; do
   # time the static page has no stream URL — the agent supplies the URL the provider's chain
   # resolves (evidence in FINDINGS); the mechanical checks below are unchanged.
   if [[ ${#STREAM_URL_OVERRIDES[@]} -gt 0 ]]; then
-    (( i < ${#STREAM_URL_OVERRIDES[@]} )) || { echo "FAIL: --stream-url count (${#STREAM_URL_OVERRIDES[@]}) must match --video-url count (${#VIDEO_URLS[@]})"; fail=1; }
+    (( ${#STREAM_URL_OVERRIDES[@]} == ${#VIDEO_URLS[@]} )) || { echo "FAIL: --stream-url count (${#STREAM_URL_OVERRIDES[@]}) must match --video-url count (${#VIDEO_URLS[@]})"; fail=1; }
     [[ -n "${STREAM_URL_OVERRIDES[$i]:-}" ]] && surls=("${STREAM_URL_OVERRIDES[$i]}") || surls=()
   else
     mapfile -t surls < <(py streams "$F")
@@ -389,8 +389,9 @@ for i in "${!VIDEO_URLS[@]}"; do
     py path "$su" >> "$SP"
     hdr=$(curl -sL "${HEADERS[@]}" -H "Range: bytes=0-64" -o /dev/null -w '%{http_code} %{content_type}' --max-time 30 "$su") || hdr="000 ERR"
     if [[ "$hdr" == 403* || "$hdr" == 000* ]]; then
-      # rotating-redirect hosts (e.g. sora CDN → per-request tunnel) round-robin; a dead
-      # tunnel 403s one hop and slow hops time out. One retry picks a live/fast tunnel.
+      # sora-style CDNs 403 without a Referer and occasionally 403/timeout on a dead
+      # rotating tunnel; one retry picks a live/fast hop. A missing Referer is NOT
+      # retried away — pass --header 'Referer: …' for those hosts.
       sleep 2
       hdr=$(curl -sL "${HEADERS[@]}" -H "Range: bytes=0-64" -o /dev/null -w '%{http_code} %{content_type}' --max-time 60 "$su") || hdr="000 ERR"
     fi

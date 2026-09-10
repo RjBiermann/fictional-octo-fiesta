@@ -269,7 +269,7 @@ open class AbyssPlayer : ExtractorApi() {
                     type = if (s.url.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
                 ) {
                     this.referer = mainUrl
-                    this.quality = getQualityFromName("${s.quality}p")
+                    this.quality = getQualityFromName(if (s.quality > 0) "${s.quality}p" else "")
                     this.headers = mapOf(
                         "User-Agent" to USER_AGENT,
                         "Referer" to mainUrl

@@ -42,8 +42,12 @@ class Film1k : MainAPI() {
         val href = a.attr("href") ?: return null
         val title = this.selectFirst("h2.entry-title")?.text()?.trim() ?: return null
         val img = this.selectFirst("figure img")
-        val poster = img?.attr("data-src")?.takeIf { it.contains("img.film1k.com") }
-            ?: img?.attr("src")
+        // lazy-poster theme: src is a data: placeholder, the real image is data-src (any host —
+        // related cards are mostly i.imgur.com/blogger, not just img.film1k.com)
+        val src = img?.attr("src").orEmpty()
+        val poster = img?.attr("data-src")?.takeIf {
+            it.startsWith("http") && (src.isBlank() || src.startsWith("data:"))
+        } ?: src
         return newMovieSearchResponse(title, href, TvType.NSFW) { this.posterUrl = poster }
     }
 
