@@ -1,4 +1,4 @@
-version = 5 // #247 hlsfree preflight + referer headers
+version = 6 // #250 nonce fallback + player.php cache-buster/referer fix
 
 cloudstream {
     authors     = listOf("RjBiermann")

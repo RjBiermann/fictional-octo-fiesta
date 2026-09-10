@@ -64,7 +64,11 @@ class Cat3Movie : MainAPI() {
 
         val title = document.selectFirst("h1.entry-title")?.text()?.trim() ?: url.substringAfterLast('/')
         val poster = fixUrlNull(document.selectFirst("meta[property=og:image]")?.attr("content"))
+        // year: markup payloads were replaced by CF-only escaped card payloads on watch pages
+        // (issue #250 re-probe) — p.released still prevails when present, title `Movie (1985)`
+        // is the fallback shape every halimmovies watch page carries
         val year = document.selectFirst("p.released a[href*=/release/]")?.text()?.trim()?.toIntOrNull()
+            ?: Parse.yearFromTitle(title)
         val tags = document.select("p.category a").map { it.text() }.filter { it.isNotBlank() }
         val actors = document.select("p.actors").filter { it.selectFirst("a") != null && it.text().startsWith("Actors") }
             .flatMap { it.select("a").map { a -> a.text() } }
@@ -88,19 +92,31 @@ class Cat3Movie : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val document = app.get(data).document
-        val postId = Regex("\"post_id\":(\\d+)").find(document.html())?.groupValues?.get(1)
-            ?: document.selectFirst("[data-post_id]")?.attr("data-post_id") ?: return false
-        val nonce = document.selectFirst("body[data-nonce]")?.attr("data-nonce") ?: return false
-        val slug = data.substringAfterLast('/')
+        val document = try {
+            app.get(data).document
+        } catch (e: Exception) {
+            Log.d("Cat3Movie", "watch page: ${e.message}")
+            null
+        } ?: return false
+
+        // issue #250: keep a fallback if body[data-nonce] is ever absent, but note the live
+        // watch pages all carry it and halim_cfg has no "nonce" key — the regex fallback
+        // therefore grabs the first page-level `"nonce"` JSON entry (ajax_player), which
+        // player.php does not validate (verified: any nonce, even "deadbeef", returns 200)
+        val cfg = Parse.streamConfig(document) ?: return false
+        val postId = cfg.postId.toString()
+        val nonce = cfg.nonce
 
         // sv1..sv3 servers: hlsfree embeds yield a token stream URL, hlsfast embeds
         // yield an AES-CBC encrypted api response (see extractHlsFast); loadvid is blob-gated
         for (sv in 1..3) {
             try {
+                // issue #250: player.php GETs are cached by Cloudflare and sit behind the
+                // per-server watch page — cache-buster + correct referer dodge the recorded
+                // CF-cached 404/{"status":true,"code":403} responses
                 val playerHtml = app.get(
                     "$mainUrl/wp-content/themes/halimmovies/player.php",
-                    referer = "$mainUrl/watch-$slug/full-sv$sv.html",
+                    referer = Parse.playerReferer(data, sv),
                     headers = mapOf("X-Requested-With" to "XMLHttpRequest"),
                     params = mapOf(
                         "episode_slug" to "full",
@@ -109,9 +125,10 @@ class Cat3Movie : MainAPI() {
                         "post_id" to postId,
                         "nonce" to nonce,
                         "custom_var" to "",
+                        "_" to System.currentTimeMillis().toString(),
                     )
                 ).text
-                val embed = Regex("iframe[^>]*src=\"([^\"]+)\"").find(playerHtml)?.groupValues?.get(1) ?: continue
+                val embed = Parse.embedIframe(playerHtml) ?: continue
 
                 if (embed.contains("hlsfast.com/#")) {
                     val hash = embed.substringAfterLast('#')
@@ -194,7 +211,41 @@ object Parse {
 
     fun searchCards(document: org.jsoup.nodes.Document): List<Element> =
         document.select("article.thumb").toList()
+
+    /** post_id + player nonce for the watch page ([data-post_id]/body[data-nonce]). The
+     *  fallbacks only fire on a page shape not observed live (body[data-nonce] present on
+     *  10/10 sampled pages); player.php ignores nonce, so the fallback value is cosmetic. */
+    fun streamConfig(document: org.jsoup.nodes.Document): StreamConfig? {
+        val html = document.html()
+        val postId = Regex("\"post_id\":(\\d+)").find(html)?.groupValues?.get(1)?.toIntOrNull()
+            ?: (document.selectFirst("[data-post_id]")?.attr("data-post_id")?.toIntOrNull())
+            ?: return null
+        val nonce = document.selectFirst("body[data-nonce]")?.attr("data-nonce")
+            ?.takeIf { it.isNotBlank() }
+            ?: Regex("\"nonce\":\"([a-f0-9]{8,})\"").find(html)?.groupValues?.get(1)
+            ?: return null
+        return StreamConfig(postId, nonce)
+    }
+
+    /** Referer check on player.php built from the watch-page slug — works whether `data` is
+     *  the base watch URL or an episode page (the old `watch-` + slug concat doubled it). */
+    fun playerReferer(data: String, sv: Int): String =
+        data.substringBefore("/full-sv").substringAfterLast('/')
+            .removePrefix("watch-")
+            .let { "https://cat3movie.org/watch-$it/full-sv$sv.html" }
+
+    /** Year from the page title's `Movie (1985)` suffix (raw p.released markup is gone on
+     *  current watch pages — issue #250 re-probe). */
+    fun yearFromTitle(title: String): Int? =
+        Regex("\\((\\d{4})\\)").find(title)?.groupValues?.get(1)?.toIntOrNull()
+
+    /** Embed src from the player.php response, double or single quotes. */
+    fun embedIframe(html: String): String? =
+        Regex("iframe[^>]*src=[\"']([^\"']+)").find(html)?.groupValues?.get(1)
 }
+
+/** Watch-page player config (issue #250). */
+data class StreamConfig(val postId: Int, val nonce: String)
 
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 class Cat3MoviePlugin : com.lagradost.cloudstream3.plugins.BasePlugin() {
