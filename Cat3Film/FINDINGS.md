@@ -71,3 +71,8 @@ Search: single page (no pagination).
   (with browser UA + main-site referer) serves a valid VOD playlist (200, #EXTM3U, thousands
   of segments). Suffix appended in `loadLinks`.
 - Iframe allowlist on the main site includes `https://cat3.asuka-vod.site`.
+
+## Issue #251 re-verification (2026-09-10, Builder)
+
+Reported URL `/watch/draft-1665?sv=1&part=1` (Murder in Blue Light) re-probed end-to-end on master (v3, PR #246's fix intact):
+`data-ep=1792` → `/api/v1/episodes/1792/sources` 200 → `{token}/index.m3u8` **200, #EXTM3U VOD, 1339 segments**; m3u8 also 200 with okhttp/exoplayer UA, HTTP/2, no referer, no cookies. Same full pipeline on the-handmaiden (2173), impregnation-nation (272), russian-lolita (1396), jailhouse-wardress (1261) — all playable. Search JSON, both home pages, `gradlew :make` all clean. No server-side or provider failure reproduces; classified duplicate of #245 (stale pre-v3 plugin suspected on the reporter side). No code change, no version bump.
