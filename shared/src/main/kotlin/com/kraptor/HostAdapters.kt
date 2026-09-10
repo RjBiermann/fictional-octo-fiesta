@@ -141,21 +141,58 @@ open class HlsFree : ExtractorApi() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
-        val embedPage = app.get(url, referer = referer ?: "https://hlsfree.com/").text
-        val token = Regex("defaultHlsUrl\\s*=\\s*\"([^\"]*token=([a-f0-9]+))\"")
-            .find(embedPage)?.groupValues?.get(2) ?: return
-        callback.invoke(
-            newExtractorLink(
-                source = name,
-                name = name,
-                url = "$mainUrl/api/hls/serve?token=$token",
-                type = ExtractorLinkType.M3U8
-            ) {
-                this.referer = "$mainUrl/"
-                this.quality = Qualities.Unknown.value
+        // issue #247: every leg (embed page, token playlist, segments) is referer-gated to
+        // hlsfree.com and can 403/5xx per token. Preflight the manifest here and retry once
+        // with a fresh embed-token; drop the source if the chain never yields a real playlist
+        // — handing a bare token URL to the player surfaced as ExoPlayer 2004
+        // ERROR_CODE_IO_BAD_HTTP_STATUS. Link referer + header map stay on hlsfree.com so
+        // segment fetches keep the header regardless of datasource path.
+        for (attempt in 1..2) {
+            val token = try {
+                HlsFreeParse.hlsfreeToken(app.get(url, referer = referer ?: "$mainUrl/").text)
+            } catch (e: Exception) {
+                Log.d(name, "embed: ${e.message}")
+                null
+            } ?: return
+            val serve = "$mainUrl/api/hls/serve?token=$token"
+            val res = try {
+                app.get(serve, referer = "$mainUrl/")
+            } catch (e: Exception) {
+                Log.d(name, "attempt $attempt: ${e.message}")
+                continue
             }
-        )
+            if (HlsFreeParse.isPlayableManifest(res.code, res.text)) {
+                callback.invoke(
+                    newExtractorLink(
+                        source = name,
+                        name = name,
+                        url = serve,
+                        type = ExtractorLinkType.M3U8
+                    ) {
+                        this.referer = "$mainUrl/"
+                        this.headers = mapOf("Referer" to "$mainUrl/")
+                        this.quality = Qualities.Unknown.value
+                    }
+                )
+                return
+            }
+            Log.d(name, "attempt $attempt: token $token -> ${res.code}")
+        }
     }
+}
+
+/** Pure hlsfree chain helpers (issue #247) kept free of CloudStream framework types so
+ *  they load on the unit-test classpath (TDD-first, ADR-0005). */
+object HlsFreeParse {
+    /** hlsfree embed page embeds the token dance in `defaultHlsUrl = "...token=<hex>"`. */
+    fun hlsfreeToken(embedHtml: String): String? =
+        Regex("defaultHlsUrl\\s*=\\s*\"[^\"]*token=([a-f0-9]+)\"")
+            .find(embedHtml)?.groupValues?.get(1)
+
+    /** A healthy hlsfree serve response is HTTP 2xx with an #EXTM3U body — anything else
+     *  (CF 403 HTML, 429 view-limit, 500 Proxy error) is a dead source for issue #247. */
+    fun isPlayableManifest(code: Int, body: String): Boolean =
+        code in 200..299 && body.contains("#EXTM3U")
 }
 
 // www. variant of the hlsfree embed URL (loadExtractor matches by mainUrl prefix).

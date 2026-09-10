@@ -2,8 +2,6 @@ package com.rjbiermann
 
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -35,19 +33,5 @@ class Cat3MovieParseTest {
         val cards = Parse.searchCards(Jsoup.parse(html))
         assertEquals(61, cards.size)
         assertEquals(58, cards.mapNotNull { it.selectFirst("a.halim-thumb")?.attr("href") }.size)
-    }
-
-    @Test fun `hlsfree token parses from embed page`() {
-        val embed = """const defaultHlsUrl = "https://hlsfree.com/api/hls/serve?token=d6df6bbbf2d7"; // embed replaces with real URL"""
-        assertEquals("d6df6bbbf2d7", Parse.hlsfreeToken(embed))
-        assertEquals(null, Parse.hlsfreeToken("<html>no token here</html>"))
-    }
-
-    @Test fun `dead hlsfree manifests are rejected`() {
-        assertTrue(Parse.isPlayableManifest(200, "#EXTM3U\n#EXTINF:10,\nseg.ts"))
-        assertFalse(Parse.isPlayableManifest(200, "<!DOCTYPE html><title>Just a moment</title>"))
-        assertFalse(Parse.isPlayableManifest(403, "<!DOCTYPE html>"))
-        assertFalse(Parse.isPlayableManifest(429, "rate limited"))
-        assertFalse(Parse.isPlayableManifest(500, "Proxy error"))
     }
 }
