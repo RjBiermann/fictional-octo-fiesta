@@ -129,9 +129,27 @@ class Cat3Movie : MainAPI() {
                             }
                         )
                     }
+                } else if (embed.contains("hlsfree.com")) {
+                    extractHlsFree(embed)?.let { url ->
+                        callback.invoke(
+                            newExtractorLink(
+                                source = "HlsFree",
+                                name = "HlsFree",
+                                url = url,
+                                type = ExtractorLinkType.M3U8
+                            ) {
+                                // every leg (embed page, token playlist, segments) is
+                                // referer-gated to hlsfree.com; set both the field and the
+                                // header map so playback keeps the header regardless of
+                                // which datasource path the player takes
+                                this.referer = "https://hlsfree.com/"
+                                this.headers = mapOf("Referer" to "https://hlsfree.com/")
+                                this.quality = Qualities.Unknown.value
+                            }
+                        )
+                    }
                 } else {
-                    // hlsfree (token dance lives in the shared HlsFree adapter); any
-                    // other host family the registry has an adapter for now matches too
+                    // any other host family the registry has an adapter for
                     loadExtractor(embed, mainUrl, subtitleCallback, callback)
                 }
             } catch (e: Exception) {
@@ -139,6 +157,29 @@ class Cat3Movie : MainAPI() {
             }
         }
         return true
+    }
+
+    // hlsfree (issue #247): every leg is referer-gated and can 403/5xx per token; the old
+    // path (raw token URL straight to the player) surfaced as ExoPlayer 2004
+    // ERROR_CODE_IO_BAD_HTTP_STATUS. Preflight the manifest here and retry once with a
+    // fresh embed-token; drop the source if the chain never produces a real playlist.
+    private suspend fun extractHlsFree(embed: String): String? {
+        for (attempt in 1..2) {
+            try {
+                val token = Parse.hlsfreeToken(app.get(embed, referer = mainUrl).text) ?: return null
+                val res = app.get(
+                    "https://hlsfree.com/api/hls/serve?token=$token",
+                    referer = "https://hlsfree.com/"
+                )
+                if (Parse.isPlayableManifest(res.code, res.text)) {
+                    return "https://hlsfree.com/api/hls/serve?token=$token"
+                }
+                Log.d("Cat3Movie", "hlsfree attempt $attempt: token $token -> ${res.code}")
+            } catch (e: Exception) {
+                Log.d("Cat3Movie", "hlsfree: ${e.message}")
+            }
+        }
+        return null
     }
 
     companion object {
@@ -193,6 +234,16 @@ object Parse {
 
     fun searchCards(document: org.jsoup.nodes.Document): List<Element> =
         document.select("article.thumb").toList()
+
+    /** hlsfree embed page embeds the token dance in `defaultHlsUrl = "...token=<hex>"`. */
+    fun hlsfreeToken(embedHtml: String): String? =
+        Regex("defaultHlsUrl\\s*=\\s*\"[^\"]*token=([a-f0-9]+)\"")
+            .find(embedHtml)?.groupValues?.get(1)
+
+    /** A healthy hlsfree serve response is HTTP 2xx with an #EXTM3U body — anything else
+     *  (CF 403 HTML, 429 view-limit, 500 Proxy error) is a dead source for issue #247. */
+    fun isPlayableManifest(code: Int, body: String): Boolean =
+        code in 200..299 && body.contains("#EXTM3U")
 }
 
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin

@@ -58,6 +58,23 @@ $ grep -o 'section class="related-movies"' joy.html ; grep -o '<a class="halim-t
 ```
 
 ## Stream sources (per video page)
+
+### hlsfree chain update (issue #247, 2026-09-10 re-probe)
+
+- embed `https://hlsfree.com/embed/hls/<id>`: **403 without any referer** (200 with any
+  Referer value) — dedup of FINDINGS above is still true for the page fetch.
+- token playlist `https://hlsfree.com/api/hls/serve?token=<hex>`: 200 `#EXTM3U` with referer.
+  Tokens rotate per embed-page load; 403/500/429 means dead/rate-limited token.
+- segments: playlist entries point to `https://s1.cat3hls.com/<pair>/<item>.{js|css|png|jpg}`
+  (574 segments, VOD). They are **MPEG-TS camouflaged as asset files** — Cloudflare WAF on
+  the segment CDN 403s without `Referer: https://hlsfree.com/` and 200s with it; body is
+  ts packets despite `Content-Type: image/png`.
+- In-app symptom: handing the bare token URL to the player dies as ExoPlayer
+  `ERROR_CODE_IO_BAD_HTTP_STATUS` (2004) whenever any leg returns non-2xx. Fix (provider):
+  preflight the manifest in the extractor, retry once with a fresh embed token, emit the
+  link with `referer` **and** an explicit `Referer` header map entry, and drop dead sources.
+
+<details><summary>original stream-source notes (kept from earlier runs)</summary>
 There are **no direct `<video>`/mp4/m3u8 on any page**. Streams come from the theme's player
 loader: `GET https://cat3movie.org/wp-content/themes/halimmovies/player.php?episode_slug=full&server_id=N&subsv_id=&post_id=<id>&nonce=<nonce>&custom_var=`
 with header `Referer: https://cat3movie.org/watch-<slug>/full-svN.html`. It returns HTML:
@@ -208,3 +225,4 @@ NOTE: one openssl typo in the first chain sweep printed `000` for sv3 — the co
 Search: `https://cat3movie.org/?s=teacher` → 200, 6 articles (`div.thumb.grid-item.post-N`, `a.halim-thumb` hrefs, no trailing slash). curl (runner IP) gets CF-blocked empty body → urllib with full mobile UA gets 200 (69 KB).
 Stream chain replicated manually (5 movies): player.php?episode_slug=full&server_id=1..3&post_id&nonce via XHR headers → iframe src = `https://hlsfree.com/embed/hls/875` / `/856` (2), hlsfast `#<hash>` (2; API 200/AES path intact — inline AES stays), 1 dead upstream.
 HlsFree chain: embed page → `defaultHlsUrl … token=<hex>` → `GET /api/hls/serve?token` → **200 `application/vnd.apple.mpegurl` #EXTM3U, 2/2**. Shared `HlsFree` adapter in `com.kraptor.HostAdapters` — provider code replaced by `loadExtractor(embed, …)`.
+</details>
