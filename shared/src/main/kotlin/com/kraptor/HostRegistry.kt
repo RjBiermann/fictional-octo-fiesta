@@ -8,10 +8,10 @@
 package com.kraptor
 
 import com.lagradost.cloudstream3.plugins.BasePlugin
-import com.lagradost.cloudstream3.extractors.StreamTape
 import com.lagradost.cloudstream3.extractors.EmturbovidExtractor
 import com.lagradost.cloudstream3.extractors.VidStack
 import com.lagradost.cloudstream3.extractors.Voe
+import com.lagradost.cloudstream3.extractors.MixDropAg
 import com.lagradost.cloudstream3.utils.ExtractorApi
 
 fun BasePlugin.registerHostExtractors(first: List<ExtractorApi> = emptyList()) {
@@ -20,7 +20,10 @@ fun BasePlugin.registerHostExtractors(first: List<ExtractorApi> = emptyList()) {
     // live in Extractorlar.kt). Keep sequence stable — loadExtractor matches
     // the LAST registered adapter first.
     listOf(
-        StreamTape(),
+        // ponytail: StreamTAPE (custom adapter below) deliberately supersedes the
+        // framework StreamTape class — its headers/redirect handling is what serves
+        // the whole streamtape mirror family here. Do not re-register the framework
+        // StreamTape alongside it: last-registered wins and the row would be dead.
         streamtapeMirror("https://streamtape.net/"),
         streamtapeMirror("https://streamtape.xyz"),
         streamtapeMirror("https://turboplayers.xyz"),
@@ -75,7 +78,7 @@ fun BasePlugin.registerHostExtractors(first: List<ExtractorApi> = emptyList()) {
         Turtleviplay(),
         Turboviplay(),
         Vidguardto(),
-        MixDropAG(),
+        MixDropAg(),
         MixDropMy(),
         Player4Me(),
         player4me("https://vip.player4me.vip"),

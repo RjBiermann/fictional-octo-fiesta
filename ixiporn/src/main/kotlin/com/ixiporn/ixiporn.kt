@@ -11,7 +11,6 @@ class ixiporn : MainAPI() {
     override var name                 = "ixiporn"
     override val hasMainPage          = true
     override var lang                 = "hi"
-    override val hasQuickSearch       = false
     override val hasDownloadSupport   = true
     override val hasChromecastSupport = true
     override val supportedTypes       = setOf(TvType.NSFW)

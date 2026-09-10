@@ -11,7 +11,6 @@ import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
-import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import org.json.JSONObject
 import org.jsoup.Jsoup
 
@@ -20,7 +19,6 @@ class Javseen : MainAPI() {
     override var name = "Javseen"
     override val hasMainPage = true
     override var lang = "en"
-    override val hasQuickSearch = false
     override val supportedTypes = setOf(TvType.NSFW)
 
     override val mainPage = mainPageOf(
@@ -138,9 +136,6 @@ class Javseen : MainAPI() {
         return newSearchResponseList(results, hasNext = results.isNotEmpty())
     }
 
-
-
-    override suspend fun quickSearch(query: String): List<SearchResponse>? = search(query)
 
     override suspend fun load(url: String): LoadResponse? {
         val document = app.get(url).document

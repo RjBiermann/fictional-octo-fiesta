@@ -31,7 +31,6 @@ class JavGuru : MainAPI() {
     override var name = "JavGuru"
     override val hasMainPage = true
     override var lang = "en"
-    override val hasQuickSearch = false
     override val supportedTypes = setOf(TvType.NSFW)
 
     private val mainHeaders = mapOf(
@@ -133,8 +132,6 @@ class JavGuru : MainAPI() {
         return newSearchResponseList(results, hasNext = hasNext)
     }
 
-
-    override suspend fun quickSearch(query: String): List<SearchResponse>? = search(query)
 
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url, headers = mainHeaders).document

@@ -11,7 +11,6 @@ class AllClassicPorn : MainAPI() {
     override var name = "AllClassicPorn"
     override val hasMainPage = true
     override var lang = "en"
-    override val hasQuickSearch = false
     override val supportedTypes = setOf(TvType.NSFW)
     override val vpnStatus = VPNStatus.MightBeNeeded
 

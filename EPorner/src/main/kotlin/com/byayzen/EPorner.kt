@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
-import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Element
 import java.math.BigInteger
@@ -16,7 +15,6 @@ class EPorner : MainAPI() {
     override var name = "EPorner"
     override val hasMainPage = true
     override var lang = "en"
-    override val hasQuickSearch = false
     override val supportedTypes = setOf(TvType.NSFW)
 
     override val mainPage = mainPageOf(
@@ -62,8 +60,6 @@ class EPorner : MainAPI() {
         }
     }
 
-
-    override suspend fun quickSearch(query: String): List<SearchResponse>? = search(query)
 
     override suspend fun load(url: String): LoadResponse? {
         val document = app.get(url).document
@@ -139,7 +135,6 @@ class EPorner : MainAPI() {
             this.posterUrl = posterUrl
         }
     }
-
 
 
     override suspend fun loadLinks(

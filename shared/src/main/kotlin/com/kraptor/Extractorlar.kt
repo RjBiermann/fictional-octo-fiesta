@@ -17,7 +17,6 @@ import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.extractors.Filesim
 import com.lagradost.cloudstream3.extractors.MixDrop
-import com.lagradost.cloudstream3.extractors.StreamTape
 import com.lagradost.cloudstream3.utils.ExtractorApi
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
@@ -44,12 +43,124 @@ import com.lagradost.cloudstream3.mapper
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
-import com.lagradost.cloudstream3.utils.M3u8Helper
-import org.jsoup.Jsoup
 import java.net.URL
 import kotlin.random.Random
 
 
+
+
+// ---------- Shared Byse PoW (ResolveURL byse.py port) + JSON-POST helper ----------
+// Single implementation for the Filemoon/Byse mirror family and the film1k.xyz
+// playback chain (Film1k's private copy deleted; goldens pinned in BysePowTest).
+private fun byseRot(state: IntArray) {
+    state[0] += state[1]; state[3] = Integer.rotateLeft(state[3] xor state[0], 16)
+    state[2] += state[3]; state[1] = Integer.rotateLeft(state[1] xor state[2], 12)
+    state[0] += state[1]; state[3] = Integer.rotateLeft(state[3] xor state[0], 8)
+    state[2] += state[3]; state[1] = Integer.rotateLeft(state[1] xor state[2], 7)
+}
+
+private fun bysePowHash(input: ByteArray, out: IntArray, scratch: IntArray, state: IntArray) {
+    state[0] = 1779033703
+    state[1] = -1150833019
+    state[2] = 1013904242
+    state[3] = -1521486534
+    for (i in input.indices) {
+        state[0] += (input[i].toInt() and 0xFF)
+        state[0] = Integer.rotateLeft(state[0], 7)
+        byseRot(state)
+    }
+    repeat(8) { byseRot(state) }
+    for (i in 0 until 512) {
+        byseRot(state)
+        scratch[i] = state[0] xor state[2]
+    }
+    val lt = 511
+    val lr = -1640531535
+    val hr = -2048144777
+    repeat(2) {
+        for (s in 0 until 512) {
+            val a = scratch[s] and lt
+            var c = scratch[s] + scratch[a]
+            c = Integer.rotateLeft(c, 13)
+            c = c xor (scratch[(s + 1) and 511] * lr)
+            scratch[s] = c
+            state[0] = state[0] xor c
+            byseRot(state)
+        }
+    }
+    val chunk = 512 / 8
+    for (i in 0 until 8) {
+        byseRot(state)
+        var s = state[0]
+        val base = i * chunk
+        for (c in 0 until chunk) {
+            val d = scratch[base + c]
+            s += d
+            s = Integer.rotateLeft(s, 5)
+            s = s xor (d * hr)
+        }
+        out[i] = s xor state[2]
+    }
+}
+
+private fun byseLeadingZeroBits(hash: IntArray): Int {
+    var total = 0
+    for (word in hash) {
+        if (word == 0) {
+            total += 32
+            continue
+        }
+        return total + Integer.numberOfLeadingZeros(word)
+    }
+    return total
+}
+
+suspend fun solvePow(nonce: String, difficulty: Int, timeoutSec: Double = 20.0): String? {
+    if (difficulty <= 0) return "0"
+    val start = System.currentTimeMillis()
+    val prefix = "$nonce:"
+    val prefixBytes = prefix.toByteArray(Charsets.US_ASCII)
+    val buffer = ByteArray(64)
+    System.arraycopy(prefixBytes, 0, buffer, 0, prefixBytes.size)
+    val pLen = prefixBytes.size
+
+    val out = IntArray(8)
+    val scratch = IntArray(512)
+    val state = IntArray(4)
+
+    var s = 0L
+    while (true) {
+        for (iter in 0 until 1024) {
+            val sStr = s.toString()
+            val sLen = sStr.length
+            for (i in 0 until sLen) {
+                buffer[pLen + i] = sStr[i].code.toByte()
+            }
+            val input = buffer.copyOf(pLen + sLen)
+            bysePowHash(input, out, scratch, state)
+            if (byseLeadingZeroBits(out) >= difficulty) {
+                return s.toString()
+            }
+            s++
+        }
+        if ((System.currentTimeMillis() - start) > timeoutSec * 1000) {
+            return null
+        }
+        yield()
+    }
+}
+
+suspend fun postJson(url: String, body: String, headers: Map<String, String> = emptyMap()): JSONObject? =
+    try {
+        val res = app.post(
+            url,
+            requestBody = body.toRequestBody("application/json".toMediaTypeOrNull()),
+            headers = headers
+        )
+        if (res.code in 200..299) JSONObject(res.text) else null
+    } catch (e: Exception) {
+        null
+    }
 
 
 // Kotlin port of ResolveURL's "Byse" resolver (Filemoon/Byse mirror network):
@@ -135,105 +246,6 @@ open class Filemoon(
             return bytes.joinToString("") { "%02x".format(it) }
         }
 
-        private fun rot(state: IntArray) {
-            state[0] += state[1]; state[3] = Integer.rotateLeft(state[3] xor state[0], 16)
-            state[2] += state[3]; state[1] = Integer.rotateLeft(state[1] xor state[2], 12)
-            state[0] += state[1]; state[3] = Integer.rotateLeft(state[3] xor state[0], 8)
-            state[2] += state[3]; state[1] = Integer.rotateLeft(state[1] xor state[2], 7)
-        }
-
-        private fun powHash(input: ByteArray, out: IntArray, scratch: IntArray, state: IntArray) {
-            state[0] = 1779033703
-            state[1] = -1150833019
-            state[2] = 1013904242
-            state[3] = -1521486534
-            for (i in input.indices) {
-                state[0] += (input[i].toInt() and 0xFF)
-                state[0] = Integer.rotateLeft(state[0], 7)
-                rot(state)
-            }
-            repeat(8) { rot(state) }
-            for (i in 0 until 512) {
-                rot(state)
-                scratch[i] = state[0] xor state[2]
-            }
-            val lt = 511
-            val lr = -1640531535
-            val hr = -2048144777
-            repeat(2) {
-                for (s in 0 until 512) {
-                    val a = scratch[s] and lt
-                    var c = scratch[s] + scratch[a]
-                    c = Integer.rotateLeft(c, 13)
-                    c = c xor (scratch[(s + 1) and 511] * lr)
-                    scratch[s] = c
-                    state[0] = state[0] xor c
-                    rot(state)
-                }
-            }
-            val chunk = 512 / 8
-            for (i in 0 until 8) {
-                rot(state)
-                var s = state[0]
-                val base = i * chunk
-                for (c in 0 until chunk) {
-                    val d = scratch[base + c]
-                    s += d
-                    s = Integer.rotateLeft(s, 5)
-                    s = s xor (d * hr)
-                }
-                out[i] = s xor state[2]
-            }
-        }
-
-        private fun leadingZeroBits(hash: IntArray): Int {
-            var total = 0
-            for (word in hash) {
-                if (word == 0) {
-                    total += 32
-                    continue
-                }
-                return total + Integer.numberOfLeadingZeros(word)
-            }
-            return total
-        }
-
-        private suspend fun solvePow(nonce: String, difficulty: Int, timeoutSec: Double = 20.0): String? {
-            if (difficulty <= 0) return "0"
-            val start = System.currentTimeMillis()
-            val prefix = "$nonce:"
-            val prefixBytes = prefix.toByteArray(Charsets.US_ASCII)
-            val buffer = ByteArray(64)
-            System.arraycopy(prefixBytes, 0, buffer, 0, prefixBytes.size)
-            val pLen = prefixBytes.size
-
-            val out = IntArray(8)
-            val scratch = IntArray(512)
-            val state = IntArray(4)
-
-            var s = 0L
-            while (true) {
-                for (iter in 0 until 1024) {
-                    val sStr = s.toString()
-                    val sLen = sStr.length
-                    for (i in 0 until sLen) {
-                        buffer[pLen + i] = sStr[i].code.toByte()
-                    }
-                    val input = buffer.copyOf(pLen + sLen)
-                    powHash(input, out, scratch, state)
-                    if (leadingZeroBits(out) >= difficulty) {
-                        Log.d(TAG, "PoW solved in ${System.currentTimeMillis() - start}ms: s=$s")
-                        return s.toString()
-                    }
-                    s++
-                }
-                if ((System.currentTimeMillis() - start) > timeoutSec * 1000) {
-                    Log.e(TAG, "PoW timeout after ${System.currentTimeMillis() - start}ms")
-                    return null
-                }
-                yield()
-            }
-        }
     }
 
     override suspend fun getUrl(
@@ -766,10 +778,6 @@ class Turboviplay : Turtleviplay() {
     override var mainUrl = "https://turboviplay.com"
 }
 
-class MixDropAG : MixDrop(){
-    override var mainUrl = "https://mixdrop.ag"
-}
-
 class MixDropMy : MixDrop(){
     override var mainUrl = "https://mixdrop.my"
 }
@@ -1099,13 +1107,11 @@ open class StreamTAPE : ExtractorApi() {
         callback: (ExtractorLink) -> Unit
     ) {
         try {
-            Log.d("StreamtapeDebug", "İstek başladı: $url")
             val response = app.get(
                 url,
                 headers = stapeHeaders
             )
             val html = response.text
-            Log.d("StreamtapeDebug", "HTML alındı, boyut: ${html.length}")
 
             val parsedUrl = java.net.URL(url)
             val host = parsedUrl.host
@@ -1117,18 +1123,12 @@ open class StreamTAPE : ExtractorApi() {
             val ip = corsMatch?.get(2)
             val realToken = Regex("""token=([a-zA-Z0-9\-_]+)""").findAll(html).lastOrNull()?.groupValues?.get(1)
 
-            Log.d("StreamtapeDebug", "ID: $id")
-            Log.d("StreamtapeDebug", "Expires: $expires")
-            Log.d("StreamtapeDebug", "IP: $ip")
-            Log.d("StreamtapeDebug", "Token: $realToken")
 
             if (expires.isNullOrEmpty() || ip.isNullOrEmpty() || realToken.isNullOrEmpty()) {
-                Log.d("StreamtapeDebug", "HATA: Gerekli parametreler bulunamadı")
                 return
             }
 
             val getVideoUrl = "https://$host/get_video?id=$id&expires=$expires&ip=$ip&token=$realToken&stream=1"
-            Log.d("StreamtapeDebug", "Get Video URL: $getVideoUrl")
 
             val location = app.get(
                 getVideoUrl,
@@ -1149,11 +1149,9 @@ open class StreamTAPE : ExtractorApi() {
             ).headers["location"]
 
             if (location.isNullOrEmpty()) {
-                Log.d("StreamtapeDebug", "HATA: Location bulunamadı")
                 return
             }
 
-            Log.d("StreamtapeDebug", "Final URL: $location")
 
             callback.invoke(
                 newExtractorLink(

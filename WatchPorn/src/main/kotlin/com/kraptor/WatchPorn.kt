@@ -13,9 +13,6 @@ import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
-import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -25,7 +22,6 @@ class WatchPorn(context: Context) : MainAPI() {
     override var name = "WatchPorn"
     override val hasMainPage = true
     override var lang = "en"
-    override val hasQuickSearch = false
     override val supportedTypes = setOf(TvType.NSFW)
 
     private val context = context
@@ -118,7 +114,6 @@ class WatchPorn(context: Context) : MainAPI() {
         return newSearchResponseList(aramaCevap, hasNext)
     }
 
-    override suspend fun quickSearch(query: String): List<SearchResponse>? = search(query)
 
     override suspend fun load(data: String): LoadResponse? {
         val (url, storedPoster) = data.split("|").let {

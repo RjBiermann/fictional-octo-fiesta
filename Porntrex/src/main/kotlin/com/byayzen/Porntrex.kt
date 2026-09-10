@@ -13,7 +13,6 @@ class Porntrex : MainAPI() {
     override var name = "Porntrex"
     override val hasMainPage = true
     override var lang = "en"
-    override val hasQuickSearch = false
     override val supportedTypes = setOf(TvType.NSFW)
     override val vpnStatus = VPNStatus.MightBeNeeded
 
@@ -106,7 +105,6 @@ class Porntrex : MainAPI() {
         return newSearchResponseList(searchAnswer, hasNext = searchAnswer.isNotEmpty())
     }
 
-    override suspend fun quickSearch(query: String): List<SearchResponse>? = search(query)
 
     private fun videoId(url: String) = Regex("/video/(\\d+)/").find(url)?.groupValues?.get(1)
 

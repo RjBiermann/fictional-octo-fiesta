@@ -14,7 +14,6 @@ class PerverZija : MainAPI() {
     override var name                 = "PerverZija"
     override val hasMainPage          = true
     override var lang                 = "en"
-    override val hasQuickSearch       = false
     override val supportedTypes       = setOf(TvType.NSFW)
     override val vpnStatus            = VPNStatus.MightBeNeeded
 
@@ -67,7 +66,6 @@ class PerverZija : MainAPI() {
         return newMovieSearchResponse(title, href, TvType.NSFW) { this.posterUrl = posterUrl }
     }
 
-    override suspend fun quickSearch(query: String): List<SearchResponse>? = search(query)
 
     override suspend fun load(url: String): LoadResponse? {
         val document = app.get(url).document

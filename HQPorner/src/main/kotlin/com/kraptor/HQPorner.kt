@@ -15,7 +15,6 @@ class HQPorner : MainAPI() {
     override var name                 = "HQPorner"
     override val hasMainPage          = true
     override var lang                 = "en"
-    override val hasQuickSearch       = false
     override val supportedTypes       = setOf(TvType.NSFW)
 
     override val mainPage = mainPageOf(
@@ -116,7 +115,6 @@ class HQPorner : MainAPI() {
         return newSearchResponseList(aramaCevap, hasNext = true)
     }
 
-    override suspend fun quickSearch(query: String): List<SearchResponse>? = search(query)
 
     override suspend fun load(url: String): LoadResponse? {
         // Library-saved urls carry only currentUrl (search urls append "kraptor" + posterUrl);

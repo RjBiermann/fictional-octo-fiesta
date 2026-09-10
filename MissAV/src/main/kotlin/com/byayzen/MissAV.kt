@@ -3,7 +3,6 @@
 package com.byayzen
 
 import com.kraptor.registerHostExtractors
-import com.lagradost.api.Log
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
@@ -16,7 +15,6 @@ class MissAV : MainAPI() {
     override var name = "MissAV"
     override val hasMainPage = true
     override var lang = "jp"
-    override val hasQuickSearch = false
     override val supportedTypes = setOf(TvType.NSFW)
     val subtitleCatUrl = "https://www.subtitlecat.com"
 
@@ -113,7 +111,6 @@ class MissAV : MainAPI() {
         return newSearchResponseList(aramaCevap, hasNext = true)
     }
 
-    override suspend fun quickSearch(query: String): List<SearchResponse>? = search(query)
 
     override suspend fun load(url: String): LoadResponse? {
         val document = app.get(url).document

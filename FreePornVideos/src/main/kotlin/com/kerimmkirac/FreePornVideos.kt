@@ -15,7 +15,6 @@ class FreePornVideos : MainAPI() {
     override var name                 = "Free Porn Videos"
     override val hasMainPage          = true
     override var lang                 = "en"
-    override val hasQuickSearch       = false
     override val supportedTypes       = setOf(TvType.NSFW)
     
 

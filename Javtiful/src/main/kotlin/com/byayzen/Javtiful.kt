@@ -8,7 +8,6 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
-import okhttp3.MultipartBody
 import okhttp3.Request
 import org.jsoup.nodes.Element
 
@@ -27,7 +26,6 @@ class Javtiful : MainAPI() {
     override var name = "Javtiful"
     override val hasMainPage = true
     override var lang = "en"
-    override val hasQuickSearch = false
     override val supportedTypes = setOf(TvType.NSFW)
     override val vpnStatus = VPNStatus.MightBeNeeded
 
@@ -101,8 +99,6 @@ class Javtiful : MainAPI() {
         }
     }
 
-
-    override suspend fun quickSearch(query: String): List<SearchResponse>? = search(query)
 
     override suspend fun load(url: String): LoadResponse? {
         val res = app.get(url).document

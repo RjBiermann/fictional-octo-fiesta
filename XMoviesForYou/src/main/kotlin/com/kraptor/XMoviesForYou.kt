@@ -3,21 +3,18 @@
 package com.kraptor
 
 import com.kraptor.registerHostExtractors
-import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.lagradost.api.Log
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
-import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 
 class XMoviesForYou : MainAPI() {
     override var mainUrl = "https://xmoviesforyou.com"
     override var name = "XMoviesForYou"
     override val hasMainPage = true
     override var lang = "en"
-    override val hasQuickSearch = false
     override val supportedTypes = setOf(TvType.NSFW)
 
     override val mainPage = mainPageOf(
@@ -104,7 +101,6 @@ class XMoviesForYou : MainAPI() {
         return newSearchResponseList(sonuclar, hasNext = true)
     }
 
-    override suspend fun quickSearch(query: String): List<SearchResponse>? = search(query)
 
     override suspend fun load(url: String): LoadResponse? {
         val cevap = app.get(url)

@@ -1,6 +1,8 @@
 package com.film1k
 
 import com.kraptor.registerHostExtractors
+import com.kraptor.postJson
+import com.kraptor.solvePow
 import android.util.Base64
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addDuration
@@ -91,91 +93,13 @@ class Film1k : MainAPI() {
 
     // ---- Byse (film1k.xyz) playback chain ----
     // page embeds <video><source src="https://film1k.xyz/e/{code}/{title}.mp4"> and an
-    // iframe data-src variant; only the code matters. Playback is PoW-protected.
+    // iframe data-src variant; only the code matters. Playback is PoW-protected
+    // (shared solvePow/postJson, goldens pinned in BysePowTest) and the playback
+    // payload is AES-GCM-encrypted with key parts assembled below.
     private fun b64url(s: String): ByteArray {
         val padded = s.replace("-", "+").replace("_", "/") + "=".repeat((4 - s.length % 4) % 4)
         return Base64.decode(padded, Base64.NO_WRAP)
     }
-
-    private fun solvePow(nonce: String, difficulty: Int): String? {
-        val base = nonce + ":"
-        for (s in 0 until 5_000_000) {
-            val bytes = (base + s).toByteArray(Charsets.ISO_8859_1)
-            val inp = IntArray(bytes.size) { bytes[it].toInt() and 0xFF }
-            var bits = 0
-            for (v in ByseHash.hash(inp)) {
-                if (v == 0) { bits += 32; continue }
-                bits += Integer.numberOfLeadingZeros(v)
-                break
-            }
-            if (bits >= difficulty) return s.toString()
-        }
-        return null
-    }
-
-    object ByseHash {
-        private fun rotl(x: Int, n: Int) = (x shl n) or (x ushr (32 - n))
-        private fun imul(a: Int, b: Int) = (a.toLong() * b.toLong()).toInt()
-
-        fun hash(t: IntArray): IntArray {
-            var e0 = 0x6A09E667.toInt(); var e1 = 0xBB67AE85.toInt()
-            var e2 = 0x3C6EF372.toInt(); var e3 = 0xA54FF53A.toInt()
-            fun ye() {
-                e0 += e1
-                e3 = rotl(e3 xor e0, 16)
-                e2 += e3
-                e1 = rotl(e1 xor e2, 12)
-                e0 += e1
-                e3 = rotl(e3 xor e0, 8)
-                e2 += e3
-                e1 = rotl(e1 xor e2, 7)
-            }
-            for (v in t) {
-                e0 += v
-                e0 = rotl(e0, 7)
-                ye()
-            }
-            for (i in 0 until 8) ye()
-            val r = IntArray(512)
-            for (i in 0 until 512) { ye(); r[i] = e0 xor e2 }
-            for (k in 0 until 2) for (s in 0 until 512) {
-                val a = r[s] and 511
-                var c = r[s] + r[a]
-                c = rotl(c, 13)
-                c = c xor imul(r[(s + 1) and 511], 0x9E3779B1.toInt())
-                r[s] = c
-                e0 = e0 xor c
-                ye()
-            }
-            val n = IntArray(8)
-            val o = 512 / 8
-            for (i in 0 until 8) {
-                ye()
-                var s = e0
-                val a = i * o
-                for (c in 0 until o) {
-                    val d = r[a + c]
-                    s += d
-                    s = rotl(s, 5)
-                    s = s xor imul(d, 0x85EBCA77.toInt())
-                }
-                n[i] = s xor e2
-            }
-            return n
-        }
-    }
-
-    private suspend fun postJson(url: String, body: String, headers: Map<String, String> = emptyMap()): JSONObject? =
-        try {
-            val res = app.post(
-                url,
-                requestBody = body.toRequestBody("application/json".toMediaTypeOrNull()),
-                headers = headers
-            )
-            if (res.code in 200..299) JSONObject(res.text) else null
-        } catch (e: Exception) {
-            null
-        }
 
     private suspend fun bysePlayback(code: String): Pair<String, String>? {
         val api = "https://film1k.xyz/api/videos/$code/embed/"
