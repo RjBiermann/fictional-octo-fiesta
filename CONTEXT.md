@@ -126,6 +126,10 @@ _Avoid_: extractor class, host handler
 A shared factory function per embed-host family (filemoon, vidHidePro, dood, …) that returns a fresh base adapter with name/mainUrl applied; the Host registry holds one (url, name) row per mirror domain instead of a one-line subclass. Adding a mirror = one row in HostRegistry.kt.
 _Avoid_: mirror subclass, one-line adapter class
 
+**JSON-LD meta parse**:
+The deep shared module (`shared/.../JsonLdParse.kt`, com.kraptor) that owns the ISO-8601 `PT#H#M#S` grammar and the JSON-LD `datePublished`/`uploadDate` year — plain, `"`-escaped, or bare-token input. Providers call its two Parse functions (`minutes`, `year`) instead of maintaining their own RegEx copies; CloudStream `duration` is minutes here (repo convention), never seconds.
+_Avoid_: duration helper, time parser, per-provider date regex
+
 **Quick search**:
 The live-typing/suggest search surface CloudStream calls while the user types, backed by `quickSearch` + `hasQuickSearch`. Distinct from **search**: a separate endpoint (often AJAX) that many sites don't have — when the site has none, `hasQuickSearch` stays `false` and the absence is recorded explicitly in FINDINGS, never faked.
 _Avoid_: instant search, autocomplete (describes UI behavior, not the provider surface)

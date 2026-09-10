@@ -1,5 +1,6 @@
 package com.example.neporn
 
+import com.kraptor.JsonLdParse
 import com.kraptor.registerHostExtractors
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
@@ -75,7 +76,7 @@ class Neporn : MainAPI() {
         val plot = doc.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
         val actors = doc.select("div.info-content a[href*=/models/]").map { it.text().trim() }.filter { it.isNotBlank() }
         // schema.org ld+json uploadDate, e.g. "2026-03-18T17:35:00Z"
-        val year = Regex(""""uploadDate"\s*:\s*"(\d{4})""""").find(doc.select("script[type=application/ld+json]").html())?.groupValues?.get(1)?.toIntOrNull()
+        val year = JsonLdParse.year(doc.select("script[type=application/ld+json]").html())
         val recommendations = doc.select("div.related-videos div.item, div.list-videos div.item")
             .mapNotNull { it.toResult() }.distinctBy { it.url }
 

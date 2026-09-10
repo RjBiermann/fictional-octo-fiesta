@@ -1,5 +1,6 @@
 package com.sexfilm
 
+import com.kraptor.JsonLdParse
 import com.kraptor.registerHostExtractors
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.*
@@ -80,9 +81,8 @@ class Sexfilm : MainAPI() {
         val poster = doc.selectFirst("meta[property=og:image]")?.attr("content")
         val desc = doc.selectFirst("div#s-desc")?.text()?.trim()
         val recommendations = doc.select("div.sect-c div.short").mapNotNull { it.toSearchResult() }
-        // meta[itemprop=duration] is ISO-8601 PT8173S
-        val duration = doc.selectFirst("meta[itemprop=duration]")?.attr("content")
-            ?.let { Regex("PT(\\d+)S").find(it)?.groupValues?.get(1)?.toIntOrNull() }
+        // meta[itemprop=duration] is ISO-8601 PT8173S; JsonLdParse floors to minutes (repo convention)
+        val duration = JsonLdParse.minutes(doc.selectFirst("meta[itemprop=duration]")?.attr("content"))
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster
             this.plot = desc

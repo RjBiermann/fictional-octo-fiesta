@@ -17,11 +17,15 @@ class WatchPornParseTest {
         ?.data()
 
     @Test fun `uploadDate year from live fixture`() {
-        assertEquals(2022, WatchPornParse.parseUploadYear(ldJson))
+        assertEquals(2022, JsonLdParse.year(ldJson))
     }
 
     @Test fun `null when no uploadDate`() {
-        assertNull(WatchPornParse.parseUploadYear("""{"duration": "PT1H0M5S"}"""))
-        assertNull(WatchPornParse.parseUploadYear(null))
+        assertNull(JsonLdParse.year("""{"duration": "PT1H0M5S"}"""))
+        assertNull(JsonLdParse.year(null))
+    }
+
+    @Test fun `duration from live fixture is minutes`() {
+        assertEquals(60, JsonLdParse.minutes(ldJson))
     }
 }

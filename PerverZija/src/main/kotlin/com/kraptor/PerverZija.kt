@@ -74,11 +74,12 @@ class PerverZija : MainAPI() {
         val poster          = fixUrlNull(document.selectFirst("meta[property=og:image]")?.attr("content"))
         val description     = document.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
         // div.extra span.C a is dead on the live site (audit #212); year comes from JSON-LD datePublished
-        val year            = Parse.year(document)
+        val jsonLd          = document.selectFirst("script[type=application/ld+json]")?.data()
+        val year            = JsonLdParse.year(jsonLd)
         val tags            = document.select("div.item-tax-list div:has(strong:contains(Tags)) a").map { it.text() }
         val score          = document.selectFirst("span.dt_rating_vgs")?.text()?.trim()
         // span.runtime is gone from the site; duration now comes from JSON-LD VideoObject (PT#H#M#S)
-        val duration        = parseIsoDuration(document.selectFirst("script[type=application/ld+json]")?.data())
+        val duration        = JsonLdParse.minutes(jsonLd)
         val recommendations = document.select("div.srelacionados article").mapNotNull { it.toRecommendationResult() }
         val actors          = document.select("div.item-tax-list div:has(strong:contains(Stars)) a").map { Actor(it.text()) }
         val trailer         = Regex("""embed\/(.*)\?rel""").find(document.html())?.groupValues?.get(1)?.let { "https://www.youtube.com/embed/$it" }
@@ -94,13 +95,6 @@ class PerverZija : MainAPI() {
             addActors(actors)
             addTrailer(trailer)
         }
-    }
-
-    // CloudStream `duration` is minutes (repo convention) — not seconds.
-    private fun parseIsoDuration(jsonLd: String?): Int? {
-        val m = Regex("PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?").find(jsonLd ?: return null) ?: return null
-        val (h, min, _) = m.destructured
-        return ((h.toIntOrNull() ?: 0) * 60 + (min.toIntOrNull() ?: 0)).takeIf { it > 0 }
     }
 
     private fun Element.toRecommendationResult(): SearchResponse? {
