@@ -86,3 +86,23 @@ NOTE: verify.sh `field` bar cannot express `h1.titl` (mini-selector regex `[a-zA
   token `6d763666337932777763366b` → `?xr=` 302 → javclan.com/e/mv6f3y2wwc6k (packed-eval)
   → unpacked hls2 master.m3u8 → **200 application/vnd.apple.mpegurl, #EXTM3U body**.
 - quick search: still absent (no distinct endpoint; hasQuickSearch=false).
+
+## Fix run 2026-09-10 (issue #267 — male-actor row completeness)
+- parseActors previously matched the Actress row only; the site's separate `Actor:` row
+  (male actors, on ~60% of JAV posts) never reached addActors.
+- Fix: `li.w1:has(strong:matchesOwn(Actor:|Actress:)) a` — matches both rows, still skips
+  Tags/Series (#210 regression held). First attempt used a comma-separated selector
+  (`…Actor)), …Actress)) a`) — jsoup's comma splits selectors, so the actor `li` itself
+  leaked in as a text blob; matchesOwn is the one-selector fix.
+- TDD: fixture `/jav-guru-video-meta.html` extended with an Actor row (two names, real
+  mixed markup `Name</a> , <a`), new test asserts Actor names precede Actress names;
+  new `/jav-guru-uncensored-meta.html` (Tags-only, no actor rows) guards the #210
+  regression. `JavGuru:test` + `make` clean, version 24 → 25.
+- Live re-check: /1051298 (Yuta Aoi/Miru), /1047618 (Shinya Matsuyama/Amau Ririka),
+  /1050913 (Narcissus Kobayashi, Tyson Tsubasa/Suzumori Remu) — all on the page.
+- verify.sh (2026-09-10): search 24/page1, home 24+24, 3 videos → streams
+  turboviplay + vidara-API m3u8s all 206 application/vnd.apple.mpegurl; tags+actors
+  present on all 3. RESULT: PASS. (plot/poster remain N/A — site-wide meta only.)
+- Chain reproduction note: emturbovid 302 hop carries raw control bytes in the Location;
+  urllib/python redirects that lose the raw bytes end up on a tokenless player page with
+  no m3u8. NiceHttp follows them raw, which is why the Kotlin provider still works.
