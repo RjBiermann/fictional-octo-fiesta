@@ -131,9 +131,13 @@ class Cat3Film : MainAPI() {
             val res = app.get("$mainUrl/api/v1/episodes/$data/sources", referer = "$mainUrl/")
             val json = mapper.readValue<SourcesJson>(res.text)
             json.sources.orEmpty().forEach { src ->
-                if (src.file.isNullOrBlank()) return@forEach
+                var f = src.file?.trim().orEmpty()
+                if (f.isBlank()) return@forEach
+                // Site player appends /index.m3u8 (=/index.json) to the bare token URL;
+                // the unsuffixed URL is behind a CF challenge and serves no playlist.
+                if (!f.matches(Regex(".*\\.(m3u8|json)(\\?.*)?$"))) f = f.trimEnd('/') + "/index.m3u8"
                 callback.invoke(
-                    newExtractorLink(name, name, fixUrl(src.file)) {
+                    newExtractorLink(name, name, fixUrl(f)) {
                         this.referer = "$mainUrl/"
                         this.type = ExtractorLinkType.M3U8
                     }
