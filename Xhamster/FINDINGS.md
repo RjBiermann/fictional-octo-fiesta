@@ -5,11 +5,13 @@
   of search/home/video pages across `?geo=us`, no-geo, `geo=de`, de/fr Accept-Language, and
   cookie on/off all return full unmasked titles (grep `\*{3,}` = 0 hits on every page).
   Hypothesis: guest "safe/censored-title" variant served to age-verification locales
-  (UK Online Safety Act pattern). Defensive fix: cards and recommendations now prefer the
+  (UK Online Safety Act pattern). Defensive fix: the search/home card mapping now prefers the
   server-rendered `title` attribute of `a.video-thumb-info__name` (always the real title on
-  every probed page) and fall back to inner text. Note: related-video inner text IS present on
-  video pages; the verify script's regex-DOM truncates nested-div cards — verify uses the
-  anchor itself (`a.video-thumb-info__name`) as the related card.
+  every probed page across locales) and falls back to inner text; the recommendations mapping
+  keeps inner text because related-video inner text is verified present on video pages.
+  Note: related-video inner text IS present on video pages; the verify script's regex-DOM
+  truncates nested-div cards — verify uses the anchor itself
+  (`a.video-thumb-info__name`) as the related card.
 - Load poster: old parse (`style` → substringAfter "https:") stripped the scheme. Fix: poster
   comes from `window.initials.videoModel.thumbURL` (2560x1440 webp, live-verified on 4 video
   pages: `https://ic-vt-nss.xhcdn.com/a/.../030/711/276/v2/2560x1440.201.webp`), fallback

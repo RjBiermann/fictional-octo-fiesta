@@ -29,7 +29,7 @@ class XhamsterParseTest {
         assertTrue(
             videoModel?.thumbURL?.startsWith("https://ic-vt-nss.xhcdn.com/") == true
         )
-        assertTrue(videoModel?.thumbURL!!.endsWith(".webp"))
+        assertTrue(videoModel?.thumbURL?.endsWith(".webp") == true)
     }
 
     @Test fun `preload poster style parses full https url`() {
