@@ -98,3 +98,46 @@ Direct video pages **now render fully again** (og:title/og:image/og:description 
 - NOTE: home `/categories/teen/` page 2 shares 20/120 hrefs with page 1 — verified **site-native**
   (the site's own `/2/` URL overlaps the same 20; async p2 ≡ native p2, 120/120).
   getMainPage is untouched by this PR; no action taken.
+
+## Quality variants (issue #256, 2026-09-10 probe; round-2 correction)
+
+The site has **two page shapes** with different quality surfaces, and `qualityLinks` must
+handle both:
+
+**1. `/embed/{id}/` (guest embed — used as the loadLinks fallback).** Flashvars expose
+only one direct stream: `video_url` (`video_url_text: '480p'`). `video_alt_url`
+('720p HD'), `video_alt_url2` ('1080p FHD'), `video_alt_url3` ('2160p 4K') each carry
+`video_alt_url<n>_redirect: '1'` and point at `https://www.porntrex.com/video/{id}/{slug}`
+— a text/html page, not media (live check: base `get_file/.../2491818.mp4` → 302 →
+`pcdn.cdntrex.com` video/mp4; alt URL → 200 text/html; hand-built `..._720p.mp4` on the
+embed hash → 404). Emitting those would yield dead links.
+
+**2. Fully-rendered `/video/{id}/{slug}/` (real-browser guests; CI shell windows hide it).**
+Flashvars carry a real `get_file` URL per quality, each with its **own hash** — e.g. the
+2024-10-10 Wayback capture of #2491818: `video_url` → `..._360p.mp4` ('360p'),
+`video_alt_url` → `...mp4` ('480p'), `video_alt_url2` → `..._720p.mp4` ('720p HD'),
+`video_alt_url3` → `..._1080p.mp4` ('1080p HD'), **no `_redirect` flags**. Old hashes
+rotate (404 today), but the shape is what the provider parses.
+
+Fix: `qualityLinks` skips any variant flagged `video_<n>_redirect: '1'` (embed stub) and
+keeps the rest in flashvar order (full page: base 360p + 480p/720p/1080p). JUnit covers
+both shapes. Direct guest pages are currently empty shells again (same as #171),
+so in-app playback resolves through `/embed/{id}/` with the base quality; on devices
+that get the full render the higher qualities now appear.
+
+## Verification (verify.sh, this run, live) — RESULT: PASS
+
+Search `/search/massage/` + async page 2: 200, 85 `div.video-preview-screen.video-item`
+cards each, no dupes. Home `/categories/milf/` + async page 2: 200, 120 cards each, no
+dupes. 5 varied video URLs (embeds — the guest surface while direct pages shell):
+2491818, 2913997, 3074115, 1122515, 1231055 — all 200, `div#kt_player` matched 1 each,
+stream `get_file/.../{id}.mp4/` → 302 → **206 video/mp4 on all 5**. Related videos:
+`related_videos_html/{id}/` endpoint returns 45 `a.player-related-videos-item.kt-api-related-item`
+items (fallback wired in `load()`). LoadResponse fields all populated in code (check 6).
+
+Verify notes: `--home-selector p.inf` (the script's regex-DOM card block for the full-card
+selector truncates inner text to the quality badge → false title dupes; `p.inf` is clean).
+NOTES at run time: no poster/plot on the embed surface (excluded from distinctness); no
+quick-search endpoint exists (site search is the only lookup); tags/actors/duration are
+further exposed on fully-rendered pages only. `--load-response` lists
+recommendations,tags,plot,duration,actors,posters — all present in the Kotlin.
