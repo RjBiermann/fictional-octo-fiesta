@@ -1,6 +1,7 @@
 package com.sexfilm
 
 import com.kraptor.JsonLdParse
+import com.kraptor.PackedJs
 import com.kraptor.registerHostExtractors
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.*
@@ -94,20 +95,9 @@ class Sexfilm : MainAPI() {
         }
     }
 
-    // Dean Edwards packed JS: eval(function(p,a,c,k,e,d){...}('payload',a,c,'keys'.split('|')))
-    private fun unpackPacked(html: String): String {
-        val m = Regex(
-            """eval\(function\(p,a,c,k,e,d\)\{.*?\}\('(.*?)',(\d+),(\d+),'(.*?)'\.split\('\|'\)\)""",
-            RegexOption.DOT_MATCHES_ALL
-        ).find(html) ?: return html
-        val payload = m.groupValues[1].replace("\\'", "'")
-        val radix = m.groupValues[2].toIntOrNull() ?: 36
-        val keys = m.groupValues[4].split('|')
-        val map = HashMap<String, String>()
-        keys.forEachIndexed { i, v -> if (v.isNotEmpty()) map[i.toString(radix)] = v }
-        return Regex("""\b[a-z0-9]+\b""", RegexOption.IGNORE_CASE)
-            .replace(payload) { mr -> map[mr.value] ?: mr.value }
-    }
+    // Dean Edwards packed JS now lives in the shared PackedJs Parse function; pages
+    // without one keep the raw html (filmcdn.top signed-m3u8 path is checked first).
+    private fun unpackPacked(html: String): String = PackedJs.unpack(html) ?: html
 
     private suspend fun addSource(embedUrl: String, callback: (ExtractorLink) -> Unit) {
         runCatching {
