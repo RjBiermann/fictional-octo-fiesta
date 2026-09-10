@@ -52,6 +52,15 @@ Page contains a (commented-out) IP-locked signed m3u8:
 Regex-extractable directly. ⚠️ cfglobalcdn.com **TCP connection times out from this runner**
 (84.16.243.199:443). Included in extractor but may be geo-blocked.
 
+### morencius.com/embed/<key>  (third embed host; added in issue #277 fix)
+Present on sampled pages (`/11702-classy.html`, also confirmed issue ground truth on
+`/11097-sara-diamantes-xxxtra-erotic-massage.html`). Same Dean-Edwards packed JW8 config
+as filmcdm: unpacked links = relative `hls4` `/stream/.../master.m3u8` (resolves against
+the embed host) + absolute acek-cdn `hls2`. Both served `200
+application/vnd.apple.mpegurl` from the runner with UA + `-e https://morencius.com/embed/...`
+(2026-09-10). Provider's existing packed-JW `addSource` path handles it unchanged;
+`loadLinks` regex widened to match it.
+
 ### playmogo.com/e/<key>
 HTTP 403 (bot wall) to the runner even with referer — not used.
 

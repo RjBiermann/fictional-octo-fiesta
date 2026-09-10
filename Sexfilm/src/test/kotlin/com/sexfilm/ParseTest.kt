@@ -1,7 +1,9 @@
 package com.sexfilm
 
+import com.kraptor.PackedJs
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Fixtures are real page fragments (block parameters-info + div.flist + meta tags). */
@@ -28,6 +30,27 @@ class ParseTest {
     @Test fun `meta-tag fallback when no Genre row`() {
         val d = Jsoup.parse("""<meta itemprop="genre" content="A&#160;,&#160;B">""")
         assertEquals(listOf("A", "B"), Parse.tags(d))
+    }
+
+    private fun embedsHtml() =
+        javaClass.getResourceAsStream("/classy-embeds.html")!!.reader().readText()
+
+    @Test fun `embeds collects filmcdm and morencius, not cloudflare-blocked playmogo`() {
+        assertEquals(
+            listOf("https://filmcdm.top/e/9kvptxttubh8", "https://morencius.com/embed/tg373qlpcs6v"),
+            Parse.embeds(embedsHtml())
+        )
+    }
+
+    // morencius embed ships the same Dean-Edwards packed JW config as filmcdm;
+    // addSource unpacks it — relative hls4 resolves against the embed host.
+    @Test fun `morencius packed-JW embed yields master m3u8 links`() {
+        val html = javaClass.getResourceAsStream("/com/sexfilm/morencius-embed.html")!!.reader().readText()
+        val unpacked = PackedJs.unpack(html) ?: html
+        val links = Regex(""""hls\d":"([^"]*master\.m3u8[^"]*)"""").findAll(unpacked)
+            .map { it.groupValues[1] }.toList()
+        assertTrue(links.any { it.startsWith("/stream/") })
+        assertTrue(links.any { it.startsWith("https://") && it.contains("acek-cdn") })
     }
 
     @Test fun `missing rows yield empty or null`() {
