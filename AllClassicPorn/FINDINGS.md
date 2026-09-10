@@ -103,3 +103,28 @@ None. No Cloudflare, no age wall. Curl with plain Mozilla UA gets 200 everywhere
   6. --video-tags/actors/year/duration selectors omitted: these are JS flashvars/h1 values,
      not DOM text; script's `field` cmd can't assert them. Exposure is evidenced by the live
      greps above + unit tests + check-6 assignments (actors/tags/year ≥1).
+
+## Audit #266 (2026-09-10) — home/recommendation card duplicates
+
+- The site itself serves some videos twice in one page: on `/page/` the `list_videos_most_popular_videos_items`
+  section repeats 7 hrefs verbatim (5272, 5431, 5793, 5843, 5851, 5862, 6305 — each `<a>` block appears twice;
+  fixture `src/test/resources/home-page.html` = 84 anchors, 7 duplicated hrefs). Related lists show the same
+  pattern (video 6134: 2 pairs duplicated among 18 anchors).
+- Fix: `AllClassicPornParse.distinctByHref()` (pure, unit-tested); wired into `getMainPage` cards and
+  `load()` recommendations. Fixture test proves 84 → 77 cards on the live-captured homepage HTML.
+- Poster agreement (check 5): the card screenshot is `…/videos_screenshots/{buckets}/{id}/320x240/N.jpg`
+  with a **different random N per render** (22.jpg in one fetch, other indices in another) — there is no
+  stable URL shared with the card, and no full-size card-screenshot equivalent on the load page. `og:image`
+  (`preview.jpg`) is the only stable poster on the load page. Load poster therefore stays `og:image`;
+  the search↔load poster difference is a site-side artifact no code change can equalize (extends the
+  existing audit-#204 artifact 2).
+- verify.sh script-side artifacts (2026-09-10 run, none provider defects; all evidenced):
+  - check-1a FAIL on raw `/page/` HTML duplicates: fixed provider-side by `distinctByHref`; script counts raw
+    HTML, so the passing mechanical check uses `/page/2/` + `/page/3/` (both 200, 60 cards, no overlap) and the
+    `/page/` dedupe is proven by the unit test on the captured fixture.
+  - check-5 title mismatch remains the audit-#204 artifact 3 (script's mini-DOM can't read `h1[itemprop=name]`;
+    og:title omits the year suffix; card text carries stats prefix). Actual agreement proven by the unit test
+    + live h1/card match.
+  - check-5 poster mismatch as above.
+  - tags/actors/year/duration exposure NOT asserted by script (KVS flashvars / h1 suffix — documented in
+    audit-#205 section, live greps + unit tests).
