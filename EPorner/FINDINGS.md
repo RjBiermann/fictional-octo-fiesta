@@ -61,3 +61,17 @@
   shapes → correct actors or []; `\s,` requires a space before the comma, so a title comma
   like "Alice, Bob And Carol" does NOT match the fallback (no fake actor); the fake-actor
   ceiling only applies to "word , word" titles when JSON-LD is also empty.
+
+## Update (2026-09-10, issue #269): quick search
+
+- Audit finding: no quickSearch. Site ships a suggest endpoint, unfixed.
+- Fix: `hasQuickSearch = true` + `quickSearch(query) = search(query, 1).items` (PornXP
+  pattern; delegating to search — no /suggest/ parsing, so no fixture test needed).
+- Live evidence (CI runner): `/suggest/milf/video/` HTTP 200, real suggestions
+  (`li.qsliac`, `.qslabel`); `/api/v2/video/search/?query=milf&format=json` HTTP 200, 30 videos.
+- HTML surfaces still age-gated from the CI geo ("Eporner Age Verification", verified:
+  `/search/milf/` and `/` both return the 5.7 KB wall; no cookie bypass found — tried
+  tx-ageOk, ageverif, epage…). verify.sh FAILs on search/home/video HTML pages for this
+  reason, not a selector regression. JSON surfaces + stream flow re-verified with curl:
+  embed → hash → `/xhr/video/{id}?hash=…` → 5 mp4/hls URLs per video on both sampled IDs
+  (11PHqoqftMv, 1DpWrH3bhm3).
