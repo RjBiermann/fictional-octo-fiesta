@@ -130,6 +130,10 @@ _Avoid_: mirror subclass, one-line adapter class
 The deep shared module (`shared/.../JsonLdParse.kt`, com.kraptor) that owns the ISO-8601 `PT#H#M#S` grammar and the JSON-LD `datePublished`/`uploadDate` year — plain, `"`-escaped, or bare-token input. Providers call its two Parse functions (`minutes`, `year`) instead of maintaining their own RegEx copies; CloudStream `duration` is minutes here (repo convention), never seconds.
 _Avoid_: duration helper, time parser, per-provider date regex
 
+**Packed-JS unpack**:
+The deep shared Parse function (`shared/.../PackedJs.kt`, com.kraptor) that owns the Dean-Edwards `eval(function(p,a,c,k,e,d){...})` unpacket grammar (radix keys, escaped quotes, unmapped-token preservation). Callers pass a whole embed page or bare script and get the unpacked payload, or null when nothing packed is present (caller falls back to raw input). Extractor adapters use it for the JWPlayer/JS packer embeds; the CloudWish family still has its Quirkier private unpacker pending migration.
+_Avoid_: unpacker helper, packer class, eval regex (per-adapter regex copies)
+
 **Quick search**:
 The live-typing/suggest search surface CloudStream calls while the user types, backed by `quickSearch` + `hasQuickSearch`. Distinct from **search**: a separate endpoint (often AJAX) that many sites don't have — when the site has none, `hasQuickSearch` stays `false` and the absence is recorded explicitly in FINDINGS, never faked.
 _Avoid_: instant search, autocomplete (describes UI behavior, not the provider surface)
