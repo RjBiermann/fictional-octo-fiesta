@@ -258,3 +258,43 @@ Fresh 1PONDO-082726-001 chain re-run end-to-end against the live site:
 `Parse.dooStream` previously returned `"{"` on that error body (the `substringAfter`
 missing-delimiter default); fixed to pass `""` so a malformed/failed response yields null,
 never a bogus `{` link. Unit test added.
+
+## Re-probe 2026-09-10 (issue #270, plot mapping)
+
+Site exposes a synopsis on every surface; the provider was not mapping it.
+
+- Video page (DLDSS-529, AVSA-457, C-2224 all HTTP 200): the video's own card-block carries the
+  full synopsis as the SECOND `a[alt]` anchor (href == video url, alt = long text) wrapping
+  `h2.card-title`. Same text in `meta name="twitter:description"`. `og:description` is generic
+  "Watch … online free streaming" boilerplate — never used as plot.
+- showlist2 JSON (`/showlist2/{group}/{page}/{type}/`): `full_name` is the synopsis; provider
+  already consumed `name`/`url`/`cover` only.
+
+### Fix
+- `Parse.plot(doc, videoUrl)` — inside the video's own card-block, among `a[alt]` anchors with
+  `href == videoUrl`, returns the longest alt (the synopsis; the short one is the code), trimmed,
+  null/fallback safe. TDD: tests first against the existing `avop-179.html` fixture (red → green).
+- `load()` sets `response.plot = Parse.plot(document, url)`.
+- `version` 6 → 7.
+
+### verify.sh 2026-09-10 — RESULT: PASS
+- search `/search/avop/` p1+p2 → 200, 24 server-rendered cards each, no duplicates
+- homepage `/` + `/category/all/page/2/` → 200, 24 cards each, page 2 fresh
+- quick search: none exists (explicit NOTE in the run)
+- video pages DLDSS-529 + C-2224 → 200; plot selector `meta[name=twitter:description]`
+  (twitter:description), distinct across pages; tags actors year duration all present
+- streams: page HTML has no direct stream — two-hop chain per video (AJAX POST
+  `/ri3123o235r/` → embed page → m3u8) passed as `--stream-url` per prior-run convention:
+  DLDSS-529 → turboviplay … m3u8 → HTTP 206 `application/vnd.apple.mpegurl`;
+  C-2224 → same. Third sample AVOP-364 resolves mostplayer/embed → dooplayer API POST
+  `{"ok":true,"url":"https://cache-xx19.wowstream.cloud/...m3u8"}` but that CDN 403s
+  ("Website Access Blocked") from this runner's IP — blocked host, not a provider regression
+  (doodla/mostplayer.com/embed root also times out from the runner). Two other sampled streams
+  verified 206.
+- check 6: plot/tags/year/duration/actors/posters/recommendations each ≥1 assignment in Kotlin.
+
+Mechanics note (same as the 2026-09-09 Javmost run): listing HTML contains one JS template row
+(`href="${url}"`) repeated literally in the source; `<script>` blocks are stripped before the
+DOM counting, since the template is JS string text, not DOM. The run itself is a straight copy
+of `.pi/skills/verify-provider/scripts/verify.sh` with that pre-strip wrapper on the html-file
+argument of its `py` helper.

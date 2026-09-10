@@ -33,6 +33,14 @@ class Javmost : MainAPI() {
             return img?.takeIf { it.isNotBlank() }
         }
 
+        /** Video-page synopsis (issue #270): a[alt] anchor inside the video's own card-block whose
+         *  href matches the video url — the code-only anchor is skipped. og:description is boilerplate, not used. */
+        fun plot(doc: org.jsoup.nodes.Document, videoUrl: String): String? =
+            doc.selectFirst("div.card-block")?.select("a[alt]")
+                ?.filter { it.attr("href") == videoUrl }
+                ?.maxByOrNull { it.attr("alt").trim().length }   // synopsis anchor, not the short code anchor
+                ?.attr("alt")?.trim()?.takeIf { it.isNotBlank() }
+
         data class DooInfo(val api: String, val token: String, val et: String, val sig: String)
 
         /** dooplayer embed page: x-embed-token/api/et/sig meta tags drive the stream API (issue #239). */
@@ -132,6 +140,7 @@ class Javmost : MainAPI() {
             this.year = info.year
             this.duration = info.duration
             this.actors = info.actors.map { ActorData(Actor(it)) }
+            this.plot = Parse.plot(document, url)
             this.recommendations = recommendations
         }
     }

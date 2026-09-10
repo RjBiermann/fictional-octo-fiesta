@@ -45,6 +45,23 @@ class JavmostParseTest {
             "<div class='card'><img data-src='https://x/preload.webp' src='https://x/preload.webp'></div>"
         ).selectFirst("div.card")!!))
 
+    // --- plot fix (issue #270): the video card-block's second a[alt] (href == video url, alt != code) carries the synopsis
+    @Test fun `synopsis from title anchor in own card-block`() {
+        val doc = Jsoup.parse(javaClass.classLoader!!.getResource("avop-179.html")!!.readText())
+        assertEquals(
+            "Limited Husband Unofficial One Night The 2nd \"raw\" Take Yoshijuku Woman Affair Hot Spring Trip Of One MurasakiMinoru Forty Years Old",
+            Javmost.Parse.plot(doc, "https://www.javmost.ws/AVOP-179/")
+        )
+    }
+
+    @Test fun `plot falls back to null when no synopsis anchor`() =
+        assertNull(Javmost.Parse.plot(Jsoup.parse("<div class=\"card-block\"><p>nothing</p></div>"), "https://x/foo/"))
+
+    @Test fun `plot null on bare without fixtures`() {
+        // no card-block at all
+        assertNull(Javmost.Parse.plot(Jsoup.parse("<html></html>"), "https://x/foo/"))
+    }
+
     // --- dooplayer fix (issue #239): embed page carries x-embed-* metas driving POST api/stream/<token>
     @Test fun `dooplayer metas parse and stream url extracts`() {
         val doc = Jsoup.parse(javaClass.classLoader!!.getResource("dooplayer-embed.html")!!.readText())
