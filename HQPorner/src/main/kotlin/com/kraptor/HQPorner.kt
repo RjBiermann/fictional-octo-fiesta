@@ -119,10 +119,12 @@ class HQPorner : MainAPI() {
     override suspend fun quickSearch(query: String): List<SearchResponse>? = search(query)
 
     override suspend fun load(url: String): LoadResponse? {
-        val split = url.split("kraptor")
-        Log.d("kraptor_$name", "split = $split")
-        val currentUrl = split[0].trim()
-        val poster = split[1].trim()
+        // Library-saved urls carry only currentUrl (search urls append "kraptor" + posterUrl);
+        // the video page's static HTML embeds no image of the current video (iframe player, no
+        // og:image), so a library reload gets a null poster rather than a related card's cover.
+        val parts = url.split("kraptor")
+        val currentUrl = parts[0].trim()
+        val poster = parts.getOrNull(1)?.trim()
         val document = app.get(currentUrl, referer = "$mainUrl/", headers = mapOf("User-Agent" to desktopUa)).document
 
         val title           = document.selectFirst("h1")?.text()?.trim() ?: return null
