@@ -1,4 +1,4 @@
-version = 4 // #203 homepage dedupe
+version = 5 // #247 hlsfree preflight + referer headers
 
 cloudstream {
     authors     = listOf("RjBiermann")

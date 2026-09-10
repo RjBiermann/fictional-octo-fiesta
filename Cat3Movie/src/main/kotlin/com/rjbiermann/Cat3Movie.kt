@@ -130,8 +130,9 @@ class Cat3Movie : MainAPI() {
                         )
                     }
                 } else {
-                    // hlsfree (token dance lives in the shared HlsFree adapter); any
-                    // other host family the registry has an adapter for now matches too
+                    // hlsfree token dance lives in the shared HlsFree adapter (issue #247:
+                    // preflight + fresh-token retry + Referer header map); any other host
+                    // family the registry has an adapter for now matches too
                     loadExtractor(embed, mainUrl, subtitleCallback, callback)
                 }
             } catch (e: Exception) {
