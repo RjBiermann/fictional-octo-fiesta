@@ -59,6 +59,25 @@ HTTP 403 (bot wall) to the runner even with referer — not used.
 No referer required for filmcdm.top master m3u8 (200 without). Sending site referer anyway
 is harmless. UA standard Chrome works everywhere.
 
+## Canonical section paths (issue #276, 2026-09-10)
+4 of the 6 home rows 301 from top-level to `/movies/<sub>/`. The old top-level path +
+`page/2/` redirected back to the section root (page 2 == page 1). Fix: mainPage now uses
+the post-redirect canonical paths; `vintagexxx/` canonically lives at `/movies/vintage/`.
+Canonical (post-301) paths, all 200, page 2 distinct from page 1 (differing card sets):
+- `/movies/`, `/movies/page/2/`
+- `/porno-video/`, `/porno-video/page/2/`
+- `/movies/hd-porno-movies/`, `/movies/hd-porno-movies/page/2/` (canonical, was top-level)
+- `/movies/fullhd-porn-movie/`, `/movies/fullhd-porn-movie/page/2/` (was top-level)
+- `/movies/porno-parodies/`, `/movies/porno-parodies/page/2/` (was top-level)
+- `/movies/vintage/`, `/movies/vintage/page/2/` (was `/vintagexxx/`)
+verify.sh (2026-09-10, one run per section, page 1 + page 2 per row): PASS ×6 — no card
+overlap p1↔p2 in any section; search, load fields, related all green; filmcdm two-hop
+embed streams resolved by verify.sh's embed_stream_url fallback and serving
+`200 application/vnd.apple.mpegurl`. Cross-section card overlaps (e.g. Movies row shares
+cards with HD row) are a site reality (sections overlap), not per-row duplication.
+s2.filmcdn.top cfglobalcdn variant still TCP-times-out from the runner (geo/IP-bound
+token — see note above); do NOT "fix" downstream of that.
+
 ## Pagination
 Listings: `/{section}/page/N/` (confirmed: `/movies/page/2/` → 24 different items).
 Search: page 1 only (DLE GET search has no usable pagination links).
