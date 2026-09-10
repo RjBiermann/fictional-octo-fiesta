@@ -44,7 +44,6 @@ fun BasePlugin.registerHostExtractors(first: List<ExtractorApi> = emptyList()) {
         vidHidePro("https://vidhidepre.com"),
         vidHidePro("https://vidhidehub.com"),
         vidHidePro("https://vidhidevip.com", "VidhideVIP"),
-        CloudWish(),
         dood("https://dooood.com"),
         vidHidePro("https://javlion.xyz", "Javlion"),
         vidHidePro("https://dhcplay.com", "DHC Play"),

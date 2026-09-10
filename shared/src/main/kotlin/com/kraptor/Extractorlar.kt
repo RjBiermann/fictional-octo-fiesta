@@ -1173,66 +1173,6 @@ open class StreamTAPE : ExtractorApi() {
 
 
 
-open class CloudWish : ExtractorApi() {
-    override val name = "CloudWish"
-    override val mainUrl = "https://cloudwish.xyz"
-    override val requiresReferer = true
-
-    private val baseHeaders = mapOf(
-        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:151.0) Gecko/20100101 Firefox/151.0",
-        "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language" to "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Upgrade-Insecure-Requests" to "1",
-        "Sec-Fetch-Dest" to "document",
-        "Sec-Fetch-Mode" to "navigate",
-        "Sec-Fetch-Site" to "none",
-        "Sec-Fetch-User" to "?1",
-        "Sec-GPC" to "1",
-    )
-
-    private fun unpack(packedJs: String): String? {
-        try {
-            val pattern = Regex(
-                """\}\('((?:[^'\\]|\\.)*)'\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*'((?:[^'\\]|\\.)*)'""",
-                RegexOption.DOT_MATCHES_ALL
-            )
-            val match = pattern.find(packedJs)
-
-            if (match == null) {
-                Log.d("CloudWishDebug", "Regex No Match")
-                return null
-            }
-
-            val p = match.groupValues[1]
-                .replace("\\'", "'")
-                .replace("\\\\", "\\")
-            val a = match.groupValues[2].toInt()
-            val c = match.groupValues[3].toInt()
-            val kRaw = match.groupValues[4]
-            val k = kRaw.split("|").toMutableList()
-
-            Log.d("CloudWishDebug", "Unpack Init")
-
-            while (k.size < c) {
-                k.add("")
-            }
-
-            var result = p
-            for (i in (c - 1) downTo 0) {
-                if (k[i].isNotEmpty()) {
-                    val token = Integer.toString(i, a)
-                    result = result.replace("\\b$token\\b".toRegex(RegexOption.IGNORE_CASE), k[i])
-                }
-            }
-
-            return result
-        } catch (e: Exception) {
-            Log.d("CloudWishDebug", "Unpack Error")
-            return null
-        }
-    }
-
-}
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class Yanit(

@@ -131,7 +131,7 @@ The deep shared module (`shared/.../JsonLdParse.kt`, com.kraptor) that owns the 
 _Avoid_: duration helper, time parser, per-provider date regex
 
 **Packed-JS unpack**:
-The deep shared Parse function (`shared/.../PackedJs.kt`, com.kraptor) that owns the Dean-Edwards `eval(function(p,a,c,k,e,d){...})` unpacket grammar (radix keys, escaped quotes, unmapped-token preservation). Callers pass a whole embed page or bare script and get the unpacked payload, or null when nothing packed is present (caller falls back to raw input). Extractor adapters use it for the JWPlayer/JS packer embeds; the CloudWish family still has its Quirkier private unpacker pending migration.
+The deep shared Parse function (`shared/.../PackedJs.kt`, com.kraptor) that owns the Dean-Edwards `eval(function(p,a,c,k,e,d){...})` unpacket grammar (radix keys, escaped quotes, unmapped-token preservation). Callers pass a whole embed page or bare script and get the unpacked payload, or null when nothing packed is present (caller falls back to raw input). Extractor adapters use it for the JWPlayer/JS packer embeds.
 _Avoid_: unpacker helper, packer class, eval regex (per-adapter regex copies)
 
 **Quick search**:
