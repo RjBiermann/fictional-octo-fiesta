@@ -18,8 +18,9 @@ object JsonLdParse {
     fun minutes(jsonLd: String?): Int? {
         if (jsonLd == null) return null
         val m = DURATION_KEY.find(jsonLd)?.let { r ->
-            // seconds-only tokens (PT8173S) have no key-anchored match when quoted
-            // differently on the site; fall back to the bare grammar scan.
+            // An empty match (`"duration":"PT"`) is not a real token; fall through to
+            // the bare grammar scan. The bare scan is what handles keyless input such
+            // as Sexfilm's meta[itemprop=duration]="PT8173S".
             if (r.groupValues[1].isEmpty() && r.groupValues[2].isEmpty() && r.groupValues[3].isEmpty()) null
             else r
         } ?: DURATION_BARE.find(jsonLd) ?: return null
