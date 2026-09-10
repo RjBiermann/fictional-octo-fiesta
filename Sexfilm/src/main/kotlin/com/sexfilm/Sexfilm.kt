@@ -29,6 +29,12 @@ object Parse {
 
     fun year(doc: Element): Int? =
         doc.selectFirst("span.gv a[href*=/watch/year/]")?.text()?.trim()?.toIntOrNull()
+
+    // click-injected iframe srcs; playmogo.com is Cloudflare-gated from the runner
+    // (403 "Just a moment") so it is intentionally not matched
+    fun embeds(html: String): List<String> =
+        Regex("""https://(?:filmcdm\.top|s2\.filmcdn\.top)/e/[A-Za-z0-9_\-]+|https://morencius\.com/embed/[A-Za-z0-9_\-]+""")
+            .findAll(html).map { it.value }.distinct().toList()
 }
 
 class Sexfilm : MainAPI() {
@@ -134,9 +140,7 @@ class Sexfilm : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val html = app.get(data).text
-        // embeds are click-injected by inline JS: s2.src = "https://host/e/key"
-        Regex("""https://(?:filmcdm\.top|s2\.filmcdn\.top)/e/[A-Za-z0-9_\-]+""")
-            .findAll(html).map { it.value }.distinct().forEach { addSource(it, callback) }
+        Parse.embeds(html).forEach { addSource(it, callback) }
         return true
     }
 }
