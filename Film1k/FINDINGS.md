@@ -21,7 +21,7 @@ Streams are NOT on film1k.com. Each video page embeds one of:
   plus `<iframe data-lazyloaded="1" src="about:blank" data-src="https://film1k.xyz/e/{code}/{slug}" ...>`.
   Only the `{code}` segment matters.
 - **abyssplayer.com** (`<iframe data-src="https://abyssplayer.com/?v=XXX">`) — SoTrym/jwplayer with encrypted
-  `datas` blob; NOT implemented in this provider (separate host, obfuscated player).
+  `datas` blob; implemented via the shared AbyssPlayer adapter (see Stream sources section).
 
 ## Search
 `GET https://www.film1k.com/?s={query}` — standard WP search. Page 2: `GET /page/2/?s={query}` (verified returns
@@ -65,7 +65,18 @@ $ grep -o '<strong>Runtime</strong>[^<]*<[^>]*>[^<]*' → "<strong>Runtime</stro
 ```
 
 ## Related videos
-No related/recommended-videos section on video pages (grep for `related` across probed pages: 0 matches).
+Every video page exposes a "Related Videos" block inside <main> (the committed 2026-09-09 FINDINGS said
+"none" — that grep was case-sensitive and missed `<h3 class="page-header">Related Videos</h3>`).
+Scope to <main>, take the section after `h3:containsOwn(Related Videos)`, cards are
+`article.loop-post` — identical markup to listings (header.entry-header>a href, h2.entry-title,
+figure img data-src). 20 cards per page, sampled 3/3 video pages fresh 2026-09-10:
+
+```
+$ grep -oE 'https://www.film1k.com/[a-z0-9-]+\.html' tick-tock-section | head -4
+/coffin-full-of-dollars-1971.html | Coffin Full of Dollars (1971)
+/diary-of-a-teenage-hitchhiker-1979.html | Diary of a Teenage Hitchhiker (1979)
+```
+NOTE: the sidebar also renders loop-post cards — the <main> scope is what separates related from nav.
 
 ## Stream sources (per video page)
 film1k.xyz (Byse) chain, verified end-to-end from this runner for two codes:
@@ -92,9 +103,22 @@ $ curl -s -o /dev/null -w "%{http_code} %{content_type}\n" -r 0-100000 ".../seg-
 (code 840zkgf9c7kn → edge1-waw-sprintcdn..., same result: master.m3u8 → index-v1-a1.m3u8 → seg HTTP 206 video/MP2T)
 ```
 
-abysplayer videos: embed page is a jwplayer/SoTrym SPA with an encrypted `datas` blob
-(base64 JSON, `media` field encrypted, assets at iamcdn.net/player-v2/core.bundle.js) — not reverse-engineered;
-those videos return no link in this provider.
+abyssplayer videos (implemented 2026-09-10 via the shared AbyssPlayer adapter): embed page carries
+`const datas = "<base64>"` = base64 JSON {slug, md5_id, user_id, media}. media is AES-256-CTR encrypted
+(key = ASCII bytes of md5hex("user_id:slug:md5_id"), IV/counter = key[0..16]); decrypting yields
+{"mp4":{"sources":[{label,res_id,size,codec,status,sub}],"domains":[...],"fristDatas":[... {url, partSize}]}}.
+The playable link is `https://{sub}.sssrr.org/sora/{size}/{token}` where token = double-b64(AES-CTR(
+"/mp4/{md5_id}/{res_id}/{size}?v={slug}", key = ASCII-hex-of-md5(size))) — generated in the obfuscated
+core.bundle.js. This repo does NOT re-implement the token: the shared adapter POSTs the datas blob to
+https://enc-dec.app/api/dec-abyss (public decrypt service, same pattern as Cs-Karma's AbyssExtractor)
+and maps result.sources (status:true) to links. ponytail: third-party decrypt dependency; if enc-dec.app
+dies, the local reversal plan is documented here (media decrypt above; token plaintext confirmed in
+core.deob2.js `/mp4/{md5_id}/{res_id}/{size}?v={slug}`).
+
+Fresh verification 2026-09-10 (this runner):
+- taboo-1980.html → abyssplayer.com/?v=LTjOBeDQK → 360p/720p/1080p (1080p 206 video/mp4 via redirect)
+- all-about-anna-2005.html → ?v=PTNjwWoLv → 360p (206 video/mp4)
+- sora links 302 → rotating trycloudflare tunnel; Referer required (403 without). Retrying on 403/timeout picks a live tunnel.
 
 ## Headers / referer
 - film1k.xyz API: no cookies, no referer needed (verified with plain curl, empty cookie jar).
@@ -105,6 +129,11 @@ those videos return no link in this provider.
 - Home: `/page/{N}` (page 2 verified, different items, site footer shows up to page 359).
 - Category: `/category/{slug}/page/{N}` (verified: /category/horror/page/2 → different titles).
 - Search: `/page/{N}/?s={query}` (verified).
+
+## Year
+`og:title` = "Tick Tock (2000) - Watch Free Online | Film1k" — the year is in every og:title and every
+slug (`{slug}-{year}.html`). Provider maps `this.year` from it (issue #233 gap 3). Fresh 2026-09-10:
+`Tick Tock (2000) → year=2000`, `Taboo (1980) → 1980`.
 
 ## Risks / blockers
 - **film1k.com is behind a Cloudflare managed challenge for this runner** (`cf-mitigated: challenge`,

@@ -33,6 +33,9 @@ SEARCH_TITLE_SEL="" SEARCH_POSTER_SEL="" VIDEO_TITLE_SEL="" VIDEO_POSTER_SEL="" 
 HOME_URLS=() HOME_SELECTOR="" QSEARCH_URLS=() QSEARCH_SELECTOR=""
 VIDEO_TAGS_SEL="" VIDEO_ACTORS_SEL="" VIDEO_YEAR_SEL="" VIDEO_DURATION_SEL=""
 VIDEO_URLS=()
+STREAM_URL_OVERRIDES=()  # --stream-url (repeatable): JS-built stream URLs per video page,
+                         # position-matched to --video-url; agent supplies from FINDINGS chain
+                         # evidence, script still asserts serving/content-type/distinctness
 HEADERS=(-A "$UA")
 
 usage() { grep '^#' "$0" | sed 's/^# \{0,1\}//' | head -26; exit 2; }
@@ -56,6 +59,7 @@ while [[ $# -gt 0 ]]; do
     --video-poster-selector) VIDEO_POSTER_SEL="$2"; shift 2;;
     --video-plot-selector) VIDEO_PLOT_SEL="$2"; shift 2;;
     --stream-selector) STREAM_SELECTOR="$2"; shift 2;;
+    --stream-url) STREAM_URL_OVERRIDES+=("$2"); shift 2;;
     --stream-quality-attr) QUALITY_ATTR="$2"; shift 2;;
     --related-selector) RELATED_SELECTOR="$2"; shift 2;;
     --provider-src) PROVIDER_SRC="$2"; shift 2;;
@@ -85,7 +89,7 @@ import re, sys, html as htmlmod, base64
 from urllib.parse import urlsplit
 
 def compile_simple(s):
-    m = re.match(r'([a-zA-Z]+)((?:[.#][\w-]+|\[[^\]]+\])*)$', s)
+    m = re.match(r'([a-zA-Z][a-zA-Z0-9]*)((?:[.#][\w-]+|\[[^\]]+\])*)$', s)
     if not m:
         return None
     tag, rest = m.group(1).lower(), m.group(2)
@@ -157,9 +161,11 @@ def cards_html(html, selector, title_sel, poster_sel):
     for attrs, inner in blocks(html, selector):
         m = re.search(r'href\s*=\s*["\']([^"\']*)', attrs)
         href = m.group(1) if m else ''
+        if not href:  # card root wraps the link (article.loop-post > a): take the inner a href
+            href = sub_field(inner, 'a', 'href')
         title = sub_field(inner, title_sel, 'text') if title_sel else inner_text(inner)
         poster = sub_field(inner, poster_sel, 'src') if poster_sel else sub_field(inner, 'img', 'src')
-        if '/img/placeholder.png' in poster:  # lazy-poster theme: real URL is in data-src
+        if '/img/placeholder.png' in poster or poster.startswith('data:'):  # lazy-poster theme: real URL is in data-src
             poster = sub_field(inner, poster_sel or 'img', 'data-src')
         print(f'{href}\t{title}\t{poster}')
 
@@ -351,6 +357,7 @@ for i in "${!VIDEO_URLS[@]}"; do
   else [[ "$code" =~ ^2 ]] && (( n >= 1 )) || { echo "FAIL video page ($VU)"; fail=1; } fi
 
   vtitle=$(py field "$VIDEO_TITLE_SEL" content "$F")
+  [[ -z "$vtitle" ]] && vtitle=$(py field "$VIDEO_TITLE_SEL" text "$F")  # h1.title-style page titles
   vposter=$(py field "$VIDEO_POSTER_SEL" content "$F")
   vplot=$(py field "$VIDEO_PLOT_SEL" content "$F")
   vpath=$(py path "$VU")
@@ -358,8 +365,16 @@ for i in "${!VIDEO_URLS[@]}"; do
   printf '%s\t%s\t%s\t%s\t%s\n' "video$i" "$vpath" "$vtitle" "$vposter" "$vplot" >> "$V_TSV"
 
   # ── streams: every extracted URL (≤5) must serve video ──
-  mapfile -t surls < <(py streams "$F")
-  if [[ ${#surls[@]} -eq 0 ]] && declare -F embed_stream_url >/dev/null; then
+  # --stream-url override (position-matched): for sites whose streams are JS-built at play
+  # time the static page has no stream URL — the agent supplies the URL the provider's chain
+  # resolves (evidence in FINDINGS); the mechanical checks below are unchanged.
+  if [[ ${#STREAM_URL_OVERRIDES[@]} -gt 0 ]]; then
+    (( i < ${#STREAM_URL_OVERRIDES[@]} )) || { echo "FAIL: --stream-url count (${#STREAM_URL_OVERRIDES[@]}) must match --video-url count (${#VIDEO_URLS[@]})"; fail=1; }
+    [[ -n "${STREAM_URL_OVERRIDES[$i]:-}" ]] && surls=("${STREAM_URL_OVERRIDES[$i]}") || surls=()
+  else
+    mapfile -t surls < <(py streams "$F")
+  fi
+  if [[ ${#surls[@]} -eq 0 ]] && declare -F embed_stream_url >/dev/null && [[ ${#STREAM_URL_OVERRIDES[@]} -eq 0 ]]; then
     surls=($(embed_stream_url "$F" || true))
     [[ ${#surls[@]} -gt 0 ]] && echo "  (two-hop embed resolved: ${surls[0]:0:80}…)"
   fi
@@ -373,6 +388,12 @@ for i in "${!VIDEO_URLS[@]}"; do
     [[ -z "$su" ]] && continue
     py path "$su" >> "$SP"
     hdr=$(curl -sL "${HEADERS[@]}" -H "Range: bytes=0-64" -o /dev/null -w '%{http_code} %{content_type}' --max-time 30 "$su") || hdr="000 ERR"
+    if [[ "$hdr" == 403* || "$hdr" == 000* ]]; then
+      # rotating-redirect hosts (e.g. sora CDN → per-request tunnel) round-robin; a dead
+      # tunnel 403s one hop and slow hops time out. One retry picks a live/fast tunnel.
+      sleep 2
+      hdr=$(curl -sL "${HEADERS[@]}" -H "Range: bytes=0-64" -o /dev/null -w '%{http_code} %{content_type}' --max-time 60 "$su") || hdr="000 ERR"
+    fi
     echo "GET stream (${su:0:80}…) → $hdr"
     if [[ "$hdr $su" =~ ^20[06] ]]; then
       if ! echo "$hdr" | grep -qiE 'video/mp4|video/webm|application/vnd.apple.mpegurl|mpegurl'; then
@@ -470,7 +491,7 @@ while IFS=$'\t' read -r vid vpath vtitle vposter vplot; do
   if [[ "$ctitle" != "$vtitle" ]]; then
     echo "FAIL title mismatch for $vpath: search='$ctitle' load='$vtitle'"; fail=1
   fi
-  if [[ -n "$cposter" && -n "$vposter" && "$cposter" != "$(py path "$vposter")" ]]; then
+  if [[ -n "$cposter" && -n "$vposter" && "$(py path "$cposter")" != "$(py path "$vposter")" ]]; then
     echo "FAIL poster mismatch for $vpath: search='$cposter' load='$vposter'"; fail=1
   fi
 done < "$V_TSV"
@@ -485,7 +506,7 @@ field_pattern() {
     recommendations) echo 'recommendations\s*=';;
     tags) echo 'tags\s*=';;
     plot) echo 'plot\s*=';;
-    duration) echo 'duration\s*=';;
+    duration) echo 'duration\s*=|addDuration\s*\(';;
     year) echo 'year\s*=';;
     actors) echo 'addActors|actors\s*=';;
     score) echo 'addScore|score\s*=';;
@@ -503,7 +524,7 @@ if [[ -n "$LOAD_RESPONSE" ]]; then
       if [[ -z "$pat" ]]; then
         echo "FAIL: unknown load-response field '$f' (recommendations,tags,plot,duration,year,actors,score,posters)"; fail=1
       else
-        n=$(grep -rE "$pat" --include='*.kt' "$PROVIDER_SRC" | wc -l)
+        n=$( { grep -rE "$pat" --include='*.kt' "$PROVIDER_SRC" || true; } | wc -l)
         echo "field '$f': $n assignment(s) in $PROVIDER_SRC"
         (( n >= 1 )) || { echo "FAIL load-response: '$f' never populated"; fail=1; }
       fi

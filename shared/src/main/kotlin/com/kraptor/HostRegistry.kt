@@ -77,6 +77,7 @@ fun BasePlugin.registerHostExtractors(first: List<ExtractorApi> = emptyList()) {
         Playerupnone(),
         Turtleviplay(),
         Turboviplay(),
+        AbyssPlayer(),
         Vidguardto(),
         MixDropAg(),
         MixDropMy(),
