@@ -119,11 +119,13 @@ class HQPorner : MainAPI() {
     override suspend fun quickSearch(query: String): List<SearchResponse>? = search(query)
 
     override suspend fun load(url: String): LoadResponse? {
-        val split = url.split("kraptor")
-        Log.d("kraptor_$name", "split = $split")
-        val currentUrl = split[0].trim()
-        val poster = split[1].trim()
+        // Library-saved urls carry only currentUrl (no separator); fall back to a page image as poster.
+        val parts = url.split("kraptor")
+        val currentUrl = parts[0].trim()
+        val builtInPoster = parts.getOrNull(1)?.trim()
         val document = app.get(currentUrl, referer = "$mainUrl/", headers = mapOf("User-Agent" to desktopUa)).document
+        val poster = builtInPoster
+            ?: document.select("img[src*=imgs]").firstOrNull()?.absUrl("src")
 
         val title           = document.selectFirst("h1")?.text()?.trim() ?: return null
         val description     = document.selectFirst("meta[name=description]")?.attr("content")?.trim()
