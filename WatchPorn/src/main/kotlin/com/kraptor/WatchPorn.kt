@@ -13,6 +13,7 @@ import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.json.JSONArray
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -21,6 +22,7 @@ class WatchPorn(context: Context) : MainAPI() {
     override var mainUrl = "https://watchporn.to"
     override var name = "WatchPorn"
     override val hasMainPage = true
+    override val hasQuickSearch = true
     override var lang = "en"
     override val supportedTypes = setOf(TvType.NSFW)
 
@@ -103,6 +105,10 @@ class WatchPorn(context: Context) : MainAPI() {
             this.score = Score.from100(rating)
         }
     }
+
+    override suspend fun quickSearch(query: String): List<SearchResponse>? =
+        SuggestParse.videos(app.get("${mainUrl}/suggest/?q=$query").text)
+            .map { (title, url) -> newMovieSearchResponse(title, "$url|", TvType.NSFW) }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
         val url = "${mainUrl}/search/?q=$query&mode=async&function=get_block&block_id=list_videos_videos_list_search_result&category_ids=&sort_by=&from_videos=$page"
@@ -280,4 +286,21 @@ class WatchPornPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
     override fun load(context: android.content.Context) {
         registerMainAPI(WatchPorn(context))
     }
+}
+
+/** Issue #278: /suggest/ JSON → video-only (title, url) pairs. Models entries (/models/) are skipped. */
+object SuggestParse {
+
+    private val mapper = ObjectMapper()
+
+    fun videos(json: String): List<Pair<String, String>> =
+        mapper.readTree(json).get("suggestions")
+            ?.toList()
+            .orEmpty()
+            .mapNotNull { node ->
+                val data = node.get("data") ?: return@mapNotNull null
+                if (data.get("type")?.asText() != "Videos") return@mapNotNull null
+                val url = data.get("url")?.asText() ?: return@mapNotNull null
+                node.get("value")?.asText()?.let { it to url }
+            }
 }
