@@ -49,6 +49,11 @@ Referer: https://cat3film.com/watch/{slug}
 
 Single server (`sv=1`, "Watch Online"). All hls, no qualities/alt urls.
 
+**Token URLs are bare** (`https://cat3.asuka-vod.site/<token>`, no extension). The site
+player's JS (`withSuffix()` in /static/js/site.js) appends `/index.m3u8` (or `/index.json`
+per-UA) before loading. The bare URL serves Cloudflare 403 HTML — only the suffixed
+`/token/index.m3u8` serves a real `#EXTM3U` playlist (segments are camouflaged as `.jpg`).
+
 ## Headers / referer
 Source API worked with plain UA + referer. **Stream CDN `cat3.asuka-vod.site` is behind a
 Cloudflare JS challenge for this runner** (403 "Just a moment..." with/without referer,
@@ -62,6 +67,7 @@ page1 starts draft-1669…, page2 starts conflict-of-emotions, jailhouse-wardres
 Search: single page (no pagination).
 
 ## Risks / blockers
-- Stream CDN Cloudflare challenge from CI runner → stream verification blocked; everything
-  else (search, listings, detail, sources API) works.
+- ~~Stream CDN blocked~~: resolved — the bare token URL got Cloudflare 403; `/token/index.m3u8`
+  (with browser UA + main-site referer) serves a valid VOD playlist (200, #EXTM3U, thousands
+  of segments). Suffix appended in `loadLinks`.
 - Iframe allowlist on the main site includes `https://cat3.asuka-vod.site`.
