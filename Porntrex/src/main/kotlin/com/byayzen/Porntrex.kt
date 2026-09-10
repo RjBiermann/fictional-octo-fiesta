@@ -177,24 +177,25 @@ class Porntrex : MainAPI() {
     ): Boolean {
         Log.d(tag, "data = $data")
         val html     = app.get(data).document.html()
-        var videoUrl = Regex("video_url:\\s*'([^']+)'").find(html)?.groupValues?.get(1)
-        if (videoUrl == null && videoId(data) != null) {
-            val embed = app.get("${mainUrl}/embed/${videoId(data)}/").text
-            videoUrl = Regex("video_url:\\s*'([^']+)'").find(embed)?.groupValues?.get(1)
+        var flashvars = html
+        if (!flashvars.contains("video_url:") && videoId(data) != null) {
+            flashvars = app.get("${mainUrl}/embed/${videoId(data)}/").text
         }
-        videoUrl ?: return false
+        val links = PorntrexParse.qualityLinks(flashvars)
+        if (links.isEmpty()) return false
 
-        callback(
-            newExtractorLink(
-                source = name,
-                name   = name,
-                url    = videoUrl,
-                type   = ExtractorLinkType.VIDEO
-            ) {
-                this.referer = mainUrl
-            }
-        )
-
+        for ((label, url) in links) {
+            callback(
+                newExtractorLink(
+                    source = name,
+                    name   = if (label == null) name else "$name - $label",
+                    url    = url,
+                    type   = ExtractorLinkType.VIDEO
+                ) {
+                    this.referer = mainUrl
+                }
+            )
+        }
         return true
     }
 }
@@ -220,6 +221,21 @@ object PorntrexParse {
         parseDurationSeconds(
             document.selectFirst("div.block-details div.item span:has(i.fa-clock-o) em.badge")?.text()
         )
+
+    /**
+     * Issue #256: KVS flashvars carry multiple qualities as video_url plus video_alt_url,
+     * video_alt_url2..4, each with an optional <n>_text label. Return (label, url) pairs,
+     * ordered best-first (alt variants arrive descending on KVS pages). Skip non-http junk.
+     */
+    fun qualityLinks(flashvars: String): List<Pair<String?, String>> {
+        val out = mutableListOf<Pair<String?, String>>()
+        for (key in listOf("url", "alt_url", "alt_url2", "alt_url3", "alt_url4")) {
+            val url = Regex("video_${key}:\\s*'([^']+)'").find(flashvars)?.groupValues?.get(1) ?: continue
+            val label = Regex("video_${key}_text:\\s*'([^']+)'").find(flashvars)?.groupValues?.get(1)
+            out.add(label to url)
+        }
+        return out
+    }
 }
 
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin

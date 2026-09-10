@@ -98,3 +98,25 @@ Direct video pages **now render fully again** (og:title/og:image/og:description 
 - NOTE: home `/categories/teen/` page 2 shares 20/120 hrefs with page 1 — verified **site-native**
   (the site's own `/2/` URL overlaps the same 20; async p2 ≡ native p2, 120/120).
   getMainPage is untouched by this PR; no action taken.
+
+## Quality variants (issue #256, 2026-09-10 probe)
+
+Direct `/video/{id}/{slug}/` pages now render full guest flashvars again (shell regression
+from issue #171 is gone). KVS config carries multiple direct streams:
+
+- `video_url` (base, usually 480p) — no `_text` label
+- `video_alt_url` + `video_alt_url_text` ('720p HD') + `video_alt_url_hd`
+- `video_alt_url2` + `video_alt_url2_text` ('1080p FHD')
+- `/embed/{id}/` exposes the same set (`video_alt_url3` = 4K seen there)
+
+The `get_file/..._<res>.mp4` variant URLs redirect 302 → pcdn.cdntrex.com and serve real
+video/mp4 (verified 2491818_720p.mp4 → 519 MB video/mp4). Fix (version 8 → 9):
+`loadLinks` emits every variant (base + alts with labels); tested via
+`PorntrexParse.qualityLinks` (JUnit).
+
+Verify notes: verify.sh run with `--home-selector p.inf` because the script's regex-DOM
+card block for `div.video-preview-screen.video-item` truncates inner text to the quality
+badge, producing false title dupes on the homepage check (script limitation, not a site
+duplicate — href dedup on the full cards is clean). No quick-search endpoint exists
+(site search is the only lookup); tags/actors/duration are exposed on full video pages,
+year/score are not.

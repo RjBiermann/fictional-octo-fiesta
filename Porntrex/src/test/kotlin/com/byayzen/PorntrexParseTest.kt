@@ -35,4 +35,20 @@ class PorntrexParseTest {
         assertNull(PorntrexParse.parseDurationSeconds("Latest"))
         assertNull(PorntrexParse.parseDurationSeconds(null))
     }
+
+    /** Issue #256: all KVS quality variants, in flashvar order. */
+    @Test fun `qualityLinks extracts base plus all alt urls with labels`() {
+        val fv = """video_url: 'https://x/get_file/a/2491818.mp4/',
+            video_alt_url: 'https://x/get_file/b/2491818_720p.mp4/',
+            video_alt_url_text: '720p HD',
+            video_alt_url_hd: '1',
+            video_alt_url2: 'https://x/get_file/c/2491818_1080p.mp4/',
+            video_alt_url2_text: '1080p FHD'"""
+        val links = PorntrexParse.qualityLinks(fv)
+        assertEquals(3, links.size)
+        assertEquals("https://x/get_file/a/2491818.mp4/", links[0].second)
+        assertEquals("720p HD" to "https://x/get_file/b/2491818_720p.mp4/", links[1])
+        assertEquals(null, links[0].first)
+        assertEquals("1080p FHD" to "https://x/get_file/c/2491818_1080p.mp4/", links[2])
+    }
 }
