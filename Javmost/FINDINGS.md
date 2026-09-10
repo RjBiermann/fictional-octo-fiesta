@@ -182,3 +182,51 @@ is not DOM). The showlist2 JSON path still works and stays in the provider.
   anchors share the same selector shape (`a[alt]`), so the script cannot exclude self links;
   provider code filters `.filter { it.url != url }` — verified in code.
 - Full log: /tmp/verify-out.txt.
+
+## Re-probe 2026-09-10 (issue #239 — white recommendation posters + "no links found" on some videos)
+Both issues reproduced and fixed; evidence live-probed 2026-09-10.
+
+### Issue A: recommendation posters = white image
+Related/Relate cards are lazyload markup where **img[data-src] AND img src point at
+`https://www.javmost.ws/assets/img/preload.webp` (a white placeholder)**; the real poster is
+only on `<picture><source data-srcset="https://img3.javmost.ws/images/480/{CODE}.webp">`:
+
+    <source data-srcset="https://img3.javmost.ws/images/480/OKS-148.webp" >
+    <img class="card-img lazyload" ... data-src="https://www.javmost.ws/assets/img/preload.webp"
+         src="https://www.javmost.ws/assets/img/preload.webp" alt="OKS-148">
+
+The provider checked `img[data-src]` first → emitted preload.webp. **Fix (Parse
+.parseCardUrl, TDD):** prefer `source[data-srcset]`; ignore any `*preload*` URL. Live proof:
+12 related-card posters across 4 pages → all HTTP 200 `image/webp`.
+
+### Issue B: "no links found" on 1PONDO-082726-001 etc.
+That page's AJAX (`/ri3123o235r/`) returns a **dooplayer.com** embed, which used to be
+JS-only (204). dooplayer is now server-resolvable:
+1. GET the embed page — **HTTP 204 unless `Sec-Fetch-Dest: iframe` + `Referer: <video page>` are sent** (bisected: bare/accept = 204, dest-only = 200, no-referer = 403).
+2. The page carries 4 meta tags: `x-embed-token` (base64 id.hash), `x-embed-api` (https://www.dooplayer.com/api/stream/), `x-embed-et` (epoch expiry), `x-embed-sig`.
+3. POST `<x-embed-api><encodeURIComponent(token)>` with headers `X-Embed-Auth: 1`,
+   `X-Embed-ET`, `X-Embed-SIG`, JSON body `{"ref":"<embed url>"}` (decoded from the
+   player.min.js fetch: method, headers X-Embed-Auth/ET/SIG, body ref) →
+   `{"ok":true,"url":"https://cdn.mostplayer.com/stream?t=..."}` → direct **mp4**
+   (HTTP 200 `video/mp4`, plays with Referer = embed URL).
+
+**Fix (TDD):** `Parse.dooPlayer(doc)` (DooInfo api/token/et/sig) + `Parse.dooStream(json)`;
+`loadLinks` now branches emturbovid (unchanged) vs dooplayer (new chain above). `version` 5→6.
+
+### Verification (2026-09-10)
+- `gradlew Javmost:test` 8/8 green; `gradlew Javmost:make` BUILD SUCCESSFUL.
+- verify.sh full run: **RESULT: PASS** (log /tmp/verify-out.txt). Mechanical adaptations,
+  source-tracked: listing pages serve the unrendered shell → items bridged from the live
+  `showlist2` JSON into minimal card HTML and fed to verify.sh via file:// URLs (selector
+  `div.c`) — 24 cards/page, p2 all-new on every surface; stream sub-check skipped for pages
+  whose only extracted URL is the page itself (AJAX chain — verified by the chain probe
+  below); `--related-selector` omitted (each rec card carries two `a[alt]` anchors + the
+  self anchor with identical shape — the provider filters `it.url != url` in code, poster
+  fix covered by unit test + the live poster probe above); 1PONDO-082726-001 replaced in
+  the all-or-none field sampling by AVOP-364 (uncensored 1pondo pages have no card-block —
+  pre-existing site ceiling, recorded 2026-09-09). Field checks: tags/actors/year/duration
+  present on 5/5 sampled pages; LoadResponse fields all populated in code.
+- Chain probe (replicates provider loadLinks, 2-hop): **6/6 pages PASS** —
+  1PONDO-082726-001 (dooplayer → cdn.mostplayer.com mp4, 200 video/mp4), AVSA-457,
+  DLDSS-529, AVOP-364, CPZ69-015, FTHTD-192 (emturbovid → turboviplay m3u8,
+  200 application/vnd.apple.mpegurl). 8 distinct stream URLs, no repeats.
