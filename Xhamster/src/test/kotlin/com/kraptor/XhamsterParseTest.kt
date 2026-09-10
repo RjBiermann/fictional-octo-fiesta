@@ -24,6 +24,25 @@ class XhamsterParseTest {
         assertTrue(h264[1].url!!.startsWith("04bd004e1c73bdbe"))
     }
 
+    @Test fun `videoModel parses thumbURL poster`() {
+        val videoModel = xHamster().getInitialsJson(fixture())?.videoModel
+        assertTrue(
+            videoModel?.thumbURL?.startsWith("https://ic-vt-nss.xhcdn.com/") == true
+        )
+        assertTrue(videoModel?.thumbURL?.endsWith(".webp") == true)
+    }
+
+    @Test fun `preload poster style parses full https url`() {
+        val poster = xHamster().parsePreloadPoster(
+            "background-image: url('https://ic-vt-nss.xhcdn.com/a/K/s(w:1280),webp/2560x1440.201.webp');"
+        )
+        assertEquals(
+            "https://ic-vt-nss.xhcdn.com/a/K/s(w:1280),webp/2560x1440.201.webp", poster
+        )
+        assertEquals(null, xHamster().parsePreloadPoster(null))
+        assertEquals(null, xHamster().parsePreloadPoster("no image here"))
+    }
+
     @Test fun `initials parser tolerates shell-only page`() {
         val initial = xHamster().getInitialsJson(
             "<script>window.initials={\"isBare\":true,\"layoutPage\":\"default\"};</script>"
@@ -40,7 +59,7 @@ class XhamsterParseTest {
         val decoded = xHamster().decodeXhUrl(hex)
         assertTrue(
             "decode failed: $decoded",
-            decoded != null && (decoded!!.startsWith("https://") || decoded.startsWith("//"))
+            decoded != null && (decoded.startsWith("https://") || decoded.startsWith("//"))
         )
     }
 
