@@ -28,7 +28,7 @@
   Player config `#frontWatchConfig` has no duration field; JSON-LD is the only per-video source.
 - Title: `div.front-watch-title h1` (no suffix; og:title carries a `| javtiful` suffix and is
   truncated with `Destro...` — verify.sh agreement check uses `meta[property=og:image:alt]`,
-  which holds the full title without suffix; 2026-09-24 run).
+  which holds the full title without suffix; 2026-09-10 run).
 - Poster: `meta[property=og:image]`. Plot: `meta[property=og:description]`.
 - Actors: `a.front-watch-actor-card` (site renders "Unknown" when there is none, then no card).
 - Tags/Categories: `a.front-watch-link-chip` blocks under `<strong>Tags:</strong>` /
@@ -46,7 +46,7 @@
 
 ## Stream sources (per video page)
 - `id="frontWatchConfig" type="application/json">` JSON `playerSources[0].src=https://fast-stream.jav.si/p/<hex>`
-  with `"type":"video/mp4"`, `"size":720` → **206 video/mp4** (verified 2026-09-24 on 5 fresh videos).
+  with `"type":"video/mp4"`, `"size":720` → **206 video/mp4** (verified 2026-09-10 on 5 fresh videos).
 - Stream URLs are **extensionless** (/p/<hex>, no `.mp4` suffix).
 
 ## Issue #240 root cause (fixed)

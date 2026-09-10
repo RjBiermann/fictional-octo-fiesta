@@ -19,7 +19,8 @@ fun pagedUrl(url: String, page: Int): String =
 
 /** HLS only when the MIME says mpegurl or the URL ends in .m3u8 — anything else is MP4. */
 fun isHls(src: String, mimeType: String?): Boolean =
-    mimeType?.contains("mpegurl") == true || src.substringBefore('?').endsWith(".m3u8")
+    mimeType?.contains("mpegurl", ignoreCase = true) == true ||
+        src.substringBefore('?').endsWith(".m3u8")
 
 class Javtiful : MainAPI() {
     override var mainUrl = "https://javtiful.com"

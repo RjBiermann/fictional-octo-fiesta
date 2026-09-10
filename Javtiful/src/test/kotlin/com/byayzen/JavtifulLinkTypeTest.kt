@@ -18,6 +18,10 @@ class JavtifulLinkTypeTest {
         assertTrue(isHls("https://fast-stream.jav.si/p/abc", "application/vnd.apple.mpegurl"))
     }
 
+    @Test fun `mpegurl mime is case-insensitive`() {
+        assertTrue(isHls("https://host/p/abc", "Application/X-MPEGURL"))
+    }
+
     @Test fun `m3u8 extension is HLS even without mime`() {
         assertTrue(isHls("https://host/hls/stream.m3u8", null))
     }
