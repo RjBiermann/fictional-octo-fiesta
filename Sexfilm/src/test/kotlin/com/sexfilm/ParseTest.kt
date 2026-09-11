@@ -59,4 +59,21 @@ class ParseTest {
         assertEquals(emptyList<String>(), Parse.actors(d))
         assertEquals(emptyList<String>(), Parse.tags(d))
     }
+
+    // DLE search pagination: page 1 without search_start, page N appends &search_start=N;
+    // raw spaces in the query break the request (HTTP 000), so story= must stay encoded
+    @Test fun `search url paginates via search_start and encodes query`() {
+        assertEquals(
+            "https://en.sex-film.biz/index.php?do=search&subaction=search&story=milf+hd",
+            Parse.searchUrl("https://en.sex-film.biz", " milf hd ", 1)
+        )
+        assertEquals(
+            "https://en.sex-film.biz/index.php?do=search&subaction=search&story=milf&search_start=2",
+            Parse.searchUrl("https://en.sex-film.biz", "milf", 2)
+        )
+        assertEquals(
+            "https://en.sex-film.biz/index.php?do=search&subaction=search&story=milf&search_start=5",
+            Parse.searchUrl("https://en.sex-film.biz", "milf", 5)
+        )
+    }
 }

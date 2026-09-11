@@ -35,6 +35,13 @@ object Parse {
     fun embeds(html: String): List<String> =
         Regex("""https://(?:filmcdm\.top|s2\.filmcdn\.top)/e/[A-Za-z0-9_\-]+|https://morencius\.com/embed/[A-Za-z0-9_\-]+""")
             .findAll(html).map { it.value }.distinct().toList()
+
+    // DLE search pagination: page 1 has no search_start; page N appends &search_start=N (1-based)
+    fun searchUrl(mainUrl: String, query: String, page: Int): String {
+        val q = java.net.URLEncoder.encode(query.trim(), "UTF-8")
+        val start = if (page > 1) "&search_start=$page" else ""
+        return "$mainUrl/index.php?do=search&subaction=search&story=$q$start"
+    }
 }
 
 class Sexfilm : MainAPI() {
@@ -74,12 +81,10 @@ class Sexfilm : MainAPI() {
     }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
-        if (page > 1) return newSearchResponseList(emptyList(), false)
-        // raw spaces in the query break the request (HTTP 000); encode like Film1k/Cat3Film
-        val q = java.net.URLEncoder.encode(query.trim(), "UTF-8")
-        val doc = app.get("$mainUrl/index.php?do=search&subaction=search&story=$q").document
+        val doc = app.get(Parse.searchUrl(mainUrl, query, page)).document
         val results = doc.select("div.short").mapNotNull { it.toSearchResult() }
-        return newSearchResponseList(results, false)
+        // hasNext drives app-side pagination; false here would silently stop at page 1
+        return newSearchResponseList(results, results.isNotEmpty())
     }
 
     override suspend fun load(url: String): LoadResponse {

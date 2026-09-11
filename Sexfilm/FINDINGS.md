@@ -10,7 +10,8 @@ Video URLs are `<id>-<slug>.html` (e.g. `/6760-tarzan-x-shame-of-jane.html`).
 Transcript: `story=tarzan` returned 10 results including
 `https://en.sex-film.biz/6760-tarzan-x-shame-of-jane.html` and `/469-aphrodisiac-2018.html`.
 Failed/unused patterns: `/?s=`, `/search/{q}/` (no such route). Result items are
-`div.short.nl.nl2` blocks (same as listings). No GET pagination of search results.
+`div.short.nl.nl2` blocks (same as listings). Search GET paginates via `&search_start=N`
+(see Pagination below).
 
 ## Video pages
 Listings: homepage, `/movies/` (+ `/movies/page/N/`), `/hd-porno-movies/`, `/fullhd-porn-movie/`,
@@ -89,7 +90,10 @@ token — see note above); do NOT "fix" downstream of that.
 
 ## Pagination
 Listings: `/{section}/page/N/` (confirmed: `/movies/page/2/` → 24 different items).
-Search: page 1 only (DLE GET search has no usable pagination links).
+Search: `/{section}/page/N/` for listings; search paginates via DLE `&search_start=N`
+(1-based; page 1 = no param). Confirmed 2026-09-11 (issue #335):
+`story=milf&search_start=2` → 200, 24 cards, 0 overlap with page 1; pagination JS is
+`list_submit(N)`. Provider: `Parse.searchUrl(query, page)` appends `&search_start=$page`.
 
 ## Risks / blockers
 - None on main site (no Cloudflare).
