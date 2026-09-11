@@ -12,6 +12,27 @@ import com.lagradost.cloudstream3.utils.*
 import org.jsoup.nodes.Element
 import java.math.BigInteger
 
+/**
+ * Pure Parse function for page-URL construction (TDD seam, issue #293).
+ *
+ * Segment-style list rows (`/most-viewed/`, `/longest/`) 301-redirect their
+ * suffix-paginated form (`/most-viewed/2/` → `/most-viewed/`, i.e. page 1 again);
+ * the site paginates them as `/2/<list>/`. Other rows (root, top-rated, tags,
+ * cats) paginate as `<path>/<n>/`. Both forms verified live 2026-09-11.
+ */
+object EPornerParse {
+    private val swapSegments = setOf("most-viewed", "longest")
+
+    fun pageUrl(baseUrl: String, page: Int): String {
+        if (page <= 1) return baseUrl
+        val trimmed = baseUrl.trimEnd('/')
+        val first = trimmed.substringAfterLast('/')
+        return if (baseUrl.count { it == '/' } >= 4 && first in swapSegments)
+            "https://www.eporner.com/$page/$first/"
+        else "$trimmed/$page/"
+    }
+}
+
 class EPorner : MainAPI() {
     override var mainUrl = "https://www.eporner.com"
     override var name = "EPorner"
@@ -33,7 +54,7 @@ class EPorner : MainAPI() {
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val url = if (page <= 1) request.data else "${request.data.removeSuffix("/")}/$page/"
+        val url = EPornerParse.pageUrl(request.data, page)
         val home = app.get(url).document.select("div#vidresults div.mb").mapNotNull { searchCard(it, "p.mbtit a", posterSel = "div.mbimg img") }
         return newHomePageResponse(HomePageList(request.name, home, true), true)
     }

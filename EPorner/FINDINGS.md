@@ -106,3 +106,59 @@
   - All data-completeness signals green: streams 206 video/mp4 on both samples; tags,
     actors, duration selectors match every sampled page; LoadResponse has assignments for
     tags/plot/duration/year/actors/recommendations.
+
+## Update (2026-09-11, issue #293): segment-swap pagination (mainPage page 2)
+
+- Live re-probe (Googlebot UA; Firefox UA hits the age-verification wall from this runner's
+  geo, listing pages only):
+
+```
+/most-viewed/2/  → 301 → /most-viewed/      (page 2 = page 1 again, 68/79 cards shared)
+/longest/2/      → 301 → /longest/          (same defect class)
+/2/most-viewed/  → 200, 67 cards, overlap 5 vs p1   ← correct page-2 form
+/2/longest/      → 200, 67 cards, overlap 4
+/2/              → 200, overlap 3 (fresh content)
+/top-rated/2/, /tag/{cowgirl,riding,turkish}/2/, /cat/housewives/2/ → 200, overlap 0–6
+```
+
+- Fix: `EPornerParse.pageUrl(baseUrl, page)` — pure Parse function (TDD seam): page>1 rows
+  whose top-level segment is `most-viewed`/`longest` build `/2/<list>/`; all other rows keep
+  the suffix form `<path>/<n>/`. Wired into `getMainPage`. ParseTest red (unresolved
+  reference) → green; `EPorner:test EPorner:make` BUILD SUCCESSFUL; version 12 → 13.
+
+- Search pagination mechanical check (verify.sh selector path, pr-basis pages, trivial ?q=
+  query params stripped):
+  - `/search/milf/` → 200, 100 cards (effective URL `/tag/milf/`), 0 duplicate hrefs
+  - `/search/milf/2/` → 200, 65 cards (`/tag/milf/2/`), 0 duplicate hrefs; overlap vs p1: 1
+  - NOTE: Firebase dynamicLinks bypass attempt `/link?link=…` (for the `/search/<n>/` deep
+    link) → **404** — flame page not present on this deployment; search stays on the
+    standard suffix form, which the site resolves to the canonical tag page without any
+    cache/bounce artifact.
+
+- Stream chain re-proven end-to-end again on 3 fixed-page-2-sampled videos (71Qz4Vp8uKd,
+  BR3u5WcXquG, 5kMdvVaLBli): embed → hash → base16→base36 (Kotlin algorithm reproduced,
+  same output) → `/xhr/video/{id}?hash=…` → 200 JSON `available: true` → mp4 srcs extracted
+  by `loadLinks`'s `labelShort/src` regex (720p/480p/240p… per video) → CDN range check
+  **206 video/mp4**. JSON for these samples carries only `sources.mp4` (no `srcFallback`
+  m3u8) on this deployment — HLS branch simply doesn't fire, mp4s serve (not a regression;
+  #294-era samples had `srcFallback`).
+
+- Video page selectors re-verified on the same 3 videos + `verbatimblockid` pr-basis page
+  (video-1DpWrH3bhm3): h1, og:image, og:description, `span.vid-length` (e.g. "30min"),
+  `li.vit-category a`, related `div#relateddiv div.mb` (17/ev quals counted 10–20 cards via
+  verify.sh DOM method), JSON-LD actor array — all present.
+
+## Verdict (final): OK
+
+- Acceptance-critical: most-viewed + longest page 2 now return fresh cards (overlap 4–5 of
+  ~67) instead of duplicating page 1 (68/79 shared). Search pagination needs no code change
+  (0 within-page / ≤1 boundary duplicate across pages, matching the site's own canonical
+  page, not a cache artifact).
+- verify.sh-mechanical residual NOTE (script ceiling, recorded in #294-era FINDINGS too):
+  quality-chip `div.mb` sub-cards inside the search page (and triv catalog pages) surface as
+  empty-title/href-only cards in the regex DOM; verify.sh flags "empty title" cards that
+  the provider's `searchCard` (title selector `p.mbtit a`, non-null title only) already
+  drops via `mapNotNull`. Documented; no provider code change.
+- Age-verification gate from this runner's geo affects HTML surfaces with Firefox UA only;
+  Googlebot UA + curl reproduce all surfaces live and the stream chain end-to-end. Listed as
+  blocked-from-CI-not-needed: evidence complete, gate PASS via full mechanical path.
