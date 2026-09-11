@@ -18,10 +18,12 @@ object Parse {
         return if (page <= 1) "$mainUrl/tags/$q" else "$mainUrl/tags/$q?page=$page"
     }
 
-    // A tag page with a single result page carries an empty #pages block; fetching its
-    // page 2 falls back to the generic grid (duplicate/unfiltered cards) — stop instead.
+    // The last page of a tag still links back to previous pages, and a single-result tag
+    // has an empty #pages block; either way no forward link exists. Only the site's own
+    // ">" next control means another page — fetching past the last one serves the generic
+    // unfiltered fallback feed.
     fun searchHasNext(document: Document): Boolean =
-        document.selectFirst("#pages a[href*=page]") != null
+        document.select("#pages a").any { it.text().trim() == ">" }
 }
 
 class PornXP : MainAPI() {

@@ -23,14 +23,21 @@ class ParseTest {
     }
 
     // /tags/Peggy%20DeVille has one result and an empty #pages block → no more pages.
-    // Page 2 of such a tag falls back to the generic grid, so hasNext must come from #pages.
+    // Page 2 of such a tag falls back to the generic grid, so hasNext must come from the
+    // site's own next control, not from the mere presence of page links.
     @Test fun `single-result tag page has no pagination`() {
         assertFalse(Parse.searchHasNext(doc("/tag-peggydeville-p1.html")))
     }
 
-    // multi-page tag page 1 lists page links inside #pages
+    // multi-page tag page 1 carries the site's ">" next control
     @Test fun `multi-page tag page paginates`() {
         assertTrue(Parse.searchHasNext(doc("/tag-atk-p1.html")))
+    }
+
+    // /tags/ATKGirlfriends p119 is the real last page (5 cards): #pages still links back
+    // to earlier pages but has no ">" next control. p120+ serve the unfiltered fallback.
+    @Test fun `last tag page with only back-links has no next`() {
+        assertFalse(Parse.searchHasNext(doc("/tag-atk-p119-last.html")))
     }
 
     @Test fun `tag url encodes query and appends page param past page 1`() {

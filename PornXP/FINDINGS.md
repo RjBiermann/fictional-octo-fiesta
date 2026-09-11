@@ -18,9 +18,13 @@ match the site's own links); `page > 1` appends `?page=$page`.
 - **hasNext must come from `#pages`, not `true`:** a single-result tag page carries an
   empty `<div id="pages">  </div>` — its `?page=2` fetch falls back to the generic
   latest grid (still 200 + cards), which would poison pagination with unrelated/overlapping
-  tonight listings. `Parse.searchHasNext` now returns `#pages a[href*=page] != null`
-  (populated on multi-page tags, empty on single-result ones). Patched live: p1/p2 of
-  `/tags/ATKGirlfriends` share 0 data-ids.
+  tonight listings. The **last** page of a multi-page tag also still links back to earlier
+  pages, so `#pages a[href*=page]` is not a next-page test either. `Parse.searchHasNext`
+  now returns true only for the site's own `>` next control
+  (`#pages a` text `>`), which is absent on both the single-result page and the real last
+  page. Patched live: `/tags/ATKGirlfriends` p119 (5 cards, no `>`) is the end; its
+  `?page=120` serves the generic grid — the previous `#pages a[href*=page]` check fetched
+  it anyway. p1/p2 of `/tags/ATKGirlfriends` share 0 data-ids.
 - Card shape on tag pages is identical to the homepage grid (`.item_cont` /
   `.item_title` / `.item_thumb img`), so `searchCard` selectors are unchanged.
 - Red→green Parse tests: `PornXP/src/test/kotlin/com/rjbiermann/ParseTest.kt` with
@@ -84,7 +88,8 @@ Static server-rendered HTML (`text/html`), jquery + yall lazy-loader. No JS list
   the #330 root-cause section at the top. Old note kept for the record:
   `https://pxp.news/?q=red` → 200, 36 `.item_cont` cards — but unfiltered/unrelated to the query.
 - Single-result tags (`/tags/Peggy%20DeVille`): 1 card, empty `#pages`; `?page=2` falls back to
-  the generic latest grid — don't paginate those; `searchHasNext` reads `#pages a[href*=page]`.
+  the generic latest grid — don't paginate those; `searchHasNext` reads the site's `>` next
+  control in `#pages` (absent on the single-result page and on a tag's real last page).
 
 ## Video pages
 Probed ≥5 pages across home/search/paginated listings, e.g. `/videos/80377921180`,
