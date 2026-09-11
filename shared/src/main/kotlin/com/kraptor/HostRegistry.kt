@@ -45,6 +45,7 @@ fun BasePlugin.registerHostExtractors(first: List<ExtractorApi> = emptyList()) {
         vidHidePro("https://vidhidehub.com"),
         vidHidePro("https://vidhidevip.com", "VidhideVIP"),
         dood("https://dooood.com"),
+        dood("https://dood.ws"),   // javmost.ws g41 server row returns dood.ws embeds (issue #376)
         vidHidePro("https://javlion.xyz", "Javlion"),
         vidHidePro("https://dhcplay.com", "DHC Play"),
         vidHidePro("https://smoothpre.com", "EarnVids"),

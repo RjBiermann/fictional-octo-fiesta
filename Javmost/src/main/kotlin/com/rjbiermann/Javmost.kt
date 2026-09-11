@@ -72,13 +72,19 @@ class Javmost : MainAPI() {
                 ?.maxByOrNull { it.attr("alt").trim().length }   // synopsis anchor, not the short code anchor
                 ?.attr("alt")?.trim()?.takeIf { it.isNotBlank() }
 
-        /** parses the /ri3123o235r/ AJAX response {"status":"success","data":["<embed-url>"]}
-         *  (slashes JSON-escaped) → first url, null on any other shape. issue #332 finding 2: the
-         *  dooplayer.com/mostplayer.com embeds this can return are dead (dooplayer times out,
-         *  mostplayer /embed/e/ → 204 No Content), so loadLinks only keeps the emturbovid ones. */
-        fun ajaxEmbed(json: String): String? =
-            json.substringAfter("\"data\":[\"", "").substringBefore("\"")
-                .replace("\\/", "/").takeIf { it.contains("http") }
+        /** issue #332 finding 2 / issue #376: the /ri3123o235r/ AJAX response is
+         *  {"status":"success","data":["<embed-url>"...]} (slashes JSON-escaped). embedTargets
+         *  returns EVERY url in the data array — emturbovid ones are resolved server-direct
+         *  by loadLinks, everything else dispatched through the framework loadExtractor
+         *  (voe.sx / dood family / streamtape registry rows). Empty on any other shape. */
+        fun embedTargets(json: String): List<String> {
+            val data = json.substringAfter("\"data\":[", "").takeIf { it.isNotEmpty() }
+                ?: return emptyList()
+            return Regex("\"((?:[^\"\\\\]|\\\\.)+)\"").findAll(data.substringBeforeLast("}"))
+                .map { it.groupValues[1].replace("\\/", "/") }
+                .filter { it.startsWith("http") }
+                .toList()
+        }
     }
     override var mainUrl        = "https://www.javmost.ws"
     override var name           = "Javmost"
@@ -203,22 +209,29 @@ class Javmost : MainAPI() {
                         "sound" to "av",
                     )
                 ).text
-                val embed = Parse.ajaxEmbed(body) ?: continue
-                if (embed.contains("emturbovid.com")) {
-                    val m3u8 = resolveEmturbovid(embed, data)
-                    if (m3u8 == null) continue
-                    callback.invoke(
-                        newExtractorLink(name, name, m3u8) {
-                            this.referer = "$mainUrl/"
-                            this.quality = Qualities.Unknown.value
-                            this.type = ExtractorLinkType.M3U8
+                for (embed in Parse.embedTargets(body)) {
+                    if (embed.contains("emturbovid.com")) {
+                        val m3u8 = resolveEmturbovid(embed, data) ?: continue
+                        callback.invoke(
+                            newExtractorLink(name, name, m3u8) {
+                                this.referer = "$mainUrl/"
+                                this.quality = Qualities.Unknown.value
+                                this.type = ExtractorLinkType.M3U8
+                            }
+                        )
+                    } else {
+                        // issue #376: voe.sx / dood.ws / streamtape server rows are registered
+                        // repo-wide — dispatch through the framework instead of dropping them;
+                        // hosts with no registered adapter (dooplayer.com is domain-parked,
+                        // mostplayer.com answers 204) match nothing and return immediately, so
+                        // dead pages still fail fast with 0 links, never hang.
+                        try {
+                            loadExtractor(embed, data, subtitleCallback, callback)
+                        } catch (e: Exception) {
+                            Log.d(name, "loadExtractor($embed): ${e.message}")
                         }
-                    )
-                } else continue
-                // issue #332 finding 2: the dooplayer/mostplayer branch is REMOVED — dooplayer.com
-                // times out and mostplayer /embed/e/ returns 204 No Content (even for live
-                // mostplayer IDs), so the x-embed chain can never resolve. Dooplayer-only titles
-                // (PPPE-443/445, START-631) fail fast here with 0 links instead of hanging.
+                    }
+                }
             } catch (e: Exception) {
                 Log.d(name, "loadLinks: ${e.message}")
             }

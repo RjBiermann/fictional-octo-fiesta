@@ -390,3 +390,74 @@ check 5 passed via the sw-256 search bridge; check 6: posters/tags/actors/year/d
 recommendations all assigned. `gradlew :Javmost:test` 17/17 green (fixtures:
 showlist2-all-page1, dooplayer-ajax-response, avop-179, avsa-457-recs, related-card);
 `gradlew :Javmost:make` clean; `Javmost.cs3` built.
+
+## Re-probe 2026-09-11 (issue #376: "Video is not playing. No links found")
+
+Reproduced in probes on 2026-09-11 (runner IP, US/Seattle). The site is up; search/showlist2,
+video pages (og:*, heart of the chain `YWRzMQo` + `select_part`) all intact. What changed is
+**which embed hosts the site's AJAX now returns**:
+
+- **dooplayer.com is permanently dead — domain PARKED.** Resolves to 185.53.179.113
+  (AS206834 Team Internet AG = Team Internet domain parking); TCP connect blackholes from the
+  runner AND from ordinary browsers (curl 000, exit 7/28 — the site's own users can't load
+  this embed either). This supersedes the 2026-09-10 "Sec-Fetch-Dest unlocks it" contract:
+  there is no server to unlock.
+- **mostplayer.com is dead for embeds.** Apex 200, but `/embed/e/<id>` answers **204 No
+  Content** for every ID tried — old dooplayer-IDS, live g54-produced mostplayer-ids (e.g.
+  NHDTB-715 g54 `MTE1NTA3Ng.da225cd33b85e7aa`), with/without Referer/session cookie/
+  `X-Requested-With`/Origin. mostplayer.net/.org 404 — service alive, IDs gone.
+- **Uncensored catalog: only dead hosts remain.** 32 sampled URLs across
+  `/showlist2/uncensor/{0,2,5,8}/category/` (CARIBBEANCOM/1PONDO/HEYZO/PACOPACOMAMA pages) are
+  **all g62 (dooplayer) only** — 0 emturbovid servers per page. The Uncensored mainPage row,
+  the provider's first row, therefore yields "No links found" for its whole catalogue, in-app
+  and in a browser alike.
+- **Censored catalog: still fully playable** — every video carries one or two emturbovid
+  servers (g60 *or* g61; the old probe only grepped `'60'` and misread g61-only pages):
+  20/20 sampled (DLDSS-529/534, START-625, AVSA-457, GOJU-322, NHDTB-715, ABW-286, …) AJAX →
+  `emturbovid.com/t/<id>` (now also 22-char ids) → 301 turbovidhls → `urlPlay`/`data-hash`
+  m3u8 → HTTP 200 `application/vnd.apple.mpegurl`. Provider unchanged semantics; id-shape
+  change is transparent to it.
+- Other hosts in the g54/g46/g41/g50 server rows, server-side status: voe.sx id pages
+  404 (16×404, 1 "Redirecting…", 1 tiny "undefined" page out of 18), streamtape.com all 404
+  (0/7), dood.ws always Cloudflare "Just a moment" challenge at the playmogo redirect (30/30)
+  — all dead here today, but live hosts in principle.
+- **New hosts appear**: mostplayer.com (g54) replaces dooplayer.com as bulk host; voe.sx
+  (g46), dood.ws (g41), streamtape.com (g50) rows exist on censor pages.
+
+### Fix applied
+1. `loadLinks` no longer `continue`s past non-emturbovid embeds — it dispatches every AJAX
+   embed through the framework `loadExtractor` (repo-wide HostRegistry: voe.sx via `Voe`,
+   streamtape family, dood family via `dood("https://dood.ws")` row added to the registry).
+   Dead hosts (dooplayer/mostplayer) match no adapter → immediate false, no hang, fail fast
+   unchanged. Live today this changes nothing for g62-only pages (source is dead at the site),
+   but it instantaneously recovers links the moment doo/voe/streamtape rows carry live IDs or
+   a dood mirror turns up — instead of another audit round.
+2. `Parse.embedTargets(json)` (pure, tests red→green) returns **every** url in the AJAX
+   `data` array (supersedes first-only `ajaxEmbed`), fixture updated.
+
+### Limitation (must state, maintainer decides)
+Uncensored + dooplayer-only titles stay unplayable: the only embed the site serves for them is
+parked at DNS level. Nothing is extractable server-side or in-app; recorded as the site's
+ceiling, not provider breakage. If a future probe finds the site re-migrated those videos to
+emturbovid (it does migrate; g60 titles gained g61 servers), they recover automatically.
+
+### Verification (2026-09-11, issue #376) — verify.sh **RESULT: PASS** (exit 0)
+Same bridging mechanics as prior runs (listing pages are JS templates → live `showlist2`
+JSON bridged into minimal card HTML on 127.0.0.1:8777):
+- search: `/showlist2/avop/{1,2}/search/` + `/showlist2/dldss/1/search/` → 24 cards each,
+  zero overlap across pages; home: `/showlist2/censor/{1,2}/category/` → 24×24, page 2 fresh
+  (the censor row, not uncensor — SEE "Limitation" above: the uncensor row's catalogue is
+  linked to dead dooplayer-only pages; the row itself still renders).
+- quick search: none exists (explicit NOTE, unchanged since 2026-09-08).
+- 5 live video pages (DLDSS-529, AVSA-457, NHDTB-715, ABW-286, DLDSS-534) → 200,
+  `button[onclick*=select_part]` 2–13 matches; title `h1.page-header` (matches the showlist2
+  `name` bridged card — check 5 agreement PASS for DLDSS-529/DLDSS-534), og:image poster,
+  `meta[name=twitter:description]` plot, tags/actors/year (`p.card-text`)/duration
+  (`span.m-l-15`) present on 5/5.
+- streams: 5 position-matched `--stream-url`s resolved live through the provider's exact
+  AJAX→emturbovid→turbovidhls chain (g60 ×4, g61 ×1) → **all HTTP 206**
+  `application/vnd.apple.mpegurl`, paths all distinct.
+- check 6: recommendations/tags/plot/duration/year/actors all assigned in provider Kotlin.
+- `gradlew :Javmost:test` 19/19 green (`embedTargets` ×4 red→green, fixtures:
+  dooplayer-ajax-response + inline multi-element/unescape/error cases);
+  `gradlew :Javmost:make` clean, `Javmost.cs3` built.

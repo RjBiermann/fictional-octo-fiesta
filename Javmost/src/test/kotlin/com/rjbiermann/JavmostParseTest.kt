@@ -83,15 +83,34 @@ class JavmostParseTest {
         )
     )
 
-    // --- issue #332 finding 2: the /ri3123o235r/ AJAX response carries the embed url under data[];
-    // dooplayer/mostplayer embeds from it are dead, so loadLinks keeps only emturbovid ones
-    @Test fun `ajaxEmbed extracts url from the ajax response fixture`() {
+    // --- issue #376: the /ri3123o235r/ AJAX response carries embed urls under data[];
+    // embedTargets returns EVERY url (the array is not always single-element), so loadLinks
+    // can dispatch them all — emturbovid chains server-direct, everything else through the
+    // framework loadExtractor (voe.sx / dood family / streamtape registry rows)
+    @Test fun `embedTargets extracts every url from the ajax response fixture`() {
         val json = javaClass.classLoader!!.getResource("dooplayer-ajax-response.json")!!.readText()
-        assertEquals("https://www.dooplayer.com/embed/e/MTEzMzM1.31a75573f599c352", Javmost.Parse.ajaxEmbed(json))
+        assertEquals(
+            listOf("https://www.dooplayer.com/embed/e/MTEzMzM1.31a75573f599c352"),
+            Javmost.Parse.embedTargets(json)
+        )
     }
 
-    @Test fun `ajaxEmbed null on error response without url key`() =
-        assertNull(Javmost.Parse.ajaxEmbed("{\"ok\":false,\"error\":\"bad token\"}"))
+    @Test fun `embedTargets returns all urls on a multi-element data array`() {
+        assertEquals(
+            listOf("https://voe.sx/e/abc123", "https://dood.ws/e/xyz789"),
+            Javmost.Parse.embedTargets("{\"status\":\"success\",\"data\":[\"https:\\/\\/voe.sx\\/e\\/abc123\",\"https:\\/\\/dood.ws\\/e\\/xyz789\"]}")
+        )
+    }
+
+    @Test fun `embedTargets unescapes slashed urls`() {
+        assertEquals(
+            listOf("https://emturbovid.com/t/abc"),
+            Javmost.Parse.embedTargets("{\"data\":[\"https:\\/\\/emturbovid.com\\/t\\/abc\"]}")
+        )
+    }
+
+    @Test fun `embedTargets empty on error response without data`() =
+        assertTrue(Javmost.Parse.embedTargets("{\"ok\":false,\"error\":\"bad token\"}").isEmpty())
 
     // --- issue #300 finding 1: recs are anchor-parent cards; self-link filtered downstream
     private fun recs() = Javmost.Parse.recs(
