@@ -1,5 +1,6 @@
 package com.byayzen
 
+import com.kraptor.JsonLdParse
 import com.kraptor.searchCard
 import com.kraptor.registerHostExtractors
 import com.fasterxml.jackson.databind.node.ArrayNode
@@ -54,16 +55,19 @@ class EPorner : MainAPI() {
                 ?: document.selectFirst("video#EPvideo")?.attr("poster")
         )
         val tags = document.select("div#video-info-tags ul li.vit-category a").map { it.text() }
-        val year = document.selectFirst("span.C a")?.text()?.trim()?.toIntOrNull()
+        // span.C markup is gone from video pages; year lives in the JSON-LD VideoObject
+        // (uploadDate), which JsonLdParse also handles for other providers.
+        val year = JsonLdParse.year(jsonLdText(document))
         val duration = document.selectFirst("span.vid-length")?.text()?.replace("min", "")?.trim()
             ?.toIntOrNull()
         val description =
             document.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
         val recommendations =
             document.select("div#relateddiv div.mb").mapNotNull { searchCard(it, "p.mbtit a", posterSel = "div.mbimg img") }
-        // Cast markup was removed from video pages; actor lives in JSON-LD VideoObject
-        // ("actor": [{"@type":"Person","name":...}]) and, sometimes, in og:description.
-        val actors = document.select("span.valor a").map { Actor(it.text()) }
+        // Cast markup was removed from video pages; primary source is the per-actor
+        // links (li.vit-pornstar.starw a), with JSON-LD and og:description fallbacks.
+        val actors = document.select("li.vit-pornstar.starw a").map { Actor(it.text()) }
+            .ifEmpty { document.select("span.valor a").map { Actor(it.text()) } }
             .ifEmpty {
                 jsonLdActors(document).ifEmpty {
                 // ponytail: og:description heuristics — "Starring: X" clause, else the
@@ -90,6 +94,9 @@ class EPorner : MainAPI() {
             addActors(actors)
         }
     }
+
+    private fun jsonLdText(document: org.jsoup.nodes.Document): String? =
+        document.select("script[type=application/ld+json]").firstOrNull()?.data()
 
     private fun jsonLdActors(document: org.jsoup.nodes.Document): List<Actor> {
         for (script in document.select("script[type=application/ld+json]")) {
