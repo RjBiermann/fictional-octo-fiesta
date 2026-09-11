@@ -10,7 +10,8 @@ Video URLs are `<id>-<slug>.html` (e.g. `/6760-tarzan-x-shame-of-jane.html`).
 Transcript: `story=tarzan` returned 10 results including
 `https://en.sex-film.biz/6760-tarzan-x-shame-of-jane.html` and `/469-aphrodisiac-2018.html`.
 Failed/unused patterns: `/?s=`, `/search/{q}/` (no such route). Result items are
-`div.short.nl.nl2` blocks (same as listings). No GET pagination of search results.
+`div.short.nl.nl2` blocks (same as listings). Search GET paginates via `&search_start=N`
+(see Pagination below).
 
 ## Video pages
 Listings: homepage, `/movies/` (+ `/movies/page/N/`), `/hd-porno-movies/`, `/fullhd-porn-movie/`,
