@@ -1,6 +1,7 @@
 package com.allclassic
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -79,6 +80,41 @@ class AllClassicPornParseTest {
 
     @Test fun `null when no title source`() {
         assertNull(AllClassicPornParse.parseTitle("<html></html>"))
+    }
+
+    @Test fun `plot from itemprop div when og description absent (issue #289, video 5887)`() {
+        val page = javaClass.getResourceAsStream("/video-5887.html")!!.readBytes().decodeToString()
+        assertFalse("fixture is the og-description-absent shape", "og:description" in page)
+        val plot = AllClassicPornParse.parsePlot(page)!!
+        assertTrue("Venus Film V7: The Barbershop" in plot)
+        assertFalse(plot.startsWith("Description:"))
+    }
+
+    @Test fun `plot prefers og description when present (issue #289, video 6403)`() {
+        val page = javaClass.getResourceAsStream("/video-6403.html")!!.readBytes().decodeToString()
+        assertTrue("fixture is the og-description-present shape", "og:description" in page)
+        assertEquals(
+            org.jsoup.Jsoup.parse(page).selectFirst("meta[property=og:description]")
+                ?.attr("content")?.replace(Regex("<[^>]+>"), "")?.trim(),
+            AllClassicPornParse.parsePlot(page)
+        )
+        val plot = AllClassicPornParse.parsePlot(page)!!
+        assertFalse("embedded tags stripped from og:description plot", "<br" in plot)
+    }
+
+    @Test fun `itemprop fallback strips label and trims (issue #289)`() {
+        assertEquals(
+            "Some text here",
+            AllClassicPornParse.parsePlot(
+                """<html><div class="video-description" itemprop="description">
+                   |<div class="description-container"><strong>Description:</strong>
+                   |Some text here</div></div></html>""".trimMargin()
+            )
+        )
+    }
+
+    @Test fun `null when no description source (issue #289)`() {
+        assertNull(AllClassicPornParse.parsePlot("<html></html>"))
     }
 
     @Test fun `escaped apostrophe in names survives the load outerHtml path (fixture 1573)`() {

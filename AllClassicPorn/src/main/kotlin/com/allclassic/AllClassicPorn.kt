@@ -77,8 +77,8 @@ class AllClassicPorn : MainAPI() {
         val actors = AllClassicPornParse.parseActors(html)
         val tags = (AllClassicPornParse.parseTags(html) + AllClassicPornParse.parseCategories(html)).distinct()
         val poster = fixUrlNull(document.selectFirst("meta[property=\"og:image\"]")?.attr("content"))
-        val description = document.selectFirst("meta[property=\"og:description\"]")?.attr("content")
-            ?.replace(Regex("<[^>]+>"), "")?.trim()
+        // og:description first, itemprop div fallback (issue #289, D-1 — video 5887 lacks og:description)
+        val description = AllClassicPornParse.parsePlot(html)
         val duration = document.selectFirst("meta[itemprop=\"duration\"]")?.attr("content")
             ?.let { JsonLdParse.minutes(it) } // shared ISO-8601 grammar (glossary: JSON-LD meta parse)
         val recommendations = AllClassicPornParse.distinctByHref(
