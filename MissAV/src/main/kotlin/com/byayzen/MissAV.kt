@@ -40,7 +40,7 @@ class MissAV : MainAPI() {
     override val mainPage = mainPageOf(
         "$mainUrl/dm169/en/weekly-hot?sort=weekly_views" to "Weekly Hot",
         "$mainUrl/dm263/en/monthly-hot?sort=views" to "Monthly Hot",
-        "$mainUrl/en/new?sort=published_at" to "Newly Added",
+        "$mainUrl/en/new" to "Newly Added",
         "$mainUrl/en/english-subtitle" to "English Subtitles",
         "$mainUrl/dm628/en/uncensored-leak" to "Uncensored Leak",
         "$mainUrl/dm150/en/fc2" to "FC2",
