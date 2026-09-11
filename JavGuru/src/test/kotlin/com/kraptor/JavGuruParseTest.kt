@@ -32,4 +32,16 @@ class JavGuruParseTest {
     @Test fun `title from h1 dot titl`() {
         assertTrue(JavGuruParse.parseTitle(doc).startsWith("JJBK-087"))
     }
+
+    @Test fun `turbovidhls literal mp4 in urlPlay extracted`() {
+        val html = javaClass.getResourceAsStream("/jav-guru-turbovidhls-mp4.html")!!.readBytes().decodeToString()
+        assertEquals(
+            "https://e06.etvp.cc/uploads/6aa2e4c4ba2ef.mp4",
+            JavGuruParse.parseUdMp4(html)
+        )
+    }
+
+    @Test fun `m3u8 player page yields no mp4`() {
+        assertEquals(null, JavGuruParse.parseUdMp4("var urlPlay = 'https://cdn.turboviplay.com/x.m3u8'"))
+    }
 }

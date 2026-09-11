@@ -132,3 +132,45 @@ NOTE: verify.sh `field` bar cannot express `h1.titl` (mini-selector regex `[a-zA
   /1051278 currently resolve NO working mirror (emturbovid hop → jwplayer JS player page
   with no literal m3u8; xd/td/hd/od mirrors dead/unsupported per FINDINGS). Last verified
   full-play sample set: 5/5 above.
+
+## Fix run 2026-09-11 (issue #310 — ud/turbovidhls literal-MP4 drift)
+- Some `/searcho/?ud=…` chains now land on `turbovidhls.com/t/<id>` player pages that serve
+  a **literal MP4** in `var urlPlay` instead of an m3u8 (reproduced end-to-end on
+  /1051302: `var urlPlay = 'https://e06.etvp.cc/uploads/6aa2e4c4ba2ef.mp4'`; MP4 serves
+  206 video/mp4, `ftypisom` magic). Both page shapes (m3u8 and MP4) are live simultaneously.
+- Fix: `JavGuruParse.parseUdMp4(playerHtml)` (pure parse fn per ADR-0005) extracts the
+  urlPlay MP4; the ud branch of `loadLinks` emits it as an `ExtractorLink` (VIDEO) with an
+  etvp-origin Referer when no m3u8 is present, else loadExtractor fallback as before.
+- Fixture `jav-guru-turbovidhls-mp4.html` captured from the live page (issue #310 step 3);
+  tests red → green (`parseUdMp4` MP4 + m3u8-negative cases). `JavGuru:test` +
+  `JavGuru:make` clean, version 25 → 26.
+- verify.sh (2026-09-11, /1051302 with --stream-url = provider-resolved MP4):
+  search 24/page1, home 24+24 (checks 1/1a), video page 200 h1 match, stream
+  `https://e06.etvp.cc/uploads/6aa2e4c4ba2ef.mp4` → **206 video/mp4**, related block
+  1/1, check 6 all fields. **RESULT: PASS**. N/A limitations unchanged (see #210 note).
+
+## Reviewer verification 2026-09-11 (PR #313 review of the #310 fix)
+- Independent probe (reviewer): /1051302 chain live today → xd javclan.com MFYD-186 page
+  (title matches fixture `MFYD-186`); **ud → turbovidhls player → emturbovid.com/sandbox**
+  trap for non-browser clients; td johnfullwonder VOE page; hd vide0.net Cloudflare
+  challenge; od maxstream (no literal). The emturbovid sandbox bounce (~checksandbox() in
+  the fixture, live-confirmed) is why the ud/turbovidhls MP4 player is only reachable by
+  the Kotlin runtime (NiceHttp keeps raw control bytes, per the #267 note) — a plain
+  urllib/requests follow lands on `emturbovid.com/sandbox`, NOT the player page. This is a
+  standing, documented site wall, not a provider defect. Consequence: the fix's stream
+  transcript is naturally single-URL (the one drifted shape it addresses); the ≥5 varied
+  full-play sample set stands from the #267-era run and is now bounded by this wall.
+- `e06.etvp.cc/uploads/6aa2e4c4ba2ef.mp4` probed directly → **206 video/mp4** (Range
+  0-4095), with and without any Referer head — MP4 requirement not Referer-gated today.
+- Reviewer fixed a latent referer bug in the new MP4 branch: the builder had written
+  `"${'$'}{it.scheme}://${'$'}{it.host}/"` — the `${'$'}` escape defeats interpolation, so
+  the emitted link's referer was the literal string `${it.scheme}://${it.host}/` and the
+  URI's scheme/host never interpolated. Corrected to `"${it.scheme}://${it.host}/"`
+  (etvp-origin, as FINDINGS states). No runtime impact today (CDN serves 206 referer-free),
+  but the code now does what the comment/FINDINGS claim. `JavGuru:test` + `JavGuru:make`
+  clean on the fixed tree; version stays 25 → 26.
+- verify.sh load surfaces re-checked independently (search /page/1|2/?s=teacher, home /
+  and /page/2/, 6 varied video URLs, h1 title, `div.woo-sc-related-posts`, --load-response
+  recommendations/tags/year/actors): checks 1/1a confirmed 24 cards each, matching the PR
+  body. Check 2/3 stream bars not assertable from static HTML (multi-hop chain) —
+  documented limitation, unchanged.
