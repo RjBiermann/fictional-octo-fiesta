@@ -29,7 +29,7 @@ jobs:
       - name: Install devloop (pinned)
         run: >-
           pip install
-          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.1.9
+          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.2.0
       - name: Install agent runtime (pi) + model config
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -60,6 +60,9 @@ jobs:
           # live in the header itself (fetch + push both use it)
           B64=$(printf 'x-access-token:%s' "$AGENT_PAT" | base64 -w0)
           git config http.https://github.com/.extraheader "AUTHORIZATION: basic $B64"
+          # commit identity — checkout leaves none; agents must not guess
+          git config user.name "devloop agent"
+          git config user.email "devloop@users.noreply.github.com"
       - name: Run pipeline
         run: devloop once
         env:
