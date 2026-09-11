@@ -2,6 +2,9 @@
 
 Canonical issue-label vocabulary. Skills speak in these exact strings.
 
+> Historical (pre-devloop): `ready-for-agent` fired the old Task workflow —
+> it is currently inert; `ready-for-human` unchanged. See AGENTS.md.
+
 | Label              | Meaning                                  |
 | ------------------ | ---------------------------------------- |
 | `needs-triage`     | Maintainer needs to evaluate this issue  |

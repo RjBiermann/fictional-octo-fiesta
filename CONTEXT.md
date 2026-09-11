@@ -2,6 +2,13 @@
 
 CloudStream extension repo (18+ providers). This context covers the AI automation pipeline that turns labeled GitHub issues into reviewed pull requests, built by coding agents in CI.
 
+> **Historical machinery note:** entries below describing the old pipeline's
+> runtime machinery — Builder/Reviewer runs, Rounds, Commands, the Monitor
+> cadence, the Model chain, `deliver-pr`, Acks — describe the pre-devloop
+> workflows, which have been removed. The pipeline is now devloop (see
+> AGENTS.md). The domain concepts (FINDINGS, Triage, Provider health, Expiry,
+> audit vocabulary) remain current.
+
 ## Language
 
 ### Agents

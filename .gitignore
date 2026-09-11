@@ -12,3 +12,7 @@ local.properties
 .vscode
 # wizard/scratch artifacts
 .scratch/
+
+# devloop (agent pipeline) — generated, reproducible via `devloop init`
+config.toml
+skills/
