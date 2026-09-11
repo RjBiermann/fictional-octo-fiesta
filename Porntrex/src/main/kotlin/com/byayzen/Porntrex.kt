@@ -225,10 +225,13 @@ object PorntrexParse {
         return if (mins == 0 && secs == 0) null else mins * 60 + secs
     }
 
-    /** Duration from the video details stats row (i.fa-clock-o inside block-details), in seconds. */
+    /** Duration from the video details stats row (i.fa-clock-o inside block-details or the
+     *  .video-info stats row, issue #309), in seconds. */
     fun durationOf(document: org.jsoup.nodes.Document): Int? =
         parseDurationSeconds(
-            document.selectFirst("div.block-details div.item span:has(i.fa-clock-o) em.badge")?.text()
+            // issue #309: on live full-page DOM the badge sits in the .video-info stats row,
+            // outside div.block-details. Widen to both; em.badge still keeps navbar "Latest" out.
+            document.selectFirst("div.block-details div.item span:has(i.fa-clock-o) em.badge, .video-info .item span:has(i.fa-clock-o) em.badge")?.text()
         )
 
     /**

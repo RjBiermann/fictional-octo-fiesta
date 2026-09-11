@@ -194,3 +194,40 @@ sample shape (q=milf): `{"search": [], "album": [{"text": "Blonde MILF riding co
   and fetch moment (teen p1/p2 shared 1 href, teen p1 vs the site's own `/2/` page shares
   the same 1 — confirmed site-side; milf 2, blonde 3, hardcore 5, amateur 43; busty and
   webcam sampled clean this run). getMainPage is untouched by this PR.
+
+## Issue #309 — duration selector missed the live .video-info stats row (2026-09-11 audit)
+
+**Finding (audit, checked against code).** `durationOf` scoped the clock badge to
+`div.block-details`, but on the fully-rendered video DOM the stats row lives in the
+`.video-info` header block (calendar / eye / clock badges), and `div#tab_video_info >
+.block-details` starts *after* it and contains Models/Categories/Tags/Description only —
+no `fa-clock-o`. So duration was null on every real page; the unit test only passed because
+the fixture put the badge inside a made-up `div.block-details`. Navbar-"Latest" guard
+(issue #215) verified still safe: the parse still requires `em.badge`, absent from the
+navbar `<a>`.
+
+**Fix (version 10 → 11).** `durationOf` selector widened to
+`div.block-details div.item span:has(i.fa-clock-o) em.badge, .video-info .item span:has(i.fa-clock-o) em.badge`
+(both locations, block-details first — old behavior preserved). Fixture
+`porntrex_video_page.html` regenerated to the audit's real stats-row DOM: badge under
+`.video-info`, block-details = Models/Tags/Description only, navbar clock still present.
+Tests: `duration parsed from video-info stats row` (red→green, 50min 55sec = 3055s),
+inline block-details variant kept green, navbar-garbage test kept green.
+`Porntrex:test` and `Porntrex:make` BUILD SUCCESSFUL.
+
+**Live verification (2026-09-11, this run) — PARTIAL.**
+- Direct `/video/{id}/…` pages currently serve the degraded ad shell to guests (the known
+  Correctness+Drift issue): 5 probed (3324609 slug 404s, 1311225, 1449881, 1950308,
+  1888890, 1888347) return 200 but the homepage-shaped shell — empty `p.title-video`,
+  no stats row, no flashvars. Duration is null on shells regardless (stats row absent);
+  the selector fix becomes visible the moment full-page serving resumes — unit-fixture
+  per the audit's full-page snapshot is the proof of the DOM shape.
+- verify.sh run on the embedded surface (per #275 methodology): search page 1+2 85 cards
+  each no dupes; home 120 cards; 3 embeds `div#kt_player` 1×; all 3 `get_file` streams
+  **206 video/mp4**; LoadResponse fields recommendations,tags,plot,duration,actors,posters
+  all assigned (`duration` from both selector locations). RESULT: FAIL only on the
+  documented **site-native home churn** (2 cards shared between front page and async page 2,
+  site-side reshuffle — same finding as the #275 run) plus shell serving; everything
+  else PASS.
+- Endpoints used: search async `block_id=list_videos_videos&from=2` works (85 page-2
+  cards); home async `block_id=list_videos_common_videos_list_norm&from=2` works.

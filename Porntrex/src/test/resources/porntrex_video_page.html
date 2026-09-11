@@ -1,21 +1,36 @@
-<!-- Fixture pattern captured from the issue #215 transcript (video 3074115, 2026-09-09):
-     the navbar has an i.fa-clock-o ("Latest") which must NOT match; the details stats
-     row carries the real duration "6min 09sec" = 369 seconds. -->
+<!-- Fixture per issue #309 / audit snapshot: on the real full-page video DOM the clock
+     duration badge lives in the .video-info stats row, NOT inside div.block-details
+     (block-details = Models/Categories/Tags/Description, starts after the stats row).
+     The navbar i.fa-clock-o ("Latest") must still not match (issue #215). -->
 <html><body>
 <ul class="nav">
   <li><a href="https://www.porntrex.com/latest-updates/"><i class="fa fa-clock-o"></i>Latest</a></li>
 </ul>
-<div class="head-pageinfo">8:00</div>
-<div class="block-details">
-  <div class="item">
-    <span><i class="fa fa-calendar"></i> <em class="badge">7 months ago</em></span>
-    <span><i class="fa fa-eye"></i> <em class="badge">5 064</em></span>
-    <span><i class="fa fa-clock-o"></i> <em class="badge">6min 09sec</em></span>
-  </div>
-</div>
-<div class="block-details">
-  <div class="item">
-    <span><i class="fa fa-clock-o"></i> <em class="badge">1:06:09</em></span>
+<div class="video-info">
+  <div class="info-holder">
+    <div class="main-info-video">
+      <div class="columns">
+        <div class="column"><p class="title-video">Andi Avalon - Example Scene</p></div>
+        <div class="item">
+          <span><i class="fa fa-calendar"></i> <em class="badge">2 days ago</em></span>
+          <span><i class="fa fa-eye"></i> <em class="badge">3 142</em></span>
+          <span><i class="fa fa-clock-o"></i> <em class="badge">50min 55sec</em></span>
+        </div>
+      </div>
+    </div>
+    <div id="tab_video_info"><div class="block-details">
+      <div class="item">
+        <span class="title-item">Models:</span>
+        <div class="items-holder"><a href="/models/andi-avalon/"><i class="fa fa-star"></i> Andi Avalon</a></div>
+      </div>
+      <div class="item">
+        <span class="title-item">Tags:</span>
+        <div class="items-holder"><a class="js-cat" href="/tags/a/">A</a></div>
+      </div>
+      <div class="videodesc item"><span class="title-item">Description:</span>
+        text<em class="des-link">Stepson Wet</em>
+      </div>
+    </div></div>
   </div>
 </div>
 </body></html>
