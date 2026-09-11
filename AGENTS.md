@@ -4,7 +4,7 @@ Guidance for coding agents working in this repository.
 
 ## Project overview
 
-A [CloudStream](https://github.com/recloudstream/cloudstream) extension repo containing 18+ (NSFW) video providers. Each top-level directory (e.g. `EPorner/`, `MissAV/`) is one Gradle subproject that compiles to a `.cs3` plugin. New providers are added to **this repo** as new directories — never as separate repos.
+A [CloudStream](https://github.com/recloudstream/cloudstream) extension repo containing 24 NSFW (18+) video providers. Each top-level directory (e.g. `EPorner/`, `MissAV/`) is one Gradle subproject that compiles to a `.cs3` plugin. New providers are added to **this repo** as new directories — never as separate repos.
 
 Reference extension repos (for patterns, not to be ported wholesale): https://github.com/phisher98/CXXX, https://github.com/Kraptor123/Cs-GizliKeyif. Docs: https://cloudstream.miraheze.org/wiki/List_of_extensions.
 
