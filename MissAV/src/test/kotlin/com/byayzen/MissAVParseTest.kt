@@ -20,4 +20,13 @@ class MissAVParseTest {
         assertEquals(6, tags.size)
         assertEquals("Av Actress", tags.last())
     }
+
+    /** og:video:duration is seconds; CloudStream wants minutes (issue #302, midv-852 = 7256s = 120min). */
+    @Test fun `duration seconds to minutes`() {
+        assertEquals(120, MissAVParse.parseDuration("7256"))
+        assertEquals(2, MissAVParse.parseDuration("120"))
+        assertEquals(null, MissAVParse.parseDuration("59")) // sub-minute rounds to 0 → null, like other providers
+        assertEquals(null, MissAVParse.parseDuration("abc"))
+        assertEquals(null, MissAVParse.parseDuration(null))
+    }
 }

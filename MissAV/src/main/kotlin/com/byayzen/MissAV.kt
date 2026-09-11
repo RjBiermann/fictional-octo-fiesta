@@ -20,6 +20,12 @@ object MissAVParse {
 
     fun parseTags(document: Document): List<String> =
         document.select("div.text-secondary:has(> span:containsOwn(genre)) a").map { it.text().trim() }
+
+    /** og:video:duration is seconds on missav.live; CloudStream duration is minutes (issue #302). */
+    fun parseDuration(seconds: String?): Int? {
+        val s = seconds?.toIntOrNull() ?: return null
+        return (s / 60).takeIf { it > 0 }
+    }
 }
 
 class MissAV : MainAPI() {
@@ -134,7 +140,9 @@ class MissAV : MainAPI() {
         val tags = MissAVParse.parseTags(document)
         val actresses = MissAVParse.parseActors(document).map { Actor(it) }
         val plot = document.selectFirst("head meta[property='og:description']")?.attr("content")
-        val duration = document.selectFirst("head meta[property='og:video:duration']")?.attr("content")?.toIntOrNull()
+        val duration = MissAVParse.parseDuration(
+            document.selectFirst("head meta[property='og:video:duration']")?.attr("content")
+        )
         val dvdId = url.trimEnd('/').substringAfterLast('/')
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster
