@@ -15,6 +15,22 @@ class Eroticmv : MainAPI() {
             document.select(".actor-element.single-element a[href*='/actor/']")
                 .mapNotNull { it.attr("title").trim().takeIf { t -> t.isNotEmpty() } }
                 .distinct()
+
+        /**
+         * og:video:url comes in two shapes (FINDINGS 2026-09-11):
+         * A: "http://<base64>.m3u8" → decode token directly.
+         * B: "...?video_embed=<id>" → stream lives on the embed page's <source src> tag;
+         *    pass its HTML, null otherwise.
+         */
+        fun parseStreamUrl(raw: String, embedHtml: String?): String? {
+            if (raw.contains("?video_embed=")) {
+                val m = Regex("source src=\"([^\"]+\\.m3u8)\"").find(embedHtml ?: return null)
+                return m?.groupValues?.get(1)
+            }
+            val token = raw.substringAfterLast("/").removeSuffix(".m3u8")
+            val stream = decodeBase64(token) ?: return null
+            return stream.takeIf { it.startsWith("http") }
+        }
     }
 
     override var mainUrl = "https://eroticmv.com"
@@ -109,15 +125,18 @@ class Eroticmv : MainAPI() {
         Log.d(tag, "data = $data")
         val html = app.get(data, referer = mainUrl).text
 
-        // og:video:url content is "http://<base64>.m3u8"; strip suffix, decode → HLS URL (FINDINGS)
+        // og:video:url has two shapes (FINDINGS 2026-09-11): A "http://<base64>.m3u8" (decode),
+        // B "...?video_embed=<id>" (stream in the embed page's <source src>); parseStreamUrl handles both.
         val raw = Regex("og:video:url\"\\s*content=\"([^\"]+)\"").find(html)?.groupValues?.get(1)
             ?: return false
-        val token = raw.substringAfterLast("/").removeSuffix(".m3u8")
-        val streamUrl = decodeBase64(token) ?: run {
-            Log.d(tag, "base64 decode failed: $token")
+        val embedHtml = if (raw.contains("?video_embed=")) {
+            Log.d(tag, "Shape B: fetching embed page $raw")
+            app.get(raw, referer = mainUrl).text
+        } else null
+        val streamUrl = parseStreamUrl(raw, embedHtml) ?: run {
+            Log.d(tag, "stream extraction failed for: $raw")
             return false
         }
-        if (!streamUrl.startsWith("http")) return false
 
         callback(
             newExtractorLink(
