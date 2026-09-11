@@ -1,0 +1,32 @@
+# devloop: trigger-label events fire a build run.
+# Install is pinned to a devloop tag — a broken devloop commit can't break this pipeline.
+name: devloop
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+
+jobs:
+  run:
+    if: >-
+      github.event.label.name == 'ai-fix' ||
+      github.event.label.name == 'ai-new-site' ||
+      github.event.label.name == 'ai-remove-site'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Install devloop (pinned)
+        run: >-
+          pip install
+          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.1.0
+      - name: Run pipeline
+        run: devloop once
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
