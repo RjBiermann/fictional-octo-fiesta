@@ -14,8 +14,9 @@ class PorntrexParseTest {
         Jsoup.parse(File("src/test/resources/porntrex_video_page.html").readText())
     }
 
-    @Test fun `duration scoped to details row parses min sec`() {
-        assertEquals(6 * 60 + 9, PorntrexParse.durationOf(doc))
+    /** TDD for issue #309: the clock badge lives in the .video-info stats row on live DOM. */
+    @Test fun `duration parsed from video-info stats row`() {
+        assertEquals(50 * 60 + 55, PorntrexParse.durationOf(doc))
     }
 
     @Test fun `duration parses H MM SS clock text`() {
