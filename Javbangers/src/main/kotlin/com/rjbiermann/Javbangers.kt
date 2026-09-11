@@ -3,6 +3,7 @@ package com.rjbiermann
 import com.kraptor.registerHostExtractors
 import com.lagradost.api.Log
 import org.jsoup.nodes.Element
+import java.util.Calendar
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 
@@ -66,6 +67,11 @@ class Javbangers : MainAPI() {
         val title = doc.selectFirst("h1")?.text()?.trim() ?: return null
         val details = doc.selectFirst("div.block-details")
         val tags = JavbangersParse.tagsFromDetails(details, title)
+        // "Submitted: <em class=badge>N years ago</em>" — no absolute date on the page
+        val year = JavbangersParse.yearFromAge(
+            details?.select("div.item span em.badge")
+                ?.firstOrNull { it.text().contains("ago") }?.text()
+        )
         val recommendations = doc.select("div.related-videos div.video-item")
             .mapNotNull { rel -> rel.selectFirst("a.thumb")?.let { a ->
                 newMovieSearchResponse(
@@ -80,6 +86,7 @@ class Javbangers : MainAPI() {
             posterUrl = fixUrlNull(doc.selectFirst("meta[property=\"og:image\"]")?.attr("content"))
             plot = doc.selectFirst("div.videodesc em")?.text()?.trim()
             this.tags = tags
+            this.year = year
             this.recommendations = recommendations
         }
     }
@@ -142,6 +149,20 @@ object JavbangersParse {
 
     private fun add(out: LinkedHashSet<String>, text: String, title: String?) {
         if (text.isNotEmpty() && text != title?.trim()) out += text
+    }
+
+    /** Relative-age badge text ("3 years ago") → upload year; empty/absent → null. */
+    fun yearFromAge(badgeText: String?, today: Calendar = Calendar.getInstance()): Int? {
+        val m = Regex("(\\d+)\\s*(year|month|day|hour)s?\\s+ago", RegexOption.IGNORE_CASE)
+            .find(badgeText ?: return null) ?: return null
+        val n = m.groupValues[1].toInt()
+        val year = today.get(Calendar.YEAR)
+        return when (m.groupValues[2].lowercase()) {
+            "year" -> year - n
+            "month" -> (today.get(Calendar.YEAR) * 12 + today.get(Calendar.MONTH) - n) / 12
+            // days/hours: always recent — only slips a year when today is within n days of Jan 1
+            else -> if (today.get(Calendar.DAY_OF_YEAR) <= n) year - 1 else year
+        }
     }
 }
 
