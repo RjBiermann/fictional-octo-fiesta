@@ -65,7 +65,7 @@ class Javbangers : MainAPI() {
         val doc = app.get(url).document ?: return null
         val title = doc.selectFirst("h1")?.text()?.trim() ?: return null
         val details = doc.selectFirst("div.block-details")
-        val tags = details?.select("a[href*=\"/categories/\"]")?.map { it.text() } ?: emptyList()
+        val tags = JavbangersParse.tagsFromDetails(details, title)
         val recommendations = doc.select("div.related-videos div.video-item")
             .mapNotNull { rel -> rel.selectFirst("a.thumb")?.let { a ->
                 newMovieSearchResponse(
@@ -123,6 +123,26 @@ class Javbangers : MainAPI() {
 private fun String.substringAfterJb(key: String): String? {
     val m = Regex(key + "\\s*:\\s*'([^']+)'").find(this)?.groupValues?.get(1)
     return m?.takeIf { it.startsWith("http") }
+}
+
+// TDD for issue #297: video pages carry a Tags row (div.item starting "Tags:") whose
+// anchors have no href — the old categories-only selector never captured it.
+object JavbangersParse {
+    /** Categories + Tags row merged, deduped, title-echo entries dropped. */
+    fun tagsFromDetails(details: Element?, title: String?): List<String> {
+        if (details == null) return emptyList()
+        val out = LinkedHashSet<String>()
+        details.select("a[href*=\"/categories/\"]").forEach { add(out, it.text().trim(), title) }
+        // Tags row: div.item whose combined text starts "Tags:"; its anchors carry no href.
+        details.select("div.item").firstOrNull { it.text().trim().startsWith("Tags:") }?.let { row ->
+            row.select("a").forEach { add(out, it.text().trim(), title) }
+        }
+        return out.toList()
+    }
+
+    private fun add(out: LinkedHashSet<String>, text: String, title: String?) {
+        if (text.isNotEmpty() && text != title?.trim()) out += text
+    }
 }
 
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin

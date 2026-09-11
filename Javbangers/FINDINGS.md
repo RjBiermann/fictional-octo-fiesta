@@ -97,3 +97,14 @@ threesome, toys, uncensored, uniform.
 - Search pages beyond page 1 unreachable — provider returns page 1 only for search.
 - `?page=2`/async pagination silently return page-1 content; don't use them.
 - Video-page duration absent server-side (JS-filled badge) — LoadResponse.duration null.
+
+## Tags row (issue #297, verified 2026-09-11)
+Video pages carry a `div.item` whose text starts `Tags:`; its anchors have **no href**, so
+the old categories-only selector never captured them. Exposure: 66008 → 18 real tags,
+188678 → 2 (SW-854 + long JP title), 223404 → 1 (Hardcore), 236474 → 1 (the title itself —
+junk); 210889 and 21660 → no Tags row. Fix: `JavbangersParse.tagsFromDetails` merges the
+categories links (`a[href*="/categories/"]` scoped to `div.block-details`) with the
+href-less Tags-row anchors into one LinkedHashSet (dedupe) and drops the title-echo entry.
+Unit tests: `Javbangers/src/test/kotlin/.../JavbangersParseTest.kt` (fixture
+`javbangers_details.html`). verify.sh: PASS (3 videos; streams 206 video/mp4; Tags-row
+anchors 18/2/1 by grep on the saved pages).
