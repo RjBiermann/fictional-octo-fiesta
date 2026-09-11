@@ -30,7 +30,7 @@ class PerverZija : MainAPI() {
         } else {
             app.get("${request.data}/page/$page/").document
         }
-        val home     = document.select("div.col-md-3").mapNotNull { it.toMainPageResult() }
+        val home     = PerverZijaParse.listingCards(document).mapNotNull { it.toMainPageResult() }
 
         return newHomePageResponse(list = HomePageList(
             name = request.name,
@@ -54,7 +54,7 @@ class PerverZija : MainAPI() {
             app.get("${mainUrl}/page/$page/?s=${query}").document
         }
 
-        val aramaCevap = document.select("div.col-md-3").mapNotNull { it.toMainPageResult() }
+        val aramaCevap = PerverZijaParse.listingCards(document).mapNotNull { it.toMainPageResult() }
         return newSearchResponseList(aramaCevap, hasNext = true)
     }
 

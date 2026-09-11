@@ -111,21 +111,22 @@ open class PerverZijaExtractor : ExtractorApi() {
     ) {
         Log.d("kraptor_PerverZijaExtract", "url = $url")
 
-        listOf("480", "720", "1080", "2160").forEach { kalite ->
-            val videoQuality = kalite.toIntOrNull() ?: 720
+        // issue #333: emitting fixed 480/720/1080/2160 links breaks every video whose
+        // max quality is lower — xs1.php?q=<unavailable> returns HTTP 200 with a
+        // plain-text error, not an m3u8. Without q it serves a master playlist with
+        // all available #EXT-X-STREAM-INF variants (verified live for every sampled
+        // video) — emit that single adaptive link instead.
+        val changeUrl = url.replace("index.php", "xs1.php")
 
-            val changeUrl = url.replace("index.php", "xs1.php") + "&q=$videoQuality"
-
-            callback.invoke(newExtractorLink(
-                source = this.name,
-                name = this.name,
-                url = changeUrl,
-                type = ExtractorLinkType.M3U8
-            ) {
-                this.referer = url.substringBefore("/player/") + "/"
-                this.quality = videoQuality
-            })
-        }
+        callback.invoke(newExtractorLink(
+            source = this.name,
+            name = this.name,
+            url = changeUrl,
+            type = ExtractorLinkType.M3U8
+        ) {
+            this.referer = url.substringBefore("/player/") + "/"
+            this.quality = Qualities.Unknown.value
+        })
     }
 }
 

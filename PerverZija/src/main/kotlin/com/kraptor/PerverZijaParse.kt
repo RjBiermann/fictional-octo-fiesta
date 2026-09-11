@@ -10,6 +10,12 @@ object PerverZijaParse {
      *  the WP theme now serves div.xs-related-item (title link + poster img). */
     fun related(doc: Document): List<Element> = doc.select("div.xs-related-item").toList()
 
+    /** Home/search listing cards. The bare div#sidebar widget column is also a
+     *  div.col-md-3 (issue #333) — excluding it by id keeps video-card rows for
+     *  both live variants (col-sm-3 on search, col-sm-6 col-xs-6 on home). */
+    fun listingCards(doc: Document): List<Element> =
+        doc.select("div.col-md-3:not(#sidebar)").toList()
+
     /** Title from div.xs-related-title a — img alt/title repeat the host page's
      *  title on the live site, so they must never be used. */
     fun titleOf(item: Element): String? =
