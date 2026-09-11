@@ -161,7 +161,7 @@ class Javseen : MainAPI() {
                 ?.let { it / 60 }
 
         val episodes = document.select("button.button_choice_server").mapNotNull { btn ->
-            decodeBase64(btn.attr("data-embed") ?: return@mapNotNull null)
+            decodeBase64(btn.attr("data-embed"))
         }
 
         val recommendations = document.select("ul.videos.related li").mapNotNull { element ->
@@ -169,7 +169,7 @@ class Javseen : MainAPI() {
             val recTitle =
                 aTag.attr("title").ifEmpty { element.selectFirst("span.video-title")?.text() }
                     ?: return@mapNotNull null
-            val recHref = aTag.attr("href") ?: return@mapNotNull null
+            val recHref = aTag.attr("href")
             val recPoster = element.selectFirst("img")?.attr("src")
 
             newMovieSearchResponse(recTitle, fixUrl(recHref), TvType.NSFW) {

@@ -41,7 +41,7 @@ class Cat3Film : MainAPI() {
     private fun Element.toSearchResult(): SearchResponse? {
         val href = attr("href").takeIf { it.isNotBlank() } ?: return null
         val title = selectFirst(".card-title")?.text()?.trim().takeIf { !it.isNullOrBlank() }
-            ?: attr("alt")?.takeIf { it.isNotBlank() }
+            ?: attr("alt").takeIf { it.isNotBlank() }
             ?: return null
         return newMovieSearchResponse(title, fixUrl(href), TvType.NSFW) {
             posterUrl = fixUrlNull(selectFirst("img")?.attr("src"))
