@@ -238,7 +238,8 @@ class Javmost : MainAPI() {
                         newExtractorLink(name, name, stream) {
                             this.referer = embed
                             this.quality = Qualities.Unknown.value
-                            this.type = ExtractorLinkType.VIDEO
+                            // FINDINGS (#300): mostplayer api returns HLS (...v.m3u8); dooplayer api returns direct mp4 (.../stream?t=)
+                            this.type = if (stream.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
                         }
                     )
                 } else continue
