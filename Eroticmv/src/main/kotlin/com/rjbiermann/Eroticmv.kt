@@ -20,6 +20,7 @@ class Eroticmv : MainAPI() {
     override var mainUrl = "https://eroticmv.com"
     override var name = "Eroticmv"
     override val hasMainPage = true
+    override val hasQuickSearch = false  // plain form GET, no suggest endpoint (issue #290)
     override var lang = "en"
     override val supportedTypes = setOf(TvType.NSFW)
     override val vpnStatus = VPNStatus.MightBeNeeded

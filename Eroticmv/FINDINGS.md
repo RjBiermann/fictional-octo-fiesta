@@ -77,3 +77,9 @@ Search: no pagination (see above).
 - Fixture: `src/test/resources/actor-block.html` (raw Stars block of pretty-peaches-2-1987).
 - No true duration exposed on video pages (`duration-text` span on cards carries the rating,
   e.g. "4.2 ★") and `datePublished` is the WP posting date — neither invented.
+
+## Update — 2026-09-11 fix run (issue #290)
+
+- Live re-probe: search `?s=sex` → 200, 24 cards; home → 200; video page og:video:url → base64 → vidcdn2 m3u8 intact.
+- No quick-search/suggest endpoint in HTML. Defect A: `hasQuickSearch` missing → declared `override val hasQuickSearch = false`.
+- Version bumped to 5.
