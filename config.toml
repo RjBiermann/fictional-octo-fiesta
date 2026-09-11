@@ -11,6 +11,7 @@ repo = "RjBiermann/fictional-octo-fiesta"        # where issues and PRs live
 fix = "ai-fix"             # broken thing, agent repairs it
 new = "ai-new-site"       # new unit of work, agent builds it
 remove = "ai-remove-site"  # delete something, with evidence first
+task = "ai-task"           # fully specified work (reviews, audits) — issue body is the spec
 
 [runtime]
 engine = "opencode"        # opencode | claude | goose | custom
