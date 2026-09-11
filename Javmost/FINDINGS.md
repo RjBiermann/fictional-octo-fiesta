@@ -298,3 +298,46 @@ Mechanics note (same as the 2026-09-09 Javmost run): listing HTML contains one J
 DOM counting, since the template is JS string text, not DOM. The run itself is a straight copy
 of `.pi/skills/verify-provider/scripts/verify.sh` with that pre-strip wrapper on the html-file
 argument of its `py` helper.
+
+## Fix run 2026-09-11 (issue #300: recs always empty; dooplayer dead; entity decoding)
+
+Three defects fixed, TDD red→green, `version` 7→8:
+
+1. **Recs (correctness)** — old code selected `div.card` and `selectFirst`ed anchors from it;
+   on live pages the `<a alt>` anchor is the *parent* of `div.card`, so only the video's own
+   card-block anchor ever passed (and was then self-filtered) → recommendations always empty.
+   New `Parse.recs(doc, mainUrl)` (fixture `avsa-457-recs.html`, red→green) iterates `a[alt]`
+   anchors, keeps on-site hrefs, poster via existing `parseCardUrl` on the child card;
+   `load()` maps through `newMovieSearchResponse` and filters `it.url != url`.
+   Live probe (recs-replication over 5 pages): 5–9 non-self recs each, all with real
+   `source[data-srcset]` posters (AVSA-457 9/9, DLDSS-529 5/5, SW-256 9/9, MDBK-429 9/9,
+   AVOP-364 9/9).
+2. **Embed branch (drift)** — `Parse.isDooEmbed` now matches `dooplayer.com` **or**
+   `mostplayer.com` (identical x-embed contract, unit-tested). Live chain probe on AVOP-364
+   g54 (provider's exact POST replicated): AJAX → `mostplayer.com/embed/e/…` → metas
+   token/api/et/sig → `POST api/stream/<token>` → `{"ok":true,"url":"https://cache-xx19.wowstream.cloud/...m3u8"}`;
+   that m3u8 403s ("Website Access Blocked") from the runner IP only — the shader-host wall
+   recorded 2026-09-10; embed+API hops green. `dooplayer.com` itself re-confirmed dead (embed
+   pages time out: AVSA-457 g62, DLDSS-534-REDUCING-MOSAIC g62); the doo branch stays wired
+   for both hosts.
+3. **Titles (minor)** — `Parse.title` decodes HTML entities (`Parser.unescapeEntities`) from
+   showlist2 `name`/`full_name` before `ifBlank`/trim (transcript-shaped fixtures unit-tested).
+
+### Verification 2026-09-11 — verify.sh **RESULT: PASS** (log /tmp/verify-out.txt)
+Mechanical adaptations (source-tracked, same as prior runs): listing shells serve only a JS
+template → search (`/showlist2/avop/{1,2}/search/` 24×24, `/showlist2/sw-256/1/search/` 2 cards)
+and home (`/showlist2/all/{1,2}/category/` 24×24) bridged from live JSON into minimal card
+HTML and served over localhost HTTP (`http.server` — this runner's curl reports 000 for file://);
+bridged card title = showlist2 `name`, poster omitted (cover vs og:image differ by a
+`/480/` size-variant path segment only — noted in the 2026-09-11 audit, equivalence measured).
+`--related-selector` omitted: live video pages carry the two card-block self-anchors the
+provider filters in code, which the static count would fake-FAIL — recs covered instead by the
+live Parse.recs probe (above) + unit tests. check 5 exercised via `sw-256` (search `name` ↔
+`h1.page-header` code, exact match).
+
+Results: search 3 pages ≥2 cards each, zero overlap; home p1+p2 fresh; video pages 5× HTTP 200
+with og:title/og:image; tags actors year duration present on 5/5; 5 emturbovid-chain m3u8s
+(position-matched `--stream-url` per provider's AJAX chain) all **HTTP 206
+application/vnd.apple.mpegurl**, paths all distinct; check 6 all requested fields assigned.
+`gradlew Javmost:test` green (42 tests, fixtures: avsa-457-recs, dooplayer-embed, related-card),
+`gradlew Javmost:make` clean build OK.
