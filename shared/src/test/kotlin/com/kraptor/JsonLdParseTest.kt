@@ -30,6 +30,12 @@ class JsonLdParseTest {
         assertEquals(2 * 1440, JsonLdParse.minutes("P2DT0H0M0S"))
     }
 
+    @Test fun `bare token after a stray uppercase P still resolves`() {
+        // P is optional-T now, so a keyless full-document scan must skip the
+        // empty P match and reach the real token (old PT-anchored grammar did).
+        assertEquals(39, JsonLdParse.minutes("<p>Porn</p> PT39M"))
+    }
+
     @Test fun `hour minute second combinations`() {
         assertEquals(90, JsonLdParse.minutes("PT1H30M"))
         assertEquals(60, JsonLdParse.minutes("PT1H"))

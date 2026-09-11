@@ -17,12 +17,13 @@ object JsonLdParse {
     /** Minutes out of the first ISO-8601 P token (keyed, escaped, bare, or day-shaped). 0/absent → null. */
     fun minutes(jsonLd: String?): Int? {
         if (jsonLd == null) return null
-        // Key-anchored match first (JSON / escaped JSON); bare-token fallback for
+        // Key-anchored matches first (JSON / escaped JSON), then bare tokens for
         // keyless input (Sexfilm meta[itemprop=duration], ixiporn meta content).
-        // All components optional, so an all-empty match ("duration":"PT" or a
-        // stray P token) is not a real token — fall through / return null.
-        val m = (DURATION_KEY.find(jsonLd) ?: DURATION_BARE.find(jsonLd))
-            ?.takeIf { r -> r.groupValues.drop(1).any { it.isNotEmpty() } } ?: return null
+        // All components optional, so scan every match for the first real token:
+        // an all-empty match ("duration":"PT", or a stray uppercase P earlier in
+        // the document) must not shadow a valid P-token later in the string.
+        val m = (DURATION_KEY.findAll(jsonLd) + DURATION_BARE.findAll(jsonLd))
+            .firstOrNull { r -> r.groupValues.drop(1).any { it.isNotEmpty() } } ?: return null
         val (d, h, min, s) = m.destructured
         val total = (d.toIntOrNull() ?: 0) * 1440 + (h.toIntOrNull() ?: 0) * 60 + (min.toIntOrNull() ?: 0) + (s.toIntOrNull() ?: 0) / 60
         return total.takeIf { it > 0 }
