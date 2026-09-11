@@ -107,43 +107,51 @@ class xHamster : MainAPI() {
         // duration now come from window.initials.videoModel.
         val initialData = getInitialsJson(document.html())
         val videoModel = initialData?.videoModel
-        val title = videoModel?.title
+        val videoEntity = initialData?.videoEntity
+        // 2026-09-11 (issue #339): videoModel no longer carries title/description/thumbURL
+        // (keys: author/channelModel/duration/id/sponsor). title comes from videoEntity.title
+        // with the <h1> fallback; poster from videoEntity.thumbBig with the preload-image
+        // css fallback; description from videoEntity.description.
+        val title = videoEntity?.title
+            ?: videoModel?.title
             ?: document.selectFirst("h1")?.text()?.trim().orEmpty()
-        // thumbURL (2560x1440 webp) is the reliable poster; preload-image is the
-        // css fallback. The old substringAfter("https:") parse dropped the scheme
-        // leaving a protocol-relative URL that may not resolve (issue #242).
-        val poster = videoModel?.thumbURL?.takeIf { it.isNotBlank() }
+        // thumbBig is the reliable JSON poster; preload-image is the css fallback. The old
+        // substringAfter("https:") parse dropped the scheme leaving a protocol-relative URL
+        // that may not resolve (issue #242).
+        val poster = videoEntity?.thumbBig?.takeIf { it.isNotBlank() }
+            ?: videoModel?.thumbURL?.takeIf { it.isNotBlank() }
             ?: parsePreloadPoster(document.selectFirst("div.xp-preload-image")?.attr("style"))
         val posterFixed = fixUrlNull(poster)
-        val description = videoModel?.description?.replace("\\s+".toRegex(), " ")
+        val description = videoEntity?.description?.replace("\\s+".toRegex(), " ")
 
-        val actors = document.select("a.entity-author-container__name").map { aTag ->
-            val name = aTag.selectFirst("span")?.text()?.trim() ?: ""
-            val image =
-                aTag.selectFirst("img")?.attr("src") ?: aTag.selectFirst("img")?.attr("data-src")
-            Actor(name, image)
+        val actors = videoEntity?.pornstarModels.orEmpty().mapNotNull { model ->
+            model.name?.takeIf { it.isNotBlank() }?.let { Actor(it) }
         }
+
+        // duration survives in both videoModel and videoEntity (seconds).
+        val durationSec = videoModel?.duration ?: videoEntity?.duration
 
         val tags =
             document.select("div[data-role='video-tags-list'] a[href*='/categories/'], div[data-role='video-tags-list'] a[href*='/tags/']")
                 .map { it.text().trim() }
 
-        val recommendations = document.select("div[data-role='related-item']").mapNotNull {
-            val name = it.selectFirst("a.video-thumb-info__name")?.text() ?: return@mapNotNull null
-            val link =
-                it.selectFirst("a[data-role='thumb-link']")?.attr("href") ?: return@mapNotNull null
-            val thumb =
-                it.selectFirst("img")?.attr("src") ?: it.selectFirst("img")?.attr("data-src")
+        // 2026-09-11 (issue #339): related videos now come from the initials JSON
+        // (videoPageComponent.relatedVideos…videoThumbProps) — the old
+        // div[data-role='related-item'] DOM selector matches nothing server-side.
+        val recommendations = initialData?.videoPageComponent?.relatedVideos?.videoTabInitialData
+            ?.videoListProps?.videoThumbProps.orEmpty().mapNotNull { thumb ->
+                val name = thumb.title ?: return@mapNotNull null
+                val link = thumb.pageURL ?: return@mapNotNull null
 
-            newMovieSearchResponse(name, link, TvType.NSFW) {
-                this.posterUrl = thumb
+                newMovieSearchResponse(name, link, TvType.NSFW) {
+                    this.posterUrl = thumb.thumbURL
+                }
             }
-        }
 
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = posterFixed
             this.plot = description
-            this.duration = videoModel?.duration
+            this.duration = durationSec
             this.tags = tags
             this.recommendations = recommendations
             addActors(actors)
@@ -243,8 +251,38 @@ class xHamster : MainAPI() {
 
     data class InitialsJson(
         val videoModel: VideoModel? = null,
+        val videoEntity: VideoEntity? = null,
+        val videoPageComponent: VideoPageComponent? = null,
         val xplayerSettings: XPlayerSettings? = null,
         val downloadDropdownComponent: DownloadDropdown? = null
+    )
+
+    // 2026-09-11 (issue #339): the full video entity — title/description/duration and
+    // pornstar list moved here when videoModel was slimmed down.
+    data class VideoEntity(
+        val title: String? = null,
+        val duration: Int? = null,
+        val description: String? = null,
+        val thumbBig: String? = null,
+        val pornstarModels: List<PornstarModel>? = null
+    )
+
+    // pornstarModels entries carry no image URL of their own (only thumb.avatar1/avatar2
+    // filename fragments) — actors are name-only.
+    data class PornstarModel(val name: String? = null)
+
+    data class VideoPageComponent(val relatedVideos: RelatedVideos? = null)
+
+    data class RelatedVideos(val videoTabInitialData: VideoTabInitialData? = null)
+
+    data class VideoTabInitialData(val videoListProps: VideoListProps? = null)
+
+    data class VideoListProps(val videoThumbProps: List<VideoThumb>? = null)
+
+    data class VideoThumb(
+        val title: String? = null,
+        val pageURL: String? = null,
+        val thumbURL: String? = null
     )
 
     // Current video's own metadata from window.initials (duration is in seconds).

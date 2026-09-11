@@ -1,35 +1,63 @@
 package com.kraptor
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * TDD tests for xHamster parsing (issue #216 fix). Fixture derives from a live
- * desktop video page fetch (2026-09-09).
+ * TDD tests for xHamster parsing (issue #339 fix). Fixtures derive from live
+ * desktop video pages (2026-09-11): window.initials carries videoEntity
+ * (title/description/duration/pornstars) and videoPageComponent.relatedVideos
+ * …videoThumbProps (recommendations); videoModel was slimmed down to
+ * author/channelModel/duration/id/sponsor.
  */
 class XhamsterParseTest {
 
-    @Test fun `initials JSON parses videoModel title duration description`() {
-        val videoModel = xHamster().getInitialsJson(fixture())?.videoModel
-        assertEquals("Student fuck big boobs teacher for better grade", videoModel?.title)
-        assertEquals(1402, videoModel?.duration)
-        assertEquals("Hot MILF fucked by BBC.", videoModel?.description)
+    @Test fun `initials JSON parses videoEntity title duration description`() {
+        for (fixture in listOf("v1", "v2")) {
+            val initials = xHamster().getInitialsJson(fixture(fixture))!!
+            val entity = initials.videoEntity!!
+            assertNotNull(entity.duration)
+            assertTrue("description too short (${entity.description?.length})",
+                (entity.description?.length ?: 0) >= 164)
+            assertNull("videoModel must not carry title anymore", initials.videoModel?.title)
+            assertNull("videoModel must not carry description anymore", initials.videoModel?.description)
+        }
+        assertEquals("Two Cougars on the Prowl", xHamster().getInitialsJson(fixture("v1"))!!.videoEntity!!.title)
+        assertEquals("My MILF Stepmom Gives Me A Laundry Lesson", xHamster().getInitialsJson(fixture("v2"))!!.videoEntity!!.title)
     }
 
-    @Test fun `initials JSON parses hex source qualities`() {
-        val h264 = xHamster().getInitialsJson(fixture())?.xplayerSettings?.sources?.standard?.h264.orEmpty()
-        assertEquals(listOf("auto", "720p"), h264.map { it.quality })
-        assertTrue(h264.first().url!!.startsWith("035bf1ebbe"))
-        assertTrue(h264[1].url!!.startsWith("04bd004e1c73bdbe"))
-    }
-
-    @Test fun `videoModel parses thumbURL poster`() {
-        val videoModel = xHamster().getInitialsJson(fixture())?.videoModel
-        assertTrue(
-            videoModel?.thumbURL?.startsWith("https://ic-vt-nss.xhcdn.com/") == true
+    @Test fun `videoEntity parses pornstarModels actors`() {
+        assertEquals(
+            listOf("Desifilmy45", "Karla Insatiable", "Jason Pierce", "Madame D"),
+            xHamster().getInitialsJson(fixture("v1"))!!.videoEntity!!.pornstarModels!!.map { it.name }
         )
-        assertTrue(videoModel?.thumbURL?.endsWith(".webp") == true)
+        assertEquals(
+            listOf("Jax Slayher", "Hailey Rose", "Kera Bear"),
+            xHamster().getInitialsJson(fixture("v2"))!!.videoEntity!!.pornstarModels!!.map { it.name }
+        )
+    }
+
+    @Test fun `relatedVideos videoThumbProps parse with absolute pageURLs and thumbs`() {
+        for (fixture in listOf("v1", "v2")) {
+            val recs = xHamster().getInitialsJson(fixture(fixture))!!
+                .videoPageComponent!!.relatedVideos!!.videoTabInitialData!!
+                .videoListProps!!.videoThumbProps!!
+            assertEquals(11, recs.size)
+            recs.forEach { rec ->
+                assertTrue(rec.pageURL!!.startsWith("https://xhamster.com/videos/"))
+                assertTrue(rec.thumbURL!!.startsWith("https://"))
+                assertTrue(rec.title!!.isNotBlank())
+            }
+        }
+    }
+
+    @Test fun `videoEntity thumbBig parses xhcdn poster`() {
+        val poster = xHamster().getInitialsJson(fixture("v1"))!!.videoEntity!!.thumbBig
+        assertTrue(poster!!.startsWith("https://ic-vt-nss.xhcdn.com/"))
+        assertTrue(poster.endsWith(".webp"))
     }
 
     @Test fun `preload poster style parses full https url`() {
@@ -48,6 +76,7 @@ class XhamsterParseTest {
             "<script>window.initials={\"isBare\":true,\"layoutPage\":\"default\"};</script>"
         )
         assertEquals(null, initial?.videoModel)
+        assertEquals(null, initial?.videoEntity)
     }
 
     @Test fun `decodeXhUrl decodes live-derived 720p hex URL`() {
@@ -63,5 +92,6 @@ class XhamsterParseTest {
         )
     }
 
-    private fun fixture(): String = javaClass.getResource("/xhamster-video.html")!!.readText()
+    private fun fixture(name: String): String =
+        javaClass.getResource("/xhamster-video-$name.html")!!.readText()
 }
