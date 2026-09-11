@@ -83,10 +83,12 @@ class Cat3Film : MainAPI() {
             it.selectFirst(".ip-label")?.text()?.contains("Cast") == true
         }?.select("a")?.map { it.text() } ?: emptyList()
 
+        val html = document.html()
         val year = document.selectFirst(".badges a[href^=\"/year/\"]")?.text()?.trim()?.toIntOrNull()
-            ?: JsonLdParse.year(document.html())
+            ?: JsonLdParse.year(html)
 
-        val duration = JsonLdParse.minutes(document.html())
+        val duration = JsonLdParse.minutes(html)
+        val rating = Parse.rating(html)
 
         val recommendations = document.select("section#related a.card").mapNotNull {
             try { it.toSearchResult() } catch (e: Exception) { null }
@@ -101,18 +103,21 @@ class Cat3Film : MainAPI() {
             this.tags = genres
             this.year = year
             this.duration = duration
+            this.score = rating?.let { Score.from10(it.toString()) }
             this.recommendations = recommendations
             addActors(actors)
         }
     }
 
-    // FINDINGS: /watch/{slug}?sv=1&part=1 exposes .epbtn[data-ep]; sources via /api/v1/episodes/{id}/sources
+    // FINDINGS: a single ?sv=1&part=1 response contains the .wserver pane for every
+    // season (multi-season series render all of them server-side).
     private suspend fun loadEpisodes(slug: String): List<Episode> {
         val watch = app.get("$mainUrl/watch/$slug?sv=1&part=1", referer = "$mainUrl/$slug")
-        val episodes = watch.document.select(".epbtn[data-ep]").mapIndexed { idx, btn ->
-            newEpisode(btn.attr("data-ep")) {
-                this.name = btn.selectFirst(".epname")?.text() ?: "Episode ${idx + 1}"
-                this.episode = idx + 1
+        val episodes = Parse.episodes(watch.document).map {
+            newEpisode(it.data) {
+                this.name = it.name ?: "Episode ${it.number}"
+                this.episode = it.number
+                this.season = it.season
             }
         }
         return episodes.ifEmpty { listOf(newEpisode("1")) }
@@ -152,6 +157,40 @@ class Cat3Film : MainAPI() {
                                   val thumb: String? = null, val year: Int? = null, val format: String? = null)
     private data class SourcesJson(val sources: List<SourceItem>? = null, val success: Boolean? = null)
     private data class SourceItem(val file: String? = null, val type: String? = null)
+}
+
+// Pure parsing for issue #292 (unit-tested in Cat3FilmParseTest, no CloudStream deps).
+object Parse {
+    data class Ep(val data: String, val name: String?, val season: Int?, val number: Int)
+
+    private val RATING = Regex("""\\?"ratingValue\\?"\s*:\s*\\?"?([\d.]+)""")
+    private val SEASON = Regex("""Season (\d+)""")
+
+    /** ld+json aggregateRating.ratingValue (0–10), Double or null. */
+    fun rating(html: String?): Double? =
+        html?.let { RATING.find(it)?.groupValues?.get(1)?.toDoubleOrNull() }
+
+    /**
+     * Watch-page episodes. One .wserver per season (head label "Season N"; single-server
+     * pages say "Server 1" → season null). Ep numbering comes from data-no, season from
+     * the wserver label (data-ss is 1 on every pane — it is the season *set*, not the number).
+     */
+    fun episodes(document: org.jsoup.nodes.Document): List<Ep> {
+        val servers = document.select(".wserver")
+        val single = servers.size <= 1
+        return servers.flatMap { ws ->
+            val season = SEASON.find(ws.selectFirst(".wserver-name")?.text().orEmpty())
+                ?.groupValues?.get(1)?.toIntOrNull()
+            ws.select(".season-pane .epbtn[data-ep]").mapIndexed { idx, btn ->
+                Ep(
+                    data = btn.attr("data-ep"),
+                    name = btn.selectFirst(".epname")?.text(),
+                    season = if (single) null else season,
+                    number = btn.attr("data-no").toIntOrNull() ?: (idx + 1),
+                )
+            }
+        }
+    }
 }
 
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin

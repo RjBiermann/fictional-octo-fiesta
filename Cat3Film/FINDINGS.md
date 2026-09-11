@@ -71,3 +71,31 @@ Search: single page (no pagination).
   (with browser UA + main-site referer) serves a valid VOD playlist (200, #EXTM3U, thousands
   of segments). Suffix appended in `loadLinks`.
 - Iframe allowlist on the main site includes `https://cat3.asuka-vod.site`.
+
+## Issue #292 re-verification (2026-09-11, audit-fix run)
+
+- ld+json: single `application/ld+json` script per detail page, rating inside
+  `@graph[0].aggregateRating` (`rratingValue` unquoted, 0–10). Handmaiden 8.1, count 199145.
+- Multi-season: one `?sv=1&part=1` fetch contains a `.wserver` per season
+  (server slots double as seasons; headers "Season 1"/"Season 2"; `data-ss` is a per-pane
+  constant "1", the real number is in the `wserver-name` label / `data-sv`). `.epbtn` carries
+  `data-ep` (source id), `data-no` (per-season episode number), `data-ss`. Hache: 14 epbtns =
+  S1 ep1–8 (449–456) + S2 ep1–6 (457–462). Movies/one-season pages say "Server 1"/"Watch
+  Online" in the same slot, one `.epbtn` ("Full").
+- detail pages keep empty `og:title` (`h1.info-title` is the real title) — unchanged.
+
+## verify.sh result (run 2026-09-11)
+
+- homepage `/movies` + `?page=2`: 200, 30 cards each, page 2 fresh — PASS
+- video pages 5× (the-handmaiden, hache, draft-1669, impregnation-nation, jailhouse-wardress):
+  200, `h1.info-title`, tags/actors/year present on all 5, `section#related a.card` 4 recs each,
+  no title/poster/plot/related duplicates — PASS
+- streams: positional `--stream-url` (per chain in FINDINGS: `.epbtn[data-ep]` →
+  `/api/v1/episodes/{id}/sources` → `/index.m3u8`) 5/5 → **200 application/vnd.apple.mpegurl** — PASS
+- check 6 (code half): recommendations/tags/plot/duration/year/actors/**score**/posters all ≥1
+  assignment — PASS
+- check 1 search: **FAIL-by-tool** — the site's only search surface is the AJAX JSON endpoint
+  `/_ajax/search?q=` (HTML `/search?q=` is 404); verify.sh asserts HTML card selectors, so the
+  JSON page has no `a.card`. Provider uses exactly this endpoint; agreement re-proven by curl:
+  `_ajax/search?q=hache` → `{"slug":"hache","title":"Hache","year":2019}` matching load page
+  `/hache` (Hache S1 2019). Site shape, not a provider defect.
