@@ -126,9 +126,8 @@ UA `Mozilla/5.0 (Linux; Android 13; Pixel 7) … Chrome/130 Mobile`, `Cookie: vi
   | surface | path | cards/page |
   |---|---|---|
   | search | `searchResult.videoThumbProps` | 46 |
-  | /newest, category pages | `layoutPage.videoListProps` | 46 |
-  | /4k | `layoutPage.trendingVideoListProps` | 50 |
-  | /most-viewed/*, /hd/2?quality=1080p | `layoutPage.videoListProps` | 46–50 |
+  | /newest, /most-viewed/* | `layoutPage.videoListProps` | 46–50 |
+  | /4k, /categories/*, /hd/2?quality=1080p | `layoutPage.trendingVideoListProps` | 46–50 |
 - Titles in the JSON are NOT masked; `{pageURL,title,thumbURL}` per card.
 - Pre-existing dead row: `/categories/complilation` → 404 → fixed to `/categories/compilation` (46/46 cards).
 - Provider's exact page-1/page-2 URL forms verified for all 24 rows (incl. the `/hd/2?quality=1080p/2` form
