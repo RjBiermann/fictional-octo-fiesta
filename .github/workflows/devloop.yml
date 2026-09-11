@@ -5,6 +5,12 @@ on:
   issues:
     types: [labeled]
   workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *"   # self-healing: pending labels survive skipped/failed runs
+
+concurrency:
+  group: devloop-pipeline    # serial by design; a scheduled run preempts nothing, waits instead
+  cancel-in-progress: false
 
 jobs:
   run:
