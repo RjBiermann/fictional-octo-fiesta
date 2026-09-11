@@ -32,7 +32,9 @@ object AllClassicPornParse {
      */
     fun parsePlot(html: String): String? {
         val document = Jsoup.parse(html)
-        document.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
+        // og:description keeps embedded HTML entities (e.g. <br \/>); strip them like the old load() path did.
+        document.selectFirst("meta[property=og:description]")?.attr("content")
+            ?.replace(Regex("<[^>]+>"), "")?.trim()
             ?.takeIf { it.isNotEmpty() }?.let { return it }
         return document.selectFirst("div.video-description[itemprop=description] .description-container")
             ?.text()?.replaceFirst(Regex("^Description:\\s*"), "")?.trim()?.takeIf { it.isNotEmpty() }

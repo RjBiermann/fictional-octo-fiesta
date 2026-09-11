@@ -94,9 +94,12 @@ class AllClassicPornParseTest {
         val page = javaClass.getResourceAsStream("/video-6403.html")!!.readBytes().decodeToString()
         assertTrue("fixture is the og-description-present shape", "og:description" in page)
         assertEquals(
-            org.jsoup.Jsoup.parse(page).selectFirst("meta[property=og:description]")!!.attr("content"),
+            org.jsoup.Jsoup.parse(page).selectFirst("meta[property=og:description]")
+                ?.attr("content")?.replace(Regex("<[^>]+>"), "")?.trim(),
             AllClassicPornParse.parsePlot(page)
         )
+        val plot = AllClassicPornParse.parsePlot(page)!!
+        assertFalse("embedded tags stripped from og:description plot", "<br" in plot)
     }
 
     @Test fun `itemprop fallback strips label and trims (issue #289)`() {
