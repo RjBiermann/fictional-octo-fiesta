@@ -133,7 +133,7 @@ class WatchPorn(context: Context) : MainAPI() {
         val title = document.selectFirst("h1.single__content-title")?.text()?.trim() ?: return null
         val poster = storedPoster ?: document.selectFirst("meta[property=og:image]")?.attr("content")
 
-        val tags = document.select("div.single__info-row:contains(Tags:) a").map { it.text().trim() }
+        val tags = document.select("div.single__info-row:contains(Categories:) a").map { it.text().trim() }
         val actors = document.select("div.single__info-row:contains(Models:) a").map { Actor(it.text().trim()) }
 
         // fp-time-duration selector is dead; duration lives in the JSON-LD VideoObject ("PT0H36M3S")

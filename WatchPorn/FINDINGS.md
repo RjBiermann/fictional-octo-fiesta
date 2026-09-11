@@ -29,6 +29,7 @@ Site: https://watchporn.to (KVS, session-cookie-free GETs). Probe date: 2026-09-
 - check 2/2a: `h1.single__content-title` extracted via text fallback; plot selector `p.single__content-description`
   reads text but the script probes `content=` first and only title gets the text fallback → "no plot" NOTE. Plot is
   populated in `load()` (unit-covered pattern; audit verified live).
+- Tags row (raw HTML): page has a `>Tags:</span>` info row with ZERO anchors, so the old `:contains(Tags:) a` selector yielded an empty list on every sampled page (issue #314). Genres live in the `Categories:` row (8 anchors, "single__info-tag") and in ld+json `"genre"` (same list). Fix: tags selector now `div.single__info-row:contains(Categories:) a`.
 - tags/actors/year/duration: JSON-LD/KVS-shaped, not plain DOM rows for the script's field cmd — omitted selectors
   (NOTEs). Exposure is evidenced by `load()` assignments (check 6: recommendations/tags/plot/duration/actors all ≥2)
   and the audit's live greps (ld+json duration "PT0H36M40S", uploadDate 2023-03-24, Models row → actors).
