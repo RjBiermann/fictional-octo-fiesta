@@ -72,11 +72,11 @@ class Javmost : MainAPI() {
                 ?.maxByOrNull { it.attr("alt").trim().length }   // synopsis anchor, not the short code anchor
                 ?.attr("alt")?.trim()?.takeIf { it.isNotBlank() }
 
-        /** the dooplayer x-embed branch is REMOVED (issue #332 finding 2): dooplayer.com itself is
-         *  dead (connection timeout) and mostplayer.com 404s the dooplayer embed IDs, so the chain
-         *  can never resolve. dooStream is kept as a unit-tested regression doc of the AJAX shape
-         *  (fixture dooplayer-ajax-response.json) in case the host revives on the same contract. */
-        fun dooStream(json: String): String? =
+        /** parses the /ri3123o235r/ AJAX response {"status":"success","data":["<embed-url>"]}
+         *  (slashes JSON-escaped) → first url, null on any other shape. issue #332 finding 2: the
+         *  dooplayer.com/mostplayer.com embeds this can return are dead (dooplayer times out,
+         *  mostplayer /embed/e/ → 204 No Content), so loadLinks only keeps the emturbovid ones. */
+        fun ajaxEmbed(json: String): String? =
             json.substringAfter("\"data\":[\"", "").substringBefore("\"")
                 .replace("\\/", "/").takeIf { it.contains("http") }
     }
@@ -203,10 +203,7 @@ class Javmost : MainAPI() {
                         "sound" to "av",
                     )
                 ).text
-                // FINDINGS: {"status":"success","data":["<embed-url>"]}
-                // JSON escapes slashes (https:\/\/...) — unescape
-                val embed = body.substringAfter("\"data\":[\"").substringBefore("\"")
-                    .replace("\\/", "/").takeIf { it.contains("http") } ?: continue
+                val embed = Parse.ajaxEmbed(body) ?: continue
                 if (embed.contains("emturbovid.com")) {
                     val m3u8 = resolveEmturbovid(embed, data)
                     if (m3u8 == null) continue
@@ -219,9 +216,9 @@ class Javmost : MainAPI() {
                     )
                 } else continue
                 // issue #332 finding 2: the dooplayer/mostplayer branch is REMOVED — dooplayer.com
-                // is dead (connection timeout) and mostplayer.com 404s the dooplayer embed IDs, so
-                // the x-embed chain can never resolve. Dooplayer-only titles (e.g. START-631) fail
-                // fast here with 0 links instead of timing out; evidence: dooplayer-ajax-response.json
+                // times out and mostplayer /embed/e/ returns 204 No Content (even for live
+                // mostplayer IDs), so the x-embed chain can never resolve. Dooplayer-only titles
+                // (PPPE-443/445, START-631) fail fast here with 0 links instead of hanging.
             } catch (e: Exception) {
                 Log.d(name, "loadLinks: ${e.message}")
             }

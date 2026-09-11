@@ -83,14 +83,15 @@ class JavmostParseTest {
         )
     )
 
-    // --- issue #332 finding 2: dooplayer.com embed host is dead; dooStream documents the AJAX shape kept for evidence
-    @Test fun `dooStream extracts url from the dead dooplayer ajax response`() {
+    // --- issue #332 finding 2: the /ri3123o235r/ AJAX response carries the embed url under data[];
+    // dooplayer/mostplayer embeds from it are dead, so loadLinks keeps only emturbovid ones
+    @Test fun `ajaxEmbed extracts url from the ajax response fixture`() {
         val json = javaClass.classLoader!!.getResource("dooplayer-ajax-response.json")!!.readText()
-        assertEquals("https://www.dooplayer.com/embed/e/MTEzMzM1.31a75573f599c352", Javmost.Parse.dooStream(json))
+        assertEquals("https://www.dooplayer.com/embed/e/MTEzMzM1.31a75573f599c352", Javmost.Parse.ajaxEmbed(json))
     }
 
-    @Test fun `dooStream null on error response without url key`() =
-        assertNull(Javmost.Parse.dooStream("{\"ok\":false,\"error\":\"bad token\"}"))
+    @Test fun `ajaxEmbed null on error response without url key`() =
+        assertNull(Javmost.Parse.ajaxEmbed("{\"ok\":false,\"error\":\"bad token\"}"))
 
     // --- issue #300 finding 1: recs are anchor-parent cards; self-link filtered downstream
     private fun recs() = Javmost.Parse.recs(
