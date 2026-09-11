@@ -34,7 +34,7 @@ class ParseTest {
     }
 
     @Test fun `tag url encodes query and appends page param past page 1`() {
-        assertEquals("https://pxp.news/tags/Peggy%20DeVille?page=2", Parse.searchUrl("Peggy DeVille", 2))
-        assertEquals("https://pxp.news/tags/Peggy", Parse.searchUrl("Peggy", 1))
+        assertEquals("https://pxp.news/tags/Peggy%20DeVille?page=2", Parse.searchUrl("https://pxp.news", "Peggy DeVille", 2))
+        assertEquals("https://pxp.news/tags/Peggy", Parse.searchUrl("https://pxp.news", "Peggy", 1))
     }
 }

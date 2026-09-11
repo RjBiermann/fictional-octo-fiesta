@@ -11,16 +11,16 @@ newest list.
 
 Fix: `search()` fetches `$mainUrl/tags/<query>` (`URLEncoder.encode` with `+`→`%20` to
 match the site's own links); `page > 1` appends `?page=$page`.
-- `/tags/Peggy%20DeVille` → exactly 1 card; `/tags/ATKGirlfaces` → 36; `/tags/Peggy` → 19
+- `/tags/Peggy%20DeVille` → exactly 1 card; `/tags/ATKGirlfriends` → 36; `/tags/Peggy` → 19
   (tag-prefix matching; partial queries work).
 - Pagination: `?page=N` on the tag URL returns fresh cards (p2: 36 unique data-ids,
-  0 overlap with page 1 — proven on `/tags/ATKGirlfaces`).
+  0 overlap with page 1 — proven on `/tags/ATKGirlfriends`).
 - **hasNext must come from `#pages`, not `true`:** a single-result tag page carries an
   empty `<div id="pages">  </div>` — its `?page=2` fetch falls back to the generic
   latest grid (still 200 + cards), which would poison pagination with unrelated/overlapping
   tonight listings. `Parse.searchHasNext` now returns `#pages a[href*=page] != null`
   (populated on multi-page tags, empty on single-result ones). Patched live: p1/p2 of
-  `/tags/ATKGirlfaces` share 0 data-ids.
+  `/tags/ATKGirlfriends` share 0 data-ids.
 - Card shape on tag pages is identical to the homepage grid (`.item_cont` /
   `.item_title` / `.item_thumb img`), so `searchCard` selectors are unchanged.
 - Red→green Parse tests: `PornXP/src/test/kotlin/com/rjbiermann/ParseTest.kt` with
@@ -30,7 +30,7 @@ match the site's own links); `page > 1` appends `?page=$page`.
 ## Search-SAMPLE caveat for verify.sh (runner, not provider)
 The harness dup bar (distinct titles across/within search pages) fails on two live-data
 patterns recorded here so it isn't chased again:
-- Series tags repeat literal titles: `/tags/ATKGirlfaces` pages are full of distinct
+- Series tags repeat literal titles: `/tags/ATKGirlfriends` pages are full of distinct
   videos all titled `Schoolgirl`, `POV Sex`, `Trooper POV`. Use a talent/series tag whose
   result titles are unique instead — current sample `/tags/DaughterSwap` p1+p2.
 - Two distinct newest-grid videos share the title `Maria Alfonsina` (ids 24279286,
