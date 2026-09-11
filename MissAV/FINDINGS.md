@@ -50,3 +50,32 @@ shares the repo `s/60` convention with `JsonLdParse.minutes`. Unit test `MissAVP
   `HTTP 403 text/html — "Attention Required! | Cloudflare"` on every path/UA (consistent with the
   audit's ×6 attempts incl. IPv4/HTTP1.1/cookies): runner-IP block, extraction schema correct.
   **Blocked from CI — verify stream playback in-app.**
+
+## Appendix (issue #328 — Actor: row dropped, 2026-09-11)
+
+### Live probe
+- roe-469 → 200; meta rows include BOTH `<span>Actress:</span>` (Toko Yoshinaga) and
+  `<span>Actor:</span>` (Tooru Ozawa). "actress" does not contain "actor" as substring, so the
+  #274 selector `:has(> span:containsOwn(actress))` matched only the Actress row — the male
+  actor row was dropped. Same rows present on midv-852/940 (actress + actor); milf-091 /
+  jjbk-086 pages have no people rows at all (site omits them there, not a parse gap).
+
+### Fix
+parseActors selector now `div.text-secondary:has(> span:containsOwn(actress)) a, div.text-secondary:has(> span:containsOwn(actor)) a`
+(one jsoup select, document order preserved). TDD: fixture gained an Actor row; red test
+`actor row is included alongside actress` failed pre-fix, green after. Version 13 → 14.
+
+### Verify evidence (2026-09-11)
+- `MissAV:make` clean; `MissAV:test` green (2 actors tests + tags/duration regression).
+- search ×2, home ×2: 200, ~11 cards each, page1∩page2 = 0 (verify.sh pydom again returns -1 on
+  the `div.grid.grid-cols-2 > div` selector — same tooling limitation as the #302 appendix;
+  manual regex count + dedupe on the saved HTML used instead).
+- video pages ×5 (roe-469, midv-852, midv-940, milf-091, jjbk-086): 200; title/year/duration
+  (120/161/138/117/193 min)/plot present on all; actors present on the 3 pages that have
+  people rows (both names on roe-469 and midv pages), absent where the site has none.
+- Streams: packed eval → surrit UUIDs extracted live (5 distinct), surrit serves the runner
+  403 text/html (same Cloudflare IP gate as #302). **Blocked from CI — verify stream
+  playback in-app.**
+- verify.sh check 5/6 FAILs are tooling (pydom field/cards can't read Alpine-flavored search
+  cards; load-response string passed whole = "unknown field") — code half asserted manually:
+  poster/year/tags/plot/duration/recommendations/addActors all populated in load().
