@@ -66,6 +66,11 @@ jobs:
           git push --force
 
       - name: Mirror builds branch to Codeberg
+        env:
+          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
         run: |
           cd "$GITHUB_WORKSPACE/builds"
-          git push --force "https://RjBiermann:${{ secrets.CODEBERG_TOKEN }}@codeberg.org/RjBiermann/fictional-octo-fiesta.git" HEAD:builds
+          # token via env + host-scoped extraheader, never inline in the URL (P0-1)
+          B64=$(printf 'x-access-token:%s' "$CODEBERG_TOKEN" | base64 -w0)
+          git config http.https://codeberg.org/.extraheader "AUTHORIZATION: basic $B64"
+          git push --force "https://codeberg.org/RjBiermann/fictional-octo-fiesta.git" HEAD:builds
