@@ -128,3 +128,31 @@ None. No Cloudflare, no age wall. Curl with plain Mozilla UA gets 200 everywhere
   - check-5 poster mismatch as above.
   - tags/actors/year/duration exposure NOT asserted by script (KVS flashvars / h1 suffix — documented in
     audit-#205 section, live greps + unit tests).
+
+## Audit #289 (2026-09-11) — data-completeness: plot fallback (D-1)
+
+- Site page shape varies: video 5887 (live curl 2026-09-11) has NO `og:description` meta, but every
+  probed page (5887, 6403, 2252, 6161, 1573, 549) carries
+  `div.video-description[itemprop=description] > div.description-container` with the site's canonical
+  description text (prefixed by `<strong>Description:</strong>`). Fixtures:
+  `video-5887.html` (og:description absent) + `video-6403.html` (present).
+- Fix: `AllClassicPornParse.parsePlot(html)` — `og:description` first, else the description-container
+  text with the `Description:` label stripped (leading whitespace-only text nodes in 5887's div make
+  `ownText()` return "" there; `text()` + label strip handles both shapes). Wired into `load()`.
+- Unit tests: parsePlot prefers og:description (6403), falls back to the div (5887, asserts plot
+  contains "Venus Film V7: The Barbershop" and does not start with "Description:"), label-strip unit
+  case, and null when no source. Version 7→8.
+- verify.sh 2026-09-11 run artifacts (none provider defects; issue-classified):
+  - `FAIL stream content-type .../embed/<id>` — script's stream extractor grabs `og:video` (embed
+    iframe, text/html); provider emits ONLY the flashvars `video_url` mp4 → 206 video/mp4 on all 6
+    sampled videos (audit-#204 artifact 1).
+  - `FAIL duplicate recommendations` (6403: 2 pairs) — site repeats those anchors in raw HTML;
+    provider dedupes via `distinctByHref` (issue #266); fixture-tested.
+  - `FAIL plot present on 5/6` — the script's single static `--video-plot-selector` cannot express the
+    provider's og:description→itemprop fallback; video 5887 genuinely lacks og:description. The fix
+    makes plot non-empty there (unit test on the live fixture).
+  - `FAIL title/poster mismatch` (6161) — audit-#204 artifact 3 (card stats prefix) and artifact 2
+    (card 320x240/N.jpg vs og:image preview.jpg); faithful site mapping.
+  - Search (2 pages, 60 cards each) / home page2+page3 (60 cards each) / related / check-6 field
+    assignments: all PASS; no cross-page card dups (search "mature-milfs-part-three-homemade-vhs"
+    page1+2, home /page/2/ + /page/3/).

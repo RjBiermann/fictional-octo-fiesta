@@ -26,6 +26,18 @@ object AllClassicPornParse {
     fun parseYear(title: String?): Int? =
         title?.let { Regex("\\((\\d{4})\\)\\s*$").find(it)?.groupValues?.get(1)?.toIntOrNull() }
 
+    /**
+     * Plot: og:description when present, else the itemprop div (issue #289, D-1 — some pages,
+     * e.g. video 5887, lack og:description). Strips the div's "Description:" label.
+     */
+    fun parsePlot(html: String): String? {
+        val document = Jsoup.parse(html)
+        document.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
+            ?.takeIf { it.isNotEmpty() }?.let { return it }
+        return document.selectFirst("div.video-description[itemprop=description] .description-container")
+            ?.text()?.replaceFirst(Regex("^Description:\\s*"), "")?.trim()?.takeIf { it.isNotEmpty() }
+    }
+
     /** Comma-separated flashvars field from the inline KVS JS (issue #205, D1). */
     private fun flashvarsField(html: String, field: String): String? {
         // KVS escapes literal apostrophes in names as \' inside the JS string.
