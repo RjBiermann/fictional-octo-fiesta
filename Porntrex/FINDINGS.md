@@ -211,7 +211,7 @@ navbar `<a>`.
 (both locations, block-details first — old behavior preserved). Fixture
 `porntrex_video_page.html` regenerated to the audit's real stats-row DOM: badge under
 `.video-info`, block-details = Models/Tags/Description only, navbar clock still present.
-Tests: `duration parsed from video-info stats row` (red→green, 50min 55sec = 3050s),
+Tests: `duration parsed from video-info stats row` (red→green, 50min 55sec = 3055s),
 inline block-details variant kept green, navbar-garbage test kept green.
 `Porntrex:test` and `Porntrex:make` BUILD SUCCESSFUL.
 
