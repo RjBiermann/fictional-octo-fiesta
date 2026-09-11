@@ -51,6 +51,35 @@ shares the repo `s/60` convention with `JsonLdParse.minutes`. Unit test `MissAVP
   audit's ×6 attempts incl. IPv4/HTTP1.1/cookies): runner-IP block, extraction schema correct.
   **Blocked from CI — verify stream playback in-app.**
 
+## Appendix (issue #327 — "Newly Added" row pagination duplicates, 2026-09-11)
+
+### Defect
+mainPage row 4 was `$mainUrl/en/new?sort=published_at`. With `sort=published_at`, page 2 echoes
+6 of page 1's 12 cards (abf-383, hmn-910, love-017, mikr-122, siro-5734, snos-299 — stable across
+fetches, p2∩p3 = 0, so duplication is scoped to the sorted URL). verify.sh duplicate-home bar FAILs.
+
+### Live probe
+- `/en/new?sort=published_at&page=1|2` → 12 cards each, **p1∩p2 = 6** (reproduced).
+- `/dm539/en/new?page=1|2` (unsorted, after 301 /en/new → /dm539/en/new) → 12 cards each,
+  **p1∩p2 = 0**. Selector `div.grid.grid-cols-2 > div, div.thumbnail.group` matches both pages.
+
+### Fix
+Row URL → `"$mainUrl/en/new" to "Newly Added"` (one line). Version 14 → 15. No selector change;
+NiceHttp follows the dm-redirect and the `?page=N` query survives (unchanged since #274 check).
+
+### Verify evidence
+- `MissAV:make` + `MissAV:test` green (duration/tags/actors regressions; no new test — the fix is a
+  URL constant, a unit test would only re-assert the string literal).
+- verify.sh: same pydom tooling FAILs as #302/#328 appendixes (selector regex returns -1 / crashes
+  on Alpine `x-init="...>..."` attributes — tooling, not provider). Manual mechanical checks on the
+  provider's real selectors instead:
+  - home new row p1/p2: 12 + 12 cards, **p1∩p2 = 0** ✓ (duplicate-home bar)
+  - search milf p1/p2: 0 overlap ✓
+  - video ×5 (fc2-ppv-4963689, milf-091, roe-469, jjbk-086, abf-384): 200, h1 title, packed eval +
+    surrit uuid present on all
+  - Streams: surrit 403 Cloudflare IP gate from CI as before — **verify stream playback in-app**.
+- No other mainPage row changed.
+
 ## Appendix (issue #328 — Actor: row dropped, 2026-09-11)
 
 ### Live probe
