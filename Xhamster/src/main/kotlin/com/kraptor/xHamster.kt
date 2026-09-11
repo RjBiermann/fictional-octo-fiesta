@@ -40,7 +40,7 @@ class xHamster : MainAPI() {
         "${mainUrl}/categories/hardcore" to "Hardcore",
         "${mainUrl}/categories/homemade" to "Homemade",
         "${mainUrl}/categories/amateur" to "Amateur",
-        "${mainUrl}/categories/complilation" to "Compilation",
+        "${mainUrl}/categories/compilation" to "Compilation",
         "${mainUrl}/categories/lesbian" to "Lesbian",
         "${mainUrl}/categories/russian" to "Russian",
         "${mainUrl}/categories/european" to "European",
@@ -54,9 +54,10 @@ class xHamster : MainAPI() {
             "${request.data}/$page?geo=us",
             cookies = mapOf("video_titles_translation" to "0")
         ).document
-        val home = document.select("div.thumb-list div.thumb-list__item")
-            .mapNotNull { it.toSearchResult() }
 
+        // 2026-09-11 (issue #338): no server-rendered thumb cards on any listing surface
+        // anymore — cards live only in window.initials JSON (hydrated client side).
+        val home = cardsFromInitials(extractCards(document))
 
         return newHomePageResponse(
             list = HomePageList(
@@ -68,17 +69,6 @@ class xHamster : MainAPI() {
         )
     }
 
-
-    private fun Element.toSearchResult(): SearchResponse? {
-        val card = this.selectFirst("a.video-thumb-info__name") ?: return null
-        // Server-rendered inner text can be masked/starred or empty; the title
-        // attribute always carries the real title (issue #242).
-        val title = card.attr("title").takeIf { it.isNotBlank() } ?: card.text()
-        val href = fixUrl(card.attr("href"))
-        val posterUrl = fixUrlNull(this.select("img.thumb-image-container__image").attr("src"))
-
-        return newMovieSearchResponse(title, href, TvType.NSFW) { this.posterUrl = posterUrl }
-    }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
         val document =
@@ -92,10 +82,27 @@ class xHamster : MainAPI() {
                 cookies = mapOf("video_titles_translation" to "0")
             ).document
 
-        val aramaCevap = document.select("div.thumb-list div.thumb-list__item")
-            .mapNotNull { it.toSearchResult() }
+        return newSearchResponseList(cardsFromInitials(extractCards(document)), hasNext = true)
+    }
 
-        return newSearchResponseList(aramaCevap, hasNext = true)
+    // 2026-09-11 (issue #338): no server-rendered thumb cards on any listing surface —
+    // cards live only in the window.initials JSON (hydrated client side).
+    private fun extractCards(document: Document): InitialsJson? = getInitialsJson(document.html())
+    // 2026-09-11 (issue #338): extract listing cards from the window.initials JSON —
+    // no server-rendered thumb cards on any listing surface anymore. Cards live in
+    // searchResult.videoThumbProps (search) / layoutPage.videoListProps (e.g. /newest)
+    // / layoutPage.trendingVideoListProps (e.g. /4k); try in order.
+    internal fun cardsFromInitials(initials: InitialsJson?): List<SearchResponse> {
+        val layout = initials?.layoutPage
+        return (initials?.searchResult?.videoThumbProps
+            ?: layout?.videoListProps?.videoThumbProps
+            ?: layout?.trendingVideoListProps?.videoThumbProps).orEmpty().mapNotNull { thumb ->
+            val name = thumb.title?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val link = thumb.pageURL ?: return@mapNotNull null
+            newMovieSearchResponse(name, link, TvType.NSFW) {
+                this.posterUrl = thumb.thumbURL
+            }
+        }
     }
 
     override suspend fun load(url: String): LoadResponse {
@@ -250,11 +257,22 @@ class xHamster : MainAPI() {
     }
 
     data class InitialsJson(
+        // 2026-09-11 (issue #338): listing surfaces also hydrate via this JSON now.
+        val searchResult: SearchResultProps? = null,
+        val layoutPage: LayoutPage? = null,
         val videoModel: VideoModel? = null,
         val videoEntity: VideoEntity? = null,
         val videoPageComponent: VideoPageComponent? = null,
         val xplayerSettings: XPlayerSettings? = null,
         val downloadDropdownComponent: DownloadDropdown? = null
+    )
+
+    data class SearchResultProps(val videoThumbProps: List<VideoThumb>? = null)
+
+    // layoutPage is the string "default" on shell pages; the object only on listing pages.
+    data class LayoutPage(
+        val videoListProps: VideoListProps? = null,
+        val trendingVideoListProps: VideoListProps? = null
     )
 
     // 2026-09-11 (issue #339): the full video entity — title/description/duration and
@@ -368,7 +386,9 @@ class xHamster : MainAPI() {
                     6 -> {
                         // update seed first; both the xor and the shift amount use the NEW seed
                         s = (s.toLong() * 0x2c9277b5L).toInt() + 0xac564b05.toInt()
-                        ((s xor (s ushr 18)) and 255) shr (s ushr 27 and 31)
+                        // Site JS shifts the UNMASKED xor value with >>> (logical):
+                        // 255 & ((i ^ i>>>18) >>> (i>>>27 & 31))
+                        ((s xor (s ushr 18)) ushr (s ushr 27 and 31)) and 255
                     }
                     7 -> {
                         s += 0x9e3779b9.toInt()

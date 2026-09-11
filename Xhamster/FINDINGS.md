@@ -113,3 +113,47 @@ recommendations from videoThumbProps. Dead DOM selectors removed for related-ite
 entity-author; tags selector kept. Fresh fixtures xhamster-video-v1/v2.html carry the raw
 window.initials payload from the two probed videos; Parse tests assert plot length ≥164,
 11 recs with absolute pageURLs, and pornstar name lists.
+
+---
+
+# FINDINGS — Xhamster (issue #338) — probed 2026-09-11
+UA `Mozilla/5.0 (Linux; Android 13; Pixel 7) … Chrome/130 Mobile`, `Cookie: video_titles_translation=0`, `?geo=us`.
+
+## Finding 1 — listing drift: SSR cards gone, cards JSON-only in window.initials (confirmed, fixed)
+- Every listing surface returns HTTP 200 (~230–280 KB) with **0** `div.thumb-list div.thumb-list__item`
+  nodes (desktop UA, `x_platform_switch=desktop`, cookie jar, HTTP/1.1 all tried — no SSR cards anywhere).
+- Card data lives only in `window.initials`:
+  | surface | path | cards/page |
+  |---|---|---|
+  | search | `searchResult.videoThumbProps` | 46 |
+  | /newest, category pages | `layoutPage.videoListProps` | 46 |
+  | /4k | `layoutPage.trendingVideoListProps` | 50 |
+  | /most-viewed/*, /hd/2?quality=1080p | `layoutPage.videoListProps` | 46–50 |
+- Titles in the JSON are NOT masked; `{pageURL,title,thumbURL}` per card.
+- Pre-existing dead row: `/categories/complilation` → 404 → fixed to `/categories/compilation` (46/46 cards).
+- Provider's exact page-1/page-2 URL forms verified for all 24 rows (incl. the `/hd/2?quality=1080p/2` form
+  getMainPage builds — 46/46 cards).
+
+## Finding 2 — decodeXhUrl algo-6 broken (confirmed, fixed)
+Site JS (xplayer-mobile.js) algoId 6 keystream: `return 255 & (i ^ i>>>18) >>> (i>>>27 & 31)` with
+`i = O(i,0x2c9277b5)+0xac564b05|0` (O = imul) — the XOR result is **not** masked before the logical shift.
+The old Kotlin port masked the xor before the shift AND used an arithmetic `shr` → keys diverged from frame 1.
+Live samples (algos rotate per fetch — first byte of each hex tells the algo):
+
+```
+hex 06e06077…f9979 (video /videos/xhpglku, h264 240p url)
+site-decode → https://video-h.xhcdn.com/key=l2na9rOxunUJpEq6cVwT-Q,end=1789110000,limit=3/data=20.118.214.103-mv/speed=0/029/334/118/240p.h264.mp4
+hex 06e0c5e2…db408f (video /videos/xhuTa4g, h264 auto url)
+site-decode → https://video-nss-h.xhcdn.com/N3u4fvec2BPOm6TRA7Il1g==,1789110000/media=hls4/multi=256x144:144p,…
+Kotlin-semantics decode of both → garbage (non-URL bytes)
+```
+
+## Not affected (verified live, do not regress)
+- `getInitialsJson()` regex captures `window.initials` on video and listing pages.
+- Video-page `?geo=us` → `xplayerSettings.sources.standard` decodes: algo-5 auto / algo-6 hls4 masters →
+  HTTP 200/206 `application/vnd.apple.mpegurl`. Existing algo 1/2/5/7 decodes verified byte-for-byte
+  against player JS semantics (python trace matched the provider's algo-5 keystream frame-for-frame).
+- Per-quality `key=`-style 720p/480p direct MP4 links intermittently 403 `text/plain "Wrong key"` from this
+  runner even session-cookie'd — CDN key appears IP/token-bound at render time; the algo-1/2/3/4 entries the
+  provider decodes depend on which algos the site assigns that fetch. HLS auto master covers all qualities,
+  so playback is unaffected (issue #338 agrees: "the defect is lost per-quality links").
