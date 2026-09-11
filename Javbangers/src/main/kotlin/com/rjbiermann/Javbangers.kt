@@ -62,7 +62,7 @@ class Javbangers : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse? {
-        val doc = app.get(url).document ?: return null
+        val doc = app.get(url).document
         val title = doc.selectFirst("h1")?.text()?.trim() ?: return null
         val details = doc.selectFirst("div.block-details")
         val tags = JavbangersParse.tagsFromDetails(details, title)

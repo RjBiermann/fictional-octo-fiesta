@@ -244,7 +244,7 @@ class MissAV : MainAPI() {
                             try {
                                 val language = item.select(".sub-single span:nth-child(2)").text()
                                 val text = item.select(".sub-single span:nth-child(3) a")
-                                if(text != null && text.size > 0 && text[0].text() == "Download")
+                                if(text.isNotEmpty() && text[0].text() == "Download")
                                 {
                                     val url = "$subtitleCatUrl${text[0].attr("href")}"
                                     subtitleCallback.invoke(

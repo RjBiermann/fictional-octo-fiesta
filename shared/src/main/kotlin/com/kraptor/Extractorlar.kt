@@ -43,7 +43,6 @@ import com.lagradost.cloudstream3.mapper
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
-import java.net.URL
 import kotlin.random.Random
 
 

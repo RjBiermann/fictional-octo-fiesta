@@ -39,7 +39,7 @@ class Film1k : MainAPI() {
 
     private fun org.jsoup.nodes.Element.toResult(): SearchResponse? {
         val a = this.selectFirst("header.entry-header > a") ?: return null
-        val href = a.attr("href") ?: return null
+        val href = a.attr("href")
         val title = this.selectFirst("h2.entry-title")?.text()?.trim() ?: return null
         val img = this.selectFirst("figure img")
         // lazy-poster theme: src is a data: placeholder, the real image is data-src (any host —
