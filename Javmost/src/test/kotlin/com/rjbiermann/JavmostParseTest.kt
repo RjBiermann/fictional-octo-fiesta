@@ -78,4 +78,40 @@ class JavmostParseTest {
 
     @Test fun `dooStream null on error response without url key`() =
         assertNull(Javmost.Parse.dooStream("{\"ok\":false,\"error\":\"bad token\"}"))
+
+    // --- issue #300 finding 2a: mostplayer.com embeds go through the same x-embed chain
+    @Test fun `mostplayer embeds match the doo branch`() {
+        assert(!Javmost.Parse.isDooEmbed("https://emturbovid.com/t/abc"))
+        assert(Javmost.Parse.isDooEmbed("https://www.mostplayer.com/embed/e/MTI2NTczNg"))
+        assert(Javmost.Parse.isDooEmbed("https://www.dooplayer.com/embed/e/MTEzMjky"))
+        assertEquals("https://cache-xx19.wowstream.cloud/x/v.m3u8",
+            Javmost.Parse.dooStream("{\"ok\":true,\"url\":\"https://cache-xx19.wowstream.cloud/x/v.m3u8\"}"))
+    }
+
+    // --- issue #300 finding 1: recs are anchor-parent cards; self-link filtered downstream
+    private fun recs() = Javmost.Parse.recs(
+        Jsoup.parse(javaClass.classLoader!!.getResource("avsa-457-recs.html")!!.readText()),
+        "https://www.javmost.ws"
+    )
+
+    @Test fun `recs extract all wrapper-anchored cards`() {
+        // 2 related cards + 2 self card-block anchors (filtered by it.url != url downstream)
+        assertEquals(4, recs().size)
+        assertEquals("https://www.javmost.ws/VOD-036-UNCENSORED-EDIT/", recs()[0].url)
+        assertEquals("VOD-036-UNCENSORED-EDIT", recs()[0].title)
+    }
+
+    @Test fun `recs poster from child card data-srcset, not preload`() {
+        assertEquals("https://img3.javmost.ws/images/480/VOD-036-UNCENSORED-EDIT.webp", recs()[0].poster)
+        // card-block anchors have no div.card child → null poster, null-safe
+        assertNull(recs()[2].poster)
+        assertNull(recs()[3].poster)
+    }
+
+    // --- issue #300 finding 3: showlist2 full_name entities decoded
+    @Test fun `titles decode html entities`() {
+        assertEquals("\"Raw\" — It's Cute", Javmost.Parse.title("\"Raw\" &#8212; It&#39;s Cute", null))
+        assertEquals("Some \"quoted\" here", Javmost.Parse.title("", " Some &quot;quoted&quot; here "))
+        assertEquals("", Javmost.Parse.title("", ""))
+    }
 }

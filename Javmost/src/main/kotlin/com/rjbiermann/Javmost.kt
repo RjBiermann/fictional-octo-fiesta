@@ -33,6 +33,28 @@ class Javmost : MainAPI() {
             return img?.takeIf { it.isNotBlank() }
         }
 
+        data class Rec(val url: String, val title: String, val poster: String?)
+
+        /** Related-video cards (issue #300): the <a alt> anchor is the PARENT of div.card on live
+         *  video pages — selecting div.card and searching descendants only ever found the self
+         *  anchor. Iterate from the anchor side; poster via source[data-srcset] on the child card. */
+        fun recs(doc: org.jsoup.nodes.Document, mainUrl: String): List<Rec> =
+            doc.select("a[alt]").mapNotNull { a ->
+                try {
+                    val href = a.attr("href")
+                    if (!href.contains(mainUrl)) return@mapNotNull null
+                    val title = a.attr("alt").trim()
+                    if (title.isBlank()) return@mapNotNull null
+                    Rec(href, title, parseCardUrl(a.selectFirst("div.card") ?: doc.createElement("div")))
+                } catch (e: Exception) { null }
+            }
+
+        /** showlist2 listing title (issue #300): full_name carries HTML entities — decode before use. */
+        fun title(name: String?, fullName: String?): String =
+            org.jsoup.parser.Parser.unescapeEntities(name ?: "", false).trim().ifBlank {
+                org.jsoup.parser.Parser.unescapeEntities(fullName ?: "", false).trim()
+            }
+
         /** Video-page synopsis (issue #270): a[alt] anchor inside the video's own card-block whose
          *  href matches the video url — the code-only anchor is skipped. og:description is boilerplate, not used. */
         fun plot(doc: org.jsoup.nodes.Document, videoUrl: String): String? =
@@ -48,6 +70,11 @@ class Javmost : MainAPI() {
             fun meta(name: String) = doc.selectFirst("meta[name=$name]")?.attr("content") ?: ""
             return DooInfo(meta("x-embed-api"), meta("x-embed-token"), meta("x-embed-et"), meta("x-embed-sig"))
         }
+
+        /** embed host routed through the dooplayer x-embed chain (issue #239/#300):
+         *  dooplayer.com renamed/succeeded by mostplayer.com — identical contract. */
+        fun isDooEmbed(url: String): Boolean =
+            url.contains("dooplayer.com") || url.contains("mostplayer.com")
 
         /** dooplayer POST response {"ok":true,"url":"https:\/\/cdn.mostplayer.com\/stream?t=..."} → direct mp4.
          *  Error responses ({"ok":false,"error":"bad token"}) have no url key → null, never "{". */
@@ -76,9 +103,7 @@ class Javmost : MainAPI() {
         return root.get("result")?.mapNotNull { el ->
             try {
                 val url = el.get("url")?.asText() ?: return@mapNotNull null
-                val title = (el.get("name")?.asText() ?: "").ifBlank {
-                    el.get("full_name")?.asText() ?: ""
-                }.trim()
+                val title = Parse.title(el.get("name")?.asText(), el.get("full_name")?.asText())
                 if (title.isBlank()) return@mapNotNull null
                 newMovieSearchResponse(title, url, TvType.NSFW) {
                     posterUrl = fixUrlNull(el.get("cover")?.asText())
@@ -101,21 +126,11 @@ class Javmost : MainAPI() {
         return newSearchResponseList(results, hasNext = results.isNotEmpty())
     }
 
-    // video pages are still server-rendered (FINDINGS 2026-09-08) — recommendations use div.card
-    private fun Element.toSearchResult(): SearchResponse? {
-        val link = selectFirst("a[href*=\"$mainUrl/\"]") ?: return null
-        val href = link.attr("href")
-        if (!href.contains(mainUrl)) return null
-        val title = link.attr("alt").ifBlank {
-            selectFirst("h2.card-title")?.text() ?: ""
-        }.trim()
-        if (title.isBlank()) return null
-        // FINDINGS: shared/recommended cards use <picture><source data-srcset=<real>> —  img[data-src] is the white lazyload placeholder (issue #239)
-        val poster = Parse.parseCardUrl(this)
-        return newMovieSearchResponse(title, href, TvType.NSFW) {
-            posterUrl = fixUrlNull(poster)
-        }
-    }
+    // FINDINGS 2026-09-11 (issue #300): related cards wrap div.card from the outside — use anchor-side Parse.recs
+    private fun recommendationsFor(document: org.jsoup.nodes.Document, url: String) =
+        Parse.recs(document, mainUrl).map { rec ->
+            newMovieSearchResponse(rec.title, rec.url, TvType.NSFW) { posterUrl = fixUrlNull(rec.poster) }
+        }.filter { it.url != url }
 
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url).document
@@ -130,9 +145,7 @@ class Javmost : MainAPI() {
         }
         val poster = document.selectFirst("meta[property=\"og:image\"]")?.attr("content")
 
-        val recommendations = document.select("div.card").mapNotNull {
-            try { it.toSearchResult() } catch (e: Exception) { null }
-        }.filter { it.url != url }
+        val recommendations = recommendationsFor(document, url)
 
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = fixUrlNull(poster)
@@ -200,8 +213,8 @@ class Javmost : MainAPI() {
                             this.type = ExtractorLinkType.M3U8
                         }
                     )
-                } else if (embed.contains("dooplayer.com")) {
-                    // FINDINGS (issue #239): dooplayer pages now expose x-embed-* metas; POST api/stream/<token> → direct mp4
+                } else if (Parse.isDooEmbed(embed)) {
+                    // FINDINGS (#239/#300): dooplayer.com/mostplayer.com both expose x-embed-* metas; POST api/stream/<token> → direct mp4
                     // FINDINGS: dooplayer serves 204 unless Sec-Fetch-Dest: iframe + Referer are sent
                     val doc = app.get(
                         embed,
