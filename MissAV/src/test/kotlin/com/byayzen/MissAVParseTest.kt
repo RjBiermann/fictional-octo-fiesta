@@ -12,7 +12,14 @@ class MissAVParseTest {
     }
 
     @Test fun `actress row only - no genre pollution`() {
-        assertEquals(listOf("Nonoura Warm"), MissAVParse.parseActors(doc))
+        assertEquals(listOf("Nonoura Warm"), MissAVParse.parseActors(Jsoup.parse("""
+            <div class="text-secondary"><span>Actress:</span><a href="#">Nonoura Warm</a></div>
+            <div class="text-secondary"><span>Genre:</span><a href="#">Av Actress</a></div>""", "https://missav.live/")))
+    }
+
+    /** Site exposes both Actress: and Actor: rows (issue #328, roe-469) — both must feed addActors. */
+    @Test fun `actor row is included alongside actress`() {
+        assertEquals(listOf("Nonoura Warm", "Tooru Ozawa"), MissAVParse.parseActors(doc))
     }
 
     @Test fun `genres include Av Actress link without leaking into actors`() {

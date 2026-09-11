@@ -14,9 +14,10 @@ import javax.crypto.spec.SecretKeySpec
 /** Pure parse functions for the video meta rows — kept off MainAPI so unit tests can load them. */
 object MissAVParse {
     /** Meta rows are div.text-secondary with a label span; match the span's OWN text so
-     *  the Genre row (which always contains the link "Av Actress") can't pollute actors. */
+     *  the Genre row (which always contains the link "Av Actress") can't pollute actors.
+     *  Site has separate Actress: and Actor: rows (roe-469) — merge both (issue #328). */
     fun parseActors(document: Document): List<String> =
-        document.select("div.text-secondary:has(> span:containsOwn(actress)) a").map { it.text().trim() }
+        document.select("div.text-secondary:has(> span:containsOwn(actress)) a, div.text-secondary:has(> span:containsOwn(actor)) a").map { it.text().trim() }
 
     fun parseTags(document: Document): List<String> =
         document.select("div.text-secondary:has(> span:containsOwn(genre)) a").map { it.text().trim() }
