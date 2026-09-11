@@ -338,7 +338,7 @@ class JavGuru : MainAPI() {
                         Log.d("kraptor_$name", "[$sourceName] MP4: $mp4Found")
                         processedUrls.add(mp4Found)
                         val referer = runCatching {
-                            java.net.URI(mp4Found).let { "${'$'}{it.scheme}://${'$'}{it.host}/" }
+                            java.net.URI(mp4Found).let { "${it.scheme}://${it.host}/" }
                         }.getOrDefault("$cleanBase/")
                         callback.invoke(
                             newExtractorLink(
