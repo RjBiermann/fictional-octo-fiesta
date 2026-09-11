@@ -91,4 +91,22 @@ class PorntrexParseTest {
         assertEquals(1, links.size)
         assertEquals("480p" to "https://x/get_file/a/2491818.mp4/?embed=true", links[0])
     }
+
+    /**
+     * Issue #308: guest video pages now serve only an ad shell, so loadLinks resolves via
+     * /embed/{id}/ whose flashvars carry ONLY video_url (?embed=true, 480p) — every HD alt is
+     * the video page URL flagged `<n>_redirect: '1'`. Simulate the provider on the raw live
+     * embed fixture: one working stream, redirect page URLs must never leak.
+     */
+    @Test fun `qualityLinks on raw embed fixture yields only the embed base stream`() {
+        val fv = Regex("var flashvars = \\{.*\\}", RegexOption.DOT_MATCHES_ALL).find(
+            File("src/test/resources/porntrex_embed_page.html").readText())?.value ?: ""
+        assertTrue(fv.contains("video_url:"))
+        val links = PorntrexParse.qualityLinks(fv)
+        assertEquals(1, links.size)
+        assertEquals("480p", links[0].first)
+        assertTrue(links[0].second.contains("?embed=true"))
+        // the redirect-flagged page URLs must not appear as stream URLs
+        assertTrue(links.none { it.second.contains("/video/") })
+    }
 }
