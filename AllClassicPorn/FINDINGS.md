@@ -182,17 +182,55 @@ None. No Cloudflare, no age wall. Curl with plain Mozilla UA gets 200 everywhere
   Fix: mainPage entry URL is now `$mainUrl/page/1/`; `getMainPage` still appends `$page/` for page > 1
   (→ /page/2/, /page/3/ …) — decade/sort rows keep the `{url}{page}/` pattern (page 1 of e.g. /90s/
   already 200s without the suffix so their entries are untouched).
-- **D2 — quality caption**: live flashvars on all sampled pages (5278, 439, 5910, 4714, 2252 fixture)
-  uses the `flashvars['video_url_text'] = '480p'` bracket form; the old regex
-  `video_url_text:\s*'([^']+)'` matches the colon form only (grep count 0 on live pages) →
-  `quality == null` everywhere, link name lost its ` - 480p` suffix. The `video_url:` colon form
-  (the stream URL itself) DOES exist and streams fine — only the caption was dead.
+  NOTE (post-merge reviewer check): the `…/page/1/` row itself must NOT be used — `getMainPage` would
+  build page 2+ as `…/page/1/2/` (404, live-verified). The final code keeps the `…/page/` feed base and
+  maps page 1 → `…/page/1/` inside `getMainPage` via pure `AllClassicPornParse.homePageUrl()`.
+- **D2 — quality caption**: the caption is emitted as `flashvars['video_url_text'] = '480p'` (bracket
+  form) on every sampled page, but **not** exclusively: 2252/1573/549/5887 emit bracket only, while
+  6161 and 6403 carry BOTH the colon form inside the big `flashvars = { … video_url_text: '480p' … }`
+  object literal AND the bracket line (live 6161 + fixtures verified). The old regex
+  `video_url_text:\s*'([^']+)'` matched only the colon form → `quality == null` on the bracket-only
+  pages (2252/1573/549/5887) and the link name lost its ` - 480p` suffix there; 6161/6403 kept it
+  (corrected from the initial "grep count 0 everywhere / quality == null everywhere" claim — the
+  colon form is present on live 6161). The `video_url:` colon form (the stream URL itself) exists on
+  all pages and streams fine — only the caption was partly dead.
   Fix: new pure `AllClassicPornParse.parseQuality(html)` matching both forms
   (`(?:video_url_text\s*:|video_url_text'\]\s*=)\s*'([^']+)'`, mirroring `flashvarsField`), wired into
-  loadLinks. Unit tests (red → green) on fixture video-2252.html (`480p`) + colon form + null case.
-  Version 10→11.
+  loadLinks. Unit tests (red → green) on fixture video-2252.html (`480p`) + colon form + null case +
+  fixture video-6161.html (both forms → `480p`). Version 10→11.
 - verify.sh `--home-url /page/1/ /page/2/` passes check-1a cleanly (60 cards each, 0 shared).
   Old "embed…" FAIL artifacts are the script's og:video grab (audit-#204 artifact 1), not provider defects.
+
+### verify.sh transcript (2026-09-11, 5 varied video URLs — run by Reviewer, raw output)
+
+```
+── check 1: search pages (2)
+GET https://allclassic.porn/search/milf/ → 200; 'a.th.item' matches: 60
+GET https://allclassic.porn/search/milf/2/ → 200; 'a.th.item' matches: 60
+── check 1a: homepage pages (2)
+GET https://allclassic.porn/page/1/ → 200; 'a.th.item' matches: 60
+GET https://allclassic.porn/page/2/ → 200; 'a.th.item' matches: 60
+── check 1b: quick search (0)
+NOTE: no --quick-search-url — FINDINGS records no distinct quick-search endpoint (audit #204)
+── check 2: video pages (5 URLs)
+GET https://allclassic.porn/videos/2252/zazel/ → 200; 'script' matches: 31
+GET stream (…/get_file/1/…/2000/2252/2252_480p.mp4/…) → 206 video/mp4
+GET stream (https://allclassic.porn/embed/2252…) → 200 text/html; charset=UTF-8
+FAIL stream content-type (og:video embed grab, audit-#204 artifact 1 — provider never emits it)
+GET videos/2252 → '#list_videos_related_videos_items a.th.item' matches: -1
+FAIL related videos (mini-DOM chained-id limitation, audit-#204 artifact 5)
+GET https://allclassic.porn/videos/6161/…mature-milfs…/ → 200; 'script' matches: 31
+GET stream (…/6000/6161/6161_480p.mp4/…) → 206 video/mp4    + og:video embed FAIL (as above)
+GET https://allclassic.porn/videos/1573/casanova-2/ → 200       + 206 video/mp4 direct stream
+GET https://allclassic.porn/videos/2208/the-golden-age-of-danish-pornography/ → 200  + 206 mp4
+GET https://allclassic.porn/videos/2118/worst-porno-ever-made-with-the-best-sex/ → 200 + 206 mp4
+NOTE: no --video-tags/actors/year/duration-selector — KVS flashvars/h1 exposure (audit-#205; NOTEs fine)
+── check 5: search ↔ load agreement
+FAIL poster mismatch 6161: card 320x240/22.jpg vs load preview.jpg (audit-#204 artifact 2, site-side)
+── check 6: LoadResponse completeness — recommendations/plot/duration/year/actors all assigned
+RESULT: FAIL (all FAILs = documented script-side artifacts above; direct flashvars stream serving
+206 video/mp4 confirmed on all 5 videos — provider stream chain unchanged by #322)
+```
 - verify.sh 2026-09-11 run artifacts (unchanged from audits #204/#205/#266/#289, none provider
   defects): stream og:video embed content-type; mini-DOM `-1` on chained `#id a.th.item` (check 2/
   4 raw count) with real related anchors present; duplicate rec hrefs site-side (deduped by

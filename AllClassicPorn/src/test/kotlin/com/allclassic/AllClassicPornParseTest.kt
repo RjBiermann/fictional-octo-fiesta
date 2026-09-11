@@ -122,6 +122,10 @@ class AllClassicPornParseTest {
         assertEquals("480p", AllClassicPornParse.parseQuality(video2252))
     }
 
+    @Test fun `quality caption parses either form on a fixture that carries both (6161)`() {
+        assertEquals("480p", AllClassicPornParse.parseQuality(videoPage))
+    }
+
     @Test fun `quality caption matches the colon form and is null when absent`() {
         assertEquals("720p", AllClassicPornParse.parseQuality("video_url_text: '720p'"))
         assertNull(AllClassicPornParse.parseQuality("no cue here"))
