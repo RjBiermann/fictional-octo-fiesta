@@ -157,9 +157,19 @@ fun BasePlugin.registerHostExtractors(first: List<ExtractorApi> = emptyList()) {
 }
 
 // Shared Base64 decode helper (pad-if-needed, NO_WRAP, null on failure).
+// JVM unit tests can't use android.util.Base64 ("not mocked"), so try java.util.Base64
+// first (API 26+; older devices hit the fallback below).
 fun decodeBase64(token: String): String? = try {
     val padded = token.trim() + "=".repeat((4 - token.trim().length % 4) % 4)
-    String(android.util.Base64.decode(padded, android.util.Base64.NO_WRAP), Charsets.UTF_8)
+    String(java.util.Base64.getMimeDecoder().decode(padded), Charsets.UTF_8)
+} catch (e: RuntimeException) {
+    try {
+        String(android.util.Base64.decode(padded(token), android.util.Base64.NO_WRAP), Charsets.UTF_8)
+    } catch (e: IllegalArgumentException) {
+        null
+    }
 } catch (e: IllegalArgumentException) {
     null
 }
+
+private fun padded(token: String): String = token.trim() + "=".repeat((4 - token.trim().length % 4) % 4)
