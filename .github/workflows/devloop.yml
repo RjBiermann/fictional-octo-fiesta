@@ -36,13 +36,19 @@ jobs:
         run: |
           npm i -g @earendil-works/pi-coding-agent
           mkdir -p ~/.pi/agent
+          # quoted-heredoc discipline: nothing inside the heredoc is expanded,
+          # so a future inline secrets expression in this block cannot inject
+          # shell syntax (the bug class fixed in 34e8f8a; review P0-7 on
+          # #347). The key is interpolated in as a pre-JSON-escaped line
+          # (jq is preinstalled on GitHub runners).
+          API_KEY_LINE=$(jq -rn --arg k "$OPENCODE_API_KEY" '"\"apiKey\": " + ($k|tojson)')
           cat > ~/.pi/agent/models.json <<JSON
           {
             "providers": {
               "go": {
                 "baseUrl": "https://opencode.ai/zen/go/v1",
                 "api": "openai-completions",
-                "apiKey": "$OPENCODE_API_KEY",
+                $API_KEY_LINE,
                 "models": [
                   { "id": "glm-5.3-flash", "name": "GLM 5.3 Flash (Go)", "reasoning": true },
                   { "id": "deepseek-v4-flash", "name": "DeepSeek V4 Flash (Go)", "reasoning": true }
