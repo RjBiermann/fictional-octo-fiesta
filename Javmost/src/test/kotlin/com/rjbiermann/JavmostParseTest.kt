@@ -3,6 +3,7 @@ package com.rjbiermann
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** TDD for the card-block parser on the video page (fixture: live HTML 2026-09-09, AVOP-179). */
@@ -62,31 +63,35 @@ class JavmostParseTest {
         assertNull(Javmost.Parse.plot(Jsoup.parse("<html></html>"), "https://x/foo/"))
     }
 
-    // --- dooplayer fix (issue #239): embed page carries x-embed-* metas driving POST api/stream/<token>
-    @Test fun `dooplayer metas parse and stream url extracts`() {
-        val doc = Jsoup.parse(javaClass.classLoader!!.getResource("dooplayer-embed.html")!!.readText())
-        val info = Javmost.Parse.dooPlayer(doc)
-        assertEquals("MTEyNzY1.78f62c066bdc5291", info.token)
-        assertEquals("https://www.dooplayer.com/api/stream/", info.api)
-        assertEquals("1789005230", info.et)
-        assertEquals("c660231500a7405addf730af6f0de5c40ba2ae9fdf5b0398d4d6d862df0002a2", info.sig)
-        assertEquals(
-            "https://cdn.mostplayer.com/stream?t=abc",
-            Javmost.Parse.dooStream("{\"ok\":true,\"url\":\"https:\\/\\/cdn.mostplayer.com\\/stream?t=abc\"}")
+    // --- issue #332 finding 1: all/1/category "pending" bucket is all-null metadata (every URL 404s);
+    // showlist must drop these entries — but ONLY in the all group (uncensor null-meta items are live)
+    private fun allPage1() = com.fasterxml.jackson.databind.ObjectMapper()
+        .readTree(javaClass.classLoader!!.getResource("showlist2-all-page1.json")!!.readText())
+        .get("result")
+
+    @Test fun `every all-group page-1 entry is the dead pending bucket`() {
+        val items = allPage1()
+        assertEquals(24, items.size())
+        assertTrue(items.all { Javmost.Parse.pendingReason(it) != null })
+    }
+
+    @Test fun `non-pending entry is not flagged`() = assertNull(
+        Javmost.Parse.pendingReason(
+            com.fasterxml.jackson.databind.ObjectMapper().readTree(
+                """{"url":"https://x/CARIBBEANCOM-091026-001/","name":"CARIBBEANCOM","release":null,"star":[{"name":"x"}]}"""
+            )
         )
+    )
+
+    // --- issue #332 finding 2: the /ri3123o235r/ AJAX response carries the embed url under data[];
+    // dooplayer/mostplayer embeds from it are dead, so loadLinks keeps only emturbovid ones
+    @Test fun `ajaxEmbed extracts url from the ajax response fixture`() {
+        val json = javaClass.classLoader!!.getResource("dooplayer-ajax-response.json")!!.readText()
+        assertEquals("https://www.dooplayer.com/embed/e/MTEzMzM1.31a75573f599c352", Javmost.Parse.ajaxEmbed(json))
     }
 
-    @Test fun `dooStream null on error response without url key`() =
-        assertNull(Javmost.Parse.dooStream("{\"ok\":false,\"error\":\"bad token\"}"))
-
-    // --- issue #300 finding 2a: mostplayer.com embeds go through the same x-embed chain
-    @Test fun `mostplayer embeds match the doo branch`() {
-        assert(!Javmost.Parse.isDooEmbed("https://emturbovid.com/t/abc"))
-        assert(Javmost.Parse.isDooEmbed("https://www.mostplayer.com/embed/e/MTI2NTczNg"))
-        assert(Javmost.Parse.isDooEmbed("https://www.dooplayer.com/embed/e/MTEzMjky"))
-        assertEquals("https://cache-xx19.wowstream.cloud/x/v.m3u8",
-            Javmost.Parse.dooStream("{\"ok\":true,\"url\":\"https://cache-xx19.wowstream.cloud/x/v.m3u8\"}"))
-    }
+    @Test fun `ajaxEmbed null on error response without url key`() =
+        assertNull(Javmost.Parse.ajaxEmbed("{\"ok\":false,\"error\":\"bad token\"}"))
 
     // --- issue #300 finding 1: recs are anchor-parent cards; self-link filtered downstream
     private fun recs() = Javmost.Parse.recs(

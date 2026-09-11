@@ -55,6 +55,15 @@ class Javmost : MainAPI() {
                 org.jsoup.parser.Parser.unescapeEntities(fullName ?: "", false).trim()
             }
 
+        /** issue #332 finding 1: showlist2 "pending" bucket entries (all/1/category) carry null
+         *  release AND null star — every such URL 404s. Returns why the entry is dead, or null.
+         *  NOTE: null-meta items in OTHER groups (uncensor, e.g. CARIBBEANCOM) are live — callers
+         *  must scope this filter to the "all" group only. */
+        fun pendingReason(el: com.fasterxml.jackson.databind.JsonNode): String? {
+            fun isNull(f: String) = el.get(f)?.isNull ?: true
+            return if (isNull("release") && isNull("star")) "pending bucket: no metadata, url 404s" else null
+        }
+
         /** Video-page synopsis (issue #270): a[alt] anchor inside the video's own card-block whose
          *  href matches the video url — the code-only anchor is skipped. og:description is boilerplate, not used. */
         fun plot(doc: org.jsoup.nodes.Document, videoUrl: String): String? =
@@ -63,23 +72,13 @@ class Javmost : MainAPI() {
                 ?.maxByOrNull { it.attr("alt").trim().length }   // synopsis anchor, not the short code anchor
                 ?.attr("alt")?.trim()?.takeIf { it.isNotBlank() }
 
-        data class DooInfo(val api: String, val token: String, val et: String, val sig: String)
-
-        /** dooplayer embed page: x-embed-token/api/et/sig meta tags drive the stream API (issue #239). */
-        fun dooPlayer(doc: org.jsoup.nodes.Document): DooInfo {
-            fun meta(name: String) = doc.selectFirst("meta[name=$name]")?.attr("content") ?: ""
-            return DooInfo(meta("x-embed-api"), meta("x-embed-token"), meta("x-embed-et"), meta("x-embed-sig"))
-        }
-
-        /** embed host routed through the dooplayer x-embed chain (issue #239/#300):
-         *  dooplayer.com renamed/succeeded by mostplayer.com — identical contract. */
-        fun isDooEmbed(url: String): Boolean =
-            url.contains("dooplayer.com") || url.contains("mostplayer.com")
-
-        /** dooplayer POST response {"ok":true,"url":"https:\/\/cdn.mostplayer.com\/stream?t=..."} → direct mp4.
-         *  Error responses ({"ok":false,"error":"bad token"}) have no url key → null, never "{". */
-        fun dooStream(json: String): String? =
-            json.substringAfter("\"url\":\"", "").substringBefore("\"").replace("\\/", "/").ifBlank { null }
+        /** parses the /ri3123o235r/ AJAX response {"status":"success","data":["<embed-url>"]}
+         *  (slashes JSON-escaped) → first url, null on any other shape. issue #332 finding 2: the
+         *  dooplayer.com/mostplayer.com embeds this can return are dead (dooplayer times out,
+         *  mostplayer /embed/e/ → 204 No Content), so loadLinks only keeps the emturbovid ones. */
+        fun ajaxEmbed(json: String): String? =
+            json.substringAfter("\"data\":[\"", "").substringBefore("\"")
+                .replace("\\/", "/").takeIf { it.contains("http") }
     }
     override var mainUrl        = "https://www.javmost.ws"
     override var name           = "Javmost"
@@ -88,8 +87,10 @@ class Javmost : MainAPI() {
     override val supportedTypes = setOf(TvType.NSFW)
 
     // data format for mainPage entries: "group::type" → /showlist2/{group}/{page}/{type}/
+    // issue #332 finding 1: the all group's page-1 "All Movies" listing is the site's pending
+    // bucket — every entry is null-metadata and 404s (fixture showlist2-all-page1.json); the row
+    // is dropped until the site backfills. Censored/Uncensored cover the catalogue.
     override val mainPage = mainPageOf(
-        "all::category" to "All Movies",
         "uncensor::category" to "Uncensored",
         "censor::category" to "Censored",
         "new::release" to "New Releases",
@@ -103,6 +104,9 @@ class Javmost : MainAPI() {
         return root.get("result")?.mapNotNull { el ->
             try {
                 val url = el.get("url")?.asText() ?: return@mapNotNull null
+                // issue #332 finding 1: in the all group null-meta entries (release AND star null) are
+                // the site's dead pending bucket; null-meta items in other groups are live, so scope to all/
+                if (group == "all" && Parse.pendingReason(el) != null) { return@mapNotNull null }
                 val title = Parse.title(el.get("name")?.asText(), el.get("full_name")?.asText())
                 if (title.isBlank()) return@mapNotNull null
                 newMovieSearchResponse(title, url, TvType.NSFW) {
@@ -199,10 +203,7 @@ class Javmost : MainAPI() {
                         "sound" to "av",
                     )
                 ).text
-                // FINDINGS: {"status":"success","data":["<embed-url>"]}
-                // JSON escapes slashes (https:\/\/...) — unescape
-                val embed = body.substringAfter("\"data\":[\"").substringBefore("\"")
-                    .replace("\\/", "/").takeIf { it.contains("http") } ?: continue
+                val embed = Parse.ajaxEmbed(body) ?: continue
                 if (embed.contains("emturbovid.com")) {
                     val m3u8 = resolveEmturbovid(embed, data)
                     if (m3u8 == null) continue
@@ -213,36 +214,11 @@ class Javmost : MainAPI() {
                             this.type = ExtractorLinkType.M3U8
                         }
                     )
-                } else if (Parse.isDooEmbed(embed)) {
-                    // FINDINGS (#239/#300): dooplayer.com/mostplayer.com both expose x-embed-* metas; POST api/stream/<token> → direct mp4
-                    // FINDINGS: dooplayer serves 204 unless Sec-Fetch-Dest: iframe + Referer are sent
-                    val doc = app.get(
-                        embed,
-                        referer = data,
-                        headers = mapOf("Sec-Fetch-Dest" to "iframe")
-                    ).document
-                    val info = Parse.dooPlayer(doc)
-                    if (info.token.isBlank() || info.api.isBlank()) continue
-                    val json = app.post(
-                        info.api + java.net.URLEncoder.encode(info.token, "UTF-8"),
-                        headers = mapOf(
-                            "Referer" to embed,
-                            "X-Embed-Auth" to "1",
-                            "X-Embed-ET" to info.et,
-                            "X-Embed-SIG" to info.sig,
-                        ),
-                        json = mapOf("ref" to embed),   // FINDINGS: body is JSON {"ref":"<embed url>"}
-                    ).text
-                    val stream = Parse.dooStream(json) ?: continue
-                    callback.invoke(
-                        newExtractorLink(name, name, stream) {
-                            this.referer = embed
-                            this.quality = Qualities.Unknown.value
-                            // FINDINGS (#300): mostplayer api returns HLS (...v.m3u8); dooplayer api returns direct mp4 (.../stream?t=)
-                            this.type = if (stream.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
-                        }
-                    )
                 } else continue
+                // issue #332 finding 2: the dooplayer/mostplayer branch is REMOVED — dooplayer.com
+                // times out and mostplayer /embed/e/ returns 204 No Content (even for live
+                // mostplayer IDs), so the x-embed chain can never resolve. Dooplayer-only titles
+                // (PPPE-443/445, START-631) fail fast here with 0 links instead of hanging.
             } catch (e: Exception) {
                 Log.d(name, "loadLinks: ${e.message}")
             }
