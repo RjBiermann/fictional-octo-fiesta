@@ -51,12 +51,15 @@ jobs:
             }
           }
           JSON
-      - name: PAT push credentials (ADR-0004 — GITHUB_TOKEN cannot push workflow files)
+      - name: PAT credentials (ADR-0004 — GITHUB_TOKEN cannot push workflow files)
         env:
           AGENT_PAT: ${{ secrets.AGENT_PAT }}
-        run: >-
-          git remote set-url --push origin
-          "https://x-access-token:${AGENT_PAT}@github.com/RjBiermann/fictional-octo-fiesta.git"
+        run: |
+          # replace the GITHUB_TOKEN header actions/checkout installed —
+          # extraheader overrides remote-URL credentials, so the PAT must
+          # live in the header itself (fetch + push both use it)
+          B64=$(printf 'x-access-token:%s' "$AGENT_PAT" | base64 -w0)
+          git config http.https://github.com/.extraheader "AUTHORIZATION: basic $B64"
       - name: Run pipeline
         run: devloop once
         env:
