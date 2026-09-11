@@ -5,6 +5,7 @@ import com.kraptor.registerHostExtractors
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addDuration
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.net.URLEncoder
 
@@ -74,7 +75,7 @@ class Neporn : MainAPI() {
         val tags = doc.select("div.info-content a[href*=/tags/]").map { it.text().trim() }
         val categories = doc.select("div.info-content a[href*=/categories/]").map { it.text().trim() }
         val plot = doc.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
-        val actors = doc.select("div.info-content a[href*=/models/]").map { it.text().trim() }.filter { it.isNotBlank() }
+        val actors = Parse.actors(doc)
         // schema.org ld+json uploadDate, e.g. "2026-03-18T17:35:00Z"
         val year = JsonLdParse.year(doc.select("script[type=application/ld+json]").html())
         val recommendations = doc.select("div.related-videos div.item, div.list-videos div.item")
@@ -116,6 +117,15 @@ class Neporn : MainAPI() {
         }
         return sources.isNotEmpty()
     }
+}
+
+/** Pure parsing, testable against live-page fixtures. */
+object Parse {
+    // Regression #301: the model anchor's .text() also concatenates the .button-info
+    // span (member's video count, e.g. "Marica Hase 32") — read only the .name span.
+    fun actors(doc: Document): List<String> =
+        doc.select("div.info-content a[href*=/models/] .name")
+            .map { it.text().trim() }.filter { it.isNotBlank() }
 }
 
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
