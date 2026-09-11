@@ -17,7 +17,10 @@ object PackedJs {
             RegexOption.DOT_MATCHES_ALL
         ).find(packedJs) ?: return null
         val payload = m.groupValues[1].replace("\\'", "'")
-        val radix = m.groupValues[2].toIntOrNull() ?: 36
+        // Contract: the radix must parse AND be representable (2..36). A radix we cannot
+        // honor means the packer grammar differs from ours — decode would be garbage or a
+        // crash (Integer.toString(62) throws), so fail to null; callers emit no links.
+        val radix = m.groupValues[2].toIntOrNull()?.takeIf { it in 2..36 } ?: return null
         val keys = m.groupValues[4].split('|')
         val map = HashMap<String, String>()
         keys.forEachIndexed { i, v -> if (v.isNotEmpty()) map[i.toString(radix)] = v }

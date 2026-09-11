@@ -1,4 +1,4 @@
-version = 6 // #250 nonce fallback + player.php cache-buster/referer fix
+version = 7 // #250 nonce fallback + player.php cache-buster/referer fix
 
 cloudstream {
     authors     = listOf("RjBiermann")
