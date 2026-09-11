@@ -132,3 +132,19 @@ NOTE: verify.sh `field` bar cannot express `h1.titl` (mini-selector regex `[a-zA
   /1051278 currently resolve NO working mirror (emturbovid hop → jwplayer JS player page
   with no literal m3u8; xd/td/hd/od mirrors dead/unsupported per FINDINGS). Last verified
   full-play sample set: 5/5 above.
+
+## Fix run 2026-09-11 (issue #310 — ud/turbovidhls literal-MP4 drift)
+- Some `/searcho/?ud=…` chains now land on `turbovidhls.com/t/<id>` player pages that serve
+  a **literal MP4** in `var urlPlay` instead of an m3u8 (reproduced end-to-end on
+  /1051302: `var urlPlay = 'https://e06.etvp.cc/uploads/6aa2e4c4ba2ef.mp4'`; MP4 serves
+  206 video/mp4, `ftypisom` magic). Both page shapes (m3u8 and MP4) are live simultaneously.
+- Fix: `JavGuruParse.parseUdMp4(playerHtml)` (pure parse fn per ADR-0005) extracts the
+  urlPlay MP4; the ud branch of `loadLinks` emits it as an `ExtractorLink` (VIDEO) with an
+  etvp-origin Referer when no m3u8 is present, else loadExtractor fallback as before.
+- Fixture `jav-guru-turbovidhls-mp4.html` captured from the live page (issue #310 step 3);
+  tests red → green (`parseUdMp4` MP4 + m3u8-negative cases). `JavGuru:test` +
+  `JavGuru:make` clean, version 25 → 26.
+- verify.sh (2026-09-11, /1051302 with --stream-url = provider-resolved MP4):
+  search 24/page1, home 24+24 (checks 1/1a), video page 200 h1 match, stream
+  `https://e06.etvp.cc/uploads/6aa2e4c4ba2ef.mp4` → **206 video/mp4**, related block
+  1/1, check 6 all fields. **RESULT: PASS**. N/A limitations unchanged (see #210 note).

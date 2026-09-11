@@ -23,6 +23,10 @@ object JavGuruParse {
         document.selectFirst("h1.titl")?.text()?.trim()
             ?: document.selectFirst("h1")?.text()?.trim()
             ?: "Unknown"
+
+    /** turbovidhls.com player pages can serve a literal MP4 in `var urlPlay` instead of an m3u8 (issue #310). */
+    fun parseUdMp4(playerHtml: String): String? =
+        Regex("urlPlay\\s*=\\s*['\"]([^'\"]+\\.mp4)['\"]").find(playerHtml)?.groupValues?.get(1)
 }
 
 
@@ -328,7 +332,27 @@ class JavGuru : MainAPI() {
                         }
                     )
                 } else {
-                    loadExtractor(currentEmbedUrl, data, subtitleCallback, callback)
+                    // Same page may be a literal MP4 player (turbovidhls) instead of m3u8 (issue #310).
+                    val mp4Found = JavGuruParse.parseUdMp4(playerHtml)
+                    if (mp4Found != null && !processedUrls.contains(mp4Found)) {
+                        Log.d("kraptor_$name", "[$sourceName] MP4: $mp4Found")
+                        processedUrls.add(mp4Found)
+                        val referer = runCatching {
+                            java.net.URI(mp4Found).let { "${'$'}{it.scheme}://${'$'}{it.host}/" }
+                        }.getOrDefault("$cleanBase/")
+                        callback.invoke(
+                            newExtractorLink(
+                                source = "$name $sourceName",
+                                name = sourceName,
+                                url = mp4Found,
+                                type = ExtractorLinkType.VIDEO
+                            ) {
+                                this.referer = referer
+                            }
+                        )
+                    } else {
+                        loadExtractor(currentEmbedUrl, data, subtitleCallback, callback)
+                    }
                 }
 
             } catch (e: Exception) {
