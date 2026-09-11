@@ -79,3 +79,35 @@ Search `?page=N` (`search/teacher?page=2` → 276 KB, 0 shared video ids with pa
 - SPA shell is served intermittently at the edge (this run saw it flip within minutes). When the shell wins, a fetch returns ~40 KB with no `videoModel`/cards and the provider yields empty results that page. There's no client workaround (no fetchable JSON surface; XHR re-fetch 404). If the shell mode becomes permanent, this provider dies again — at which point reversing the `/x-api` endpoints (`uploadHost` on `u.xhamster.com`) is the upgrade path.
 - Direct MP4s are IP-keyed; mobile-UA loadLinks path untested in-app this run (m3u8 verified by curl).
 - Deleted videos return 410 — an old provider cache entry can dead-end; not a provider defect.
+
+## 2026-09-11 re-probe (issue #339 — data-completeness)
+Desktop video pages' `window.initials.videoModel` no longer carries title/description/thumbURL
+(keys observed: author, channelModel, duration, id, sponsor — duration in seconds still present).
+Verified on two live videos with mobile-UA Chrome/130 + Cookie `video_titles_translation=0`:
+
+- `videoModel.duration` ✓ (492 / 643)
+- `window.initials.videoEntity` now carries: title, description (186 / 164 chars), duration,
+  pageURL, thumbBig (xhcdn webp poster), pornstarModels [{id,name,...}]
+  - v1 "Two Cougars on the Prowl" (29238872): aud Desifilmy45, Karla Insatiable, Jason Pierce, Madame D
+  - v2 "My MILF Stepmom Gives Me A Laundry Lesson" (29212231): Jax Slayher, Hailey Rose, Kera Bear
+- `window.initials.videoPageComponent.relatedVideos.videoTabInitialData.videoListProps.videoThumbProps`
+  → 11 related items on BOTH pages, each with absolute pageURL (https://xhamster.com/videos/…)
+  and thumbURL (xhcdn image).
+- DOM: `div[data-role='related-item']` → 0; `a.entity-author-container__name` → 0 (both pages).
+- DOM: `div[data-role='video-tags-list'] a[href*='/categories/']` still matches (9 links on both pages).
+  NOTE: the tags block no longer matches when replayed strictly inside the raw block in some
+  pages — but on the live pages the selector-matched links are identical to the list above,
+  so the DOM tags path stays untouched.
+- og:description meta carries "Starring: …" (corroborates pornstarModels).
+- Quick search: `/xhr/search/suggest?q=…` → 404 (no suggest endpoint; provider correctly has none).
+- h1 present server-side on both videos (title fallback intact); div.xp-preload-image present
+  (poster css fallback intact).
+- Stream side unchanged; duration (seconds) semantics unchanged; no absolute date/year field
+  (only relative dateAgo) → year correctly not populated.
+
+Fix (version 17 → 18): title from videoEntity.head, poster from videoEntity.thumbBig,
+description from videoEntity.description, actors from videoEntity.pornstarModels,
+recommendations from videoThumbProps. Dead DOM selectors removed for related-item and
+entity-author; tags selector kept. Fresh fixtures xhamster-video-v1/v2.html carry the raw
+window.initials payload from the two probed videos; Parse tests assert plot length ≥164,
+11 recs with absolute pageURLs, and pornstar name lists.
