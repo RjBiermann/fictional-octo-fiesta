@@ -135,7 +135,7 @@ A shared factory function per embed-host family (filemoon, vidHidePro, dood, …
 _Avoid_: mirror subclass, one-line adapter class
 
 **JSON-LD meta parse**:
-The deep shared module (`shared/.../JsonLdParse.kt`, com.kraptor) that owns the ISO-8601 `PT#H#M#S` grammar and the JSON-LD `datePublished`/`uploadDate` year — plain, `"`-escaped, or bare-token input. Providers call its two Parse functions (`minutes`, `year`) instead of maintaining their own RegEx copies; CloudStream `duration` is minutes here (repo convention), never seconds.
+The deep shared module (`shared/.../JsonLdParse.kt`, com.kraptor) that owns the ISO-8601 `P[#D]T#H#M#S` grammar (optional day component — ixiporn's `P0DT0H41M45S`-shaped meta tags are the day-shaped callers) and the JSON-LD `datePublished`/`uploadDate` year — plain, `"`-escaped, or bare-token input. Providers call its two Parse functions (`minutes`, `year`) instead of maintaining their own RegEx copies; CloudStream `duration` is minutes here (repo convention), never seconds.
 _Avoid_: duration helper, time parser, per-provider date regex
 
 **Packed-JS unpack**:

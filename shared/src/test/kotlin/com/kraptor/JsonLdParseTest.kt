@@ -24,6 +24,12 @@ class JsonLdParseTest {
     @Test fun `seconds-only ISO token floors to minutes`() =
         assertEquals(136, JsonLdParse.minutes("PT8173S")) // Sexfilm meta tag
 
+    @Test fun `day-shaped ISO token resolves to minutes`() { // ixiporn meta[itemprop=duration]
+        assertEquals(41, JsonLdParse.minutes("P0DT0H41M45S"))
+        assertEquals(1481, JsonLdParse.minutes("P1DT0H41M"))
+        assertEquals(2 * 1440, JsonLdParse.minutes("P2DT0H0M0S"))
+    }
+
     @Test fun `hour minute second combinations`() {
         assertEquals(90, JsonLdParse.minutes("PT1H30M"))
         assertEquals(60, JsonLdParse.minutes("PT1H"))
