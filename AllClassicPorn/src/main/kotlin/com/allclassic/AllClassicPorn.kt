@@ -27,6 +27,10 @@ class AllClassicPorn : MainAPI() {
         "$mainUrl/90s/" to "90s",
         "$mainUrl/2000s/" to "2000s",
         "$mainUrl/best/" to "Best",
+        "$mainUrl/most-popular/" to "Most Popular",
+        "$mainUrl/longest/" to "Longest",
+        "$mainUrl/most-commented/" to "Most Commented",
+        "$mainUrl/most-favourited/" to "Most Favourited",
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
