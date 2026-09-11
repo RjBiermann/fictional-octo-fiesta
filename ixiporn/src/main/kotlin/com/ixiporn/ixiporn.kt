@@ -1,5 +1,6 @@
 package com.coxju
 
+import com.kraptor.JsonLdParse
 import com.kraptor.registerHostExtractors
 
 import org.jsoup.nodes.Element
@@ -80,7 +81,7 @@ class ixiporn : MainAPI() {
         val poster      = fixUrlNull(document.selectFirst("[property='og:image']")?.attr("content"))
         val description = document.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
         val tags        = document.select("#video-tags a").map { it.text().trim() }
-        val duration    = document.selectFirst("meta[itemprop=duration]")?.attr("content")?.let { isoDurationToMinutes(it) }
+        val duration    = document.selectFirst("meta[itemprop=duration]")?.attr("content")?.let { JsonLdParse.minutes(it) } // shared ISO-8601 grammar (glossary: JSON-LD meta parse)
         val year        = document.selectFirst("meta[itemprop=uploadDate]")?.attr("content")?.take(4)?.toIntOrNull()
         val related     = document.select(".related-videos div.video-block").mapNotNull { it.toSearchResult() }
 
@@ -92,14 +93,6 @@ class ixiporn : MainAPI() {
             this.year      = year
             this.recommendations = related
         }
-    }
-
-    private fun isoDurationToMinutes(iso: String): Int? {
-        // CloudStream `duration` is minutes (repo convention, per new-provider SKILL) — not seconds.
-        // ponytail: covers P0DT0H41M45S-shaped values the site emits; full ISO 8601 not needed.
-        val m = Regex("P(?:\\d+D)?T?(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?").find(iso) ?: return null
-        val (h, min, _) = m.destructured
-        return ((h.toIntOrNull() ?: 0) * 60 + (min.toIntOrNull() ?: 0)).takeIf { it > 0 }
     }
 
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
