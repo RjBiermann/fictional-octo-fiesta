@@ -156,3 +156,25 @@ None. No Cloudflare, no age wall. Curl with plain Mozilla UA gets 200 everywhere
   - Search (2 pages, 60 cards each) / home page2+page3 (60 cards each) / related / check-6 field
     assignments: all PASS; no cross-page card dups (search "mature-milfs-part-three-homemade-vhs"
     page1+2, home /page/2/ + /page/3/).
+
+## Audit #323 (2026-09-11) — data-completeness: mainPage surfaces
+
+- Site's `pageContext.langUrls` (homepage inline JS) records stable, paginated sorting surfaces
+  implemented identically to `/page/` and `/best/` (same `a.th.item` cards, 60/page):
+  `/most-popular/`, `/most-favourited/`, `/longest/`, `/most-commented/`. Live check 2026-09-11:
+  all four → 200 with 60 cards; `/most-popular/2/` → 200, 60 cards (paginates). `/top-rated/` is
+  404 (rating sort = covered `/best/`); `/premium/`, `/private/` need login — skipped.
+  NOT quick-search: site has no quick-search endpoint (audit-#204 note stands).
+- Fix: four rows appended to `mainPage` (same `{url}` + `/{page}/` pattern). Version 9→10.
+- Cross-surface overlap (same video legitimately on ≥2 sort pages, e.g. 42 of 60 shared between
+  most-favourited and most-popular; ZERO in-page duplicates on any surface — Counter-verified) is
+  a verify.sh check-1a script artifact when multiple --home-url surfaces are passed in one run:
+  the script's dup check spans all home URLs. The mechanical pass therefore uses one surface's
+  pagination (most-popular page1+2); the other three surfaces each verified 200 + 60 cards in the
+  same run's GET lines.
+- verify.sh 2026-09-11 run artifacts (unchanged from audits #204/#205/#266/#289, none provider
+  defects): stream og:video embed content-type; mini-DOM `-1` on chained `#id a.th.item` (check 2/
+  4 raw count) with real related anchors present; duplicate rec hrefs site-side (deduped by
+  `distinctByHref`, fixture-tested); check-5 title (card stats prefix / h1 year suffix) and poster
+  (320x240/N.jpg vs preview.jpg) mismatches. All streams 206 video/mp4; checks 1/1a/6 + field
+  assignments PASS.
