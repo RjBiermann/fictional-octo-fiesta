@@ -67,3 +67,37 @@ version bump (out of scope for an ai-fix per repo rules).
   - Rec titles: script's regex block parser truncates `div.xs-related-item` at the first `</div>` (before `xs-related-title`), so its card titles are always empty. Soupsieve (jsoup-equivalent) on the same 5 live pages: 12/18/18/14/18 items, titles from `div.xs-related-title a` all non-empty, pairwise distinct, never the host video, on every page; img alt confirmed wrong (host-page title) on all 5.
   - Tags/actors selectors use `:has(...):contains(...)` (uncompilable by the script) — unchanged from #211 where they passed via soupsieve; this fix touches only the recommendations mapping.
   - Search page 2 intermittently 429s under script rate (single-page run passed; in-app pagination unaffected).
+
+## Re-probe for issue #333 fix (listing-table sidebar sweep + dead quality links), 2026-09-11 builder
+- Defect 1 confirmed live: every listing page (home p1/p2 all 4 rows, search p1/p2) embeds a
+  `div id="sidebar" class="col-md-3"` widget column. Old selector `div.col-md-3` consumed it →
+  one bogus card per page (title from a sidebar img, href `/advanced-search/`), cross-page duplicate,
+  loads "Advanced Search" page (no iframe, no stream).
+- Live class census (curl 2026-09-11): search p1/p2 → 64 `class="col-md-3 col-sm-3"` + 1 bare (sidebar);
+  home/featured-scenes → 64 `class="col-md-3 col-sm-6 col-xs-6 "` + 1 bare; /studio/ and /full-movie/ same.
+  Sidebar is always the bare `col-md-3`. Fix selector: `div.col-md-3:not(#sidebar)` in
+  PerverZijaParse.listingCards() — robust regardless of which card-class variant the theme serves.
+- Unit tests red→green: `PerverZijaListingTest` (fixture `perverzija_listing_cards.html` cut from live
+  search.html with 3 real cards + the sidebar): listingCards → 3 (old selector → 4), no `/advanced-search/`
+  cards, card title maps to own img/link.
+- verify.sh canned run 2026-09-11: search `div.col-md-3.col-sm-3` ×64 p1 (p2 hit 429 first run —
+  runner rate-limit, re-fetched manually: 64 cards, sidebar present, only the sidebar carries
+  `/advanced-search/`); home `div.col-md-3.col-sm-6.col-xs-6` ×64 on all 4 rows, duplicate check PASS
+  (sidebar excluded). Script cannot compile `:not(#sidebar)` (credited selectors used; `:not` itself
+  proven by the unit test + manual census).
+- Defect 2 confirmed live on 4 varied videos (pervl2/pervl3/pervl5/moviekh referers all HTTP 200):
+  master xs1.php WITHOUT q → `#EXTM3U` + #EXT-X-STREAM-INF variants on every sampled video;
+  q loop emits dead links whenever the video caps lower (pervl3 sample: 480/720 ok, 1080/2160 →
+  plain-text "Could not find video playlist for quality [N] or Np"; pervl2 sample: only 1080 ok).
+  Fix: emit single master-playlist link (no q), lib app picks adaptive variant. quality=Unknown.
+  End-to-end: master variant (q=1080 entry) → media playlist → segment
+  `https://pervl2.xspcdn01.click/cdn/down/4e0db76ef57112b337ab492a727a6069/1080/10800.html` → 200,
+  1,309,420 bytes, first byte 0x47 (MPEG-TS).
+- Re-verified unchanged data surface: recommendations `div.xs-related-item` ×12–18/page (script
+  "empty recommendation title" FAILs are the known canned rec-title parser limitation; fixtures +
+  PerverZijaParseTest cover real titles via `div.xs-related-title a`), tag cloud `<strong>Tags: ` and
+  star list `<strong>Stars: ` present on sampled videos, og:description present, JSON-LD
+  `datePublished`/`duration` present. No quick-search endpoint — hasQuickSearch stays false; no
+  rating element — score stays null.
+- Gate: `./gradlew PerverZija:make` BUILD SUCCESSFUL; `./gradlew PerverZija:test` BUILD SUCCESSFUL.
+  version 10 → 11.
