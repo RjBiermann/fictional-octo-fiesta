@@ -104,11 +104,8 @@ class Javmost : MainAPI() {
         return root.get("result")?.mapNotNull { el ->
             try {
                 val url = el.get("url")?.asText() ?: return@mapNotNull null
-                // issue #332 finding 1: the all group's "pending" bucket is null-meta and every URL 404s —
-                // scoped to all/ because null-meta items in other groups are live
-                // issue #332 finding 1: pending-bucket entries (null release AND null star) 404
-                // sitewide in the all group; null-meta items elsewhere (uncensor, CARIBBEANCOM)
-                // are live — filter is scoped to all/ only
+                // issue #332 finding 1: in the all group null-meta entries (release AND star null) are
+                // the site's dead pending bucket; null-meta items in other groups are live, so scope to all/
                 if (group == "all" && Parse.pendingReason(el) != null) { return@mapNotNull null }
                 val title = Parse.title(el.get("name")?.asText(), el.get("full_name")?.asText())
                 if (title.isBlank()) return@mapNotNull null
