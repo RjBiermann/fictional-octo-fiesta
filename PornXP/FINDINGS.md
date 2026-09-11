@@ -1,4 +1,4 @@
-# FINDINGS — pxp.news (2026-09 audit + 2026-09 fixes for #151, #235, #330)
+# FINDINGS — pxp.news (2026-09 audit + 2026-09 fixes for #151, #235, #330, #331)
 
 ## Verdict: OK (fixed #330 — search: `?q=` is ignored by the live site; real endpoint is `/tags/<query>`)
 
@@ -30,6 +30,28 @@ match the site's own links); `page > 1` appends `?page=$page`.
 - Red→green Parse tests: `PornXP/src/test/kotlin/com/rjbiermann/ParseTest.kt` with
   real `/tags/` fixtures in `PornXP/src/test/resources/` (card parse via
   `SearchCard.parse`, `searchUrl` encoding, `searchHasNext` from `#pages`).
+
+## Root cause of #331 (duration exposed on cards, never populated)
+The video page renders duration NOWHERE (no JSON-LD/meta/no text on 5 sampled pages —
+`grep -io duration` empty). Duration exists only on listing cards: `<div class="item_dur">1:01:12</div>`
+(site clock `H:MM:SS` / `MM:SS`, every `.item_cont` card; homepage has 36). The current video is
+NOT in its own related grid (`/videos/141232241817` → 0 self-href matches), so load()'s only source
+is the card the user came from. Fix: `Parse.clockMinutes` (card text → CloudStream minutes:
+`1:01:12`→61, `34:11`→34, `09:57`→9; `"`/`HD`→null) and the provider's cards are emitted with the
+minutes piggybacked on the search-response url ("`<href>#<minutes>`"); `load()` / `loadLinks()`
+strip the marker with `substringBefore('#')` and set `duration`. Videos opened from no card
+(e.g. deep links) have no duration — site never exposes it there. Red→green in
+`ParseTest.kt` (`clock_minutes`; fixture card `.item_dur` round-trip) against the existing
+`tag-peggydeville-p1.html` fixture (`1:01:12`→61). Version 6 → 7.
+
+verify.sh runner notes for #331 (site-data artifacts, not provider bugs):
+- video-title selector must be `title` (FINDINGS pre-existing limit a); `.player_details h1`
+  is unreachable to the harness regex-DOM (nested-block truncation; the header banner h1
+  shadows it, so every sampled load "titles" as the backup-domain banner → cross-video dup).
+- home `?page=1` + `?page=2` shared a literal-title pair today (two distinct videos titled
+  "EMY ROSE loves it when she's being fucked in DAP, anal, hard anal", ids
+  5248769x on p1 and p2) — the known site-level same-title grid artifact; sampled p1+p3
+  instead, 0 href/title dups.
 
 ## Search-SAMPLE caveat for verify.sh (runner, not provider)
 The harness dup bar (distinct titles across/within search pages) fails on two live-data

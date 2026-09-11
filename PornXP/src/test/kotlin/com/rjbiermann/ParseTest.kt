@@ -40,6 +40,21 @@ class ParseTest {
         assertFalse(Parse.searchHasNext(doc("/tag-atk-p119-last.html")))
     }
 
+    // issue #331: card .item_dur (site clock H:MM:SS / MM:SS / M) → CloudStream minutes.
+    @Test fun `item dur clock converts to minutes`() {
+        assertEquals(61, Parse.clockMinutes("1:01:12"))   // tag-peggydeville fixture card
+        assertEquals(34, Parse.clockMinutes("34:11"))
+        assertEquals(9, Parse.clockMinutes("09:57"))
+        assertEquals(null, Parse.clockMinutes(""))
+        assertEquals(null, Parse.clockMinutes("HD"))
+    }
+
+    // the card's own .item_dur round-trips through the shared card Parse
+    @Test fun `card item dur parses to minutes`() {
+        val card = doc("/tag-peggydeville-p1.html").select(".item_cont").first()!!
+        assertEquals(61, Parse.clockMinutes(card.selectFirst(".item_dur")?.text() ?: ""))
+    }
+
     @Test fun `tag url encodes query and appends page param past page 1`() {
         assertEquals("https://pxp.news/tags/Peggy%20DeVille?page=2", Parse.searchUrl("https://pxp.news", "Peggy DeVille", 2))
         assertEquals("https://pxp.news/tags/Peggy", Parse.searchUrl("https://pxp.news", "Peggy", 1))
