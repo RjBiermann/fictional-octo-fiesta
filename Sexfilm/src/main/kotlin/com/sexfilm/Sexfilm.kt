@@ -83,7 +83,8 @@ class Sexfilm : MainAPI() {
     override suspend fun search(query: String, page: Int): SearchResponseList {
         val doc = app.get(Parse.searchUrl(mainUrl, query, page)).document
         val results = doc.select("div.short").mapNotNull { it.toSearchResult() }
-        return newSearchResponseList(results, false)
+        // hasNext drives app-side pagination; false here would silently stop at page 1
+        return newSearchResponseList(results, results.isNotEmpty())
     }
 
     override suspend fun load(url: String): LoadResponse {
