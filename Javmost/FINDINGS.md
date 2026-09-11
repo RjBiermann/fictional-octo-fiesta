@@ -341,3 +341,44 @@ with og:title/og:image; tags actors year duration present on 5/5; 5 emturbovid-c
 application/vnd.apple.mpegurl**, paths all distinct; check 6 all requested fields assigned.
 `gradlew Javmost:test` green (42 tests, fixtures: avsa-457-recs, dooplayer-embed, related-card),
 `gradlew Javmost:make` clean build OK.
+
+## Fix run 2026-09-11 (issue #332: all-group pending bucket; dooplayer embed host dead)
+
+Both audit drift findings re-probed live before coding, then fixed TDD red→green, `version` 8→9.
+
+1. **All Movies row = pending bucket (drift)** — `/showlist2/all/1/category/` serves 24 entries
+   that are all null-meta (`release:null`, `star:null`) and **every sampled URL 404s** (SNOS-299,
+   NIMA-083, MIMK-291, MIDA-790/787/786). Page 2 deepens the picture: the 9 null-meta entries
+   there are 404 too (PRED-902…PPPE-446-region probe), while meta-bearing ones are live — so in
+   the `all` group null-meta ⇒ dead, reliably. A group-scoped filter is mandatory because
+   null-meta entries in OTHER groups are live (`uncensor`: CARIBBEANCOM-091026-001 → 200).
+   Fixes: `Parse.pendingReason` (fixture `showlist2-all-page1.json`, 24/24 flagged, unit
+   red→green) + `showlist` filter scoped to `group == "all"`. Because page 1 of the row is
+   100% pending (in-app it would render empty forever), the "All Movies" mainPage row is
+   dropped — Censored/Uncensored/New Releases cover the catalogue.
+2. **dooplayer embed chain removed (drift)** — `dooplayer.com` apex + `/embed/e/…` both time
+   out (mirror of the audit transcript); `mostplayer.com` is up (200) but 404s the dooplayer
+   embed IDs (`/embed/e/MTEzMzM1.31a75573f599c352`), so the audit's "identical contract" no
+   longer holds and host-rewriting cannot rescue the IDs. START-631-REDUCING-MOSAIC: provider-
+   exact AJAX POST re-verified → only server routes to
+   `dooplayer.com/embed/e/MTEzMzM1.31a75573f599c352` (fixture `dooplayer-ajax-response.json`).
+   The whole `/ri3123o235r`→embed→meta→api/stream branch is cut from `loadLinks` (it could
+   never resolve; now dooplayer-only titles fail fast with 0 links instead of hanging).
+   `Parse.dooStream` kept as a unit-tested regression doc of the AJAX shape.
+   Blast radius, re-probed: PPPE-445 and PPPE-443 are **dooplayer-only** (0 emturbovid servers
+   across ~3–4 buttons) → 0 playable links until the site migrates those embeds; AVOP-364 keeps
+   emturbovid servers among mostplayer/dooplayer ones and still streams.
+
+### Verification 2026-09-11 — verify.sh **RESULT: PASS** (log /tmp/verify-out.txt)
+Same bridging mechanics as the prior run (listing pages are JS templates → showlist2 JSON
+bridged to minimal card HTML on 127.0.0.1:8777): search bridges `/showlist2/avop/{1,2}/search/`
+(24×24 cards) + `/showlist2/sw-256/1/search/`; home bridges `/showlist2/uncensor/{1,2}/category/`
+(24×24; the all group is no longer a home row). 4 live video pages (SW-256-UNCENSORED-EDIT,
+DLDSS-529, C-2224, AVOP-364) → 200, `button[onclick*=select_part]` 2–4 matches, title
+`h1.page-header`, plot `meta[name=twitter:description]`; 4 position-matched `--stream-url`s
+resolved live through the provider's exact AJAX chain (emturbovid server only, dooplayer/
+mostplayer buttons skipped) → all **HTTP 206 application/vnd.apple.mpegurl**, paths distinct.
+check 5 via sw-256 (bridge title ↔ `h1.page-header`). check 6: posters/tags/actors/year/duration/
+plot/recommendations all assigned. `gradlew :Javmost:test` 17/17 green (fixtures:
+showlist2-all-page1, dooplayer-ajax-response, dooplayer-embed dropped from use, avop-179,
+avsa-457-recs, related-card); `gradlew :Javmost:make` clean; `Javmost.cs3` built.
