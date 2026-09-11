@@ -1,6 +1,55 @@
-# FINDINGS — pxp.news (2026-09 audit + 2026-09 fixes for #151 and #235)
+# FINDINGS — pxp.news (2026-09 audit + 2026-09 fixes for #151, #235, #330)
 
-## Verdict: OK (fixed #235 — second header <h1> shadowed the video title)
+## Verdict: OK (fixed #330 — search: `?q=` is ignored by the live site; real endpoint is `/tags/<query>`)
+
+## Root cause of #330 (search returns the homepage grid)
+The static site ignores the `q` parameter — `?q=<anything>` always serves the homepage
+newest-grid (36/36 data-id overlap with a plain `/` fetch, proven with `q=zzzznothing`).
+Search is JS-driven: `/2.js` rewrites the form submit to `/tags/<encodeURIComponent(q)>`.
+The provider was fetching `$mainUrl/?q=$query` → every search returned the unfiltered
+newest list.
+
+Fix: `search()` fetches `$mainUrl/tags/<query>` (`URLEncoder.encode` with `+`→`%20` to
+match the site's own links); `page > 1` appends `?page=$page`.
+- `/tags/Peggy%20DeVille` → exactly 1 card; `/tags/ATKGirlfriends` → 36; `/tags/Peggy` → 19
+  (tag-prefix matching; partial queries work).
+- Pagination: `?page=N` on the tag URL returns fresh cards (p2: 36 unique data-ids,
+  0 overlap with page 1 — proven on `/tags/ATKGirlfriends`).
+- **hasNext must come from `#pages`, not `true`:** a single-result tag page carries an
+  empty `<div id="pages">  </div>` — its `?page=2` fetch falls back to the generic
+  latest grid (still 200 + cards), which would poison pagination with unrelated/overlapping
+  tonight listings. The **last** page of a multi-page tag also still links back to earlier
+  pages, so `#pages a[href*=page]` is not a next-page test either. `Parse.searchHasNext`
+  now returns true only for the site's own `>` next control
+  (`#pages a` text `>`), which is absent on both the single-result page and the real last
+  page. Patched live: `/tags/ATKGirlfriends` p119 (5 cards, no `>`) is the end; its
+  `?page=120` serves the generic grid — the previous `#pages a[href*=page]` check fetched
+  it anyway. p1/p2 of `/tags/ATKGirlfriends` share 0 data-ids.
+- Card shape on tag pages is identical to the homepage grid (`.item_cont` /
+  `.item_title` / `.item_thumb img`), so `searchCard` selectors are unchanged.
+- Red→green Parse tests: `PornXP/src/test/kotlin/com/rjbiermann/ParseTest.kt` with
+  real `/tags/` fixtures in `PornXP/src/test/resources/` (card parse via
+  `SearchCard.parse`, `searchUrl` encoding, `searchHasNext` from `#pages`).
+
+## Search-SAMPLE caveat for verify.sh (runner, not provider)
+The harness dup bar (distinct titles across/within search pages) fails on two live-data
+patterns recorded here so it isn't chased again:
+- Series tags repeat literal titles: `/tags/ATKGirlfriends` pages are full of distinct
+  videos all titled `Schoolgirl`, `POV Sex`, `Trooper POV`. Use a talent/series tag whose
+  result titles are unique instead — current sample `/tags/DaughterSwap` p1+p2.
+- Two distinct newest-grid videos share the title `Maria Alfonsina` (ids 24279286,
+  64989072) and appear on generic listings — any sample that sweeps the newest grid
+  today trips a within-page title dup.
+- Harness NOTEs (structurally unavoidable on this site, same class as the #235 notes):
+  per-video poster/plot extraction is hardcoded to a `content` attribute which pxp.news
+  does not render (poster lives on `<video id="player" poster=…>`, plot in `#desc` text);
+  and check 5 search↔load agreement cannot pass — the only harness-readable per-video
+  title is `<title>` (`"Title – PornXP"`), whose suffix breaks normalization (no og
+  metas exist). The provider itself reads `.player_details h1` / `#player[poster]` /
+  `#desc` correctly.
+- Related/recs on video pages: the header banner `<a>` headlines the video's own mirror
+  (`//porn-xp.eu/videos/<id>`), so `a[href*=videos]` self-hits the check — use
+  `a[href^=/videos]` (banner href is scheme-relative, real cards are root-relative).
 
 ## Root cause of #235 (load() title wrong)
 pxp.news video pages now carry a SECOND `<h1>` in the header — a backup-domain notice:
@@ -33,9 +82,14 @@ Evidence (home + search + related all share this shape):
 Static server-rendered HTML (`text/html`), jquery + yall lazy-loader. No JS listing.
 
 ## Search
-- `https://pxp.news/?s=red` → 200, 36 `.item_cont` cards
-- `https://pxp.news/?q=red` → 200, 36 `.item_cont` cards (both params accepted; provider uses `?q=`)
-- Pagination `?page=N` and `/best/?page=2` → 200, 20–36 cards each.
+- **BROKEN → FIXED (#330):** `?q=`/`?s=` params are IGNORED by the live site — they return
+  the homepage newest-grid (36/36 overlap with `/`). The real search endpoint is
+  `/tags/<urlencoded query>` (form rewritten by `/2.js`), paginating with `?page=N`; see
+  the #330 root-cause section at the top. Old note kept for the record:
+  `https://pxp.news/?q=red` → 200, 36 `.item_cont` cards — but unfiltered/unrelated to the query.
+- Single-result tags (`/tags/Peggy%20DeVille`): 1 card, empty `#pages`; `?page=2` falls back to
+  the generic latest grid — don't paginate those; `searchHasNext` reads the site's `>` next
+  control in `#pages` (absent on the single-result page and on a tag's real last page).
 
 ## Video pages
 Probed ≥5 pages across home/search/paginated listings, e.g. `/videos/80377921180`,

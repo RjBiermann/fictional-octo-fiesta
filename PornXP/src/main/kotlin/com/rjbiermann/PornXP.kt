@@ -6,6 +6,25 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.utils.*
+import org.jsoup.nodes.Document
+import java.net.URLEncoder
+
+/** Pure helpers for the /tags/ search flow; unit-tested against live-page fixtures. */
+object Parse {
+    // The site's real search is /tags/<query> (2.js rewrites the form submit); ?q= is ignored.
+    fun searchUrl(mainUrl: String, query: String, page: Int): String {
+        // URLEncoder uses '+' for spaces; the site's own links use %20 — match that form
+        val q = URLEncoder.encode(query, "UTF-8").replace("+", "%20")
+        return if (page <= 1) "$mainUrl/tags/$q" else "$mainUrl/tags/$q?page=$page"
+    }
+
+    // The last page of a tag still links back to previous pages, and a single-result tag
+    // has an empty #pages block; either way no forward link exists. Only the site's own
+    // ">" next control means another page — fetching past the last one serves the generic
+    // unfiltered fallback feed.
+    fun searchHasNext(document: Document): Boolean =
+        document.select("#pages a").any { it.text().trim() == ">" }
+}
 
 class PornXP : MainAPI() {
     override var mainUrl = "https://pxp.news"
@@ -37,10 +56,9 @@ class PornXP : MainAPI() {
     }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
-        val url = if (page <= 1) "$mainUrl/?q=$query" else "$mainUrl/?q=$query&page=$page"
-        val document = app.get(url).document
+        val document = app.get(Parse.searchUrl(mainUrl, query, page)).document
         val videos = document.select(".item_cont").mapNotNull { searchCard(it, ".item_title", hrefSel = "a[href*=videos]", posterSel = ".item_thumb img") }
-        return newSearchResponseList(videos, hasNext = true)
+        return newSearchResponseList(videos, hasNext = Parse.searchHasNext(document))
     }
 
     override suspend fun quickSearch(query: String): List<SearchResponse>? {
