@@ -14,7 +14,7 @@ remove = "ai-remove-site"  # delete something, with evidence first
 
 [runtime]
 engine = "opencode"        # opencode | claude | goose | custom
-argv = ["opencode", "run"] # prompt is appended as the final argument
+argv = ["pi", "--no-session", "--mode", "text"]  # prompt appended as final argument
 
 [pipeline]
 verify = ""              # the gate. e.g. "make verify" — empty = skip

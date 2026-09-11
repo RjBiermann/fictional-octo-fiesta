@@ -21,12 +21,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+      - uses: actions/setup-java@v5
+        with: { java-version: "17", distribution: temurin }
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - name: Install devloop (pinned)
         run: >-
           pip install
           git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.1.1
+      - name: Install agent runtime (pi) + model config
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        run: |
+          npm i -g @earendil-works/pi-coding-agent
+          mkdir -p ~/.pi/agent
+          cat > ~/.pi/agent/models.json <<'JSON'
+          {
+            "providers": {
+              "go": {
+                "baseUrl": "https://opencode.ai/zen/go/v1",
+                "api": "openai-completions",
+                "apiKey": "$OPENCODE_API_KEY",
+                "models": [
+                  { "id": "glm-5.3-flash", "name": "GLM 5.3 Flash (Go)", "reasoning": true },
+                  { "id": "deepseek-v4-flash", "name": "DeepSeek V4 Flash (Go)", "reasoning": true }
+                ]
+              }
+            }
+          }
+          JSON
       - name: Run pipeline
         run: devloop once
         env:
