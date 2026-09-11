@@ -136,6 +136,16 @@ verify.sh: **PASS** (exit 0), invocation notes recorded in FINDINGS per the same
 - duration: skipped (site exposes it only via JS-filled empty badge on video pages — scope
   unchanged from the audit).
 
+Round-2 reviewer independent re-verification (2026-09-11, 5 varied videos from
+/latest-updates/ 1+2): 404999, 405006, 404971, 404980, 405013 all 200; get_file streams
+all **206 video/mp4**; `div.related-videos div.video-item` present with 10 cards each;
+Submitted badge text `10 hours ago` / `10 hours ago` / `10 hours ago` / `10 hours ago` /
+`10 hours ago` (present on all 5). Direct flashvars grep: every page carries `video_url`
+(480p) + `video_alt_url` (720p) — matches the provider's loadLinks map. Same script
+limitations as above: raw verify.sh RESULT is FAIL solely on regex-DOM-truncated fake-
+duplicate `title=hd` cards in search/home/related (pre-existing script limit, Porntrex
+precedent); the substantive checks on the 5 pages all pass.
+
 Video pages carry a `div.item` whose text starts `Tags:`; its anchors have **no href**, so
 the old categories-only selector never captured them. Exposure: 66008 → 18 real tags,
 188678 → 2 (SW-854 + long JP title), 223404 → 1 (Hardcore), 236474 → 1 (the title itself —
