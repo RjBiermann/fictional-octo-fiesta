@@ -58,6 +58,13 @@ object AllClassicPornParse {
         return value?.trim()?.takeIf { it.isNotEmpty() }
     }
 
+    /** Home-page URL for a paginated row. Feed base `…/page/` 301s to root when bare, so page 1 uses canonical `…/page/1/` (issue #322, D1). */
+    fun homePageUrl(base: String, page: Int): String = when {
+        page > 1 -> "$base$page/"
+        base.endsWith("/page/") -> "${base}1/"
+        else -> base
+    }
+
     /** Drop cards whose href already appeared earlier — the site serves some videos twice in-page (issue #266). */
     fun distinctByHref(blocks: List<Element>): List<Element> = blocks.distinctBy { it.attr("href") }
 

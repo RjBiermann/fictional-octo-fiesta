@@ -18,7 +18,7 @@ class AllClassicPorn : MainAPI() {
     private val tag = "AllClassicPorn"
 
     override val mainPage = mainPageOf(
-        "$mainUrl/page/1/" to "New Videos",  // /page/ alone 301-redirects to site root (issue #322, D1)
+        "$mainUrl/page/" to "New Videos",  // feed base; page 1 fetched as /page/1/ — /page/ alone 301s to site root (issue #322, D1)
         "$mainUrl/40s/" to "40s",
         "$mainUrl/50s/" to "50s",
         "$mainUrl/60s/" to "60s",
@@ -34,7 +34,7 @@ class AllClassicPorn : MainAPI() {
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val url = if (page > 1) "${request.data}$page/" else request.data
+        val url = AllClassicPornParse.homePageUrl(request.data, page)  // feed page 1 → …/page/1/ (issue #322, D1)
         val document = app.get(url, referer = mainUrl).document
 
         val home = AllClassicPornParse.distinctByHref(document.select("a.th.item"))
