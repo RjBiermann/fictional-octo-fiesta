@@ -89,7 +89,10 @@ token — see note above); do NOT "fix" downstream of that.
 
 ## Pagination
 Listings: `/{section}/page/N/` (confirmed: `/movies/page/2/` → 24 different items).
-Search: page 1 only (DLE GET search has no usable pagination links).
+Search: `/{section}/page/N/` for listings; search paginates via DLE `&search_start=N`
+(1-based; page 1 = no param). Confirmed 2026-09-11 (issue #335):
+`story=milf&search_start=2` → 200, 24 cards, 0 overlap with page 1; pagination JS is
+`list_submit(N)`. Provider: `Parse.searchUrl(query, page)` appends `&search_start=$page`.
 
 ## Risks / blockers
 - None on main site (no Cloudflare).
