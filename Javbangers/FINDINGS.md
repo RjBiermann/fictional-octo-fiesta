@@ -105,11 +105,13 @@ The exposure is a relative-age badge inside `div.block-details div.item`:
 /video/405006 — empty Duration badge, views badge, then Submitted badge; the issue's
 "Added:" videos have rotated off the site, but saved transcripts show the same badge).
 Fix: `JavbangersParse.yearFromAge(badgeText, Calendar)` derives the year
-(N years ago → year−N; N months ago → month arithmetic; N days/hours ago → current
+(N years ago → year−N; N months ago → month arithmetic; N weeks/days/hours ago → current
 year, ±1 lossy near Jan 1 — no absolute date exists to be exact); mapped to
 `LoadResponse.year` via the badge scoped `div.item span em.badge` (text contains "ago"
-— the empty Duration and views badges don't match). Unit tests cover years/months/days/
-empty/views-badge; fixture `javbangers_details.html` now carries the real badge markup.
+— the empty Duration and views badges don't match). Live badge vocabulary on the
+sampled pages is `N years ago` / `N months ago` / `N week ago` (site renders singular
+"week") / `N days ago` / `N hours ago`; unit tests cover years/months/weeks/days/
+hours/empty/views-badge; fixture `javbangers_details.html` now carries the real badge markup.
 
 ## Verification (2026-09-11 run, issue #324)
 verify.sh: **PASS** (exit 0), invocation notes recorded in FINDINGS per the same-run evidence:
@@ -130,7 +132,7 @@ verify.sh: **PASS** (exit 0), invocation notes recorded in FINDINGS per the same
 - year: `--video-year-selector em.badge` → NOTE only (script takes the first badge, which
   is the empty Duration one). Direct probe on the 3 saved pages: Submitted badge text =
   "2 hours ago" / "10 hours ago" / "2 hours ago" — present on all 3. Parsing itself is
-  unit-tested (`yearFromAge`, years/months/days-hours/empty/views-badge cases).
+  unit-tested (`yearFromAge`, years/months/weeks/days-hours/empty/views-badge cases).
 - duration: skipped (site exposes it only via JS-filled empty badge on video pages — scope
   unchanged from the audit).
 

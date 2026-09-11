@@ -66,6 +66,13 @@ class JavbangersParseTest {
         assertEquals(2025, JavbangersParse.yearFromAge("3 days ago", cal(2026, 0, 2)))
     }
 
+    /** Site renders "N week ago" (singular) as well as days/hours. */
+    @Test fun `weeks ago maps across the year boundary`() {
+        assertEquals(2026, JavbangersParse.yearFromAge("1 week ago", cal(2026, 8, 11)))
+        assertEquals(2025, JavbangersParse.yearFromAge("2 weeks ago", cal(2026, 0, 5)))
+        assertEquals(2026, JavbangersParse.yearFromAge("2 weeks ago", cal(2026, 0, 20)))
+    }
+
     @Test fun `empty or non-age badge yields null`() {
         assertEquals(null, JavbangersParse.yearFromAge(""))
         assertEquals(null, JavbangersParse.yearFromAge(null))

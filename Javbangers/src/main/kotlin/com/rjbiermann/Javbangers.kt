@@ -153,15 +153,19 @@ object JavbangersParse {
 
     /** Relative-age badge text ("3 years ago") → upload year; empty/absent → null. */
     fun yearFromAge(badgeText: String?, today: Calendar = Calendar.getInstance()): Int? {
-        val m = Regex("(\\d+)\\s*(year|month|day|hour)s?\\s+ago", RegexOption.IGNORE_CASE)
+        val m = Regex("(\\d+)\\s*(year|month|week|day|hour)s?\\s+ago", RegexOption.IGNORE_CASE)
             .find(badgeText ?: return null) ?: return null
         val n = m.groupValues[1].toInt()
         val year = today.get(Calendar.YEAR)
         return when (m.groupValues[2].lowercase()) {
             "year" -> year - n
             "month" -> (today.get(Calendar.YEAR) * 12 + today.get(Calendar.MONTH) - n) / 12
-            // days/hours: always recent — only slips a year when today is within n days of Jan 1
-            else -> if (today.get(Calendar.DAY_OF_YEAR) <= n) year - 1 else year
+            // weeks/days/hours: always recent — only slips a year when today is within that
+            // many days of Jan 1 (site renders "N week ago" singular, hence the s? above)
+            else -> {
+                val days = if (m.groupValues[2].equals("week", ignoreCase = true)) n * 7 else n
+                if (today.get(Calendar.DAY_OF_YEAR) <= days) year - 1 else year
+            }
         }
     }
 }
