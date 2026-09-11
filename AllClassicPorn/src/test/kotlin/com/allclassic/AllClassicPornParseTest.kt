@@ -117,6 +117,15 @@ class AllClassicPornParseTest {
         assertNull(AllClassicPornParse.parsePlot("<html></html>"))
     }
 
+    @Test fun `quality caption matches the flashvars-bracket form (issue #322, fixture 2252)`() {
+        assertEquals("480p", AllClassicPornParse.parseQuality(video2252))
+    }
+
+    @Test fun `quality caption matches the colon form and is null when absent`() {
+        assertEquals("720p", AllClassicPornParse.parseQuality("video_url_text: '720p'"))
+        assertNull(AllClassicPornParse.parseQuality("no cue here"))
+    }
+
     @Test fun `escaped apostrophe in names survives the load outerHtml path (fixture 1573)`() {
         val raw = javaClass.getResourceAsStream("/video-1573.html")!!.readBytes().decodeToString()
         val html = org.jsoup.Jsoup.parse(raw).outerHtml()

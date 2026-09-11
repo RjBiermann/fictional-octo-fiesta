@@ -172,6 +172,27 @@ None. No Cloudflare, no age wall. Curl with plain Mozilla UA gets 200 everywhere
   the script's dup check spans all home URLs. The mechanical pass therefore uses one surface's
   pagination (most-popular page1+2); the other three surfaces each verified 200 + 60 cards in the
   same run's GET lines.
+## Audit #322 (2026-09-11) — correctness/drift: page-1 URL + quality caption (D1/D2)
+
+- **D1 — getMainPage page 1**: `"$mainUrl/page/"` with page 1 fetching `request.data` bare →
+  `https://allclassic.porn/page/` is a **301 to the site root** (curl: `301 http://allclassic.porn/`).
+  Root's 84 cards (7 of them in-page duplicated, issue #266) massively overlap /page/2/ (`shared with
+  /page/2/: 1`), so home page 1 duplicated home cards across pages (verify.sh check-1a FAIL).
+  Canonical `https://allclassic.porn/page/1/` → 200, 60 cards, **0 overlap** with /page/2/.
+  Fix: mainPage entry URL is now `$mainUrl/page/1/`; `getMainPage` still appends `$page/` for page > 1
+  (→ /page/2/, /page/3/ …) — decade/sort rows keep the `{url}{page}/` pattern (page 1 of e.g. /90s/
+  already 200s without the suffix so their entries are untouched).
+- **D2 — quality caption**: live flashvars on all sampled pages (5278, 439, 5910, 4714, 2252 fixture)
+  uses the `flashvars['video_url_text'] = '480p'` bracket form; the old regex
+  `video_url_text:\s*'([^']+)'` matches the colon form only (grep count 0 on live pages) →
+  `quality == null` everywhere, link name lost its ` - 480p` suffix. The `video_url:` colon form
+  (the stream URL itself) DOES exist and streams fine — only the caption was dead.
+  Fix: new pure `AllClassicPornParse.parseQuality(html)` matching both forms
+  (`(?:video_url_text\s*:|video_url_text'\]\s*=)\s*'([^']+)'`, mirroring `flashvarsField`), wired into
+  loadLinks. Unit tests (red → green) on fixture video-2252.html (`480p`) + colon form + null case.
+  Version 10→11.
+- verify.sh `--home-url /page/1/ /page/2/` passes check-1a cleanly (60 cards each, 0 shared).
+  Old "embed…" FAIL artifacts are the script's og:video grab (audit-#204 artifact 1), not provider defects.
 - verify.sh 2026-09-11 run artifacts (unchanged from audits #204/#205/#266/#289, none provider
   defects): stream og:video embed content-type; mini-DOM `-1` on chained `#id a.th.item` (check 2/
   4 raw count) with real related anchors present; duplicate rec hrefs site-side (deduped by

@@ -52,6 +52,12 @@ object AllClassicPornParse {
     fun parseTags(html: String): List<String> = listFromField(html, "video_tags")
     fun parseCategories(html: String): List<String> = listFromField(html, "video_categories")
 
+    /** Quality caption: matches both `video_url_text: 'x'` and `flashvars['video_url_text'] = 'x'` (issue #322, D2). */
+    fun parseQuality(html: String): String? {
+        val value = Regex("(?:video_url_text\\s*:|video_url_text'\\]\\s*=)\\s*'([^']+)'").find(html)?.groupValues?.get(1)
+        return value?.trim()?.takeIf { it.isNotEmpty() }
+    }
+
     /** Drop cards whose href already appeared earlier — the site serves some videos twice in-page (issue #266). */
     fun distinctByHref(blocks: List<Element>): List<Element> = blocks.distinctBy { it.attr("href") }
 
