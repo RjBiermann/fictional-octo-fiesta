@@ -4,6 +4,7 @@
 package com.kerimmkirac
 
 import com.kraptor.registerHostExtractors
+import com.kraptor.searchCard
 import com.lagradost.api.Log
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
@@ -55,27 +56,11 @@ class FreePornVideos : MainAPI() {
     )
 }
 
+    // KVS quirk kept local: iframe-gated cards are ad placeholders, skip them; everything else via shared SearchCard (issue #286)
     private fun Element.toSearchResult(): SearchResponse? {
         try {
             if (selectFirst("div.img iframe") != null) return null
-
-            val linkElement = selectFirst("a.thumb_title") ?: return null
-            val href = linkElement.attr("href").takeIf { it.isNotBlank() } ?: return null
-            val title = linkElement.selectFirst("strong.title")?.text()?.takeIf { it.isNotBlank() } ?: return null
-
-            var posterUrl: String? = null
-            for (img in select("img.thumb")) {
-                img.attr("data-src").takeIf { it.isNotBlank() }?.let {
-                    posterUrl = it; break
-                }
-                img.attr("src").takeIf { it.isNotBlank() && !it.contains("data:image") }?.let {
-                    posterUrl = it; break
-                }
-            }
-            if (posterUrl == null) return null
-            return newMovieSearchResponse(title, href, TvType.NSFW) {
-                this.posterUrl = posterUrl
-            }
+            return searchCard(this, "a.thumb_title", posterSel = "img.thumb")
         } catch (e: Exception) {
             Log.d("FPV", "Error in toSearchResult: ${e.message}")
             return null
