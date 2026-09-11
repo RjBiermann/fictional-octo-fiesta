@@ -2,6 +2,7 @@ package com.allclassic
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -115,6 +116,29 @@ class AllClassicPornParseTest {
 
     @Test fun `null when no description source (issue #289)`() {
         assertNull(AllClassicPornParse.parsePlot("<html></html>"))
+    }
+
+    @Test fun `quality caption matches the flashvars-bracket form (issue #322, fixture 2252)`() {
+        assertEquals("480p", AllClassicPornParse.parseQuality(video2252))
+    }
+
+    @Test fun `quality caption parses either form on a fixture that carries both (6161)`() {
+        assertEquals("480p", AllClassicPornParse.parseQuality(videoPage))
+    }
+
+    @Test fun `quality caption matches the colon form and is null when absent`() {
+        assertEquals("720p", AllClassicPornParse.parseQuality("video_url_text: '720p'"))
+        assertNull(AllClassicPornParse.parseQuality("no cue here"))
+    }
+
+    @Test fun `home page URL feed page 1 uses canonical suffix, other rows bare (issue #322 D1)`() {
+        // feed base: page 1 must NOT request bare …/page/ (301→root); page 2+ append
+        assertEquals("https://allclassic.porn/page/1/", AllClassicPornParse.homePageUrl("https://allclassic.porn/page/", 1))
+        assertEquals("https://allclassic.porn/page/2/", AllClassicPornParse.homePageUrl("https://allclassic.porn/page/", 2))
+        // decade/sort rows use their base bare for page 1, append for page 2+
+        assertEquals("https://allclassic.porn/40s/", AllClassicPornParse.homePageUrl("https://allclassic.porn/40s/", 1))
+        assertEquals("https://allclassic.porn/40s/2/", AllClassicPornParse.homePageUrl("https://allclassic.porn/40s/", 2))
+        assertNotEquals("https://allclassic.porn/page/1/", AllClassicPornParse.homePageUrl("https://allclassic.porn/page/", 2))
     }
 
     @Test fun `escaped apostrophe in names survives the load outerHtml path (fixture 1573)`() {

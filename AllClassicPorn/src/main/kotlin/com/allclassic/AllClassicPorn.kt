@@ -18,7 +18,7 @@ class AllClassicPorn : MainAPI() {
     private val tag = "AllClassicPorn"
 
     override val mainPage = mainPageOf(
-        "$mainUrl/page/" to "New Videos",  // pagination appends {page}/ → /page/N/ (FINDINGS)
+        "$mainUrl/page/" to "New Videos",  // feed base; page 1 fetched as /page/1/ — /page/ alone 301s to site root (issue #322, D1)
         "$mainUrl/40s/" to "40s",
         "$mainUrl/50s/" to "50s",
         "$mainUrl/60s/" to "60s",
@@ -34,7 +34,7 @@ class AllClassicPorn : MainAPI() {
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val url = if (page > 1) "${request.data}$page/" else request.data
+        val url = AllClassicPornParse.homePageUrl(request.data, page)  // feed page 1 → …/page/1/ (issue #322, D1)
         val document = app.get(url, referer = mainUrl).document
 
         val home = AllClassicPornParse.distinctByHref(document.select("a.th.item"))
@@ -109,7 +109,8 @@ class AllClassicPorn : MainAPI() {
         val html = app.get(data, referer = mainUrl).text
 
         // Direct KVS flashvars: video_url + video_url_text pairs; skip ?login upsell "alt" urls.
-        val quality = Regex("video_url_text:\\s*'([^']+)'").find(html)?.groupValues?.get(1)
+        // flashvars caption uses the [X] = form on every live page; colon form kept as fallback (issue #322, D2).
+        val quality = AllClassicPornParse.parseQuality(html)
         val videoUrl = Regex("video_url:\\s*'([^']+)'").find(html)?.groupValues?.get(1) ?: return false
 
         callback(
