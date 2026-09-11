@@ -90,3 +90,80 @@ Alternatives considered and rejected:
   string; it lives in a git config file, not in logs or argv — same exposure as
   devloop.yml, accepted there.
 - Behavior change: none intended. Same push target, same `--force`, same branch.
+
+---
+
+# FINDINGS — issue #357: PackedJs.unpack silently defaults radix to 36 on parse failure
+
+Task: probe reality, minimal fix for REVIEW.md P0-13 (issue #347). Subject is the shared
+Parse function `shared/src/main/kotlin/com/kraptor/PackedJs.kt` — root-cause fix in `shared/`
+per AGENTS.md, followed by bumping every affected provider.
+
+## Evidence probe (reality, before the fix)
+
+**1. The vulnerable line exists exactly as reported** — `PackedJs.kt:20`:
+
+```kotlin
+val radix = m.groupValues[2].toIntOrNull() ?: 36
+```
+
+The radix group only matches `\d+` in the grammar regex, so `toIntOrNull()` fails only on
+Int-overflow-sized numerals — but the more common corruption matter is a **valid integer
+radix of 37..62** (real Packer instances use `a=62` with full base62 keys). Right after the
+fallback line, `i.toString(radix)` is called to build the key map; for radix > 36 that
+**throws** `IllegalArgumentException: radix 62 was not in valid range 2..36` — so today a
+radix-62 pack not only can silently decode as garbage (fallback 36), it crashes the
+extractor outright (observed: `radix above 36` test threw this before the fix). Either way
+the unpack does not "fail to nothing safely": LULUBASE/Javclan might emit wrong links
+(garbage path) or the exception propagates out of `getUrl()`.
+
+**2. Callers in this repo** (issue names VidHidePro + Javclan — both confirmed):
+- `VidHidePro` (Extractorlar.kt:627, line 647): unpack → null falls back to the page's raw
+  `sources:` script — a graceful fallback already exists; safer contract makes it trigger.
+- `Javclan` (Extractorlar.kt:703, line 712): unpack → null returns no links (correct).
+- `LULUBASE` (Extractorlar.kt:861, line 888): unpack → null returns early (correct).
+- `Sexfilm.kt:113`: unpack → null falls back to raw html (documented caller behavior).
+- Via shared `HostRegistry.kt`, all of these adapters are available to every provider
+  (global `registerHostExtractors()`), so every provider's playback path is a consumer.
+
+**3. No other fallback/default radix exists anywhere in the repo** (`grep -rn "?: 36"`).
+
+## Fix (minimal)
+
+```kotlin
+val radix = m.groupValues[2].toIntOrNull()?.takeIf { it in 2..36 } ?: return null
+```
+
+Contract: unparseable or non-representable radix ⇒ null (no decode attempt), matching the
+function's documented "null when nothing unpackable" vocabulary.
+
+## TDD evidence (red → green)
+
+- Fixture added: `shared/src/test/resources/packed_radix62_embed.js` — a real-shaped
+  Dean-Edwards `eval(function(p,a,c,k,e,d){...})` pack with `a=62` and 43 base62-encoded
+  keys (indices into letters A..Z exercise the >36 encoding range).
+- Tests added at the existing seam (`shared/src/test/kotlin/com/kraptor/PackedJsTest.kt`):
+  - `radix above 36 yields null instead of garbage or crash` — RED: threw
+    `IllegalArgumentException: radix 62 was not in valid range 2..36`; GREEN after fix.
+  - `unparseable radix yields null instead of falling back to 36` — RED: returned the
+    decoded payload (`w0`, the silent-garbage path); GREEN after fix.
+  - Existing fixture test (`unpacks a packed eval call`) still green — radix-36 packs
+    unaffected.
+
+## Verification performed
+
+- `./gradlew Javtiful:test` (runs shared `src/test/kotlin` with every provider's test task):
+  red as above, then fully green after the fix.
+- `./gradlew Javtiful:assembleDebug` clean.
+- Live-site `verify.sh` pipeline verification not applicable: the subject is a shared Parse
+  contract, not a provider's selectors/streams; no site changed and no fixture site URLs are
+  in scope. The verification burden here is the Parse-function unit red → green (ADR-0005)
+  plus the compile gate, both run.
+
+## Risks / notes
+
+- All 24 providers version-bumped +1: PackedJs serves the global extractor registry, so
+  every provider's release must be refreshed for users to pick the fix up.
+- No provider Kotlin source edited — behavior change is strictly the safer failure mode in
+  `shared/`.
+- Work committed for human review only; no merge performed.
