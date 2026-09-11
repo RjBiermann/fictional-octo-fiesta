@@ -6,6 +6,24 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.utils.*
+import org.jsoup.nodes.Document
+import java.net.URLEncoder
+
+/** Pure helpers for the /tags/ search flow; unit-tested against live-page fixtures. */
+object Parse {
+    private const val MAIN_URL = "https://pxp.news"
+    // The site's real search is /tags/<query> (2.js rewrites the form submit); ?q= is ignored.
+    fun searchUrl(query: String, page: Int): String {
+        // URLEncoder uses '+' for spaces; the site's own links use %20 — match that form
+        val q = URLEncoder.encode(query, "UTF-8").replace("+", "%20")
+        return if (page <= 1) "$MAIN_URL/tags/$q" else "$MAIN_URL/tags/$q?page=$page"
+    }
+
+    // A tag page with a single result page carries an empty #pages block; fetching its
+    // page 2 falls back to the generic grid (duplicate/unfiltered cards) — stop instead.
+    fun searchHasNext(document: Document): Boolean =
+        document.selectFirst("#pages a[href*=page]") != null
+}
 
 class PornXP : MainAPI() {
     override var mainUrl = "https://pxp.news"
@@ -37,10 +55,9 @@ class PornXP : MainAPI() {
     }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
-        val url = if (page <= 1) "$mainUrl/?q=$query" else "$mainUrl/?q=$query&page=$page"
-        val document = app.get(url).document
+        val document = app.get(Parse.searchUrl(query, page)).document
         val videos = document.select(".item_cont").mapNotNull { searchCard(it, ".item_title", hrefSel = "a[href*=videos]", posterSel = ".item_thumb img") }
-        return newSearchResponseList(videos, hasNext = true)
+        return newSearchResponseList(videos, hasNext = Parse.searchHasNext(document))
     }
 
     override suspend fun quickSearch(query: String): List<SearchResponse>? {
