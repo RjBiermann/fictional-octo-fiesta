@@ -1,6 +1,6 @@
 # FINDINGS — eporner.com (2026-09 audit)
 
-## Verdict: OK (no code change)
+## Verdict: OK (year fix applied, issue #294)
 
 ## Search
 - `https://www.eporner.com/search/red/` → HTTP 200; selector `div#vidresults div.mb` matches 28 results (`p.mbtit a`, `div.mbimg img`).
@@ -75,3 +75,34 @@
   reason, not a selector regression. JSON surfaces + stream flow re-verified with curl:
   embed → hash → `/xhr/video/{id}?hash=…` → 5 mp4/hls URLs per video on both sampled IDs
   (11PHqoqftMv, 1DpWrH3bhm3).
+
+## Update (2026-09-11, issue #294): year from JSON-LD uploadDate
+
+- `span.C` gone from video pages: `<span class="C"` count = 0 on both sampled pages
+  (video-R7ZATY8jOpO, video-UqnoIQjFusj). Dead selector — year was never populated.
+- Site exposes the publish date only in JSON-LD: `"uploadDate": "2025-10-27T11:31:24+01:00"`
+  (same field verified live on both samples). No DOM year source exists.
+- Fix: year parsed via shared `JsonLdParse.year` (handles uploadDate/datePublished, plain and
+  escaped JSON — same module PerverZija/WatchPorn/Sexfilm use) over the page's first
+  `script[type=application/ld+json]`. Dead `span.C a` selector removed.
+- Mechanical gate for year: verify.sh's DOM regex cannot see JSON-LD (ponytail ceiling:
+  script-content parsing not implemented there), so the documented gate is the fixture unit
+  test `EPorner/src/test/kotlin/com/byayzen/ParseTest.kt` — real page snippet asserting
+  2025 from the capture above. Green in the build.
+- Actors upgraded (optional item): primary source now the in-page per-actor links
+  `li.vit-pornstar.starw a` (10+ anchors on both samples, live-verified); `span.valor a`
+  and the JSON-LD / og:description fallback chain kept behind it.
+- verify run: gate FAILs surface, all attributed:
+  - `duplicate search cards` / `duplicate home cards`: known site drift — boundary dups
+    recorded by this audit as "covered by the Correctness/Drift issue, not repeated here".
+    (Home page-2 URL defect = the MainPage issue, out of axis.)
+  - `duplicate recommendations` / `empty recommendation title`: verify.sh regex-DOM counts
+    the 21 quality-chip `div.mb` cards (title text "1080p" etc.) inside relateddiv — the
+    provider's own `searchCard(p.mbtit a)` correctly drops them (mapNotNull). Script
+    limitation, not a provider defect (provider card titles come from anchors, null → skip).
+  - check 5 (search↔load agreement): verify.sh cannot extract search card titles from this
+    single-line nested markup (first `</div>` truncates card inner); title present in live
+    HTML (`grep 'mbtit'` shows "Stepsons - Dee Williams").
+  - All data-completeness signals green: streams 206 video/mp4 on both samples; tags,
+    actors, duration selectors match every sampled page; LoadResponse has assignments for
+    tags/plot/duration/year/actors/recommendations.
