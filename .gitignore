@@ -14,4 +14,4 @@ local.properties
 .scratch/
 
 # devloop (agent pipeline) — generated, reproducible via `devloop init`
-skills/
+
