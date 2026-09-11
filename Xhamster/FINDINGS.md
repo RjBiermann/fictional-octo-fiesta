@@ -87,7 +87,9 @@ Verified on two live videos with mobile-UA Chrome/130 + Cookie `video_titles_tra
 
 - `videoModel.duration` ✓ (492 / 643)
 - `window.initials.videoEntity` now carries: title, description (186 / 164 chars), duration,
-  pageURL, thumbBig (xhcdn webp poster), pornstarModels [{id,name,...}]
+  thumbBig (xhcdn webp poster), pornstarModels [{id,name,...}]. NOTE: pornstarModels carry no
+  usable avatar URL (thumb.avatar1/avatar2 are filename fragments, not URLs) — actors are
+  name-only; no videoEntity.pageURL key exists (related-video pageURLs live on each thumb).
   - v1 "Two Cougars on the Prowl" (29238872): aud Desifilmy45, Karla Insatiable, Jason Pierce, Madame D
   - v2 "My MILF Stepmom Gives Me A Laundry Lesson" (29212231): Jax Slayher, Hailey Rose, Kera Bear
 - `window.initials.videoPageComponent.relatedVideos.videoTabInitialData.videoListProps.videoThumbProps`
@@ -105,7 +107,7 @@ Verified on two live videos with mobile-UA Chrome/130 + Cookie `video_titles_tra
 - Stream side unchanged; duration (seconds) semantics unchanged; no absolute date/year field
   (only relative dateAgo) → year correctly not populated.
 
-Fix (version 17 → 18): title from videoEntity.head, poster from videoEntity.thumbBig,
+Fix (version 17 → 18): title from videoEntity.title, poster from videoEntity.thumbBig,
 description from videoEntity.description, actors from videoEntity.pornstarModels,
 recommendations from videoThumbProps. Dead DOM selectors removed for related-item and
 entity-author; tags selector kept. Fresh fixtures xhamster-video-v1/v2.html carry the raw

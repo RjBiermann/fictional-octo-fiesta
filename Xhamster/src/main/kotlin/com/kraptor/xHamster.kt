@@ -125,7 +125,7 @@ class xHamster : MainAPI() {
         val description = videoEntity?.description?.replace("\\s+".toRegex(), " ")
 
         val actors = videoEntity?.pornstarModels.orEmpty().mapNotNull { model ->
-            model.name?.takeIf { it.isNotBlank() }?.let { Actor(it, model.thumbURL) }
+            model.name?.takeIf { it.isNotBlank() }?.let { Actor(it) }
         }
 
         // duration survives in both videoModel and videoEntity (seconds).
@@ -138,17 +138,15 @@ class xHamster : MainAPI() {
         // 2026-09-11 (issue #339): related videos now come from the initials JSON
         // (videoPageComponent.relatedVideos…videoThumbProps) — the old
         // div[data-role='related-item'] DOM selector matches nothing server-side.
-        val recommendations = videoEntity?.let { entity ->
-            initialData?.videoPageComponent?.relatedVideos?.videoTabInitialData?.videoListProps
-                ?.videoThumbProps.orEmpty().mapNotNull { thumb ->
-                    val name = thumb.title ?: return@mapNotNull null
-                    val link = thumb.pageURL ?: entity.pageURL ?: return@mapNotNull null
+        val recommendations = initialData?.videoPageComponent?.relatedVideos?.videoTabInitialData
+            ?.videoListProps?.videoThumbProps.orEmpty().mapNotNull { thumb ->
+                val name = thumb.title ?: return@mapNotNull null
+                val link = thumb.pageURL ?: return@mapNotNull null
 
-                    newMovieSearchResponse(name, link, TvType.NSFW) {
-                        this.posterUrl = thumb.thumbURL
-                    }
+                newMovieSearchResponse(name, link, TvType.NSFW) {
+                    this.posterUrl = thumb.thumbURL
                 }
-        }.orEmpty()
+            }
 
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = posterFixed
@@ -265,12 +263,13 @@ class xHamster : MainAPI() {
         val title: String? = null,
         val duration: Int? = null,
         val description: String? = null,
-        val pageURL: String? = null,
         val thumbBig: String? = null,
         val pornstarModels: List<PornstarModel>? = null
     )
 
-    data class PornstarModel(val name: String? = null, val thumbURL: String? = null)
+    // pornstarModels entries carry no image URL of their own (only thumb.avatar1/avatar2
+    // filename fragments) — actors are name-only.
+    data class PornstarModel(val name: String? = null)
 
     data class VideoPageComponent(val relatedVideos: RelatedVideos? = null)
 
