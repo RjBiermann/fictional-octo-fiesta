@@ -38,7 +38,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Jackson must not exceed 2.13.1
         run: |
-          if grep -rEhn --include=build.gradle.kts 'com\.fasterxml.*jackson.*:(2\.1[4-9]|2\.[2-9]|[3-9]\.)' .; then
+          # -n keeps file:line in the failure output (-h hid it, review #347 P1-7).
+          # Comment-only lines that quote the coordinate are filtered out so a
+          # comment like "never bump ... :2.17" cannot fail the gate.
+          bad=$(grep -rEn --include=build.gradle.kts 'com\.fasterxml.*jackson.*:(2\.1[4-9]|2\.[2-9]|[3-9]\.)' . \
+            | grep -vE ':[0-9]+:[[:space:]]*(//|/\*|\*)' || true)
+          if [[ -n "$bad" ]]; then
+            echo "$bad"
             echo "::error::Jackson must not be bumped past 2.13.1 — newer versions break older Android devices"
             exit 1
           fi
