@@ -100,7 +100,8 @@
   The bug was live, exactly as P0-14 described.
 - Callers that can reach the fallback (no `hrefSel`): EPorner (`p.mbtit a`),
   FreePornVideos (`a.thumb_title`), FullPorner (`div.video-title a`),
-  Cat3Movie (via its own local Parse; site currently unreachable from this env).
+  (Cat3Movie is NOT a SearchCard consumer — it has its own local `Parse.searchCards`;
+  it was wrongly bumped and reverted in the review round.)
   Callers with explicit `hrefSel` are unaffected by construction: PornXP
   (`hrefSel = "a[href*=videos]"`).
 - Live-shape check (sites bot-blocked from this env; used web.archive.org snapshots of
@@ -136,18 +137,20 @@
 
 ## Change
 
-1. `shared/src/test/resources/search_card_fixture.html` — two new cards: tag-link-first
-   (first `<a>` = tag link, `<span class="name">` title) and href-less title anchor
-   (`<a class="name">` with no href, tag link as the only other anchor).
+1. `shared/src/test/resources/search_card_fixture.html` — four new cards: tag-link-first,
+   href-less title anchor, green-side fallback (`<a href>` wrapping only an `<img>`,
+   title in a bare span), near-miss taxonomy wrapper around a name-ish child.
 2. `shared/src/test/kotlin/com/kraptor/SearchCardTest.kt` — new test
-   `tag-link-first card - title never binds to a tag link (P0-14)` asserting both new
-   cards yield null; fixed the broken-card test's index shift (fixture grew by two
-   cards → `cards[3]`).
+   new tests: tag-link-first, green-side fallback resolves, near-miss binds nothing;
+   re-pointed the broken-card test to its real card after the fixture grew
+   (`cards[6]`). 6 tests, 0 failures.
 3. `shared/src/main/kotlin/com/kraptor/SearchCard.kt` — `firstCardLink` replaces the
-   bare `card.selectFirst("a")` leg (see Decision). No provider files touched (the
-   root cause lives in `shared/`; per AGENTS.md, shared fixes do not require provider
-   bumps unless behavior changes for live shapes — live shapes are provably
-   unaffected, see Probe).
+   bare `card.selectFirst("a")` leg (see Decision), plus a taxonomy-path exclusion
+   (review round: the name-ish-evidence rule alone admitted taxonomy wrappers).
+4. Provider bumps — `shared/` behavior changed (a href that used to resolve can now
+   be null), so every affected consumer's artifact changes: EPorner 15→16,
+   FreePornVideos 9→10, FullPorner 11→12, PornXP 8→9. Cat3Movie does not consume
+   SearchCard (local `Parse.searchCards`) — NOT bumped (review round correction).
 
 ## Verification
 
