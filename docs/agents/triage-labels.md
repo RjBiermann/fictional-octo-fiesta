@@ -13,5 +13,5 @@ Canonical issue-label vocabulary. Skills speak in these exact strings.
 | `ready-for-human`  | Requires human implementation            |
 | `wontfix`          | Will not be actioned                     |
 
-Trigger labels (`ai-fix`, `ai-new-site`, `ai-remove-site`) are maintainer-only —
+Trigger labels (`ai-fix`, `ai-new-site`, `ai-remove-site`, `ai-task`) are maintainer-only —
 see AGENTS.md.
