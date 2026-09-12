@@ -45,6 +45,14 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v2
 
+      # Cold-runner bootstrap: install vendored cloudstream3:pre-release into
+      # mavenLocal (jitpack 404s the coordinate; warm-cache residue masked this
+      # until run 34716659549). Runs before any task that resolves :cloudstream.
+      - name: Bootstrap cloudstream3 artifact
+        run: |
+          cd "$GITHUB_WORKSPACE/src"
+          ./gradlew bootstrapCloudstream
+
       - name: Build Plugins
         run: |
           cd "$GITHUB_WORKSPACE/src"

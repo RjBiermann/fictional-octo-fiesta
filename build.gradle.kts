@@ -159,6 +159,39 @@ tasks.register("verifyVendoredJars") {
     }
 }
 
+// Cold-runner bootstrap for the com.lagradost:cloudstream3:pre-release dependency.
+// The :cloudstream configuration carries that maven dependency (buildscript line
+// `cloudstream("com.lagradost:cloudstream3:pre-release")`) and resolves it from the
+// repositories — but jitpack 404s the coordinate and upstream never publishes it
+// to Maven Central. On a warm Gradle cache the resolved artifact survived; PR #400
+// changed the cache key and the first cold run failed (2026-09-12, run 34716659549).
+// Fix: the official classes.jar is vendored (gradlelibs/, INTEGRITY-gated) and this
+// task installs stub POM + real jar into mavenLocal (~/.m2), which allprojects
+// already searches LAST (backfill only, never shadow). Idempotent; fails loudly if
+// the vendored jar does not match INTEGRITY.txt (verifyVendoredJars runs first).
+tasks.register("bootstrapCloudstream") {
+    dependsOn(tasks.named("verifyVendoredJars"))
+    group = "build setup"
+    description = "Installs vendored cloudstream3:pre-release (stub POM + classes.jar) into mavenLocal"
+    val gradlelibs = rootDir.resolve("gradlelibs")
+    val mavenLocalDir = file(System.getProperty("user.home")).resolve(".m2/repository")
+    val jar = gradlelibs.resolve("cloudstream3-pre-release.jar")
+    val pom = gradlelibs.resolve("cloudstream3-pre-release.pom")
+    inputs.file(jar)
+    inputs.file(pom)
+    outputs.files(
+        mavenLocalDir.resolve("com/lagradost/cloudstream3/pre-release/cloudstream3-pre-release.jar"),
+        mavenLocalDir.resolve("com/lagradost/cloudstream3/pre-release/cloudstream3-pre-release.pom"),
+    )
+    doLast {
+        val dest = mavenLocalDir.resolve("com/lagradost/cloudstream3/pre-release")
+        dest.mkdirs()
+        jar.copyTo(dest.resolve("cloudstream3-pre-release.jar"), overwrite = true)
+        pom.copyTo(dest.resolve("cloudstream3-pre-release.pom"), overwrite = true)
+        logger.lifecycle("bootstrapCloudstream: installed ${jar.name} -> ${dest}")
+    }
+}
+
 task<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
