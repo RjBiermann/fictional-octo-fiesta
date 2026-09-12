@@ -218,7 +218,8 @@ class EPorner : MainAPI() {
 
         return videolink
     }
-    }
+}
+
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 class EPornerPlugin : com.lagradost.cloudstream3.plugins.BasePlugin() {
     override fun load() {
