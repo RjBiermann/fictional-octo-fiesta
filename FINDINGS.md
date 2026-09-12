@@ -73,3 +73,40 @@ One file, three lines of whitespace, plus the version bump the issue asks for:
 Cosmetic artifact removed (class end now `    }` / `}` / blank line / annotation),
 tests green, build green, live site re-proven end-to-end on 6 videos including the
 search↔load pair. Version 14 → 15.
+
+---
+
+# FINDINGS — issue #362 (review #347 P1-1): MissAV language = "jp" → should be "ja"
+
+## Probe (reality check, this run)
+
+`grep -n 'language\|version' MissAV/build.gradle.kts Javseen/build.gradle.kts`:
+
+- `MissAV/build.gradle.kts:6` → `language    = "en"`  ← **discrepancy with the issue text**:
+  the issue claims MissAV sets `"jp"`, but it actually sets `"en"`. Either way it is wrong —
+  MissAV is a Japanese AV site (its own description: "Best Japan AV porn site"), and the
+  issue's intent is ISO 639-1 `ja`. `"en"` excludes it from Japanese-language listings
+  just the same as a bad code would.
+- `Javseen/build.gradle.kts:6` → `language    = "jp"`  ← confirmed exactly as the issue says.
+  `"jp"` is not an ISO 639-1 code; the correct code for Japanese is `ja`.
+- Both providers were at `version = 16` before this change.
+
+## Fix (minimal, metadata only)
+
+- `MissAV/build.gradle.kts`: `language = "en"` → `"ja"`, `version` 16 → 17.
+- `Javseen/build.gradle.kts`: `language = "jp"` → `"ja"`, `version` 16 → 17.
+
+No Kotlin, extractor, or `shared/` changes — parsing/streams are unaffected, so no new
+unit-test surface (TDD bar does not apply to build metadata).
+
+## Verification
+
+- `./gradlew MissAV:make Javseen:make` → both BUILD SUCCESSFUL
+  (`MissAV/build/MissAV.cs3`, `Javseen/build/Javseen.cs3`).
+- `./gradlew MissAV:test Javseen:test` → green (0 failures).
+- Live-site verify-provider run not re-executed: this is a `build.gradle.kts` metadata
+  change only; selectors, search/home/stream surfaces recorded in `MissAV/FINDINGS.md`
+  and `Javseen/FINDINGS.md` are untouched, and their most recent verify evidence
+  (#274/#302 and #145 re-probe) remains valid.
+
+## Verdict: OK — left committed for human review
