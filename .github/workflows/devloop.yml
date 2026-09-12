@@ -39,7 +39,7 @@ jobs:
       - name: Install devloop (pinned)
         run: >-
           pip install
-          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.2.16
+          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.2.17
       - name: Install agent runtime (pi) + model config
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
