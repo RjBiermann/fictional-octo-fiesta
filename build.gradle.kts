@@ -85,7 +85,6 @@ subprojects {
         val cloudstream by configurations
         val implementation by configurations
         val testImplementation by configurations
-
         // Stubs for all cloudstream classes
         cloudstream("com.lagradost:cloudstream3:pre-release")
 
@@ -102,6 +101,46 @@ subprojects {
         implementation("org.mozilla:rhino:1.9.1") // JS engine (JavGuru, Javseen)
         implementation("org.jspecify:jspecify:1.0.1") // annotations referenced by jsoup
         testImplementation("junit:junit:4.13.2") // TDD-first, ADR-0005
+    }
+
+    // P0-15 (issue #360): every provider build path runs the vendored-jar integrity gate.
+    tasks.matching { it.name == "make" || it.name == "test" || it.name == "check" }.configureEach {
+        dependsOn(rootProject.tasks.named("verifyVendoredJars"))
+    }
+}
+
+// P0-15 (issue #360): integrity gate for committed build-critical binaries.
+// Recomputes SHA-256 over every file listed in gradlelibs/INTEGRITY.txt and fails on
+// mismatch, so a changed vendored jar is a visible diff in that record.
+tasks.register("verifyVendoredJars") {
+    val record = rootDir.resolve("gradlelibs/INTEGRITY.txt")
+    inputs.file(record)
+    group = "verification"
+    description = "Verifies vendored build-critical jars against gradlelibs/INTEGRITY.txt"
+    doLast {
+        val entries = record.readLines()
+            .filter { it.startsWith("SHA256 ") }
+            .map { it.removePrefix("SHA256 ").trim() }
+            .map { it.substringBefore(' ') to it.substringAfterLast(' ') }
+        check(entries.isNotEmpty()) { "$record contains no SHA256 entries" }
+        for ((path, expected) in entries) {
+            val file = rootDir.resolve(path)
+            check(file.isFile) { "$record lists an absent file: $path" }
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            file.inputStream().use { input ->
+                val buf = ByteArray(64 * 1024)
+                while (true) {
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    md.update(buf, 0, n)
+                }
+            }
+            val actual = md.digest().joinToString("") { "%02x".format(it) }
+            check(actual == expected) {
+                "INTEGRITY mismatch for $path:\n  expected $expected\n  actual   $actual\n" +
+                    "If this jar change is intentional, update gradlelibs/INTEGRITY.txt (and record provenance) — review is the gate."
+            }
+        }
     }
 }
 

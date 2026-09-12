@@ -1,0 +1,14 @@
+# Integrity record for committed build-critical binaries (issue #360 / P0-15).
+#
+# These jars are vendored because jitpack's recloudstream -SNAPSHOT no longer
+# resolves under Gradle 8.12; see the buildscript block in build.gradle.kts.
+# The `verifyVendoredJars` Gradle task (root build.gradle.kts) recomputes every
+# digest below and fails the build on mismatch, so any change to these files is
+# a visible diff in this record. One line per file: SHA256 <repo-relative path> <sha256>.
+#
+# Note: gradlelibs/cs-plugin-facade.jar and the vendored jar are byte-identical
+# copies (same hash) — the facade jar is a stable-path copy of the plugin jar.
+
+SHA256 gradlelibs/cs-plugin-facade.jar 5358ef5bfe9ea8fad162fe9c4895e5706a92659c34a38bbd91457d902fadcb21
+SHA256 vendor/com/github/recloudstream/gradle/gradle/-SNAPSHOT/gradle--SNAPSHOT.jar 5358ef5bfe9ea8fad162fe9c4895e5706a92659c34a38bbd91457d902fadcb21
+SHA256 vendor/com/github/recloudstream/gradle/gradle/-SNAPSHOT/gradle--SNAPSHOT.pom 203e5d3055690ccc65ff1eb47d16f9d4f71984ea02f51b8509c217fe5f7c8fbd

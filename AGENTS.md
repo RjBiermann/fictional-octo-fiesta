@@ -30,6 +30,10 @@ This is an **AI-first, pipeline-first repository with no local development path*
 ```bash
 ./gradlew <ProviderName>:make          # build one provider (.cs3)
 ./gradlew <ProviderName>:test          # run unit tests (TDD loop)
+./gradlew verifyVendoredJars           # check committed build-critical jars against
+                                       # gradlelibs/INTEGRITY.txt (runs automatically as a
+                                       # dependency of make/test/check; update the record and
+                                       # note provenance when a vendored jar changes)
 ./gradlew clean                        # clean root build dir
 ```
 
