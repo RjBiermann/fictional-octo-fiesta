@@ -1,5 +1,12 @@
 # Audit workflow applies `ai-fix` mechanically
 
+> **Historical machinery note:** the machinery described below — the `ai-build.yml`
+> workflow, the Audit pipeline that creates Fix requests, and the Builder dispatch
+> (`gh workflow run ai-build.yml -f issue=N -f kind=ai-fix`) — belonged to the
+> removed pre-devloop pipeline; none of it exists in this repo today. The decision
+> stands (machinery, never an agent, applies trigger labels — see AGENTS.md), but
+> it is not currently wired. Kept as the decision record.
+
 AGENTS.md forbids any *agent* from applying trigger labels (`ai-fix` et al.) — a
 guardrail against agents enlarging their own work. The Audit pipeline, however,
 must turn its findings into fix runs without a human clicking `ai-fix` on each
