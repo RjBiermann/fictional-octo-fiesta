@@ -152,15 +152,15 @@ class AllClassicPornParseTest {
         val doc = org.jsoup.Jsoup.parse(javaClass.getResourceAsStream("/home-page.html")!!.readBytes().decodeToString())
         val cards = doc.select("a.th.item")
         assertEquals(84, cards.size)  // site serves 7 hrefs twice in-page
-        assertEquals(77, AllClassicPornParse.distinctByHref(cards).size)
+        assertEquals(77, cards.distinctBy { it.attr("href") }.size)
     }
 
-    @Test fun `distinctByHref keeps unique blocks`() {
+    @Test fun `inline dedup keeps unique blocks`() {
         val doc = org.jsoup.Jsoup.parse(
             """<a class="th item" href="/videos/1/a/"></a>
                |<a class="th item" href="/videos/1/a/"></a>
                |<a class="th item" href="/videos/2/b/"></a>""".trimMargin()
         )
-        assertEquals(2, AllClassicPornParse.distinctByHref(doc.select("a.th.item")).size)
+        assertEquals(2, doc.select("a.th.item").distinctBy { it.attr("href") }.size)
     }
 }

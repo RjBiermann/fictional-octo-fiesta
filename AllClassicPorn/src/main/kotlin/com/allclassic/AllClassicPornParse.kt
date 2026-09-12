@@ -2,7 +2,6 @@ package com.allclassic
 
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
-import org.jsoup.nodes.Element
 
 /**
  * Pure HTML parsing helpers for AllClassicPorn — unit-testable without CloudStream.
@@ -64,9 +63,6 @@ object AllClassicPornParse {
         base.endsWith("/page/") -> "${base}1/"
         else -> base
     }
-
-    /** Drop cards whose href already appeared earlier — the site serves some videos twice in-page (issue #266). */
-    fun distinctByHref(blocks: List<Element>): List<Element> = blocks.distinctBy { it.attr("href") }
 
     private fun listFromField(html: String, field: String): List<String> =
         flashvarsField(html, field)?.split(", ")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()

@@ -37,7 +37,8 @@ class AllClassicPorn : MainAPI() {
         val url = AllClassicPornParse.homePageUrl(request.data, page)  // feed page 1 → …/page/1/ (issue #322, D1)
         val document = app.get(url, referer = mainUrl).document
 
-        val home = AllClassicPornParse.distinctByHref(document.select("a.th.item"))
+        // site serves duplicated entries in-page (issue #266)
+        val home = document.select("a.th.item").distinctBy { it.attr("href") }
             .mapNotNull { it.toSearchResult() }
 
         return newHomePageResponse(
@@ -85,9 +86,10 @@ class AllClassicPorn : MainAPI() {
         val description = AllClassicPornParse.parsePlot(html)
         val duration = document.selectFirst("meta[itemprop=\"duration\"]")?.attr("content")
             ?.let { JsonLdParse.minutes(it) } // shared ISO-8601 grammar (glossary: JSON-LD meta parse)
-        val recommendations = AllClassicPornParse.distinctByHref(
-            document.select("#list_videos_related_videos_items a.th.item")
-        ).mapNotNull { it.toSearchResult() }  // site serves duplicated related entries (issue #266)
+        val recommendations = document
+            .select("#list_videos_related_videos_items a.th.item")
+            .distinctBy { it.attr("href") }  // site serves duplicated related entries (issue #266)
+            .mapNotNull { it.toSearchResult() }
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster
             this.plot = description
