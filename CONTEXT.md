@@ -36,7 +36,7 @@ _Avoid_: cancellation, aborted run
 ### Triggers & artifacts
 
 **Trigger label**:
-A maintainer-applied issue label (`ai-fix`, `ai-new-site`, or `ai-remove-site`) that starts a Builder run. Issues without one are never processed.
+A maintainer-applied issue label (`ai-fix`, `ai-new-site`, `ai-remove-site`, or `ai-task`) that starts a Builder run. Issues without one are never processed.
 _Avoid_: auto label, bot label
 
 **Command**:

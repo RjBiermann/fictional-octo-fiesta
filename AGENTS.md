@@ -59,8 +59,11 @@ development framework (spec → breakdown → build → human merge). Config:
 The domain skills in `.pi/skills/` are unchanged — they are what the agent
 uses for provider work (probe → evidence → minimal change → build → verify).
 
-- **Trigger labels** (unchanged): `ai-fix`, `ai-new-site`, `ai-remove-site` —
-  mutually exclusive, applied by humans only. Without a label nothing runs.
+- **Trigger labels** (unchanged): `ai-fix`, `ai-new-site`, `ai-remove-site`,
+  `ai-task` — mutually exclusive (devloop's pre-flight, `Config.kind_for`, raises
+  on an issue carrying more than one), applied by humans only. Without a label
+  nothing runs. `ai-task` covers fully specified work (reviews, audits) where
+  the issue body is the spec.
 - **Spec loop**: `devloop spec <n>` — one round per invocation: ① clarify
   questions → you answer in the thread, ② breakdown → an authorized human
   replies `approved`, ③ sub-issues created (unlabeled) + issue body becomes
