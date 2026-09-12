@@ -8,24 +8,19 @@
 `concurrency: cancel-in-progress: true`, while its later steps copy fresh
 artifacts onto a checkout of the `builds` branch and publish via
 `git commit --amend` + `git push --force` (mirrored force-push to Codeberg).
-Two rapid pushes to `main` can therefore interleave: run B cancels run A
-*after* A has already copied its `.cs3` set + `plugins.json` into the builds
-worktree but *before* A pushes — no wait, cancellation kills A's process, so
-the actual interleaving is subtler but equally broken:
+Two rapid pushes to `main` can therefore interleave destructively:
 
-- A and B both start (B cancels A only at the moment B *enters* the group;
-  GitHub cancels the in-progress run then). Between A's artifact copy and
-  A's push there is a multi-minute gradle window — but the copy happens
-  *after* the gradle build, so the race window is copy → commit → push.
-- With `cancel-in-progress: true`, a B arriving during A's copy→push window
-  cancels A mid-publish: A can be killed after `git commit --amend` but
-  before `git push --force`, or worse, the two runs' worktrees are separate
-  checkouts so the real hazard is: B cancels A, B completes, but A had
-  already force-pushed a *partial* state (killed between `cp` of `.cs3`
-  files and `cp` of `plugins.json`, or between `git add` and `git push`).
-  Result: the published `builds` branch has a `.cs3` set that does not
-  match `plugins.json` / `repo.json` — exactly the reported mismatch for
-  repo.json consumers.
+- A and B both start; when B enters the shared `"build"` group, GitHub
+  cancels the in-progress run A. The race window is A's copy → commit →
+  push sequence (the multi-minute gradle build happens *before* the copy,
+  so it is not part of the window).
+- With `cancel-in-progress: true`, a B arriving during A's copy→push
+  window kills A mid-publish. A can be killed between the `cp` of `.cs3`
+  files and the `cp` of `plugins.json`, or between `git add` and
+  `git push` — leaving the builds worktree, and in the worst case the
+  published branch, with a `.cs3` set that does not match `plugins.json`
+  / `repo.json`. That is exactly the reported mismatch for repo.json
+  consumers.
 - Even without a kill-in-flight, amend+force-push means the second run
   rewrites the first run's commit; a cancelled-but-already-pushed run leaves
   a half-refreshed branch until the next successful run.
@@ -68,11 +63,13 @@ per run from the branch's point of view.
 ### Notes
 
 - AGENTS.md requires `actionlint` before pushing `.github/**` changes.
-  `actionlint` is **not present** in this run environment (`command -v
-  actionlint` → nothing; no binary on PATH). Validation done instead:
-  YAML parses (`python3 -c "import yaml,…"`), and the change is a one-token
-  boolean flip in an existing, previously actionlint-clean block. CI
-  `lint.yml` remains the authoritative gate at push time.
+  `actionlint` was **not present** in the original build run environment
+  (`command -v actionlint` → nothing; no binary on PATH), so YAML-parse
+  validation was substituted and the deviation recorded here. Closed out
+  in the repair round: actionlint v1.7.12 was fetched and run against
+  every workflow under `.github/workflows/` — **exit 0, no findings**
+  (includes the `cancel-in-progress: false` change). CI `lint.yml`
+  remains the authoritative gate at push time.
 - Verify-provider skill is provider-scoped (live-site stream checks); not
   applicable to a workflow-only change. Verification here = actionlint-equivalent
   YAML validity + the diff being exactly the concurrency flag.
