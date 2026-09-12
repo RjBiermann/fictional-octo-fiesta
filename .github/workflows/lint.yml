@@ -74,7 +74,10 @@ jobs:
           bad=$(grep -rnE --include='*.kt' '(:[[:space:]]*Plugin\(\)|plugins\.Plugin\(\))' \
             ./*/src/main/kotlin shared/src/main/kotlin 2>/dev/null \
             | grep -vE '^\./(WatchPorn|FullPorner)/' || true)
-          passthrough=$(find ./*/src/main/kotlin -name '*Provider.kt' 2>/dev/null || true)
+          # Same roots as the legacy grep above — shared/ is deliberately in
+          # scope for both halves of this gate, so a pass-through file dropped
+          # into shared/ cannot slip past either check (review #347 P1-10).
+          passthrough=$(find ./*/src/main/kotlin shared/src/main/kotlin -name '*Provider.kt' 2>/dev/null || true)
           if [[ -n "$bad" || -n "$passthrough" ]]; then
             [[ -n "$bad" ]] && { echo "legacy Plugin() class found:"; echo "$bad"; }
             [[ -n "$passthrough" ]] && { echo "pass-through provider file found:"; echo "$passthrough"; }
