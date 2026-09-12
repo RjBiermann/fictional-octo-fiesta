@@ -4,6 +4,8 @@ name: devloop
 on:
   issues:
     types: [labeled]
+  issue_comment:
+    types: [created]
   workflow_dispatch:
   schedule:
     - cron: "*/30 * * * *"   # self-healing: pending labels survive skipped/failed runs
@@ -20,7 +22,8 @@ jobs:
       github.event.label.name == 'ai-fix' ||
       github.event.label.name == 'ai-new-site' ||
       github.event.label.name == 'ai-remove-site' ||
-      github.event.label.name == 'ai-task'
+      github.event.label.name == 'ai-task' ||
+      (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/'))
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -36,7 +39,7 @@ jobs:
       - name: Install devloop (pinned)
         run: >-
           pip install
-          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.2.9
+          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.2.10
       - name: Install agent runtime (pi) + model config
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -77,6 +80,12 @@ jobs:
           git config user.name "devloop agent"
           git config user.email "devloop@users.noreply.github.com"
       - name: Run pipeline
+        if: github.event_name != 'issue_comment'
         run: devloop once
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run comment command
+        if: github.event_name == 'issue_comment'
+        run: devloop command
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
