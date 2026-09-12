@@ -1,4 +1,4 @@
-version = 6
+version = 7 // shared solvePow overlong-nonce guard (P0-12)
 
 cloudstream {
     authors     = listOf("cloudstream")

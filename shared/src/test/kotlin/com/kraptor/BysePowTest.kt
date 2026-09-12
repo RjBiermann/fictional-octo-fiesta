@@ -28,6 +28,21 @@ class BysePowTest {
         }
     }
 
+    /**
+     * P0-12 (issue #355): nonce is server-controlled; a nonce >= ~60 bytes
+     * must not overrun the fixed 64-byte buffer with an AIOOBE — the guard
+     * returns null like the timeout contract.
+     */
+    @Test fun `solvePow returns null for overlong server-controlled nonce`() {
+        kotlinx.coroutines.runBlocking {
+            val longNonce = "x".repeat(200)
+            assertTrue(solvePow(longNonce, 12) == null)
+            // boundary-ish: nonce long enough that prefix + a multi-digit
+            // counter would exceed 64 bytes
+            assertTrue(solvePow("y".repeat(60), 12) == null)
+        }
+    }
+
     @Test fun `solvePow times out instead of looping forever`() {
         kotlinx.coroutines.runBlocking {
             // d=64 is unreachable by construction; must return null via the timeout path
