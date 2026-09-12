@@ -3,7 +3,9 @@
 > **Historical machinery note:** the mechanism described below — the `deliver-pr`
 > composite action (`.github/actions/deliver-pr/`) committing the working tree and
 > opening PRs from Builder/Task/Reviewer workflow runs — belonged to the removed
-> pre-devloop pipeline; no workflow invokes it today. The decision stands (agents
+> pre-devloop pipeline; no workflow invokes it today, and the underlying action
+> files (`agent-run`, `agent-runtime`, `deliver-pr`) were deleted in issue #361
+> (P1-8), leaving only this record. The decision stands (agents
 > never authenticate to git; a mechanical step delivers), but delivery is now
 > performed by the devloop run itself (see AGENTS.md and
 > `.github/workflows/devloop.yml`). Kept as the decision record.
