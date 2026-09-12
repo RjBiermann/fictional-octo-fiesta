@@ -1,5 +1,5 @@
 // ! Bu araç @ByAyzen tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 15
+version = 16 // shared SearchCard href-fallback fix (P0-14)
 
 cloudstream {
     authors     = listOf("ByAyzen")

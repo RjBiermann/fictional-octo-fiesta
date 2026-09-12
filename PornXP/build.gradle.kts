@@ -1,4 +1,4 @@
-version = 8
+version = 9 // shared SearchCard href-fallback fix (P0-14)
 
 cloudstream {
     authors     = listOf("rjbiermann")

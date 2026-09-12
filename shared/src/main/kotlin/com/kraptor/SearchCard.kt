@@ -64,6 +64,10 @@ object SearchCard {
      * `<a>` counts as the card link only when it carries evidence of being the video
      * link — it wraps an image or a title-ish element (the card-root-wraps-the-link
      * theme), or its text matches the card title (the bare-sibling video-link shape).
+     * Review round on P0-14: evidence alone is not enough — a tag/category/actor
+     * wrapper around a name-ish child would still admit the binding, so taxonomy
+     * paths are excluded outright. Sites with video links under taxonomy-shaped
+     * paths must pass an explicit [hrefSel] instead.
      * When no such link exists the card has no resolvable video link, so the fallback
      * yields null and the card is rejected — the title is never bound to an unrelated
      * tag/actor link. Cards whose title and video link are structurally unrelated pass
@@ -71,7 +75,8 @@ object SearchCard {
      */
     private fun firstCardLink(card: Element, title: String): String? =
         card.select("a").firstOrNull { a ->
-            a.attr("href").isNotBlank() && (
+            val href = a.attr("href")
+            href.isNotBlank() && !TAXONOMY_HREF.containsMatchIn(href) && (
                 a.select("img").isNotEmpty() ||
                     a.children().any {
                         it.tagName() != "a" && (
@@ -82,6 +87,10 @@ object SearchCard {
                     a.text().trim().equals(title, ignoreCase = true)
                 )
         }?.attr("href")
+
+    private val TAXONOMY_HREF = Regex(
+        "/(tags?|categor(?:y|ies)|actors?|models?|pornstars?|labels?|studios?|channels?)/",
+        RegexOption.IGNORE_CASE)
 }
 
 /** Adapter: SearchCard.parse + the repo's NSFW emission shape. */

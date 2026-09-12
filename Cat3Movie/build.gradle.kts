@@ -1,4 +1,4 @@
-version = 7 // #250 nonce fallback + player.php cache-buster/referer fix
+version = 8 // shared SearchCard href-fallback fix (P0-14)
 
 cloudstream {
     authors     = listOf("RjBiermann")
