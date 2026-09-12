@@ -1,9 +1,9 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 16
+version = 17
 
 cloudstream {
     authors     = listOf("byayzen")
-    language    = "jp"
+    language    = "ja"
     description = "Watch Free JAV Sex Movies Streaming, Japanese Adult Videos, Tons of hot jav censored,Japanese tube, Japanese sex online."
     status  = 1 // will be 3 if unspecified
     tvTypes = listOf("NSFW")
