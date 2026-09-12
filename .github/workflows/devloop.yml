@@ -43,8 +43,8 @@ jobs:
         run: |
           npm i -g @earendil-works/pi-coding-agent
           mkdir -p ~/.pi/agent
-          # Quoted heredoc: no shell expansion inside the block, so a future
-          # inline ${{ secrets... }} edit cannot execute as shell substitution.
+          # Quoted heredoc: no shell expansion inside the block, so future
+          # edits cannot inject inline Actions expressions as shell commands.
           # The key is interpolated explicitly via envsubst below (P0-7).
           cat > ~/.pi/agent/models.json <<'JSON'
           {
@@ -61,6 +61,7 @@ jobs:
             }
           }
           JSON
+          # shellcheck disable=SC2016
           envsubst '$OPENCODE_API_KEY' < ~/.pi/agent/models.json > ~/.pi/agent/models.json.tmp \
             && mv ~/.pi/agent/models.json.tmp ~/.pi/agent/models.json
       - name: PAT credentials (ADR-0004 — GITHUB_TOKEN cannot push workflow files)
