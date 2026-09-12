@@ -83,3 +83,34 @@
   task fails with the expected/actual SHA-256 diff, exit 1 — red → green.
 - `./gradlew EPorner:test` → exit 0 (provider test path runs the gate as a dependency).
 - No CI workflow change (issue spec doesn't name one; review remains the gate).
+
+# FINDINGS — issue #358 (P0-8: document shared/ splice coupling)
+
+## Probe
+
+- `build.gradle.kts` (root, allprojects block) splices `shared/` into every subproject:
+  - main kotlin: `sourceSets.getByName("main").kotlin.srcDir(rootDir.resolve("shared/src/main/kotlin"))` (comment: "Host registry + shared adapters (ADR-0002) compile into every provider")
+  - test kotlin: `sourceSets.getByName("test").kotlin.srcDir(rootDir.resolve("shared/src/test/kotlin"))`
+  - test resources: `sourceSets.getByName("test").resources.srcDir(rootDir.resolve("shared/src/test/resources"))`
+- `shared/` has no `build.gradle.kts` and is absent from `settings.gradle.kts` auto-include — it is not a Gradle subproject (matches AGENTS.md).
+- `shared/` currently holds 14 Kotlin files across `src/main` and `src/test`.
+- `build.yml` runs `./gradlew test make` at the root → `test`/`make` execute for every included subproject (24 directories with `build.gradle.kts`); shared sources/tests are compiled/run once per provider.
+- Existing docs mention the splice only in passing: AGENTS.md ("providers get it via `sourceSets` splicing", "shared/src/test/kotlin runs with every provider's test task") and ADR-0005. The **failure modes** are documented nowhere.
+
+## Consequences (the uncovered facts to record)
+
+1. A syntax error in any one shared file fails **every** provider's `gradlew <Provider>:test` / `:make` (and CI's root `gradlew test make`) — there is no provider-scoped blast radius for shared/ edits.
+2. Shared unit tests execute once per provider test task (N× CI wall time; 24 subprojects today).
+
+## Decision (per the issue's "decide" fork)
+
+**Document in ADR-0002** (it already owns "shared/ compiles into every provider" via the HostRegistry context) plus a one-line pointer in AGENTS.md. No code change — the coupling is by design (single-seam host coverage, ADR-0002; TDD splice, ADR-0005).
+
+## Change
+
+- `docs/adr/0002-loadextractor-is-the-only-stream-dispatch-seam.md`: appended "Shared splice coupling" section recording the mechanics and both failure modes.
+- `AGENTS.md`: pointer line on the shared/ bullet to ADR-0002's coupling section.
+
+## Verification
+
+- Docs-only change: no Kotlin/provider code touched, no version bumps, `verify.sh` (live-site provider check) not applicable. Gradle wiring unchanged; `gradlew` still answers (config sanity only).
