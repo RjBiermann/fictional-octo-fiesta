@@ -5,7 +5,6 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
 buildscript {
     repositories {
-        maven("$rootDir/vendor") // vendored recloudstream gradle plugin (jitpack -SNAPSHOT paths 404 today)
         google()
         mavenCentral()
         // Shitpack repo which contains our tools and dependencies
@@ -14,11 +13,11 @@ buildscript {
 
     dependencies {
         classpath("com.android.tools.build:gradle:8.7.3")
-        // Cloudstream gradle plugin which makes everything work and builds plugins
-        // ponytail: vendored the cloudstream gradle plugin jar — jitpack's -SNAPSHOT
-        // metadata no longer resolves under Gradle 8.12 (file lives in a non-standard
-        // version dir); replace this file when upstream publishes a fix.
-        classpath(files("gradlelibs/cs-plugin-facade.jar"))
+        // Cloudstream gradle plugin which makes everything work and builds plugins —
+        // original source: com.github.recloudstream.gradle:gradle via jitpack
+        // (-SNAPSHOT metadata resolves under Gradle 9.7.1 as of 2026-09-12; the
+        // earlier vendoring existed only for the then-broken jitpack -SNAPSHOT path).
+        classpath("com.github.recloudstream.gradle:gradle:-SNAPSHOT")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.20")
     }
 }
@@ -28,12 +27,10 @@ allprojects {
         google()
         mavenCentral()
         maven("https://jitpack.io")
-        // Issue #353 probe: this runner has no cloudstream3:pre-release in the
-        // modules-2 cache and jitpack 404s that coordinate, so resolve it from the
-        // local Maven repo (stub POM + jar fetched from the official pre-release
-        // release asset — byte-identical to what the vendored gradle plugin
-        // downloads itself; see FINDINGS-353.md). mavenLocal() is LAST so it can
-        // only ever backfill, never shadow.
+        // com.lagradost:cloudstream3:pre-release is not on jitpack or Maven
+        // Central; bootstrapCloudstream installs the official release asset into
+        // the local Maven repo. mavenLocal() is LAST so it can only backfill,
+        // never shadow.
         mavenLocal()
     }
 }
@@ -118,77 +115,57 @@ subprojects {
         testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.6.3")
     }
 
-    // P0-15 (issue #360): every provider build path runs the vendored-jar integrity gate.
-    tasks.matching { it.name == "make" || it.name == "test" || it.name == "check" }.configureEach {
-        dependsOn(rootProject.tasks.named("verifyVendoredJars"))
-    }
-}
-
-// P0-15 (issue #360): integrity gate for committed build-critical binaries.
-// Recomputes SHA-256 over every file listed in gradlelibs/INTEGRITY.txt and fails on
-// mismatch, so a changed vendored jar is a visible diff in that record.
-tasks.register("verifyVendoredJars") {
-    val record = rootDir.resolve("gradlelibs/INTEGRITY.txt")
-    inputs.file(record)
-    group = "verification"
-    description = "Verifies vendored build-critical jars against gradlelibs/INTEGRITY.txt"
-    doLast {
-        val entries = record.readLines()
-            .filter { it.startsWith("SHA256 ") }
-            .map { it.removePrefix("SHA256 ").trim() }
-            .map { it.substringBefore(' ') to it.substringAfterLast(' ') }
-        check(entries.isNotEmpty()) { "$record contains no SHA256 entries" }
-        for ((path, expected) in entries) {
-            val file = rootDir.resolve(path)
-            check(file.isFile) { "$record lists an absent file: $path" }
-            val md = java.security.MessageDigest.getInstance("SHA-256")
-            file.inputStream().use { input ->
-                val buf = ByteArray(64 * 1024)
-                while (true) {
-                    val n = input.read(buf)
-                    if (n < 0) break
-                    md.update(buf, 0, n)
-                }
-            }
-            val actual = md.digest().joinToString("") { "%02x".format(it) }
-            check(actual == expected) {
-                "INTEGRITY mismatch for $path:\n  expected $expected\n  actual   $actual\n" +
-                    "If this jar change is intentional, update gradlelibs/INTEGRITY.txt (and record provenance) — review is the gate."
-            }
-        }
-    }
 }
 
 // Cold-runner bootstrap for the com.lagradost:cloudstream3:pre-release dependency.
-// The :cloudstream configuration carries that maven dependency (buildscript line
-// `cloudstream("com.lagradost:cloudstream3:pre-release")`) and resolves it from the
-// repositories — but jitpack 404s the coordinate and upstream never publishes it
-// to Maven Central. On a warm Gradle cache the resolved artifact survived; PR #400
-// changed the cache key and the first cold run failed (2026-09-12, run 34716659549).
-// Fix: the official classes.jar is vendored (gradlelibs/, INTEGRITY-gated) and this
-// task installs stub POM + real jar into mavenLocal (~/.m2), which allprojects
-// already searches LAST (backfill only, never shadow). Idempotent; fails loudly if
-// the vendored jar does not match INTEGRITY.txt (verifyVendoredJars runs first).
+// The :cloudstream configuration carries that maven dependency and resolves it
+// from the repositories — but the coordinate is not on jitpack or Maven Central;
+// upstream publishes the framework classes only as the `pre-release` release
+// asset. On a warm Gradle cache the resolved artifact survived; PR #400 changed
+// the cache key and the first cold run failed (2026-09-12, run 34716659549).
+// Fix: fetch classes.jar from the official release asset, verify its digest, and
+// install it (plus a stub POM) into mavenLocal (~/.m2), which allprojects already
+// searches LAST (backfill only, never shadow). The digest pins the moving
+// `pre-release` tag: an upstream update fails loudly here — bump the digest as a
+// deliberate, reviewable change.
 tasks.register("bootstrapCloudstream") {
-    dependsOn(tasks.named("verifyVendoredJars"))
     group = "build setup"
-    description = "Installs vendored cloudstream3:pre-release (stub POM + classes.jar) into mavenLocal"
-    val gradlelibs = rootDir.resolve("gradlelibs")
+    description = "Fetches the official cloudstream3:pre-release classes.jar and installs it into mavenLocal"
+    // sha256 of the classes.jar served by the `pre-release` tag as of 2026-09-12
+    val expectedSha = "e76bc931d3949dd66b3cba47e5ee04c83e50526bc4a070dbbec837b3ebb58ea5"
+    val url = "https://github.com/recloudstream/cloudstream/releases/download/pre-release/classes.jar"
     val mavenLocalDir = file(System.getProperty("user.home")).resolve(".m2/repository")
-    val jar = gradlelibs.resolve("cloudstream3-pre-release.jar")
-    val pom = gradlelibs.resolve("cloudstream3-pre-release.pom")
-    inputs.file(jar)
-    inputs.file(pom)
+    val dest = mavenLocalDir.resolve("com/lagradost/cloudstream3/pre-release")
     outputs.files(
-        mavenLocalDir.resolve("com/lagradost/cloudstream3/pre-release/cloudstream3-pre-release.jar"),
-        mavenLocalDir.resolve("com/lagradost/cloudstream3/pre-release/cloudstream3-pre-release.pom"),
+        dest.resolve("cloudstream3-pre-release.jar"),
+        dest.resolve("cloudstream3-pre-release.pom"),
     )
     doLast {
-        val dest = mavenLocalDir.resolve("com/lagradost/cloudstream3/pre-release")
         dest.mkdirs()
-        jar.copyTo(dest.resolve("cloudstream3-pre-release.jar"), overwrite = true)
-        pom.copyTo(dest.resolve("cloudstream3-pre-release.pom"), overwrite = true)
-        logger.lifecycle("bootstrapCloudstream: installed ${jar.name} -> ${dest}")
+        val jarFile = dest.resolve("cloudstream3-pre-release.jar")
+        java.net.URL(url).openStream().use { input ->
+            jarFile.outputStream().use { output -> input.copyTo(output) }
+        }
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+        jarFile.inputStream().use { input ->
+            val buf = ByteArray(64 * 1024)
+            while (true) {
+                val n = input.read(buf)
+                if (n < 0) break
+                md.update(buf, 0, n)
+            }
+        }
+        val actual = md.digest().joinToString("") { "%02x".format(it) }
+        check(actual == expectedSha) {
+            "cloudstream3:pre-release classes.jar digest changed (upstream updated the pre-release tag):\n" +
+                "  expected $expectedSha\n  actual   $actual\n" +
+                "Review the upstream diff, then bump expectedSha in root build.gradle.kts — review is the gate."
+        }
+        dest.resolve("cloudstream3-pre-release.pom").writeText(
+            "<project><modelVersion>4.0.0</modelVersion><groupId>com.lagradost</groupId>" +
+                "<artifactId>cloudstream3</artifactId><version>pre-release</version></project>"
+        )
+        logger.lifecycle("bootstrapCloudstream: $url -> $jarFile")
     }
 }
 
