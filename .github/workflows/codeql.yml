@@ -44,10 +44,14 @@ jobs:
         java-version: 17
         distribution: temurin
 
-    # CodeQL's Kotlin extractor doesn't support the repo's Kotlin 2.4.20 yet
-    # (KotlinVersionTooRecentError, CodeQL 2.26.4); downgrade for the scan run
-    # only — real builds keep 2.4.20. Tracked in #388 — revert this whole
-    # block once CodeQL supports the pinned version.
+    # CodeQL's Kotlin extractor doesn't support the repo's pinned Kotlin 2.4.20 yet:
+    # the version check in codeql-java-agent.jar (KotlinInterceptor) throws
+    # KotlinVersionTooRecentError for versions >= the hardcoded limit, which is still
+    # exactly 2.4.20 in the newest bundle (2.27.0, action v4.38.0) — and its newest
+    # bundled extractor plugin is 2.4.0. Downgrade to 2.4.10 for the scan run only —
+    # real builds keep 2.4.20. Tracked in #388 — revert this whole block once the
+    # limit passes 2.4.20 (re-check by strings-ing the new bundle's
+    # codeql/java/tools/codeql-java-agent.jar for defaultAcceptableVersionLimitStr).
     - name: Build for scan
       if: matrix.build-mode == 'manual'
       run: |

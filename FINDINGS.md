@@ -76,37 +76,66 @@ search↔load pair. Version 14 → 15.
 
 ---
 
-# FINDINGS — issue #362 (review #347 P1-1): MissAV language = "jp" → should be "ja"
+# FINDINGS — issue #388: CodeQL Kotlin extractor unsupported: root build.gradle.kts pins kotlin-gradle-plugin 2.4.20
 
-## Probe (reality check, this run)
+## Probe (reality check)
 
-`grep -n 'language\|version' MissAV/build.gradle.kts Javseen/build.gradle.kts`:
+Question the tracking issue asks: has CodeQL added support for Kotlin 2.4.20, so the
+sed-downgrade block in `.github/workflows/codeql.yml` (Build for scan step) can be deleted?
 
-- `MissAV/build.gradle.kts:6` → `language    = "en"`  ← **discrepancy with the issue text**:
-  the issue claims MissAV sets `"jp"`, but it actually sets `"en"`. Either way it is wrong —
-  MissAV is a Japanese AV site (its own description: "Best Japan AV porn site"), and the
-  issue's intent is ISO 639-1 `ja`. `"en"` excludes it from Japanese-language listings
-  just the same as a bad code would.
-- `Javseen/build.gradle.kts:6` → `language    = "jp"`  ← confirmed exactly as the issue says.
-  `"jp"` is not an ISO 639-1 code; the correct code for Japanese is `ja`.
-- Both providers were at `version = 16` before this change.
+**Answer: NO — reversal condition not met as of 2026-09-12.** Evidence:
 
-## Fix (minimal, metadata only)
+- **Latest bundle is 2.27.0** (codeql-action release `codeql-bundle-v2.27.0`, 2026-09-09;
+  action changelog 4.38.0 bumped the default to it). No newer bundle exists; changelog
+  UNRELEASED section has no bundle bump.
+- **CodeQL CLI changelog** (github/codeql-cli-binaries CHANGELOG.md, releases 2.25.1 →
+  2.27.0) has **zero entries** mentioning Kotlin version-support increases; only Kotlin
+  mentions in the whole file are the old 1.6/1.7 deprecation (removed in 2.24.1) and
+  beta-era notes.
+- **Decisive: decompiled the actual agent jar from bundle 2.27.0.** Downloaded
+  `codeql-bundle-linux64.tar.zst` (v2.27.0), extracted
+  `codeql/java/tools/codeql-java-agent.jar`, `javap -c` on
+  `com.semmle.extractor.java.interceptors.KotlinInterceptor`:
+  - `defaultAcceptableVersionLimitStr = "2.4.20"`, `minimumAcceptableVersionStr = "1.8.0"`.
+  - Check semantics (bytecode 112–118 of `getExtractorJarPath`): throw
+    `KotlinVersionTooRecentError` when `executingVersion.compareTo(limit) >= 0` — the
+    limit is **exclusive** ("CodeQL currently supports versions below 2.4.20"). So
+    **Kotlin 2.4.20 itself is rejected even by the newest bundle**; 2.4.19 and below pass.
+  - Bundled extractor plugins: `codeql/java/tools/` ships
+    `codeql-extractor-kotlin-{embeddable,standalone}-*.jar` only up to **2.4.0**. The
+    agent selects the highest plugin jar ≤ the executing version (bytecode 545–597),
+    which is why 2.4.10 → 2.4.0 jar works.
+  - Escape hatch found but deliberately **not** used: env
+    `CODEQL_EXTRACTOR_KOTLIN_OVERRIDE_MAXIMUM_VERSION_LIMIT` overrides the limit —
+    rejected because it bypasses a vendor guard (the 2.4.0 plugin may mis-extract
+    2.4.20 sources → silently degraded analysis), and the issue's reversal condition
+    is "once CodeQL supports 2.4.20", not "force it through".
+- Cross-check: the only public report of this error class (bitfireAT/icsx5#777) shows
+  the same message shape ("Kotlin version 2.3.0 is too recent. CodeQL currently supports
+  versions below 2.2.30"), confirming "below X" = X is the first unsupported version.
 
-- `MissAV/build.gradle.kts`: `language = "en"` → `"ja"`, `version` 16 → 17.
-- `Javseen/build.gradle.kts`: `language = "jp"` → `"ja"`, `version` 16 → 17.
+## Fix (minimal)
 
-No Kotlin, extractor, or `shared/` changes — parsing/streams are unaffected, so no new
-unit-test surface (TDD bar does not apply to build metadata).
+No logic change — the downgrade block is still required. One comment refreshed:
+
+- `.github/workflows/codeql.yml`: comment cited stale evidence (CodeQL 2.26.4) and no
+  exact threshold. Rewritten with the current facts (bundle 2.27.0 / action v4.38.0,
+  limit still exactly 2.4.20 exclusive, newest plugin 2.4.0) plus a concrete re-check
+  recipe (strings the new bundle's codeql-java-agent.jar for
+  `defaultAcceptableVersionLimitStr`) so the next probe is one command. `sed` +
+  `./gradlew assemble` untouched; `build.gradle.kts` untouched (real builds keep 2.4.20).
 
 ## Verification
 
-- `./gradlew MissAV:make Javseen:make` → both BUILD SUCCESSFUL
-  (`MissAV/build/MissAV.cs3`, `Javseen/build/Javseen.cs3`).
-- `./gradlew MissAV:test Javseen:test` → green (0 failures).
-- Live-site verify-provider run not re-executed: this is a `build.gradle.kts` metadata
-  change only; selectors, search/home/stream surfaces recorded in `MissAV/FINDINGS.md`
-  and `Javseen/FINDINGS.md` are untouched, and their most recent verify evidence
-  (#274/#302 and #145 re-probe) remains valid.
-
-## Verdict: OK — left committed for human review
+- `actionlint` v1.7.7 (freshly installed; repo runner had no binary) on
+  `.github/workflows/codeql.yml`: **PASS** (AGENTS.md mandates actionlint for
+  `.github/**` changes — the lint.yml check runs only post-push, so this is the gate).
+- YAML parse of the workflow: **PASS**.
+- sed dry-run against root `build.gradle.kts`: line 22
+  `kotlin-gradle-plugin:2.4.20` → `kotlin-gradle-plugin:2.4.10` exactly as the
+  workflow expects (regex still matches the pinned line).
+- verify-provider skill: **N/A — no provider code touched**; it validates live-site
+  selectors/streams, and this change is CI-workflow-only.
+- Full in-CI verification of the scan run is maintainer-only: next scheduled
+  `codeql.yml` run (push to main / weekly cron) must keep the `java-kotlin` leg green
+  with the unmodified `build.gradle.kts` build — exactly the reversal check in #388.
