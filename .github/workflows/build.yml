@@ -1,9 +1,13 @@
 name: Build
 
 # https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#concurrency
-concurrency: 
+concurrency:
   group: "build"
-  cancel-in-progress: true
+  # Serial, not cancel-in-progress: the publish steps amend+force-push the builds
+  # branch (then mirror-force-push to Codeberg); cancelling an in-progress run
+  # mid publish can strand a .cs3 set that does not match plugins.json/repo.json
+  # (P0-6, review of #347). Same rationale as devloop-pipeline's serial group.
+  cancel-in-progress: false
 
 permissions:
   contents: write
