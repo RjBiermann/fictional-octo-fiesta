@@ -84,33 +84,86 @@
 - `./gradlew EPorner:test` → exit 0 (provider test path runs the gate as a dependency).
 - No CI workflow change (issue spec doesn't name one; review remains the gate).
 
-# FINDINGS — issue #358 (P0-8: document shared/ splice coupling)
+# FINDINGS — issue #359 (P0-14: SearchCard href fallback can bind a title to a non-video link)
 
 ## Probe
 
-- `build.gradle.kts` (root, allprojects block) splices `shared/` into every subproject:
-  - main kotlin: `sourceSets.getByName("main").kotlin.srcDir(rootDir.resolve("shared/src/main/kotlin"))` (comment: "Host registry + shared adapters (ADR-0002) compile into every provider")
-  - test kotlin: `sourceSets.getByName("test").kotlin.srcDir(rootDir.resolve("shared/src/test/kotlin"))`
-  - test resources: `sourceSets.getByName("test").resources.srcDir(rootDir.resolve("shared/src/test/resources"))`
-- `shared/` has no `build.gradle.kts` and is absent from `settings.gradle.kts` auto-include — it is not a Gradle subproject (matches AGENTS.md).
-- `shared/` currently holds 14 Kotlin files across `src/main` and `src/test`.
-- `build.yml` runs `./gradlew test make` at the root → `test`/`make` execute for every included subproject (24 directories with `build.gradle.kts`); shared sources/tests are compiled/run once per provider.
-- Existing docs mention the splice only in passing: AGENTS.md ("providers get it via `sourceSets` splicing", "shared/src/test/kotlin runs with every provider's test task") and ADR-0005. The **failure modes** are documented nowhere.
+- `shared/src/main/kotlin/com/kraptor/SearchCard.kt` (pre-fix): fallback chain
+  `hrefSel → title-anchor href → card.selectFirst("a")?.attr("href")`. The last leg
+  grabs the card's *first* anchor unconditionally — in tag/actor-link-first card shapes
+  that is a category link, so `parse` returns `CardFields(title=…, href="/tags/…")` and
+  the emitted `SearchResponse` points at a tag page, not a video.
+- Demonstrated against the real code (not assumed): ran the new fixture card
+  (`first <a>` = `/tags/amateur/`, title `<span class="name">` with no link of its own)
+  through the pre-fix `SearchCard.parse` → red with
+  `expected null, but was: CardFields(title=Tagged First Scene, href=/tags/amateur/, poster=/thumbs/4242.jpg)`.
+  The bug was live, exactly as P0-14 described.
+- Callers that can reach the fallback (no `hrefSel`): EPorner (`p.mbtit a`),
+  FreePornVideos (`a.thumb_title`), FullPorner (`div.video-title a`),
+  Cat3Movie (via its own local Parse; site currently unreachable from this env).
+  Callers with explicit `hrefSel` are unaffected by construction: PornXP
+  (`hrefSel = "a[href*=videos]"`).
+- Live-shape check (sites bot-blocked from this env; used web.archive.org snapshots of
+  the exact selectors): FreePornVideos `a.thumb_title` anchors carry `href`
+  (archive 2026-08-17); FullPorner `div.video-title > a[href=/watch/…]` carries `href`
+  (archive 2026-07-03). EPorner's KVS shape (`p.mbtit a[href]`) is fixture-covered and
+  green. → the fallback leg never fires for any *live* card shape today; the fix only
+  changes the degenerate/broken-card case.
+- EPorner.com age-verifies this environment outright (geo wall; every path returns the
+  age-gate page, cookie attempts ineffective), so a live `verify.sh` run against
+  EPorner itself is not possible from here — recorded as a Verification limitation;
+  live Verification was run against PornXP instead (below), the one SearchCard caller
+  reachable from this environment.
 
-## Consequences (the uncovered facts to record)
+## Decision (minimal fix, fixture-first)
 
-1. A syntax error in any one shared file fails **every** provider's `gradlew <Provider>:test` / `:make` (and CI's root `gradlew test make`) — there is no provider-scoped blast radius for shared/ edits.
-2. Shared unit tests execute once per provider test task (N× CI wall time; 24 subprojects today).
-
-## Decision (per the issue's "decide" fork)
-
-**Document in ADR-0002** (it already owns "shared/ compiles into every provider" via the HostRegistry context) plus a one-line pointer in AGENTS.md. No code change — the coupling is by design (single-seam host coverage, ADR-0002; TDD splice, ADR-0005).
+- Kept the documented card-root-wraps-the-link heuristic but made the first-`<a>`
+  fallback evidence-based instead of positional. An `<a>` now counts as the card link
+  only when it carries proof it is the video link:
+  1. it wraps an `<img>` (thumb inside the anchor), or
+  2. it wraps a title-ish child (`class`/`id` containing `title`/`name`, non-anchor), or
+  3. its text equals the card title (the bare-sibling video-link shape the old
+     fallback silently served).
+  Otherwise the link is skipped (tag/actor/category anchors have none of these). When
+  no qualifying link exists, `parse` returns null — the title is never bound to an
+  unrelated link, matching `parse`'s existing "no real link → null" contract.
+- A first attempt at an ancestor-walk heuristic (skip anchors whose ancestors hold the
+  title) was wrong — at card root the title is a *sibling*, so every anchor passed and
+  the fixture still failed. The evidence-based rule above is the minimal correct form;
+  both intermediate red states are recorded in the test-results history.
+- Cards whose title and video link are structurally unrelated already have the correct
+  escape hatch: pass an explicit `hrefSel` (documented in the KDoc).
 
 ## Change
 
-- `docs/adr/0002-loadextractor-is-the-only-stream-dispatch-seam.md`: appended "Shared splice coupling" section recording the mechanics and both failure modes.
-- `AGENTS.md`: pointer line on the shared/ bullet to ADR-0002's coupling section.
+1. `shared/src/test/resources/search_card_fixture.html` — two new cards: tag-link-first
+   (first `<a>` = tag link, `<span class="name">` title) and href-less title anchor
+   (`<a class="name">` with no href, tag link as the only other anchor).
+2. `shared/src/test/kotlin/com/kraptor/SearchCardTest.kt` — new test
+   `tag-link-first card - title never binds to a tag link (P0-14)` asserting both new
+   cards yield null; fixed the broken-card test's index shift (fixture grew by two
+   cards → `cards[3]`).
+3. `shared/src/main/kotlin/com/kraptor/SearchCard.kt` — `firstCardLink` replaces the
+   bare `card.selectFirst("a")` leg (see Decision). No provider files touched (the
+   root cause lives in `shared/`; per AGENTS.md, shared fixes do not require provider
+   bumps unless behavior changes for live shapes — live shapes are provably
+   unaffected, see Probe).
 
 ## Verification
 
-- Docs-only change: no Kotlin/provider code touched, no version bumps, `verify.sh` (live-site provider check) not applicable. Gradle wiring unchanged; `gradlew` still answers (config sanity only).
+- TDD loop: red (pre-fix code fails both new assertions with the exact
+  `href=/tags/amateur/` binding P0-14 predicted) → green (post-fix, all 4 tests pass).
+- `./gradlew EPorner:test Cat3Movie:test PornXP:test FullPorner:test` — BUILD
+  SUCCESSFUL (shared suite runs in every provider; no cross-provider regressions).
+- `./gradlew EPorner:make FreePornVideos:make` — clean `.cs3` builds;
+  `verifyVendoredJars` gate green.
+- Live Verification (`.pi/skills/verify-provider/scripts/verify.sh`) against PornXP
+  (pxp.news, reachable; SearchCard caller): search (36 cards), homepage pages 1–2,
+  video page, 4 stream URLs all serving `206 video/mp4` — **RESULT: PASS**. Check-5
+  (search↔load agreement) NOTEs it found no agreement pair; the sampled video *is*
+  present in the search page HTML (verified: `grep 189932411056` = 1) — the script's
+  regex block parser cannot see inside the nested `div.item_cont` structure, so this
+  NOTE is a script limitation, not a data failure.
+- EPorner live Verification blocked by the site's geo age-wall from this environment
+  (every request returns the age-verification page); its card shape is covered by
+  fixture test 1 and unchanged by this fix.

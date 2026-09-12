@@ -27,7 +27,10 @@ object SearchCard {
      *                  the card link (the common shape); otherwise pass [hrefSel]
      * @param hrefSel   explicit link selector for cards whose title and href come from
      *                  different elements (defaults to the title anchor's href, then the
-     *                  card's first `<a>` — the card-root-wraps-the-link theme)
+     *                  card's first `<a>` that carries the card link — the
+     *                  card-root-wraps-the-link theme; anchor-only links (tags, actors,
+     *                  categories) and their wrappers are skipped so a title is never
+     *                  bound to an unrelated link)
      * @param posterSel poster `<img>` selector (defaults to the first `<img>` in the card)
      *
      * @return null when the card lacks a real title or link — one broken card must not
@@ -44,7 +47,7 @@ object SearchCard {
         val title = anchor.text().trim().takeIf { it.isNotEmpty() } ?: return null
         val href = (hrefSel?.let { card.selectFirst(it)?.attr("href") }
             ?: anchor.attr("href").takeIf { it.isNotEmpty() }
-            ?: card.selectFirst("a")?.attr("href"))
+            ?: firstCardLink(card, title))
             ?.takeIf { it.isNotBlank() } ?: return null
         val poster = card.selectFirst(posterSel ?: "img")?.let { img ->
             img.attr("data-src").takeIf { it.isNotEmpty() && !it.startsWith("data:") }
@@ -52,6 +55,33 @@ object SearchCard {
         }
         return CardFields(title, href, poster)
     }
+
+    /**
+     * Fallback href: the card's first `<a>` that actually carries the card link.
+     *
+     * P0-14: a bare first-`<a>` grab binds the title to the first anchor, which in many
+     * card shapes is a tag/actor/category link. Such anchor-only links are skipped: an
+     * `<a>` counts as the card link only when it carries evidence of being the video
+     * link — it wraps an image or a title-ish element (the card-root-wraps-the-link
+     * theme), or its text matches the card title (the bare-sibling video-link shape).
+     * When no such link exists the card has no resolvable video link, so the fallback
+     * yields null and the card is rejected — the title is never bound to an unrelated
+     * tag/actor link. Cards whose title and video link are structurally unrelated pass
+     * an explicit [hrefSel] instead of relying on this heuristic.
+     */
+    private fun firstCardLink(card: Element, title: String): String? =
+        card.select("a").firstOrNull { a ->
+            a.attr("href").isNotBlank() && (
+                a.select("img").isNotEmpty() ||
+                    a.children().any {
+                        it.tagName() != "a" && (
+                            it.classNames().any { c -> c.contains("title", true) || c.contains("name", true) } ||
+                                it.id().contains("title", true) || it.id().contains("name", true)
+                            )
+                    } ||
+                    a.text().trim().equals(title, ignoreCase = true)
+                )
+        }?.attr("href")
 }
 
 /** Adapter: SearchCard.parse + the repo's NSFW emission shape. */

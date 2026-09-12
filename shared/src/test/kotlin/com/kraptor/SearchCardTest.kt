@@ -28,6 +28,17 @@ class SearchCardTest {
     }
 
     @Test fun `broken card - missing title yields null`() {
+        assertNull(SearchCard.parse(cards[3], "span.name"))
+    }
+
+    @Test fun `tag-link-first card - title never binds to a tag link (P0-14)`() {
+        // cards[2]: first <a> is a tag link, the span title has no href of its own.
+        // Intended behavior: the first-<a> fallback must not bind the title to the tag
+        // link — no video link resolvable means the card is rejected (null), exactly
+        // like a card with no link at all.
         assertNull(SearchCard.parse(cards[2], "span.name"))
+        // Same bar when the title anchor itself exists but carries no href attribute:
+        // the href-less-<a> title must not adopt the tag link either.
+        assertNull(SearchCard.parse(cards[3], "a.name"))
     }
 }
