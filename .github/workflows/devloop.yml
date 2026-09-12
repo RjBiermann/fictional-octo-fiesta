@@ -6,6 +6,8 @@ on:
     types: [labeled]
   issue_comment:
     types: [created]
+  pull_request:
+    types: [closed]
   workflow_dispatch:
   schedule:
     - cron: "*/30 * * * *"   # self-healing: pending labels survive skipped/failed runs
@@ -23,6 +25,9 @@ jobs:
       github.event.label.name == 'ai-new-site' ||
       github.event.label.name == 'ai-remove-site' ||
       github.event.label.name == 'ai-task' ||
+      (github.event_name == 'pull_request' &&
+        github.event.pull_request.merged == true &&
+        startsWith(github.event.pull_request.head.ref, 'devloop/')) ||
       (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/'))
     runs-on: ubuntu-latest
     permissions:
@@ -39,7 +44,7 @@ jobs:
       - name: Install devloop (pinned)
         run: >-
           pip install
-          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.3.2
+          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.3.3
       - name: Install agent runtime (pi) + model config
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -87,5 +92,10 @@ jobs:
       - name: Run comment command
         if: github.event_name == 'issue_comment'
         run: devloop command
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Close out merged devloop PR's issue
+        if: github.event_name == 'pull_request'
+        run: devloop merged
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
