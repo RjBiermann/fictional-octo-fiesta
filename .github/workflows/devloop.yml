@@ -43,13 +43,16 @@ jobs:
         run: |
           npm i -g @earendil-works/pi-coding-agent
           mkdir -p ~/.pi/agent
-          cat > ~/.pi/agent/models.json <<JSON
+          # Quoted heredoc: no shell expansion inside the block, so a future
+          # inline ${{ secrets... }} edit cannot execute as shell substitution.
+          # The key is interpolated explicitly via envsubst below (P0-7).
+          cat > ~/.pi/agent/models.json <<'JSON'
           {
             "providers": {
               "go": {
                 "baseUrl": "https://opencode.ai/zen/go/v1",
                 "api": "openai-completions",
-                "apiKey": "$OPENCODE_API_KEY",
+                "apiKey": "${OPENCODE_API_KEY}",
                 "models": [
                   { "id": "glm-5.3-flash", "name": "GLM 5.3 Flash (Go)", "reasoning": true },
                   { "id": "deepseek-v4-flash", "name": "DeepSeek V4 Flash (Go)", "reasoning": true }
@@ -58,6 +61,8 @@ jobs:
             }
           }
           JSON
+          envsubst '$OPENCODE_API_KEY' < ~/.pi/agent/models.json > ~/.pi/agent/models.json.tmp \
+            && mv ~/.pi/agent/models.json.tmp ~/.pi/agent/models.json
       - name: PAT credentials (ADR-0004 — GITHUB_TOKEN cannot push workflow files)
         env:
           AGENT_PAT: ${{ secrets.AGENT_PAT }}
