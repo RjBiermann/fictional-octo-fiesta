@@ -13,7 +13,7 @@ Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all o
 
 Infer the repo from `git remote -v`; `gh` does this automatically when run inside a clone.
 
-**Pipeline**: CI (`.github/workflows/build.yml`) may also create/update issues with the same `gh` conventions, using `GITHUB_TOKEN`.
+**Pipeline**: devloop agent runs (`.github/workflows/devloop.yml`) may also create/update issues with the same `gh` conventions, using `GH_TOKEN` (repo `GITHUB_TOKEN`, `issues: write`). CI itself (`build.yml`) does not touch the issue tracker.
 
 ## Pull requests as a triage surface
 
