@@ -88,8 +88,9 @@ uses for provider work (probe → evidence → minimal change → build → veri
 **Wired as of devloop v0.3.3:** the `/retry` `/review` command vocabulary,
 review + repair rounds, merge closeout (a human-merged `devloop/issue-N`
 PR closes its issue — ADR-0007), and the CI workflow file
-(`.github/workflows/devloop.yml`, pinned to a devloop tag per run — a
-broken devloop commit can't break the pipeline). The old pipeline's
+(`.github/workflows/devloop.yml`, pinned to a devloop commit SHA per run —
+a broken or tag-moved devloop commit can't break the pipeline; see
+ADR-0008 for the prompt trust boundary). The old pipeline's
 Builder/Reviewer/Triage/Monitor workflows have been removed; their
 vocabulary in `CONTEXT.md` is marked historical.
 
