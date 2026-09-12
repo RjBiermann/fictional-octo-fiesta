@@ -119,6 +119,10 @@ suspend fun solvePow(nonce: String, difficulty: Int, timeoutSec: Double = 20.0):
     val start = System.currentTimeMillis()
     val prefix = "$nonce:"
     val prefixBytes = prefix.toByteArray(Charsets.US_ASCII)
+    // Server-controlled nonce (P0-12): anything too big to fit the 64-byte
+    // buffer together with a counter suffix would AIOOBE — bail out like the
+    // timeout contract instead.
+    if (prefixBytes.size + 10 > 64) return null
     val buffer = ByteArray(64)
     System.arraycopy(prefixBytes, 0, buffer, 0, prefixBytes.size)
     val pLen = prefixBytes.size
@@ -132,6 +136,8 @@ suspend fun solvePow(nonce: String, difficulty: Int, timeoutSec: Double = 20.0):
         for (iter in 0 until 1024) {
             val sStr = s.toString()
             val sLen = sStr.length
+            // P0-12: counter can still overflow the fixed buffer — bail like timeout.
+            if (pLen + sLen > 64) return null
             for (i in 0 until sLen) {
                 buffer[pLen + i] = sStr[i].code.toByte()
             }
