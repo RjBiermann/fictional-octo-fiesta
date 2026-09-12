@@ -33,7 +33,7 @@ This is an **AI-first, pipeline-first repository with no local development path*
 ./gradlew clean                        # clean root build dir
 ```
 
-CI (`.github/workflows/build.yml`) builds all providers on push to `master`/`main` and publishes `plugins.json` to the `builds` branch. The repo is **TDD-first** (see `docs/adr/0005-tdd-first-provider-code.md`): new parsing/extraction logic ships red → green at a Parse function, tested with fixtures under `src/test/resources/`. Validation is `gradlew test` plus a clean build plus pipeline Verification (`verify.sh`) against the live site. In-app testing is maintainer-only at merge time — it is never an agent deliverable.
+CI (`.github/workflows/build.yml`) builds all providers on push to `master`/`main` and publishes `plugins.json` to the `builds` branch. The repo is **TDD-first** (see `docs/adr/0005-tdd-first-provider-code.md`): new parsing/extraction logic ships red → green at a Parse function, tested with fixtures under `src/test/resources/`. Validation is `gradlew test` plus a clean build plus pipeline Verification (`.pi/skills/verify-provider/scripts/verify.sh`, a pi-skill asset) against the live site. In-app testing is maintainer-only at merge time — it is never an agent deliverable.
 
 ## Conventions
 
