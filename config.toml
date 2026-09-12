@@ -20,7 +20,7 @@ argv = ["pi", "--no-session", "--mode", "text", "--model", "go/glm-5.3-flash", "
 [pipeline]
 verify = ""              # the gate. e.g. "make verify" — empty = skip
 review_rounds = 2          # AI pre-review rounds before human review
-max_parallel = 1           # concurrent builds. 1 = serial: no merge conflicts by construction
+max_parallel = 2           # parallel builds: own worktree each; file-overlap deliveries defer to a later sweep
 poll_seconds = 300         # watch-mode poll interval
 timeout = 1800             # per-agent-run timeout, seconds
 
