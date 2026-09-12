@@ -11,6 +11,31 @@
       <span class="name">Other Scene &amp; Friends</span>
     </a>
   </div>
+  <!-- tag-link-first card: first <a> is a tag link, the title carries no link of its own —
+       the href fallback must never bind the title to that unrelated tag link -->
+  <div class="item">
+    <a class="tag" href="/tags/amateur/">amateur</a>
+    <img src="/thumbs/4242.jpg" />
+    <span class="name">Tagged First Scene</span>
+  </div>
+  <!-- href-less title anchor: the <a> carrying the title has no href attribute; the
+       only link in the card is a tag link — must not adopt it -->
+  <div class="item2">
+    <a class="name">Href-less Title</a>
+    <a class="tag" href="/tags/redhead/">redhead</a>
+  </div>
+  <!-- green-side fallback: title in a bare span, first <a> wraps only an img —
+       the legitimate first-<a> fallback leg must still resolve -->
+  <div class="item3">
+    <span class="name">Fallback Green Scene</span>
+    <a href="/videos/8123/fallback-green/"><img src="/thumbs/8123.jpg" /></a>
+  </div>
+  <!-- near-miss: a taxonomy-path wrapper around a name-ish child must not admit
+       the binding (review round P2) -->
+  <div class="item4">
+    <span class="name">Near-Miss Scene</span>
+    <a href="/tags/redhead/"><span class="poster-name">redhead</span></a>
+  </div>
   <!-- broken card: no title — must yield null -->
   <div class="mb">
     <div class="mbimg"><img src="/thumbs/9999.jpg" /></div>
