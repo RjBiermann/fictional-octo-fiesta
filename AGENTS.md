@@ -30,10 +30,9 @@ This is an **AI-first, pipeline-first repository with no local development path*
 ```bash
 ./gradlew <ProviderName>:make          # build one provider (.cs3)
 ./gradlew <ProviderName>:test          # run unit tests (TDD loop)
-./gradlew verifyVendoredJars           # check committed build-critical jars against
-                                       # gradlelibs/INTEGRITY.txt (runs automatically as a
-                                       # dependency of make/test/check; update the record and
-                                       # note provenance when a vendored jar changes)
+./gradlew bootstrapCloudstream         # fetch the official cloudstream3:pre-release
+                                       # classes.jar into mavenLocal (sha-pinned; runs
+                                       # automatically in CI before any build)
 ./gradlew clean                        # clean root build dir
 ```
 
