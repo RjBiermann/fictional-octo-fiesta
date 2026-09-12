@@ -50,8 +50,10 @@ jobs:
     # exactly 2.4.20 in the newest bundle (2.27.0, action v4.38.0) — and its newest
     # bundled extractor plugin is 2.4.0. Downgrade to 2.4.10 for the scan run only —
     # real builds keep 2.4.20. Tracked in #388 — revert this whole block once the
-    # limit passes 2.4.20 (re-check by strings-ing the new bundle's
-    # codeql/java/tools/codeql-java-agent.jar for defaultAcceptableVersionLimitStr).
+    # limit passes 2.4.20 (re-check by unzipping the new bundle's
+    # codeql/java/tools/codeql-java-agent.jar and running javap -c on the
+    # version-limit class — the defaultAcceptableVersionLimitStr constant
+    # is the limit; plain strings won't see compressed class-file constants).
     - name: Build for scan
       if: matrix.build-mode == 'manual'
       run: |
