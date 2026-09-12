@@ -28,6 +28,13 @@ allprojects {
         google()
         mavenCentral()
         maven("https://jitpack.io")
+        // Issue #353 probe: this runner has no cloudstream3:pre-release in the
+        // modules-2 cache and jitpack 404s that coordinate, so resolve it from the
+        // local Maven repo (stub POM + jar fetched from the official pre-release
+        // release asset — byte-identical to what the vendored gradle plugin
+        // downloads itself; see FINDINGS-353.md). mavenLocal() is LAST so it can
+        // only ever backfill, never shadow.
+        mavenLocal()
     }
 }
 
@@ -101,6 +108,14 @@ subprojects {
         implementation("org.mozilla:rhino:1.9.1") // JS engine (JavGuru, Javseen)
         implementation("org.jspecify:jspecify:1.0.1") // annotations referenced by jsoup
         testImplementation("junit:junit:4.13.2") // TDD-first, ADR-0005
+        // Issue #353: HostRegistryTest instantiates framework extractor rows
+        // (Voe, StreamTape, …) to pin the supersession/naming invariants — the
+        // framework classes live on the `cloudstream` configuration only.
+        // Constructors are pure field assignments, JVM-test safe. The two
+        // kotlinx-serialization jars satisfy Voe's @Serializable companions.
+        testImplementation(files(configurations.getByName("cloudstream")))
+        testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.6.3")
+        testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.6.3")
     }
 
     // P0-15 (issue #360): every provider build path runs the vendored-jar integrity gate.

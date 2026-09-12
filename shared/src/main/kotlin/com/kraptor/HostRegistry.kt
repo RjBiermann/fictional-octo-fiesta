@@ -14,12 +14,20 @@ import com.lagradost.cloudstream3.extractors.Voe
 import com.lagradost.cloudstream3.extractors.MixDropAg
 import com.lagradost.cloudstream3.utils.ExtractorApi
 
-fun BasePlugin.registerHostExtractors(first: List<ExtractorApi> = emptyList()) {
-    first.forEach { registerExtractorAPI(it) }
-    // Data table: one row per embed-host mirror (factory functions per family
-    // live in Extractorlar.kt). Keep sequence stable — loadExtractor matches
-    // the LAST registered adapter first.
-    listOf(
+/**
+ * The shared host table itself (ADR-0005 pure-data seam, issue #353): one row per
+ * embed-host mirror. Kept separate from registration so unit tests can pin the
+ * ordering/dedup/naming invariants on the data without touching the framework's
+ * global extractor registry.
+ *
+ * Ordering contract (verified in the framework jar, ExtractorApiKt.loadExtractor):
+ * iteration is last → first over the registration list and the first adapter whose
+ * mainUrl is a prefix of the target URL wins — so the LAST registered row wins, and
+ * an earlier row with an identical mainUrl is dead code. HostRegistryTest pins:
+ * unique mainUrls, no prefix shadowing, the StreamTape supersession invariant,
+ * and the intentional name-collision allowlist (issue #347 P0-10/P0-11).
+ */
+internal fun sharedHostRegistry(): List<ExtractorApi> = listOf(
         // ponytail: StreamTAPE (custom adapter below) deliberately supersedes the
         // framework StreamTape class — its headers/redirect handling is what serves
         // the whole streamtape mirror family here. Do not re-register the framework
@@ -154,7 +162,11 @@ fun BasePlugin.registerHostExtractors(first: List<ExtractorApi> = emptyList()) {
         PerverZijaExtractor(),
         HlsFree(),
         HlsFreeWww(),
-    ).forEach { registerExtractorAPI(it) }
+    )
+
+fun BasePlugin.registerHostExtractors(first: List<ExtractorApi> = emptyList()) {
+    first.forEach { registerExtractorAPI(it) }
+    sharedHostRegistry().forEach { registerExtractorAPI(it) }
 }
 
 // Shared Base64 decode helper (pad-if-needed, NO_WRAP, null on failure).
