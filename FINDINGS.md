@@ -1,41 +1,63 @@
-# FINDINGS — issue #367 (review #347 P1-6): CodeQL Kotlin-downgrade sed block has no tracking issue; build.yml lists dead master branch
+# FINDINGS — issue #366 (review #347 P1-10): lint.yml plugin-shape globs scan shared/ for legacy Plugin() but not for pass-through Provider.kt
 
 ## Probe (reality check)
 
-- **Sed block confirmed untracked**: `.github/workflows/codeql.yml:55-62` ("Build for scan")
-  runs `sed -i 's/kotlin-gradle-plugin:2\.4\.20/kotlin-gradle-plugin:2.4.10/' build.gradle.kts`
-  before `./gradlew assemble`, with an inline comment explaining the KotlinVersionTooRecentError
-  workaround (CodeQL 2.26.4 vs pinned Kotlin 2.4.20) — but no tracking-issue reference. The pin
-  lives at `build.gradle.kts:22`
-  (`classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.20")`).
-- **No tracking issue existed**: `gh issue list --state all --search "CodeQL"` returned only
-  this issue (#367) and the review parent (#347). Created **#388** as the tracking issue,
-  stating the reversal condition (CodeQL supports Kotlin 2.4.20 → delete the downgrade block)
-  and where to check (codeql-action releases / CodeQL changelog).
-- **Dead `master` branch confirmed**: `git ls-remote --heads origin` has only
-  `refs/heads/main` (f7e4336…); no `master`. Yet `.github/workflows/build.yml:13-14` lists
-  `- master` (with a stale "# choose your default branch" comment) under `on.push.branches`.
-  Harmless (the branch just never matches — `gh run list --workflow=codeql.yml` confirms
-  main pushes do trigger workflows; build.yml runs on main pushes too), pure hygiene.
-- **Verification bar**: AGENTS.md requires `actionlint` before pushing `.github/**` changes;
-  it was not on PATH in this environment, so it was installed via
+- **Asymmetry confirmed** at `.github/workflows/lint.yml:76-82`: the legacy-shape
+  `grep` roots are `./*/src/main/kotlin shared/src/main/kotlin`, but the
+  pass-through `find` scanned only `./*/src/main/kotlin`. A legacy `Plugin()`
+  class dropped into `shared/` fails the gate; a pass-through `*Provider.kt`
+  file in `shared/` did not.
+- **Exploited by `./*` alone**: `./shared/src/main/kotlin` is matched by the
+  `./*/src/main/kotlin` glob (the glob finds all top-level dirs including
+  `shared/`), so in the sandbox tree the pass-through check was already
+  effective without the explicit root. On GitHub Actions, though, the checkout
+  may not have a `.git` dir (then `*/` is not globbed by default: `failglob`
+  off leaves the pattern literal, `failglob` on errors), so the explicit
+  `shared/src/main/kotlin` root is the only guarantee that both halves of the
+  gate scan `shared/`. The two halves must use the same root list.
+- **Moot in-tree today, both halves**: `find . shared -name '*Provider.kt'`
+  → empty; `grep -rnE '(:[[:space:]]*Plugin\(\)|plugins\.Plugin\(\))'`
+  → empty. No legacy `Plugin()` class and no pass-through file exists anywhere
+  (providers or shared/). The gate is purely defense-in-depth.
+- **Sandbox replication** (fake tree with a planted `shared/src/main/kotlin/FooProvider.kt`):
+  `find ./*/src/main/kotlin -name '*Provider.kt'` found it via the `./`-prefixed
+  glob hit, but *not* under the no-`.git` checkout condition above — with
+  `shared/src/main/kotlin` added as an explicit root it is always found. Same
+  root list for both checks is the invariant worth enforcing.
+- **Precedent from the same gate** (lint.yml header comment): WatchPorn/
+  FullPorner keep `Plugin(context)` context-requiring constructors and are
+  excluded from the legacy grep by name. No parallel exclusion is needed for
+  the `find`: a `*Provider.kt` pass-through file under WatchPorn/FullPorner is
+  still banned by AGENTS.md ("plugin class at the bottom of `<Provider>.kt`"),
+  so the find has always correctly flagged any such file. No carve-out required.
+- **Verification bar**: AGENTS.md requires `actionlint` before pushing `.github/**`
+  changes; it was not on PATH in this environment, so it was installed via
   `go install github.com/rhysd/actionlint/cmd/actionlint@latest` (Go 1.24.13 present).
   The verify-provider skill's live-site script (`.pi/skills/verify-provider/scripts/verify.sh`)
-  is for CloudStream providers and does not apply to a workflow-files change; the applicable
-  mechanical checks are actionlint plus a dry-run of the sed against the real pin.
+  is for CloudStream providers and does not apply to a workflow-files change; the
+  applicable mechanical checks are actionlint plus an end-to-end sandbox run of the
+  edited gate script (below).
 
 ## Fix (minimal)
 
-Two workflow files, comments/branch-list only — no behavioral change to either workflow:
+One file, one glob, one comment — the `find` root list now matches the legacy
+`grep` root list exactly:
 
-1. `.github/workflows/codeql.yml` — inline comment now ends "Tracked in #388 — revert this
-   whole block once CodeQL supports the pinned version."
-2. `.github/workflows/build.yml` — `on.push.branches` reduced to `- main`; the stale
-   "# choose your default branch" comment removed with it.
+- `.github/workflows/lint.yml` `plugin-shape` step:
+  `find ./*/src/main/kotlin -name '*Provider.kt'` →
+  `find ./*/src/main/kotlin shared/src/main/kotlin -name '*Provider.kt'`,
+  with a comment stating shared/ is deliberately in scope for both halves of
+  the gate (review #347 P1-10).
 
 ## Verification
 
-- `actionlint` (exit 0) across all workflow files after the edits.
-- Sed dry-run (`sed -n 's/…/p' build.gradle.kts`) prints line 22 with `2.4.10` — the
-  CodeQL-downgrade pattern still matches the real pin, so #388's reversal instructions
-  stay accurate.
+- **Sandbox, planted pass-through in shared/**: a tree with
+  `shared/src/main/kotlin/FooProvider.kt` and a planted legacy
+  `shared/src/main/kotlin/Legacy.kt` (`class X : Plugin()`) — the edited
+  pipeline catches both (legacy via grep, pass-through via find, each printed
+  with its path before the `::error::` line and `exit 1`). The same tree
+  without the planted files exits 0.
+- **Live repo**: the edited gate script, run as-is in this repo, exits 0 —
+  no legacy `Plugin()` and no pass-through `*Provider.kt` anywhere (matches
+  the probe).
+- **actionlint**: clean (exit 0) on all workflow files after the edit.
