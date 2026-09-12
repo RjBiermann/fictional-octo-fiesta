@@ -10,7 +10,7 @@ The AI pre-review exists to spare the human from slop, not to replace the human.
 ## Steps
 
 1. Read the **spec issue first**, then the diff. The spec is the yardstick — not the diff's internal logic.
-2. Check in order: (a) does it meet the acceptance condition, (b) is the evidence (FINDINGS.md, gate output) real and sufficient, (c) is the diff minimal — anything speculative gets flagged, not commented on kindly.
+2. Check in order: (a) does it meet the acceptance condition, (b) is the evidence (FINDINGS-<n>.md, gate output) real and sufficient, (c) is the diff minimal — anything speculative gets flagged, not commented on kindly.
 3. **Findings only — the reviewer never edits code or pushes commits.** The human decides what happens with each finding (fix, defer, close).
 4. Every round leaves one visible artifact: a PR comment with the findings. Round 2 repeats only what is still unresolved.
 
