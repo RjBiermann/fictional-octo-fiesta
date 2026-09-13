@@ -1,4 +1,4 @@
-# FINDINGS — issue #351 (P0-4: pin devloop install by commit SHA; record the prompt trust boundary)
+# FINDINGS — review #347 (P0-4: pin devloop install by commit SHA; record the prompt trust boundary)
 
 ## Probe
 
@@ -38,6 +38,11 @@
 
 ## Verification
 
-- `actionlint` clean (AGENTS.md pre-flight for `.github/**` changes).
+- `actionlint` clean — AGENTS.md pre-flight for `.github/**` changes, run directly:
+  - invocation: `/home/runner/go/bin/actionlint` (whole repo, exit `0`, no output) and
+    `/home/runner/go/bin/actionlint .github/workflows/devloop.yml` (exit `0`, no output);
+    `actionlint -version` → v1.7.12 (installed by building from source, go1.26.8, linux/amd64).
+    Note: the binary lives at `/home/runner/go/bin/actionlint`, which is not on this
+    environment's default `PATH` — hence the absolute-path invocation.
 - Grep: no remaining `@v0.3.5` install ref in workflows; SHA present in devloop.yml.
 - No provider change → no version bumps, no `verify.sh` run (CI-plumbing-only issue).

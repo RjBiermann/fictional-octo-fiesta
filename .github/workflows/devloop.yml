@@ -47,9 +47,10 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - name: Install devloop (pinned to commit SHA)
+        # v0.3.5 — bump the SHA, not the tag (tags are mutable; see ADR-0008)
         run: >-
           pip install
-          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@30694f90182135b44ddd968fde6ca8497aad9994  # noqa: E501  # v0.3.5 — bump the SHA, not the tag (tags are mutable; see ADR-0008)
+          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@30694f90182135b44ddd968fde6ca8497aad9994
       - name: Install agent runtime (pi) + model config
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
