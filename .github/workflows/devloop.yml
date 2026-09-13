@@ -22,13 +22,14 @@ concurrency:
 
 jobs:
   run:
+    # reserved ai- prefix is the trigger contract (upstream devloop ADR-0003):
+    # a config rename within the ai- namespace never orphans the trigger —
+    # the workflow filter never hardcodes label names
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'schedule' ||
       github.event_name == 'push' ||
-      github.event.label.name == 'ai-fix' ||
-      github.event.label.name == 'ai-new-site' ||
-      github.event.label.name == 'ai-remove-site' ||
+      startsWith(github.event.label.name, 'ai-') ||
       (github.event_name == 'pull_request' &&
         github.event.pull_request.merged == true &&
         startsWith(github.event.pull_request.head.ref, 'devloop/')) ||
@@ -48,7 +49,7 @@ jobs:
       - name: Install devloop (pinned)
         run: >-
           pip install
-          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.3.6
+          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.3.7
       - name: Install agent runtime (pi) + model config
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -85,9 +86,8 @@ jobs:
           # live in the header itself (fetch + push both use it)
           B64=$(printf 'x-access-token:%s' "$AGENT_PAT" | base64 -w0)
           git config http.https://github.com/.extraheader "AUTHORIZATION: basic $B64"
-          # commit identity — checkout leaves none; agents must not guess
-          git config user.name "devloop agent"
-          git config user.email "devloop@users.noreply.github.com"
+          # commit identity: devloop >= v0.3.7 sets it itself (start_work /
+          # rebase_branch), only when unset — a human's config always wins
       - name: Run pipeline
         if: github.event_name != 'issue_comment'
         run: devloop once

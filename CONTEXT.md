@@ -36,7 +36,7 @@ _Avoid_: cancellation, aborted run
 ### Triggers & artifacts
 
 **Trigger label**:
-A maintainer-applied issue label (`ai-fix`, `ai-new-site`, `ai-remove-site`, or `ai-task`) that starts a Builder run. Issues without one are never processed.
+A maintainer-applied issue label (`ai-fix`, `ai-new-site`, `ai-remove-site`) that starts a build. Issues without one are never processed. Renames live in `config.toml [labels]` and stay inside the reserved `ai-` prefix — the contract the workflow filter matches on, so a rename can never orphan the trigger (upstream devloop ADR-0003).
 _Avoid_: auto label, bot label
 
 **Command**:
