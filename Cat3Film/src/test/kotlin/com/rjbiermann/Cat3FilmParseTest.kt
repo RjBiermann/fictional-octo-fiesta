@@ -45,4 +45,29 @@ class Cat3FilmParseTest {
         assertNull(eps[0].season)
         assertEquals("405", eps[0].data)
     }
+
+    // --- stream URL suffix (#410) -------------------------------------------
+
+    @Test fun `bare token gets index m3u8 suffix`() {
+        assertEquals("https://cat3.asuka-vod.site/TOKEN/index.m3u8",
+            Parse.streamUrl("https://cat3.asuka-vod.site/TOKEN"))
+    }
+
+    @Test fun `trailing slash is stripped before suffixing`() {
+        assertEquals("https://cat3.asuka-vod.site/TOKEN/index.m3u8",
+            Parse.streamUrl("https://cat3.asuka-vod.site/TOKEN/"))
+    }
+
+    @Test fun `already-suffixed urls pass through`() {
+        assertEquals("https://cdn/x/index.m3u8", Parse.streamUrl("https://cdn/x/index.m3u8"))
+        assertEquals("https://cdn/x/index.json", Parse.streamUrl("https://cdn/x/index.json"))
+        assertEquals("https://cdn/x/index.m3u8?k=v", Parse.streamUrl("https://cdn/x/index.m3u8?k=v"))
+        // progress/DASH urls are not pass-through: bare-token suffix rule applies.
+        assertEquals("https://cdn/v.mp4/index.m3u8", Parse.streamUrl("https://cdn/v.mp4"))
+    }
+
+    @Test fun `blank or null yields null`() {
+        assertNull(Parse.streamUrl(null))
+        assertNull(Parse.streamUrl("   "))
+    }
 }
