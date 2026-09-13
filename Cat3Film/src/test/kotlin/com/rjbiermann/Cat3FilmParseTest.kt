@@ -38,6 +38,14 @@ class Cat3FilmParseTest {
         assertEquals("462", eps.last().data)
     }
 
+    @Test fun `movie single server keeps episode 1 without season`() {
+        val eps = Parse.episodes(Jsoup.parse(res("watch-handmaiden.html")))
+        assertEquals(1, eps.size)
+        assertEquals(1, eps[0].number)
+        assertNull(eps[0].season)
+        assertEquals("405", eps[0].data)
+    }
+
     // --- stream URL suffix (#410) -------------------------------------------
 
     @Test fun `bare token gets index m3u8 suffix`() {
@@ -54,7 +62,8 @@ class Cat3FilmParseTest {
         assertEquals("https://cdn/x/index.m3u8", Parse.streamUrl("https://cdn/x/index.m3u8"))
         assertEquals("https://cdn/x/index.json", Parse.streamUrl("https://cdn/x/index.json"))
         assertEquals("https://cdn/x/index.m3u8?k=v", Parse.streamUrl("https://cdn/x/index.m3u8?k=v"))
-        assertEquals("https://cdn/v.mp4", Parse.streamUrl("https://cdn/v.mp4"))
+        // progress/DASH urls are not pass-through: bare-token suffix rule applies.
+        assertEquals("https://cdn/v.mp4/index.m3u8", Parse.streamUrl("https://cdn/v.mp4"))
     }
 
     @Test fun `blank or null yields null`() {

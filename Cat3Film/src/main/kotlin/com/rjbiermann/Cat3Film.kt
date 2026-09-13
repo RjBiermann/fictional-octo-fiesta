@@ -193,13 +193,16 @@ object Parse {
     /**
      * Stream URL from a sources-API `file` token. Null for blank input. The site player
      * appends /index.m3u8 (=/index.json) to the bare token URL — the unsuffixed URL is
-     * behind a CF challenge and serves no playlist (#410); already-suffixed URLs and
-     * explicit file URLs pass through unchanged.
+     * behind a CF challenge and serves no playlist (#410); already-suffixed URLs pass
+     * through unchanged.
      */
     fun streamUrl(file: String?): String? {
         val f = file?.trim().orEmpty()
         if (f.isBlank()) return null
-        return if (f.matches(Regex(".*\\.(m3u8|json|mp4|mkv|mpd)(\\?.*)?$"))) f else f.trimEnd('/') + "/index.m3u8"
+        // Only HLS/playlist URLs pass through; the sources API only ever returns
+        // "type": "hls" tokens (FINDINGS-410), so anything else is a bare token that
+        // gets the /index.m3u8 suffix (#410).
+        return if (f.matches(Regex(".*\\.(m3u8|json)(\\?.*)?$"))) f else f.trimEnd('/') + "/index.m3u8"
     }
 
     /**

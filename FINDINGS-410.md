@@ -54,8 +54,6 @@ Fix per repo precedent (FullPorner/Film1k): wire `CloudflareKiller` as the inter
 on Cat3Film's fetches, and move the suffix logic into the pure `Parse.streamUrl()`
 so the appended-URL rule is unit-covered (TDD).
 
-## verify.sh result (run 2026-09-11)
-
 ## verify.sh rerun post-fix (2026-09-13)
 
 - home `/movies` + `?page=2`: 30 cards each, no duplicates — PASS
