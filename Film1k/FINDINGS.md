@@ -163,3 +163,4 @@ slug (`{slug}-{year}.html`). Provider maps `this.year` from it (issue #233 gap 3
   functions with unit tests (Film1kParseTest).
 - verify.sh could not reach the site from this runner (CF challenge 403 on every URL, same
   as the 2026-09-10 PR note): the checks above were gathered with browser-TLS probing.
+  **Live verification via verify.sh is OUTSTANDING for the maintainer.**

@@ -191,19 +191,23 @@ class Film1k : MainAPI() {
                 "https://turbovidhls.com/t/$turbovid",
                 referer = "$mainUrl/"
             ).text
-            val master = Film1kParse.turbovidStreamUrl(embedHtml) ?: return false
-            callback(
-                newExtractorLink(
-                    name = name,
-                    source = name,
-                    url = master,
-                    type = ExtractorLinkType.M3U8
-                ) {
-                    this.referer = "$mainUrl/"
-                    this.quality = Qualities.Unknown.value
-                }
-            )
-            return true
+            val master = Film1kParse.turbovidStreamUrl(embedHtml)
+            if (master != null) {
+                callback(
+                    newExtractorLink(
+                        name = name,
+                        source = name,
+                        url = master,
+                        type = ExtractorLinkType.M3U8
+                    ) {
+                        this.referer = "$mainUrl/"
+                        this.quality = Qualities.Unknown.value
+                    }
+                )
+                return true
+            }
+            // master extraction failed — fall through to the abyssplayer branch instead of
+            // aborting loadLinks (turbovid and abyssplayer embeds share the same pages)
         }
         // issue #233 gap 2: abyssplayer embeds (SoTrym/enc-dec chain) — shared adapter
         val abyssUrl = Regex("""abyssplayer\.com/\?v=[A-Za-z0-9]+""").find(html)?.value

@@ -24,10 +24,11 @@ object Film1kParse {
     /** Byse (film1k.xyz) embed code — issue #408: the page markup is now
      *  `/e/{code}` (lazy iframe, no trailing slash) and `/e/{code}/{slug}.mp4`
      *  (fake-extension video source); the old loadingLinks regex demanded a trailing `/`
-     *  and matched neither. Fixture: film1k_video_byse_noslash.html. */
+     *  and matched neither. First match wins — same first-match semantics as the
+     *  pre-#408 regex (a page embedding more than one source picks the first code,
+     *  exactly as before). Fixture: film1k_video_byse_noslash.html. */
     fun byseCode(html: String): String? {
-        val matches = Regex("""film1k\.xyz/e/([a-zA-Z0-9]+)""").findAll(html)
-        return matches.lastOrNull()?.groupValues?.get(1)
+        return Regex("""film1k\.xyz/e/([a-zA-Z0-9]+)""").find(html)?.groupValues?.get(1)
     }
 
     /** Turbovid (turbovidhls.com) embed code — issue #408: streaming pages now also serve
@@ -38,6 +39,8 @@ object Film1kParse {
 
     /** HLS master URL from the turbovid embed page (plain string, not packed). */
     fun turbovidStreamUrl(embedHtml: String): String? =
-        Regex("""https://[A-Za-z0-9.]*turboviplay\.com/data3/[a-zA-Z0-9]+/[A-Za-z0-9]+\.m3u8""")
+        // subdomain anchored — a loose [A-Za-z0-9.]* prefix would also match a
+        // page-controlled look-alike host like evilturboviplay.com
+        Regex("""https://(?:[A-Za-z0-9-]+\.)*turboviplay\.com/data3/[a-zA-Z0-9]+/[A-Za-z0-9]+\.m3u8""")
             .find(embedHtml)?.value
 }

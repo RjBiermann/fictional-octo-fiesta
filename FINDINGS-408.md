@@ -19,7 +19,7 @@ player iframe, encrypted payload key) was replayed with the same parameters the 
 | Cat3Movie | 200 | `/search/milf` 5 cards | p2 200 (3 cards) | player.php POST replay → 200 iframe `hlsfast.com/#ipczrl`; `/api/v1/video` decrypts (key `kiemtienmua911ca`, iv `1234567890oiuytr`) → master.m3u8 at 94.131.217.175 | OK |
 | EPorner | 200 | `/search/milf/` 78 cards, p2 66 | OK | `gvideo.eporner.com/<id>/<id>.mp4` present | OK |
 | Eroticmv | 200 | `/?s=milf` 1 hit (WP search semantics) | search no p2 (provider already handles) | video page: jwplayer + `vidcdn2.eroticmv.com/...m3u8` present | OK |
-| Film1k | 200 (CF-challenge to plain curl; passes via chrome impersonation — in-app cloudflareKiller) | `/?s=milf` 6 cards | **DRIFT: `/page/2/?s=` hard 404, `?paged=2` also 404 — search no longer paginates** | iframe `film1k.xyz/e/{code}` still embedded; `/api/videos/{code}/embed/captcha/` 200 with pow_nonce/difficulty | **FIXED** |
+| Film1k | 200 (CF-challenge to plain curl; passes via chrome impersonation — in-app cloudflareKiller) | `/?s=milf` 6 cards | **DRIFT: `/page/2/?s=` hard 404, `?paged=2` also 404 — search no longer paginates** | **DRIFT: byse iframe markup lost the trailing `/`, so the old `film1k.xyz/e/{code}/` regex matched nothing**; embed host chain is now film1k.xyz + abyssplayer + **a third host, turbovidhls.com/t/{code} (JW) → cdn{N}.turboviplay.com/data3/... m3u8**, newly implemented; byse PoW `/api/videos/{code}/embed/captcha/` still 200 with pow_nonce | **FIXED** |
 | FreePornVideos | 200 (CF to plain curl) | `/search/milf/1/` 25 cards, p2 25 | OK | video page `<video><source src=get_file/...mp4 label=2160p/720p/480p>` | OK |
 | FullPorner | 200 (CF to plain curl) | `/search?q=milf&p=1` 24 cards, p2 24 | OK | watch page iframe `xiaoshenke.net/video/{code}/4` present | OK |
 | HQPorner | 200 | `/?q=milf&p=1` 52 cards, p2 52 | OK | iframe `mydaddy.cc/video/<id>/` → `s29.bigcdn.cc/pubs/.../360|720|1080.mp4` (MyDaddyExtractor chain intact) | OK |
@@ -46,11 +46,30 @@ ids). Not evidence of duplicate flood; machine-level dup assertion is verify.sh'
 
 ## Drift found → fix
 
-- **Film1k** (issue drift): `search` paginated via `$mainUrl/page/$page/?s=$q`; the live
-  site now returns a hard HTTP 404 for page 2 of any search (homepage `/page/2/` still
-  fetches fine, 24 `article.loop-post` — homepage pagination unaffected). Fix: search is
-  single-page — `page > 1` immediately returns an empty list with `hasNext = false`.
+- **Film1k** (issue drift): three drifts, all fixed:
+  1. `search` paginated via `$mainUrl/page/$page/?s=$q`; the live site now returns a hard
+     HTTP 404 for page 2 of any search (homepage `/page/2/` still fetches fine, 24
+     `article.loop-post` — homepage pagination unaffected). Fix: search is single-page —
+     `page > 1` immediately returns an empty list with `hasNext = false`.
+  2. The Byse embed regex `film1k\.xyz/e/([a-zA-Z0-9]+)/` demanded a trailing slash; the
+     markup is now slash-free (`film1k.xyz/e/{code}` and the fake-extension video source
+     `/e/{code}/{slug}.mp4`), so **byse extraction was completely broken** before this
+     change — first-match regex rewared as a pure Parse function (`byseCode`).
+  3. `turbovidhls.com/t/{code}` JW embeds — **a new third embed host** sharing the video
+     pages — had no extraction path at all. Added: fetch the embed page, pull the
+     `cdn{N}.turboviplay.com/data3/{code}/{code}.m3u8` master (subdomain-anchored regex,
+     negative test for look-alike hosts), fall through to abyssplayer if extraction fails.
+
   `Film1k/build.gradle.kts` version 7 → 8.
+
+## Validation status
+
+- `Film1k:test` and a clean `Film1k:make` build pass on this branch (see commit history).
+- **Live `verify.sh` verification is OUTSTANDING for the maintainer**: film1k.com sits
+  behind a Cloudflare managed challenge that 403s the runner (same as FINDINGS-2026-09-10);
+  the probe evidence above was gathered with browser-TLS impersonation, so the new
+  turbovid extraction path was confirmed only at the URL-replay level, not end-to-end
+  through the provider in-app.
 
 ## Blocked/dead sites
 None — all 24 reachable and extracting.

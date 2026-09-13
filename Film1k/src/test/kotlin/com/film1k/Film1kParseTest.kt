@@ -66,6 +66,18 @@ class Film1kParseTest {
         )
     }
 
+    @Test fun `byse code takes the first match when several sources exist`() {
+        // restored first-match semantics (as pre-#408 `Regex.find`) — a page embedding
+        // multiple /e/{code} sources (e.g. trailer + feature) keeps picking the first one
+        assertEquals(
+            "aaa111222333",
+            Film1kParse.byseCode(
+                """<iframe src="https://film1k.xyz/e/aaa111222333"></iframe>
+                   |""".trimMargin().plus("<source src=\"https://film1k.xyz/e/zzz999888777\">")
+            )
+        )
+    }
+
     @Test fun `no byse embed yields null`() {
         assertNull(Film1kParse.byseCode("<html>nothing here</html>"))
     }
@@ -78,5 +90,14 @@ class Film1kParseTest {
     @Test fun `turbovid master m3u8 extracted from embed page`() {
         val url = Film1kParse.turbovidStreamUrl(turbovidEmbed)
         assertEquals("https://cdn3.turboviplay.com/data3/696f9b3d701a3/696f9b3d701a3.m3u8", url)
+    }
+
+    @Test fun `turbovid master m3u8 rejects look-alike host`() {
+        // page-controlled look-alike (evilturboviplay.com) must not be handed to the player
+        assertNull(
+            Film1kParse.turbovidStreamUrl(
+                """var urlPlay = 'https://evilturboviplay.com/data3/696f9b3d701a3/696f9b3d701a3.m3u8';"""
+            )
+        )
     }
 }
