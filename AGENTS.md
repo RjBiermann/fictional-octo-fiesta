@@ -89,8 +89,9 @@ uses for provider work (probe → evidence → minimal change → build → veri
 review + repair rounds, merge closeout (a human-merged `devloop/issue-N`
 PR closes its issue — ADR-0007), sweep-on-push (a push to `main` runs
 upkeep immediately), and the CI workflow file
-(`.github/workflows/devloop.yml`, pinned to a devloop tag per run — a
-broken devloop commit can't break the pipeline). The old pipeline's
+(`.github/workflows/devloop.yml`, pinned to a devloop commit SHA per run — tags are
+mutable, so a moved tag or broken devloop commit can't change the pipeline; see
+ADR-0008 for where the prompt trust boundary lives). The old pipeline's
 Builder/Reviewer/Triage/Monitor workflows have been removed; their
 vocabulary in `CONTEXT.md` is marked historical.
 
