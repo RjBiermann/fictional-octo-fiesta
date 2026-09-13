@@ -91,8 +91,9 @@ mutable; see ADR-0008): the `/retry` `/review` command vocabulary,
 review + repair rounds, merge closeout (a human-merged `devloop/issue-N`
 PR closes its issue — ADR-0007), sweep-on-push (a push to `main` runs
 upkeep immediately), and the CI workflow file
-(`.github/workflows/devloop.yml`, pinned to a devloop tag per run — a
-broken devloop commit can't break the pipeline). The old pipeline's
+(`.github/workflows/devloop.yml`, pinned to a devloop commit SHA per run
+— a retagged devloop can't change what the pipeline runs; see ADR-0008).
+The old pipeline's
 Builder/Reviewer/Triage/Monitor workflows have been removed; their
 vocabulary in `CONTEXT.md` is marked historical.
 
