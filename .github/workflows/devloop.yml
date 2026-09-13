@@ -1,5 +1,6 @@
 # devloop: trigger-label events fire a build run.
-# Install is pinned to a devloop tag — a broken devloop commit can't break this pipeline.
+# Install is pinned to a devloop commit SHA — a broken or retagged devloop
+# commit can't change what this pipeline runs (see ADR-0008).
 name: devloop
 on:
   issues:
@@ -45,10 +46,10 @@ jobs:
         with: { java-version: "17", distribution: temurin }
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
-      - name: Install devloop (pinned)
+      - name: Install devloop (pinned to commit SHA — tags are mutable; v0.3.6)
         run: >-
           pip install
-          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.3.6
+          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@02bc4fa9b6e7735579becee9b9bf57069722a30e
       - name: Install agent runtime (pi) + model config
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
