@@ -35,10 +35,30 @@ jobs:
         startsWith(github.event.pull_request.head.ref, 'devloop/')) ||
       (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/'))
     runs-on: ubuntu-latest
+    # Least privilege (issue #350, from review #347 P0-3). Two credential channels:
+    # - GITHUB_TOKEN drives the gh CLI inside the pipeline: issue
+    #   create/edit/comment/close (spec sub-issues, error tails,
+    #   close-out — ADR-0007), PR create/comment/close (delivery), and
+    #   read-only gh api calls (trigger authority, comments). Hence
+    #   issues + pull-requests write; contents stays read-only for the
+    #   checkout fetch and the pinned devloop pip clone. The agent runs
+    #   with this token + full shell access by design (repo is AI-first,
+    #   no local development — ADR-0001; "agents never merge, humans
+    #   decide" — AGENTS.md, ADR-0004/0007), so we
+    #   do not hand it REST-API content-write capability it never uses.
+    # - AGENT_PAT (ADR-0004) authenticates all git pushes: the step below
+    #   unconditionally replaces the extraheader that checkout installed,
+    #   so branch push/force-push/delete always authenticates with the
+    #   PAT, never the GITHUB_TOKEN — contents: read is sufficient here.
+    #   Caveat: this argument is verified against devloop v0.3.7 (the
+    #   pinned tag). If a future devloop version performs a GitHub write
+    #   outside issues/pull-requests (e.g. deleting a branch via
+    #   `gh api -X DELETE .../git/refs/...`), contents: read fails loudly
+    #   mid-run — re-audit this block when bumping the pinned tag.
     permissions:
       issues: write
       pull-requests: write
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
