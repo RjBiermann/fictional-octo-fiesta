@@ -63,9 +63,11 @@ class Film1k : MainAPI() {
     }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
+        // FINDINGS 2026-09-13 (issue #408): search no longer paginates — /page/2/?s= is a
+        // hard 404 on the live site (and ?paged=2 does not help). Only page 1 has results.
+        if (page > 1) return newSearchResponseList(emptyList(), hasNext = false)
         val q = java.net.URLEncoder.encode(query.trim(), "UTF-8").replace("+", "%20")
-        val url = if (page <= 1) "$mainUrl/?s=$q" else "$mainUrl/page/$page/?s=$q"
-        val doc = app.get(url).document
+        val doc = app.get("$mainUrl/?s=$q").document
         val items = parseList(doc)
         return newSearchResponseList(items, items.isNotEmpty())
     }
@@ -160,7 +162,10 @@ class Film1k : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val html = app.get(data).text
-        val byse = Regex("""film1k\.xyz/e/([a-zA-Z0-9]+)/""").find(html)?.groupValues?.get(1)
+        // issue #408: markup drift probe 2026-09-13 — Byse source tags no longer carry a
+        // trailing slash (`film1k.xyz/e/{code}` / `/e/{code}/{slug}.mp4`); the code capture
+        // is a pure Parse function now (Unit-tested against fresh fixtures)
+        val byse = Film1kParse.byseCode(html)
         if (byse != null) {
             val (streamUrl, quality) = bysePlayback(byse) ?: return false
             callback(
@@ -175,6 +180,34 @@ class Film1k : MainAPI() {
                 }
             )
             return true
+        }
+        // issue #408: a third embed host (turbovidhls.com JW) now shares the video pages.
+        // The embed page is an unpacked JW config — grab the cdn{N}.turboviplay.com master
+        // m3u8 and hand it to the app directly (variant chain serves via turbosplayer/
+        // googleusercontent inside the playlist, no extra headers needed).
+        val turbovid = Film1kParse.turbovidCode(html)
+        if (turbovid != null) {
+            val embedHtml = app.get(
+                "https://turbovidhls.com/t/$turbovid",
+                referer = "$mainUrl/"
+            ).text
+            val master = Film1kParse.turbovidStreamUrl(embedHtml)
+            if (master != null) {
+                callback(
+                    newExtractorLink(
+                        name = name,
+                        source = name,
+                        url = master,
+                        type = ExtractorLinkType.M3U8
+                    ) {
+                        this.referer = "$mainUrl/"
+                        this.quality = Qualities.Unknown.value
+                    }
+                )
+                return true
+            }
+            // master extraction failed — fall through to the abyssplayer branch instead of
+            // aborting loadLinks (turbovid and abyssplayer embeds share the same pages)
         }
         // issue #233 gap 2: abyssplayer embeds (SoTrym/enc-dec chain) — shared adapter
         val abyssUrl = Regex("""abyssplayer\.com/\?v=[A-Za-z0-9]+""").find(html)?.value

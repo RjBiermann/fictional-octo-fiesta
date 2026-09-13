@@ -131,8 +131,8 @@ subprojects {
 tasks.register("bootstrapCloudstream") {
     group = "build setup"
     description = "Fetches the official cloudstream3:pre-release classes.jar and installs it into mavenLocal"
-    // sha256 of the classes.jar served by the `pre-release` tag as of 2026-09-12
-    val expectedSha = "e76bc931d3949dd66b3cba47e5ee04c83e50526bc4a070dbbec837b3ebb58ea5"
+    // sha256 of the classes.jar served by the `pre-release` tag as of 2026-09-13
+    val expectedSha = "1719357c71d9c6af86b183fce5e06dc6be40e3ac05b42b6b09a10f6c5fac9a31"
     val url = "https://github.com/recloudstream/cloudstream/releases/download/pre-release/classes.jar"
     val mavenLocalDir = file(System.getProperty("user.home")).resolve(".m2/repository")
     val dest = mavenLocalDir.resolve("com/lagradost/cloudstream3/pre-release")
