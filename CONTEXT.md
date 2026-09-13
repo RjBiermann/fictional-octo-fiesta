@@ -43,6 +43,10 @@ _Avoid_: auto label, bot label
 A maintainer comment on an issue or PR (`/retry`, `/review`) that the pipeline dispatches. A Command can only re-fire work a Trigger label already created — it never creates work, never spends a Round itself. Issues and PRs alike accept Commands; trigger labels live on issues only.
 _Avoid_: slash command, bot command, retrigger
 
+**Rebuild**:
+A pipeline-initiated redo of a build whose branch can no longer land cleanly: the sweep's rebase against `main` conflicts, the PR closes, and the issue re-enters the queue on fresh `main`. Counts against the attempt budget — unlike `/retry`, the human Command that resets it. Never triggered by agent output — only the sweep's rebase stage.
+_Avoid_: retry (that is the human Command), re-run
+
 **Re-fire**:
 Re-running an Agent run for an existing issue or PR, via a Command. The new run Supersedes the previous one. A Builder Re-fire clears the PR's Rounds (a fresh build gets a fresh review budget); a Reviewer Re-fire still respects the Round cap.
 _Avoid_: retrigger, retry (retry is the command name, not the concept)
