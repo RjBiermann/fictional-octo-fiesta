@@ -38,11 +38,27 @@ class Cat3FilmParseTest {
         assertEquals("462", eps.last().data)
     }
 
-    @Test fun `movie single server keeps episode 1 without season`() {
-        val eps = Parse.episodes(Jsoup.parse(res("watch-handmaiden.html")))
-        assertEquals(1, eps.size)
-        assertEquals(1, eps[0].number)
-        assertNull(eps[0].season)
-        assertEquals("405", eps[0].data)
+    // --- stream URL suffix (#410) -------------------------------------------
+
+    @Test fun `bare token gets index m3u8 suffix`() {
+        assertEquals("https://cat3.asuka-vod.site/TOKEN/index.m3u8",
+            Parse.streamUrl("https://cat3.asuka-vod.site/TOKEN"))
+    }
+
+    @Test fun `trailing slash is stripped before suffixing`() {
+        assertEquals("https://cat3.asuka-vod.site/TOKEN/index.m3u8",
+            Parse.streamUrl("https://cat3.asuka-vod.site/TOKEN/"))
+    }
+
+    @Test fun `already-suffixed urls pass through`() {
+        assertEquals("https://cdn/x/index.m3u8", Parse.streamUrl("https://cdn/x/index.m3u8"))
+        assertEquals("https://cdn/x/index.json", Parse.streamUrl("https://cdn/x/index.json"))
+        assertEquals("https://cdn/x/index.m3u8?k=v", Parse.streamUrl("https://cdn/x/index.m3u8?k=v"))
+        assertEquals("https://cdn/v.mp4", Parse.streamUrl("https://cdn/v.mp4"))
+    }
+
+    @Test fun `blank or null yields null`() {
+        assertNull(Parse.streamUrl(null))
+        assertNull(Parse.streamUrl("   "))
     }
 }

@@ -6,6 +6,10 @@ import com.lagradost.api.Log
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import com.lagradost.cloudstream3.network.CloudflareKiller
+import okhttp3.Interceptor
+import okhttp3.Response
+import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
@@ -21,6 +25,25 @@ class Cat3Film : MainAPI() {
 
     private val mapper = ObjectMapper().registerKotlinModule()
 
+    // Issue #410: CF decisions on cat3film.com / cat3.asuka-vod.site are client- and
+    // IP-scoped (probed okhttp-cold: 200 here, challenged plain-curl on /index.json,
+    // "No links found" in-app). The only zero-links path is the sources fetch returning
+    // a "Just a moment…" interstitial that Jackson then fails on. Route fetches through
+    // CloudflareKiller (repo precedent: FullPorner/Film1k).
+    private val cloudflareKiller by lazy { CloudflareKiller() }
+    private val cfInterceptor by lazy { CfInterceptor(cloudflareKiller) }
+
+    class CfInterceptor(private val killer: CloudflareKiller) : Interceptor {
+        override fun intercept(chain: Interceptor.Chain): Response {
+            val response = chain.proceed(chain.request())
+            if (Jsoup.parse(response.peekBody(1024 * 1024).string()).html().contains("Just a moment")) {
+                return killer.intercept(chain)
+            }
+            return response
+        }
+    }
+
+
     override val mainPage = mainPageOf(
         "$mainUrl/movies" to "Movies",
         "$mainUrl/tv-series" to "TV Series",
@@ -28,7 +51,7 @@ class Cat3Film : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = if (page <= 1) request.data else "${request.data}?page=$page"
-        val document = app.get(url).document
+        val document = app.get(url, interceptor = cfInterceptor).document
         val home = document.select("a.card").mapNotNull {
             try { it.toSearchResult() } catch (e: Exception) { null }
         }
@@ -50,7 +73,7 @@ class Cat3Film : MainAPI() {
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
         if (page > 1) return newSearchResponseList(emptyList(), hasNext = false)
-        val res = app.get("$mainUrl/_ajax/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}")
+        val res = app.get("$mainUrl/_ajax/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}", interceptor = cfInterceptor)
         val results = try {
             mapper.readValue<SearchJson>(res.text).results.orEmpty()
         } catch (e: Exception) {
@@ -66,7 +89,7 @@ class Cat3Film : MainAPI() {
     }
 
     override suspend fun load(url: String): LoadResponse {
-        val document = app.get(url).document
+        val document = app.get(url, interceptor = cfInterceptor).document
         val title = document.selectFirst("h1.info-title")?.text()?.trim()
             ?: document.selectFirst("meta[property=\"og:title\"]")?.attr("content")
             ?: url
@@ -112,7 +135,7 @@ class Cat3Film : MainAPI() {
     // FINDINGS: a single ?sv=1&part=1 response contains the .wserver pane for every
     // season (multi-season series render all of them server-side).
     private suspend fun loadEpisodes(slug: String): List<Episode> {
-        val watch = app.get("$mainUrl/watch/$slug?sv=1&part=1", referer = "$mainUrl/$slug")
+        val watch = app.get("$mainUrl/watch/$slug?sv=1&part=1", referer = "$mainUrl/$slug", interceptor = cfInterceptor)
         val episodes = Parse.episodes(watch.document).map {
             newEpisode(it.data) {
                 this.name = it.name ?: "Episode ${it.number}"
@@ -131,23 +154,20 @@ class Cat3Film : MainAPI() {
     ): Boolean {
         // data = episode id
         try {
-            val res = app.get("$mainUrl/api/v1/episodes/$data/sources", referer = "$mainUrl/")
+            val res = app.get("$mainUrl/api/v1/episodes/$data/sources", referer = "$mainUrl/", interceptor = cfInterceptor)
             val json = mapper.readValue<SourcesJson>(res.text)
             json.sources.orEmpty().forEach { src ->
-                var f = src.file?.trim().orEmpty()
-                if (f.isBlank()) return@forEach
-                // Site player appends /index.m3u8 (=/index.json) to the bare token URL;
-                // the unsuffixed URL is behind a CF challenge and serves no playlist.
-                if (!f.matches(Regex(".*\\.(m3u8|json)(\\?.*)?$"))) f = f.trimEnd('/') + "/index.m3u8"
-                callback.invoke(
-                    newExtractorLink(name, name, fixUrl(f)) {
-                        this.referer = "$mainUrl/"
-                        this.type = ExtractorLinkType.M3U8
-                    }
-                )
+                Parse.streamUrl(src.file)?.let { f ->
+                    callback.invoke(
+                        newExtractorLink(name, name, fixUrl(f), ExtractorLinkType.M3U8) {
+                            this.referer = "$mainUrl/"
+                            this.quality = Qualities.Unknown.value
+                        }
+                    )
+                }
             }
         } catch (e: Exception) {
-            Log.d(name, "loadLinks: ${e.message}")
+            Log.i(name, "loadLinks: ${e.message}")
         }
         return true
     }
@@ -169,6 +189,18 @@ object Parse {
     /** ld+json aggregateRating.ratingValue (0–10), Double or null. */
     fun rating(html: String?): Double? =
         html?.let { RATING.find(it)?.groupValues?.get(1)?.toDoubleOrNull() }
+
+    /**
+     * Stream URL from a sources-API `file` token. Null for blank input. The site player
+     * appends /index.m3u8 (=/index.json) to the bare token URL — the unsuffixed URL is
+     * behind a CF challenge and serves no playlist (#410); already-suffixed URLs and
+     * explicit file URLs pass through unchanged.
+     */
+    fun streamUrl(file: String?): String? {
+        val f = file?.trim().orEmpty()
+        if (f.isBlank()) return null
+        return if (f.matches(Regex(".*\\.(m3u8|json|mp4|mkv|mpd)(\\?.*)?$"))) f else f.trimEnd('/') + "/index.m3u8"
+    }
 
     /**
      * Watch-page episodes. One .wserver per season (head label "Season N"; single-server
