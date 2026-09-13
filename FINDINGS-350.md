@@ -54,7 +54,7 @@ permission.
 
 The agent process tree holding a write token is by design — the issue
 asks the workflow to *document why*. The pipeline is "agents never merge,
-humans decide" (AGENTS.md; ADR-0004/0007/0008), but delivery is
+humans decide" (AGENTS.md; ADR-0004/0007), but delivery is
 automated: devloop's own adapter calls `git push` (branch) and
 `gh pr create` (PR) and `gh issue comment/close` (error tails, closeout,
 spec sub-issues). A write-scoped GH_TOKEN for issues + PRs is what makes
@@ -75,16 +75,26 @@ distinct credential channels above.
 - `contents: write` → `contents: read`
 - keep `issues: write`, `pull-requests: write`
 - add a short comment block stating which channel uses which credential:
-
-## Fix
+  GITHUB_TOKEN (issues + pull-requests write; contents read-only) for the
+  `gh` channel, AGENT_PAT for the git push channel.
 
 ## Verification
 
-- `actionlint` on all workflows (repo rule for `.github/**` changes): TODO below.
+- `actionlint` on all workflows (repo rule for `.github/**` changes):
+
+  ```
+  $ actionlint .github/workflows/*.yml
+  # → no output, exit 0 (all workflows pass)
+  ```
+
 - No provider code touched → the verify-provider skill's live-site
   selector/stream checks do not apply; the relevant verification is
-  workflow lint (this section) plus CI compile/build checks at merge.
+  workflow lint (above) plus CI compile/build checks at merge.
 - Behavior check by inspection: every `gh` write call above is inside
   issues/pull-requests scopes; every `git push` rides the extraheader
   PAT, independent of GITHUB_TOKEN contents scope. A real workflow run
   requires push + secrets (maintainer-only), so CI on merge covers it.
+- Version caveat (recorded in the workflow comment): the channel
+  analysis is verified against devloop v0.3.7; a future tag that moves
+  any write outside issues/pull-requests makes contents: read fail
+  loudly mid-run — re-audit the permissions block when bumping the pin.
