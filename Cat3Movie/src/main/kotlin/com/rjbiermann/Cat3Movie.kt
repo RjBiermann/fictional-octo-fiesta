@@ -4,8 +4,11 @@ import com.lagradost.api.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
+import com.lagradost.cloudstream3.network.CloudflareKiller
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.kraptor.registerHostExtractors
+import okhttp3.Interceptor
+import okhttp3.Response
 import org.jsoup.nodes.Element
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
@@ -18,6 +21,26 @@ class Cat3Movie : MainAPI() {
     override var lang = "en"
     override val supportedTypes = setOf(TvType.NSFW)
 
+    // issue #411: cat3movie.org enabled Cloudflare JS Detection (the JSD snippet now sits
+    // on every healthy 200 page — see FINDINGS-411.md). On a challenged client every leg
+    // fails silently: the watch page comes back as a "Just a moment…" interstitial →
+    // streamConfig finds no post_id → loadLinks returns false with zero callbacks →
+    // CS3 shows "No links found". Route every fetch through CloudflareKiller (repo
+    // precedent: Cat3Film #410, FullPorner, Film1k). Healthy pages carry the JSD snippet
+    // too, so the trigger is the interstitial markers only (Parse.isChallengePage).
+    private val cloudflareKiller by lazy { CloudflareKiller() }
+    private val cfInterceptor by lazy { CfInterceptor(cloudflareKiller) }
+
+    class CfInterceptor(private val killer: CloudflareKiller) : Interceptor {
+        override fun intercept(chain: Interceptor.Chain): Response {
+            val response = chain.proceed(chain.request())
+            if (Parse.isChallengePage(response.peekBody(1024 * 1024).string())) {
+                return killer.intercept(chain)
+            }
+            return response
+        }
+    }
+
     override val mainPage = mainPageOf(
         "$mainUrl" to "Latest",
         "$mainUrl/new-movies" to "New Movies",
@@ -28,7 +51,7 @@ class Cat3Movie : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = if (page <= 1) request.data else "${request.data}/page/$page"
-        val document = app.get(url).document
+        val document = app.get(url, interceptor = cfInterceptor).document
         val home = Parse.homeCards(document).mapNotNull { it.toSearchResult() }
         return newHomePageResponse(
             list = HomePageList(name = request.name, list = home, isHorizontalImages = false),
@@ -54,13 +77,13 @@ class Cat3Movie : MainAPI() {
         val slug = query.trim().lowercase()
             .filter { it.isLetterOrDigit() || it.isWhitespace() }
             .replace(Regex("\\s+"), "-")
-        val document = app.get("$mainUrl/search/$slug").document
+        val document = app.get("$mainUrl/search/$slug", interceptor = cfInterceptor).document
         val list = Parse.searchCards(document).mapNotNull { it.toSearchResult() }
         return newSearchResponseList(list, hasNext = false)
     }
 
     override suspend fun load(url: String): LoadResponse {
-        val document = app.get(url).document
+        val document = app.get(url, interceptor = cfInterceptor).document
 
         val title = document.selectFirst("h1.entry-title")?.text()?.trim() ?: url.substringAfterLast('/')
         val poster = fixUrlNull(document.selectFirst("meta[property=og:image]")?.attr("content"))
@@ -93,7 +116,7 @@ class Cat3Movie : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val document = try {
-            app.get(data).document
+            app.get(data, interceptor = cfInterceptor).document
         } catch (e: Exception) {
             Log.d("Cat3Movie", "watch page: ${e.message}")
             null
@@ -117,6 +140,7 @@ class Cat3Movie : MainAPI() {
                 val playerHtml = app.get(
                     "$mainUrl/wp-content/themes/halimmovies/player.php",
                     referer = Parse.playerReferer(data, sv),
+                    interceptor = cfInterceptor,
                     headers = mapOf("X-Requested-With" to "XMLHttpRequest"),
                     params = mapOf(
                         "episode_slug" to "full",
@@ -132,7 +156,7 @@ class Cat3Movie : MainAPI() {
 
                 if (embed.contains("hlsfast.com/#")) {
                     val hash = embed.substringAfterLast('#')
-                    val hlsFast = extractHlsFast(hash)
+                    val hlsFast = extractHlsFast(hash, cfInterceptor)
                     if (hlsFast != null) {
                         callback.invoke(
                             newExtractorLink(
@@ -180,10 +204,11 @@ class Cat3Movie : MainAPI() {
             return String(cipher.doFinal(data))
         }
 
-        private suspend fun extractHlsFast(hash: String): String? = try {
+        private suspend fun extractHlsFast(hash: String, cfInterceptor: Interceptor): String? = try {
             val body = app.get(
                 "https://hlsfast.com/api/v1/video?id=$hash&w=1280&h=720&r=cat3movie.org",
-                referer = "https://hlsfast.com/"
+                referer = "https://hlsfast.com/",
+                interceptor = cfInterceptor
             ).text.trim()
             if (!body.matches(Regex("[0-9a-fA-F]+"))) return null
             val json = mapper.readTree(aesCbcDecryptHex(body))
@@ -242,6 +267,17 @@ object Parse {
     /** Embed src from the player.php response, double or single quotes. */
     fun embedIframe(html: String): String? =
         Regex("iframe[^>]*src=[\"']([^\"']+)").find(html)?.groupValues?.get(1)
+
+    /** Cloudflare interstitial detector (issue #411). Real challenge pages carry the
+     *  "Just a moment…" title or the cf-chl/_cf_chl challenge markers; healthy pages
+     *  must NOT match — since the #411 probe every healthy 200 page embeds the JSD
+     *  loader (/cdn-cgi/challenge-platform/scripts/jsd/main.js), so the bare
+     *  challenge-platform path is not a trigger. */
+    fun isChallengePage(html: String): Boolean =
+        html.contains("Just a moment") ||
+            html.contains("_cf_chl_opt") ||
+            html.contains("cf-chl") ||
+            html.contains("challenge-platform/h/b")
 }
 
 /** Watch-page player config (issue #250). */

@@ -99,6 +99,44 @@ class Cat3MovieEmbedTest {
     }
 }
 
+/** Issue #411: cat3movie.org enabled Cloudflare JS Detection (the JSD snippet now sits on
+ *  every healthy 200 page — see FINDINGS-411.md). A challenged client gets a "Just a
+ *  moment…" interstitial instead of the watch page; loadLinks must detect that shape so
+ *  the CF interceptor can retry. Fixture cf-challenge.html reproduces the interstitial.
+ *  Healthy-page markers: the JSD snippet alone must NOT count as a challenge. */
+class Cat3MovieChallengeTest {
+
+    private fun res(name: String) =
+        javaClass.getResourceAsStream("/$name")?.readBytes()?.toString(Charsets.UTF_8)
+            ?: error("fixture $name missing")
+
+    @Test fun `challenge interstitial is detected`() {
+        assertEquals(true, Parse.isChallengePage(res("cf-challenge.html")))
+    }
+
+    @Test fun `healthy watch page with JSD snippet is not a challenge`() {
+        assertEquals(false, Parse.isChallengePage(res("home-dup.html")))
+        assertEquals(false, Parse.isChallengePage(res("player-page.html")))
+    }
+
+    @Test fun `bare JSD snippet alone is not a challenge`() {
+        // the JSD loader sits on every healthy 200 page since the #411 probe — it must not
+        // trip the detector (real interstitials carry cf-chl/_cf_chl markers instead)
+        assertEquals(false, Parse.isChallengePage(
+            "<html><script src=\"/cdn-cgi/challenge-platform/scripts/jsd/main.js\"></script></html>"))
+    }
+
+    @Test fun `empty and plain bodies are not challenges`() {
+        assertEquals(false, Parse.isChallengePage(""))
+        assertEquals(false, Parse.isChallengePage("<div>no player here</div>"))
+    }
+
+    @Test fun `challenge markers without a full page still match`() {
+        assertEquals(true, Parse.isChallengePage("<html>Just a moment...</html>"))
+        assertEquals(true, Parse.isChallengePage("<script>window._cf_chl_opt={cType:'managed'}</script>"))
+    }
+}
+
 /** Issue #250 re-probe: watch pages dropped the raw p.released markup — year comes from the
  *  title's "Movie (1985)" suffix (every halimmovies watch-page h1 carries it). */
 class Cat3MovieYearTest {

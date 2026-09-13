@@ -1,4 +1,4 @@
-version = 7 // #250 nonce fallback + player.php cache-buster/referer fix
+version = 8 // #411 CloudflareKiller on all fetches (site enabled CF JSD) + tested Parse.isChallengePage
 
 cloudstream {
     authors     = listOf("RjBiermann")
