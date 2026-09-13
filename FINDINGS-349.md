@@ -39,13 +39,23 @@ delete-vs-fix first.
   ADR-0004 warns about.
 - **No references remain that could resurrect it.** Repo-wide grep for
   `deliver-pr|x-access-token|AGENT_PAT` hits only:
-  - `.github/workflows/devloop.yml` — the *current* delivery mechanism, which
-    does **not** reintroduce either defect: credentials go into
+  - `.github/workflows/devloop.yml` — the *current* delivery mechanism. Its
+    push path does not reintroduce either defect: credentials go into
     `http.https://github.com/.extraheader` (base64 basic auth, overriding
     checkout's persisted header) rather than the remote URL, and an unset
     `AGENT_PAT` yields an invalid header that fails the push **loudly**
     (401/403) instead of silently degrading to `github.token`. This is the
     fail-fast behavior the finding's fix options asked for, already in place.
+    One caveat, for accuracy: line 52 embeds a token in a URL
+    (`pip install git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.3.7`)
+    — the same *syntactic* anti-pattern P0-2 describes. It is a materially
+    different case, and acceptable as-is: it is a read-only dependency fetch
+    (installing devloop, not pushing), it uses the repo-scoped `GITHUB_TOKEN`
+    rather than a PAT, it grants no push privilege, and the actual push path
+    is the `.extraheader` above with loud failure on a missing `AGENT_PAT`.
+    Noted here so the evidence does not overclaim; fixing it is out of scope
+    for P0-2 and would require editing `.github/workflows/`, which AGENTS.md
+    reserves for issue specs that name the file.
   - `docs/adr/0004-agents-never-push.md` — banner (amended by fe40e95)
     records the deletion and states delivery is now performed by the devloop
     run itself; the historical body correctly describes the old mechanism as
@@ -69,9 +79,10 @@ delete-vs-fix first.
 Resolved upstream — nothing to fix. Both defects P0-2 describes were real in
 the deleted file, but the delete-vs-fix decision was already made and merged
 as deletion in issue #361 (P1-8, commit `fe40e95`, PR #395). The replacement
-delivery path in `devloop.yml` avoids both problems: header-based
-credentials (no URL-embedded token) and loud auth failure on a missing
-`AGENT_PAT` (no silent `github.token` fallback). ADR-0004's banner already
+delivery path in `devloop.yml` avoids both problems on the push route:
+header-based credentials and loud auth failure on a missing `AGENT_PAT`
+(see the line-52 caveat in Evidence — a read-only `GITHUB_TOKEN` pip fetch,
+not the push path P0-2 targets). ADR-0004's banner already
 documents the deletion. Any further change here would be re-fixing a file
 that does not exist.
 
