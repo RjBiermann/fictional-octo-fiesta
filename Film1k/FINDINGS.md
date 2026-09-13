@@ -139,3 +139,27 @@ slug (`{slug}-{year}.html`). Provider maps `this.year` from it (issue #233 gap 3
 - **film1k.com is behind a Cloudflare managed challenge for datacenter runners** (`cf-mitigated: challenge`, HTTP 403 on every URL). verify.sh only reaches the site from a non-blocked runner; this PR's PASS (2026-09-10) was recorded from an unblocked runner. In-app behavior (NiceHttp from a device) may differ.
 - Videos are ~50/50 split between film1k.xyz and abyssplayer.com — both implemented (abyss via the shared AbyssPlayer adapter in this PR, see Stream sources).
 - Byse rotates edge CDNs (madrid/waw/...) — handled since playback returns fresh signed m3u8 URLs per request.
+
+---
+
+# Refresh 2026-09-13 (issue #408)
+
+- Search: `/?s={q}` still returns `article.loop-post` cards, but **pagination is gone**:
+  `/page/2/?s=` → hard 404 (`?paged=2` too). Homepage still paginates (`/page/2/` → 24 cards).
+- Video-page embed markup drifted:
+  - Byse iframes are now slash-free: `film1k.xyz/e/{code}` (plus a fake-extension video
+    source `film1k.xyz/e/{code}/{slug}.mp4`) — the old `film1k.xyz/e/{code}/` regex matched
+    neither. Fresh fixture `film1k_video_byse_noslash.html`.
+  - A third host shares the pages now: `turbovidhls.com/t/{code}` JW embeds
+    (`barely-legal-legal-lesbian-vampires-2003.html`). The JS-free master lives in the
+    (unpacked) JW config: `cdn{N}.turboviplay.com/data3/{code}/{code}.m3u8`; variants chain
+    through `turbosplayer.com` → googleusercontent segments with no extra headers.
+    Fresh fixtures `film1k_video_turbovid.html`, `film1k_turbovid_embed.html`. HLS master
+    fetched live: HTTP 200 `application/vnd.apple.mpegurl`.
+  - Byse PoW service still live: `POST /api/videos/{code}/embed/captcha/` → 200 with
+    pow_nonce/pow_difficulty/pow_token (solver unchanged, goldens in BysePowTest).
+- Search pagination fix: `Film1k.search` stops at page 1 (`hasNext=false`); the hard 404
+  is no longer requested. `byseCode`/`turbovidCode`/`turbovidStreamUrl` are pure Parse
+  functions with unit tests (Film1kParseTest).
+- verify.sh could not reach the site from this runner (CF challenge 403 on every URL, same
+  as the 2026-09-10 PR note): the checks above were gathered with browser-TLS probing.

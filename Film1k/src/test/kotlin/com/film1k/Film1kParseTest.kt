@@ -8,6 +8,16 @@ import org.junit.Test
 /** TDD for issue #233: related videos, year mapping. Fixtures from live film1k.com pages. */
 class Film1kParseTest {
 
+    private val byseNoSlashDoc by lazy {
+        javaClass.classLoader.getResource("film1k_video_byse_noslash.html")!!.readText()
+    }
+    private val turbovidDoc by lazy {
+        javaClass.classLoader.getResource("film1k_video_turbovid.html")!!.readText()
+    }
+    private val turbovidEmbed by lazy {
+        javaClass.classLoader.getResource("film1k_turbovid_embed.html")!!.readText()
+    }
+
     private val relatedDoc by lazy {
         Jsoup.parse(javaClass.classLoader.getResource("film1k_video_related.html")!!.readText())
     }
@@ -44,5 +54,29 @@ class Film1kParseTest {
     @Test fun `no year yields null`() {
         assertNull(Film1kParse.yearOf("Some Movie - Watch Free Online | Film1k"))
         assertNull(Film1kParse.yearOf(null))
+    }
+    // ---- issue #408: embed-markup drift (Byse no trailing slash + new turbovidhls host) ----
+
+    @Test fun `byse code from slugless iframe markup`() {
+        assertEquals("m2pahe0ccyjt", Film1kParse.byseCode(byseNoSlashDoc))
+        // path form still parses (slug variant)
+        assertEquals(
+            "dipzme6fc8um",
+            Film1kParse.byseCode("""<source src="https://film1k.xyz/e/dipzme6fc8um/bitter-honey.mp4">""")
+        )
+    }
+
+    @Test fun `no byse embed yields null`() {
+        assertNull(Film1kParse.byseCode("<html>nothing here</html>"))
+    }
+
+    @Test fun `turbovid code from page markup`() {
+        assertEquals("696f9b3d701a3", Film1kParse.turbovidCode(turbovidDoc))
+        assertNull(Film1kParse.turbovidCode("<html></html>"))
+    }
+
+    @Test fun `turbovid master m3u8 extracted from embed page`() {
+        val url = Film1kParse.turbovidStreamUrl(turbovidEmbed)
+        assertEquals("https://cdn3.turboviplay.com/data3/696f9b3d701a3/696f9b3d701a3.m3u8", url)
     }
 }

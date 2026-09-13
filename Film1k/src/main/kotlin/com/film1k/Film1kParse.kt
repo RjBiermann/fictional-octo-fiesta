@@ -20,4 +20,24 @@ object Film1kParse {
     /** Year from og:title — every title carries "(<year>)" (fixture: "Tick Tock (2000) - ..."). */
     fun yearOf(ogTitle: String?): Int? =
         ogTitle?.let { Regex("""\((\d{4})\)""").find(it)?.groupValues?.get(1)?.toIntOrNull() }
+
+    /** Byse (film1k.xyz) embed code — issue #408: the page markup is now
+     *  `/e/{code}` (lazy iframe, no trailing slash) and `/e/{code}/{slug}.mp4`
+     *  (fake-extension video source); the old loadingLinks regex demanded a trailing `/`
+     *  and matched neither. Fixture: film1k_video_byse_noslash.html. */
+    fun byseCode(html: String): String? {
+        val matches = Regex("""film1k\.xyz/e/([a-zA-Z0-9]+)""").findAll(html)
+        return matches.lastOrNull()?.groupValues?.get(1)
+    }
+
+    /** Turbovid (turbovidhls.com) embed code — issue #408: streaming pages now also serve
+     *  `/t/{code}` JW embeds from a third host the provider did not know. JW setup on the
+     *  embed page carries the cdn{N}.turboviplay.com/data3/{code}/{code}.m3u8 master. */
+    fun turbovidCode(html: String): String? =
+        Regex("""turbovidhls\.com/t/([a-zA-Z0-9]+)""").find(html)?.groupValues?.get(1)
+
+    /** HLS master URL from the turbovid embed page (plain string, not packed). */
+    fun turbovidStreamUrl(embedHtml: String): String? =
+        Regex("""https://[A-Za-z0-9.]*turboviplay\.com/data3/[a-zA-Z0-9]+/[A-Za-z0-9]+\.m3u8""")
+            .find(embedHtml)?.value
 }
