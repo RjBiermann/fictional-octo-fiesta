@@ -111,8 +111,8 @@ subprojects {
         // Constructors are pure field assignments, JVM-test safe. The two
         // kotlinx-serialization jars satisfy Voe's @Serializable companions.
         testImplementation(files(configurations.getByName("cloudstream")))
-        testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.6.3")
-        testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.6.3")
+        testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.11.0")
+        testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.11.0")
     }
 
 }
