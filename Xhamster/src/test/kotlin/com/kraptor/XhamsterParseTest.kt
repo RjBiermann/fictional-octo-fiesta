@@ -65,13 +65,49 @@ class XhamsterParseTest {
     // to videoModel.thumbURL (sfw 1280) / preload css; a real thumbBig (Sep-11-era s(w:526)
     // capture frame) stays first choice.
     @Test fun `picker skips 16x9 thumbBig and falls back to videoModel thumbURL`() {
-        val initials = xHamster().getInitialsJson(fixture("v3"))!!
-        val poster = xHamster().pickVideoPoster(
+        val initials = xh.getInitialsJson(fixture("v3"))!!
+        val poster = xh.pickVideoPoster(
             initials.videoEntity?.thumbBig,
             initials.videoModel?.thumbURL,
             null
         )
         assertEquals("https://ic-vt-nss.xhcdn.com/a/ZTlmZDhmZmIwODU5YTQ3MDg5MzMwNGNhYTc3MGRhYWQ/s(w:1280,h:720),webp/030/767/722/sfw/cv/hq.1.webp", poster)
+    }
+
+    // 2026-09-16 review round: the recommendations mapping (desktop path + mobile fallback)
+    // lives in recsFromThumbs — Parse-level tested here, incl. the empty branch that triggers
+    // the mobile fetch (v3 is a degraded desktop page: relatedVideos carries no thumbs).
+    @Test fun `recsFromThumbs maps real thumbs and blanks unmappable entries`() {
+        val recs = xh.recsFromThumbs(
+            xh.getInitialsJson(fixture("v1"))!!
+                .videoPageComponent!!.relatedVideos!!.videoTabInitialData!!
+                .videoListProps!!.videoThumbProps
+        )
+        assertEquals(11, recs.size)
+        recs.forEach { rec ->
+            assertTrue(rec.url!!.startsWith("https://xhamster.com/videos/"))
+            assertTrue(rec.name!!.isNotBlank())
+            assertTrue(rec.posterUrl!!.startsWith("https://"))
+        }
+        val v3 = xh.getInitialsJson(fixture("v3"))!!
+        assertTrue(
+            xh.recsFromThumbs(
+                v3.videoPageComponent?.relatedVideos?.videoTabInitialData
+                    ?.videoListProps?.videoThumbProps
+            ).isEmpty()
+        )
+        assertTrue(xh.recsFromThumbs(null).isEmpty())
+
+        // blank title / missing link entries are dropped, matching cardsFromInitials style
+        val blank = xh.recsFromThumbs(
+            listOf(
+                xHamster.VideoThumb(" ", "https://xhamster.com/videos/a", "https://t/a.webp"),
+                xHamster.VideoThumb("t", null, "https://t/b.webp"),
+                xHamster.VideoThumb("t", "https://xhamster.com/videos/c", null)
+            )
+        )
+        assertEquals(1, blank.size)
+        assertEquals("https://xhamster.com/videos/c", blank[0].url)
     }
 
     @Test fun `picker keeps real thumbBig and css fallback order`() {
@@ -171,4 +207,6 @@ class XhamsterParseTest {
 
     private fun fixture(name: String): String =
         javaClass.getResource("/xhamster-video-$name.html")!!.readText()
+
+    private val xh = xHamster()
 }

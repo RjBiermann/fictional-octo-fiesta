@@ -150,28 +150,22 @@ class xHamster : MainAPI() {
         // (videoPageComponent…videoThumbProps). 2026-09-16 (issue #427 re-probe): desktop pages
         // now lazy-load related videos (relatedVideosComponent.relatedTabs carries only paging
         // counts server-side) while the mobile page still hydrates 11 directly — fall back to
-        // the same mobile fetch the stream path already uses.
-        var recommendations = initialData?.videoPageComponent?.relatedVideos?.videoTabInitialData
-            ?.videoListProps?.videoThumbProps.orEmpty().mapNotNull { thumb ->
-                val name = thumb.title ?: return@mapNotNull null
-                val link = thumb.pageURL ?: return@mapNotNull null
-
-                newMovieSearchResponse(name, link, TvType.NSFW) {
-                    this.posterUrl = thumb.thumbURL
-                }
-            }
+        // the same mobile fetch the stream path already uses. Mapping shared by both paths
+        // via recsFromThumbs.
+        var recommendations = recsFromThumbs(
+            initialData?.videoPageComponent?.relatedVideos?.videoTabInitialData
+                ?.videoListProps?.videoThumbProps
+        )
         if (recommendations.isEmpty()) {
             recommendations = try {
-                getInitialsJson(
-                    app.get(url, headers = mobileHeaders, cookies = mapOf("video_titles_translation" to "0"))
-                        .document
-                        .html()
-                )?.videoPageComponent?.relatedVideos?.videoTabInitialData
-                    ?.videoListProps?.videoThumbProps.orEmpty().mapNotNull { thumb ->
-                        val name = thumb.title ?: return@mapNotNull null
-                        val link = thumb.pageURL ?: return@mapNotNull null
-                        newMovieSearchResponse(name, link, TvType.NSFW) { this.posterUrl = thumb.thumbURL }
-                    }
+                recsFromThumbs(
+                    getInitialsJson(
+                        app.get(url, headers = mobileHeaders, cookies = mapOf("video_titles_translation" to "0"))
+                            .document
+                            .html()
+                    )?.videoPageComponent?.relatedVideos?.videoTabInitialData
+                        ?.videoListProps?.videoThumbProps
+                )
             } catch (e: Exception) {
                 Log.e("xHamster", "recommendations fallback failed: ${e.message}")
                 emptyList()
@@ -436,6 +430,17 @@ class xHamster : MainAPI() {
         if (style.isNullOrEmpty()) return null
         return Regex("""url\(['"]([^'"]+)""").find(style)?.groupValues?.get(1)
     }
+
+    // Shared VideoThumb → SearchResponse mapping for recommendations (issue #427 review:
+    // was copy-pasted in the desktop path and the mobile fallback — one helper now).
+    internal fun recsFromThumbs(thumbs: List<VideoThumb>?): List<SearchResponse> =
+        thumbs.orEmpty().mapNotNull { thumb ->
+            val name = thumb.title?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val link = thumb.pageURL ?: return@mapNotNull null
+            newMovieSearchResponse(name, link, TvType.NSFW) {
+                this.posterUrl = thumb.thumbURL
+            }
+        }
 
     // issue #427: guest thumbBig (and sometimes videoModel.thumbURL) became a 16×9-pixel
     // b(2) artifact on live pages — a 16px poster renders as a blurred smear. Skip the tiny
