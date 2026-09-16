@@ -90,7 +90,8 @@ class HQPorner : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get("${request.data}/$page", referer = "$mainUrl/", headers = mapOf("User-Agent" to desktopUa)).document
         // ponytail: mobile UA serves no hover span.icon in cards; a.image is stable in both layouts
-        val home     = document.select("div.row section.box.feature:has(a.image)").mapNotNull { it.toMainPageResult() }
+        // ponytail: site randomizes the card class token per request (box feature / box features / …); anchor on the stable a.image-popup link inside the section
+        val home     = document.select("div.row section:has(a.image)").mapNotNull { it.toMainPageResult() }
 
         return newHomePageResponse(HomePageList(request.name, home, true))
     }
@@ -111,7 +112,7 @@ class HQPorner : MainAPI() {
     override suspend fun search(query: String, page: Int): SearchResponseList {
         val document = app.get("${mainUrl}/?q=${query}&p=$page", referer = "${mainUrl}/", headers = mapOf("User-Agent" to desktopUa)).document
 
-        val aramaCevap = document.select("div.row section.box.feature:has(a.image)").mapNotNull { it.toMainPageResult() }
+        val aramaCevap = document.select("div.row section:has(a.image)").mapNotNull { it.toMainPageResult() }
         return newSearchResponseList(aramaCevap, hasNext = true)
     }
 
@@ -172,7 +173,9 @@ class HQPorner : MainAPI() {
             "Referer" to "${mainUrl}/",
         )).document
 
-        val iframe =  fixUrlNull(document.selectFirst("iframe[src*=mydaddy]")?.attr("src")) ?: ""
+        // ponytail: two player domains in the wild — recent videos embed mydaddy.cc,
+        // older uploads (e.g. 39719-Maria_Ozawa_2 from issue #431) embed hqwo.cc; hqwo bodies carry the same a href='…/pubs/<key>/<res>.mp4' markup the shared MyDaddyExtractor regex parses
+        val iframe = fixUrlNull(document.selectFirst("iframe[src*=mydaddy], iframe[src*=hqwo]")?.attr("src")) ?: ""
 
 //        Log.d("kraptor_$name", "iframe = ${iframe}")
 
