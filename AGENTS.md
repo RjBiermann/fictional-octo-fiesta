@@ -58,11 +58,15 @@ CI (`.github/workflows/build.yml`) builds all providers on push to `master`/`mai
 
 This repo runs [devloop](https://github.com/RjBiermann/devloop) — a forge-agnostic AI-native
 development framework (spec → breakdown → build → human merge). Config:
-`config.toml` (committed; per-kind `[runtime.<kind>]` and split budgets arrive
-with devloop v0.3.12's ADR-0004) + `skills/` (gitignored; regenerate with
-`devloop init`).
-The domain skills in `.pi/skills/` are unchanged — they are what the agent
-uses for provider work (probe → evidence → minimal change → build → verify).
+`config.toml` (committed) + repo `.pi/settings.json` (committed; pins pi
+packages — see ADR-0009). `.pi/skills/` is committed — the domain skills are
+what the agent uses for provider work (probe → evidence → minimal change →
+build → verify). Only `.pi/git/` (package clones) is gitignored.
+
+Pipeline runs run with `ponytail` (minimal-code discipline) and `caveman`
+full mode active: caveman compresses run narration only — PR bodies, issue
+text, verify reports, and commits stay normal prose (caveman's own Boundaries
+rule). rtk filters bash output before the agent reads it (ADR-0009).
 
 - **Trigger labels**: `ai-fix`, `ai-new-site`, `ai-remove-site` —
   mutually exclusive (devloop's pre-flight, `Config.kind_for`, raises

@@ -1,0 +1,6 @@
+{
+  "packages": [
+    "git:github.com/DietrichGebert/ponytail@v4.10.0",
+    "git:github.com/JuliusBrussee/caveman@v2.7.0"
+  ]
+}

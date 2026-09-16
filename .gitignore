@@ -16,3 +16,6 @@ local.properties
 # devloop (agent pipeline) — generated, reproducible via `devloop init`
 
 __pycache__/
+
+# pi package clones (auto-installed from pinned refs in .pi/settings.json)
+.pi/git/

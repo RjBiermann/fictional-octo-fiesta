@@ -14,7 +14,7 @@ remove = "ai-remove-site"  # delete something, with evidence first
 
 [runtime]
 engine = "opencode"        # opencode | claude | goose | custom
-argv = ["pi", "--no-session", "--mode", "text", "--model", "go/glm-5.3-flash", "--thinking", "low"]  # prompt appended as final argument
+argv = ["pi", "--no-session", "--mode", "text", "--model", "go/glm-5.3-flash", "--thinking", "low", "--approve"]  # prompt appended as final argument; --approve = trust project .pi (headless ignores project resources otherwise)
 
 [pipeline]
 verify = ""              # the gate. e.g. "make verify" — empty = skip
