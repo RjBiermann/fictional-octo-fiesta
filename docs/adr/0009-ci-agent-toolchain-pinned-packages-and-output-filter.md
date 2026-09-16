@@ -31,3 +31,8 @@ sink and a direct contributor to the issue-#421 budget exhaustion.
   if evidence is filtered, rtk's config is tightened or the step is dropped.
 - Project settings only load with `--approve` (or `defaultProjectTrust`);
   future argv changes must keep the flag or re-audit trust.
+- The human-only wall is bound at the engine level, not advisory: devloop
+  v0.3.13's shell denylist does not bind pi (dispatch keys on argv[0]), so
+  `.pi/extensions/deny-human-only.ts` mirrors upstream `DENY_COMMANDS` as a
+  deny-only tool_call hook. Delete it when upstream devloop ships a pi
+  binding; same prefix-match ceiling as upstream (`gh api` paths uncovered).
