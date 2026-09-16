@@ -84,7 +84,14 @@ Rules:
 - **Redirecting streams**: if a stream URL 30x-redirects, record both the original and the
   final URL — referer/UA applies to the host you call, not necessarily the destination.
 - If the site blocks the probing machine (Cloudflare challenge, IP ban), record it under
-  Risks/blockers with the response evidence — Blocked is a valid FINDINGS outcome, not a failure.
+  Risks/blockers with the response evidence and the exact **Blocked reason**
+  (`Blocked: client-rendered (JS-only)` — DOM has content but the HTTP body doesn't, no
+  SSR/API fallback found — or `Blocked: challenge, no unlock`). Blocked is a valid FINDINGS
+  outcome, not a failure; the recorded reason means future agents never re-probe the dead end.
+- **Leads are not evidence** (ADR-0008): a browser instrument (rendered DOM, network log,
+  age-gate click) can see content no provider ever gets. Anything found that way is a **Lead**
+  and enters FINDINGS only after a plain-curl transcript re-proves it against the raw HTTP
+  response the provider will actually receive.
 
 ## Probe order
 
@@ -158,3 +165,26 @@ Page 2 of each listing surface — search, homepage, related-videos: `/{page}/` 
 `?page=N`, AJAX endpoint? Record the pattern per surface and confirm page 2 returns *different*
 items (transcript). Search and homepage page-2 URLs are mandatory in FINDINGS; a surface that
 doesn't paginate gets an explicit "does not paginate" note, never silence.
+
+## Probe escalation
+
+Escalate through the instruments in order, one step at a time — never reach for the
+heavier one first:
+
+1. **`curl`** — the default. What the provider can reproduce, so its transcripts are
+   evidence directly.
+2. **`scripts/impersonate.sh`** — TLS-impersonated curl (`curl_cffi`, Chrome fingerprint).
+   Reach for it when curl gets 403/challenge-walled but the site itself is fine
+   (see FINDINGS-408 / film1k). Its transcripts are evidence: same plain HTTP, better
+   TLS fingerprint — exactly what a real client presents.
+3. **`scripts/browser-probe.py`** — headless Chromium. The last resort, for diagnosis only
+   (ADR-0008): rendered-vs-raw verdict on suspected client-rendered sites, the player's
+   network log (which request actually returns the m3u8, which AJAX endpoint powers
+   pagination or quick search), and which cookie an age-gate click sets. Output is
+   **Leads**, never evidence — re-prove each with plain curl before it enters FINDINGS.
+   On a challenge-walled site it shows the page where curl cannot, but a cookie harvested
+   there is IP/UA-bound and dies off the runner — record the diagnosis, expect Blocked.
+
+Install-on-demand: the scripts check for their dependency and print the install line when
+missing (`pip install curl_cffi` / `pip install playwright && playwright install chromium`).
+Nothing is pre-provisioned.

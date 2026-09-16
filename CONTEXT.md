@@ -60,12 +60,24 @@ The ground-truth record of a site probe: exact selectors, endpoints, headers, cu
 _Avoid_: research notes, scrape log
 
 **Verification**:
-Live-site checks (via the verify script) proving the code's selectors and stream URLs actually work. Distinct from a **build**, which only proves compilation. A PR requires both.
+Live-site checks (via the verify script) proving the code's selectors and stream URLs actually work. Plain HTTP only — it mirrors what the app's runtime can do, never a probe instrument (ADR-0008). Distinct from a **build**, which only proves compilation. A PR requires both.
 _Avoid_: testing, validation, smoke test
 
+**Probe escalation**:
+The ordered fallback of probe instruments: curl → TLS-impersonated curl → browser. Escalate one step only when the cheaper one fails or the HTTP body lacks content the page visibly has; the browser is a last-resort diagnosis tool, never the default.
+_Avoid_: playwright (a tool, not the concept), browser testing
+
 **Blocked**:
-The live site refused the runner (Cloudflare, IP ban). A PR may open as Blocked with an explicit note; the human verifies in-app instead.
+The live site refused the runner or serves nothing a provider could use. A PR may open as Blocked with an explicit note; the human verifies in-app instead. FINDINGS records the exact **Blocked reason** so the dead end is never re-probed.
 _Avoid_: failure (a failure stops the run; Blocked completes it with a caveat)
+
+**Blocked reason**:
+The recorded cause of a Blocked outcome — `client-rendered (JS-only)` (DOM has content, HTTP body doesn't, no SSR/API fallback) or `challenge, no unlock`. Recorded in FINDINGS Risks/blockers; a future agent reads it, not re-probes it.
+_Avoid_: blocked type, block category
+
+**Lead**:
+A probe finding from an instrument the provider can't reproduce — rendered DOM, the player's network log, an age-gate click's cookie. Not evidence: it enters FINDINGS only after plain-curl re-proof (ADR-0008).
+_Avoid_: browser evidence, rendered selector
 
 **Age gate**:
 An 18+/consent wall the runner can pass with a recorded unlock — a cookie or query parameter. FINDINGS records the unlock (Headers/referer section); the provider ships it in its request headers. A wall with no unlock is Blocked, not an Age gate.
