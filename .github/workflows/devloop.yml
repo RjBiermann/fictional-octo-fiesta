@@ -103,7 +103,7 @@ jobs:
           # the CI runs' largest token sink is probe/gradle transcripts.
           # Pinned release + checksum: supply-chain gate, no latest-tag drift.
           cd /tmp
-          curl -sSfL -o rtk.tar.gz "https://github.com/rtk-ai/rtk/releases/download/v0.49.0/rtk-x86_64-unknown-linux-musl.tar.gz"
+          curl -sSfL -o rtk-x86_64-unknown-linux-musl.tar.gz "https://github.com/rtk-ai/rtk/releases/download/v0.49.0/rtk-x86_64-unknown-linux-musl.tar.gz"
           curl -sSfL -o checksums.txt "https://github.com/rtk-ai/rtk/releases/download/v0.49.0/checksums.txt"
           grep "rtk-x86_64-unknown-linux-musl.tar.gz" checksums.txt | sha256sum -c -
           tar -xzf rtk.tar.gz
