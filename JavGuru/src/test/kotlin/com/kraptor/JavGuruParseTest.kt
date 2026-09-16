@@ -49,7 +49,10 @@ class JavGuruParseTest {
         )
         assertEquals("https://jav.guru/other.jpg", JavGuruParse.parsePosterUrl("https://jav.guru/other.jpg"))
         assertEquals(null, JavGuruParse.parsePosterUrl(null))
-        assertEquals(null, JavGuruParse.parsePosterUrl("relative"))
+        assertEquals(
+            "https://jav.guru/wp-content/uploads/x.jpg",
+            JavGuruParse.parsePosterUrl("wp-content/uploads/x.jpg")
+        )
     }
 
     @Test fun `m3u8 player page yields no mp4`() {

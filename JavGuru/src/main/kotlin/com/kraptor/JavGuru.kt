@@ -32,8 +32,11 @@ object JavGuruParse {
      *  serves 200 from jav.guru itself (issue #424) — rewrite before handing to an image loader. */
     fun parsePosterUrl(url: String?): String? {
         if (url.isNullOrBlank()) return null
-        val fixed = if (url.startsWith("//")) "https:$url" else url
-        if (!fixed.startsWith("http")) return null
+        val fixed = when {
+            url.startsWith("//") -> "https:$url"
+            url.startsWith("http") -> url
+            else -> "https://jav.guru/" + url.removePrefix("/")  // mainUrl; resolve relative src like fixUrlNull did
+        }
         return if (fixed.startsWith("https://cdn.javmiku.com/"))
             "https://jav.guru/" + fixed.removePrefix("https://cdn.javmiku.com/")
         else fixed
