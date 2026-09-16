@@ -43,7 +43,6 @@ class PandaMoviesParseTest {
         assertEquals(2014, page.year)
         assertTrue(page.tags.contains("Cunnilingus"))
         assertTrue(page.actors.contains("Malena Morgan"))
-        assertEquals("Reality Kings", page.studio)
     }
 
     @Test fun `related cards parsed`() {

@@ -31,6 +31,9 @@ class PandaMovies : MainAPI() {
         val home = Parse.cards(document).mapNotNull { it.toSearchResult(this@PandaMovies) }
         return newHomePageResponse(
             list = HomePageList(name = request.name, list = home, isHorizontalImages = false),
+            // ponytail: unconditional hasNext — WP serves page-1-style overflow items past the
+            // last real page (FINDINGS Pagination); CloudStream stops paging when an empty page
+            // comes back, so this only trades one extra fetch for never truncating a row early.
             hasNext = true
         )
     }
@@ -40,7 +43,11 @@ class PandaMovies : MainAPI() {
         val url = if (page <= 1) "$mainUrl/search/$slug" else "$mainUrl/search/$slug/page/$page"
         val document = app.get(url).document
         val list = Parse.cards(document).mapNotNull { it.toSearchResult(this@PandaMovies) }
-        return newSearchResponseList(list, hasNext = true)
+        return newSearchResponseList(
+            list,
+            // ponytail: same overflow tradeoff as getMainPage — see note there.
+            hasNext = true
+        )
     }
 
     override suspend fun load(url: String): LoadResponse {
@@ -55,7 +62,6 @@ class PandaMovies : MainAPI() {
             this.duration = page.durationMin
             this.recommendations = Parse.cards(document, fromRelated = true).mapNotNull { it.toSearchResult(this@PandaMovies) }
             addActors(page.actors)
-            addActors(page.studio?.let { listOf("Director: $it") })  // psythemes "director" taxonomy = studio
         }
     }
 
@@ -113,7 +119,6 @@ object Parse {
         val year: Int?,
         val tags: List<String>,
         val actors: List<String>,
-        val studio: String?,
     )
 
     /** Listing cards (search / home / genre / related share one shape): `div.ml-item`.
@@ -156,7 +161,6 @@ object Parse {
                 ?.trim()?.toIntOrNull(),
             tags = doc.select("div.mvic-info p:contains(Genres) a[href*=/genre/]").map { it.text() },
             actors = doc.select("div.mvic-info a[href*=/actors/]").map { it.text() },
-            studio = doc.selectFirst("div.mvic-info a[href*=/director/]")?.text(),
         )
     }
 
