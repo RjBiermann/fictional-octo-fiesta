@@ -52,16 +52,35 @@ from the site's (count, order, titles, posters). Not reproducible as reported.**
 
 ## Fix
 
-`Parse.hasFeatures(document)` — a page with fewer than 40 cards is the last real
-page: `hasNext = cards >= 40` now used by both `getMainPage` and `search`. This is
-exactly the WP rule the site follows (full 40-card pages may continue; anything
-shorter is terminal), preserves the earlier overflow behavior for genuinely long
-lists and stops short searches at their real end instead of walking into 404
-territory.
+**No code fix for the reported symptom** — for the cited query the provider
+already matches the site exactly (see Conclusion above). There is nothing to
+fix for #425 as reported.
+
+What this PR ships is a separate, optional improvement the audit surfaced along
+the way: `Parse.hasNextPage(document)` — a page with fewer than 40 cards is the
+last real page: `hasNext = cards >= 40` now used by both `getMainPage` and
+`search`. This is the WP rule the site follows (full 40-card pages may continue;
+anything shorter is terminal), preserves the earlier overflow behavior for
+genuinely long lists and stops short searches at their real end instead of
+walking into 404 territory. It shortens the trailing-request tail but does not
+eliminate it: result sets of exactly 40/80/… cards still fire one trailing
+404/card-less request. If the maintainers want the reported behavior fixed
+instead, the right PR is a reproduction; if they decide this pagination change
+isn't wanted, it should move to its own issue.
+
+### Per-surface page-size evidence (40-card threshold)
+
+- search: 40 cards/page; terminal page short (cited query = 8).
+- /movies: pages 1–40 real and sequential, all card-full; 41+ card-less.
+- /genre/anal (deepest archive probed): pages 1–595 all serve 40 cards; the
+  last real page 596 serves **39 cards**; 597+ → 404. A terminal short genre
+  page is real, not asserted — the threshold holds there too (39 < 40 stops
+  correctly; the old unconditional `hasNext` kept paging past it).
 
 Verification: unit tests (page test + existing parse tests) green; full verify
 session (this issue): search ✓ (8/40-card pages, page-2-404 semantics documented),
-home ✓ (pages 1–40 real, 41+ card-less), genre ✓, video page ✓ (title/poster/
+home ✓ (pages 1–40 real, 41+ card-less), genre ✓ (40/page, terminal page 596
+= 39 cards → 404), video page ✓ (title/poster/
 actors/plot/tags/duration/year all live-confirmed), related ✓ (18 cards), embed
 anchors ✓ (per-stream: playmogo/mixdrop/voe registered in the shared HostRegistry;
 stream body itself is 302+SPA — out of script scope as documented in FINDINGS.md).

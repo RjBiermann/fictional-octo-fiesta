@@ -31,9 +31,11 @@ class PandaMovies : MainAPI() {
         val home = Parse.cards(document).mapNotNull { it.toSearchResult(this@PandaMovies) }
         return newHomePageResponse(
             list = HomePageList(name = request.name, list = home, isHorizontalImages = false),
-            // WP `posts_per_page=40`: a full 40-card page may continue, a shorter one is the
-            // real last page (continuing returns one extra empty card-less 200 instead).
-            hasNext = Parse.hasFeatures(document)
+            // WP `posts_per_page=40`: a full 40-card page may continue, a shorter one is
+            // the real last page (continuing returns one extra empty card-less home/genre
+            // 200; search URLs 404 past the end). Exact-multiples (40/80/…) still fire
+            // one trailing request — the tail is shortened, not eliminated.
+            hasNext = Parse.hasNextPage(document)
         )
     }
 
@@ -44,8 +46,8 @@ class PandaMovies : MainAPI() {
         val list = Parse.cards(document).mapNotNull { it.toSearchResult(this@PandaMovies) }
         return newSearchResponseList(
             list,
-            // same WP posts_per_page=40 rule as getMainPage
-            hasNext = Parse.hasFeatures(document)
+            // same WP posts_per_page=40 rule as getMainPage (search past the end: 404)
+            hasNext = Parse.hasNextPage(document)
         )
     }
 
@@ -142,12 +144,14 @@ object Parse {
                 }
             }.distinctBy { it.href }
 
-    /** WP search semantics (live, #425): WP `posts_per_page=40` — search and archive
+    /** Is there a next page? (live, #425): WP `posts_per_page=40` — search and archive
      *  listings serve up to 40 cards per page. A page with fewer cards is the last
      *  real page; continuing yields an empty card-less 200 (or a search 404). No
-     *  pagination block is rendered on these pages, so card count is the signal. */
-    fun hasFeatures(document: org.jsoup.nodes.Document): Boolean =
-        document.select("div.ml-item a[data-movie-id]").size >= 40
+     *  pagination block is rendered on these pages, so card count is the signal.
+     *  Counts via [cards] — the same selector/related-exclusion/dedup as the actual
+     *  result list, so pager and list can't desynchronize. */
+    fun hasNextPage(document: org.jsoup.nodes.Document): Boolean =
+        cards(document).size >= 40
 
     /** One video page's LoadResponse fields (`.mvic-thumb` / `h3[itemprop=name]` / `.mvic-info`). */
     fun videoPage(document: org.jsoup.nodes.Document): VideoPage {
