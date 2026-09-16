@@ -121,13 +121,18 @@ class xHamster : MainAPI() {
         val title = videoEntity?.title
             ?: videoModel?.title
             ?: document.selectFirst("h1")?.text()?.trim().orEmpty()
-        // thumbBig is the reliable JSON poster; preload-image is the css fallback. The old
-        // substringAfter("https:") parse dropped the scheme leaving a protocol-relative URL
-        // that may not resolve (issue #242).
-        val poster = videoEntity?.thumbBig?.takeIf { it.isNotBlank() }
-            ?: videoModel?.thumbURL?.takeIf { it.isNotBlank() }
-            ?: parsePreloadPoster(document.selectFirst("div.xp-preload-image")?.attr("style"))
-        val posterFixed = fixUrlNull(poster)
+        // thumbBig is the reliable JSON poster when it's a real image; preload-image is the css
+        // fallback. The old substringAfter("https:") parse dropped the scheme leaving a
+        // protocol-relative URL that may not resolve (issue #242). 2026-09-16 (issue #427):
+        // thumbBig on fresh guest pages is a 16×9-pixel artifact — picker skips it for
+        // videoModel.thumbURL (sfw 1280) / css fallback.
+        val posterFixed = fixUrlNull(
+            pickVideoPoster(
+                videoEntity?.thumbBig,
+                videoModel?.thumbURL,
+                document.selectFirst("div.xp-preload-image")?.attr("style")
+            )
+        )
         val description = videoEntity?.description?.replace("\\s+".toRegex(), " ")
 
         val actors = videoEntity?.pornstarModels.orEmpty().mapNotNull { model ->
@@ -141,10 +146,12 @@ class xHamster : MainAPI() {
             document.select("div[data-role='video-tags-list'] a[href*='/categories/'], div[data-role='video-tags-list'] a[href*='/tags/']")
                 .map { it.text().trim() }
 
-        // 2026-09-11 (issue #339): related videos now come from the initials JSON
-        // (videoPageComponent.relatedVideos…videoThumbProps) — the old
-        // div[data-role='related-item'] DOM selector matches nothing server-side.
-        val recommendations = initialData?.videoPageComponent?.relatedVideos?.videoTabInitialData
+        // 2026-09-11 (issue #339): related videos come from the initials JSON
+        // (videoPageComponent…videoThumbProps). 2026-09-16 (issue #427 re-probe): desktop pages
+        // now lazy-load related videos (relatedVideosComponent.relatedTabs carries only paging
+        // counts server-side) while the mobile page still hydrates 11 directly — fall back to
+        // the same mobile fetch the stream path already uses.
+        var recommendations = initialData?.videoPageComponent?.relatedVideos?.videoTabInitialData
             ?.videoListProps?.videoThumbProps.orEmpty().mapNotNull { thumb ->
                 val name = thumb.title ?: return@mapNotNull null
                 val link = thumb.pageURL ?: return@mapNotNull null
@@ -153,6 +160,23 @@ class xHamster : MainAPI() {
                     this.posterUrl = thumb.thumbURL
                 }
             }
+        if (recommendations.isEmpty()) {
+            recommendations = try {
+                getInitialsJson(
+                    app.get(url, headers = mobileHeaders, cookies = mapOf("video_titles_translation" to "0"))
+                        .document
+                        .html()
+                )?.videoPageComponent?.relatedVideos?.videoTabInitialData
+                    ?.videoListProps?.videoThumbProps.orEmpty().mapNotNull { thumb ->
+                        val name = thumb.title ?: return@mapNotNull null
+                        val link = thumb.pageURL ?: return@mapNotNull null
+                        newMovieSearchResponse(name, link, TvType.NSFW) { this.posterUrl = thumb.thumbURL }
+                    }
+            } catch (e: Exception) {
+                Log.e("xHamster", "recommendations fallback failed: ${e.message}")
+                emptyList()
+            }
+        }
 
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = posterFixed
@@ -412,6 +436,18 @@ class xHamster : MainAPI() {
         if (style.isNullOrEmpty()) return null
         return Regex("""url\(['"]([^'"]+)""").find(style)?.groupValues?.get(1)
     }
+
+    // issue #427: guest thumbBig (and sometimes videoModel.thumbURL) became a 16×9-pixel
+    // b(2) artifact on live pages — a 16px poster renders as a blurred smear. Skip the tiny
+    // variant everywhere and fall back; null = no real poster exists on the guest page.
+    internal fun pickVideoPoster(
+        thumbBig: String?,
+        videoModelThumb: String?,
+        preloadStyle: String?
+    ): String? = usablePoster(thumbBig) ?: usablePoster(videoModelThumb) ?: parsePreloadPoster(preloadStyle)
+
+    private fun usablePoster(url: String?): String? =
+        url?.takeIf { it.isNotBlank() && !it.contains("s(w:16,h:9)") }
 
     internal fun getInitialsJson(html: String): InitialsJson? {
         return try {

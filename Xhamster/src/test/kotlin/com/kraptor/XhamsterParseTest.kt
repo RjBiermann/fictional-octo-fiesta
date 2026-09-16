@@ -60,6 +60,40 @@ class XhamsterParseTest {
         assertTrue(poster.endsWith(".webp"))
     }
 
+    // 2026-09-16 (issue #427): thumbBig on fresh guest pages is a 16x9-pixel artifact
+    // (b(2),s(w:16,h:9) params) — unusable as a poster. The picker skips it and falls back
+    // to videoModel.thumbURL (sfw 1280) / preload css; a real thumbBig (Sep-11-era s(w:526)
+    // capture frame) stays first choice.
+    @Test fun `picker skips 16x9 thumbBig and falls back to videoModel thumbURL`() {
+        val initials = xHamster().getInitialsJson(fixture("v3"))!!
+        val poster = xHamster().pickVideoPoster(
+            initials.videoEntity?.thumbBig,
+            initials.videoModel?.thumbURL,
+            null
+        )
+        assertEquals("https://ic-vt-nss.xhcdn.com/a/ZTlmZDhmZmIwODU5YTQ3MDg5MzMwNGNhYTc3MGRhYWQ/s(w:1280,h:720),webp/030/767/722/sfw/cv/hq.1.webp", poster)
+    }
+
+    @Test fun `picker keeps real thumbBig and css fallback order`() {
+        // Sep-11-era sharp capture frame thumbBig: used as-is (no "s(w:16,h:9)" tiny variant).
+        val big = "https://ic-vt-nss.xhcdn.com/a/AAA/s(w:526,h:298),webp/029/238/872/v2/526x298.223.webp"
+        assertEquals(
+            big,
+            xHamster().pickVideoPoster(big, "https://vm", "url('https://css')")
+        )
+        assertEquals("https://css", xHamster().pickVideoPoster(null, null, "background-image: url('https://css')"))
+        // both JSON thumbs are the tiny artifact → only css remains
+        assertEquals(
+            "https://css",
+            xHamster().pickVideoPoster(
+                "https://t/16px/b(2),s(w:16,h:9),webp/a/v2/16x9.201.webp",
+                "https://t/16px/b(2),s(w:16,h:9),webp/b/v2/16x9.230.webp",
+                "background-image: url('https://css')"
+            )
+        )
+        assertEquals(null, xHamster().pickVideoPoster(null, null, null))
+    }
+
     @Test fun `preload poster style parses full https url`() {
         val poster = xHamster().parsePreloadPoster(
             "background-image: url('https://ic-vt-nss.xhcdn.com/a/K/s(w:1280),webp/2560x1440.201.webp');"
