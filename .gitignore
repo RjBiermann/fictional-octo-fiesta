@@ -15,3 +15,4 @@ local.properties
 
 # devloop (agent pipeline) — generated, reproducible via `devloop init`
 
+__pycache__/
