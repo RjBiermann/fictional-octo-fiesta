@@ -7,6 +7,7 @@ import com.lagradost.api.Log
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
+import com.lagradost.cloudstream3.utils.getQualityFromName
 
 class Porntrex : MainAPI() {
     override var mainUrl = "https://www.porntrex.com"
@@ -202,6 +203,9 @@ class Porntrex : MainAPI() {
                     type   = ExtractorLinkType.VIDEO
                 ) {
                     this.referer = mainUrl
+                    // issue #429: the app reads ExtractorLink.quality, not the name label;
+                    // map the parsed flashvar label ('480p', '1080p FHD', ...) to the quality value.
+                    this.quality = getQualityFromName(label ?: "")
                 }
             )
         }
