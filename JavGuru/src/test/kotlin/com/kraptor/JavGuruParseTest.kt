@@ -41,6 +41,17 @@ class JavGuruParseTest {
         )
     }
 
+    /** Poster host cdn.javmiku.com is Cloudflare-challenged; same path serves 200 from jav.guru (issue #424). */
+    @Test fun `poster host rewritten to jav dot guru`() {
+        assertEquals(
+            "https://jav.guru/wp-content/uploads/2026/09/1dldss554pl.jpg",
+            JavGuruParse.parsePosterUrl("https://cdn.javmiku.com/wp-content/uploads/2026/09/1dldss554pl.jpg")
+        )
+        assertEquals("https://jav.guru/other.jpg", JavGuruParse.parsePosterUrl("https://jav.guru/other.jpg"))
+        assertEquals(null, JavGuruParse.parsePosterUrl(null))
+        assertEquals(null, JavGuruParse.parsePosterUrl("relative"))
+    }
+
     @Test fun `m3u8 player page yields no mp4`() {
         assertEquals(null, JavGuruParse.parseUdMp4("var urlPlay = 'https://cdn.turboviplay.com/x.m3u8'"))
     }
