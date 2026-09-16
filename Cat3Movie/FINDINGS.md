@@ -184,7 +184,22 @@ needed — `cfNative` is a plain HLS master playlist served from hlsfast.com wit
 - hlsfree embed domain check can deny new referer domains → keep cat3movie.org referer.
 - No duration/quality metadata anywhere on the site (movies, not tube clips).
 
+## 2026-09-16 re-probe (issue #417 — "Women at Play movie is not playing")
+
+Full chain replay for women-at-play-1985 (post_id 34514, nonce bc43d77bbc from live body[data-nonce]):
+sv1 hlsfree/937 chain 200 end-to-end (manifest 200 mpegurl, segment 3.4 MB with referer),
+sv2 loadvid blob-gated as before, sv3 hlsfast/#9qgavp → "Video not found or deleted" (upstream).
+Same for heat/joy/blue-money/baby-cat/bamboo sv1 chains. **No server-side reproduction** of the
+report; details in FINDINGS-417.md. /watch-women-at-play-1985 now 404s (provider uses the base
+movie URL — unaffected).
+
+Hardening shipped on this run (the same class of defect #247 fixed for hlsfree): the emitted
+**HlsFast** link had no header map, and hlsfast segments are referer-gated — live probe
+(seg-1-f1-v1-a1.woff2): 403 without `Referer: https://hlsfast.com/`, 200 with it. Fix:
+`headers = mapOf("Referer" to "https://hlsfast.com/")` on the link; version bumped to 9.
+
 ## 2026-09-09 re-probe (issue #203 — duplicated homepage cards)
+
 The halimmovies homepage renders the 10 newest posts **twice** on `/` — a "Latest" top strip
 (`article.thumb.grid-item post-N`, no col classes) plus the main archive grid
 (`article.col-md-3 … post-N`) — and one legacy post (`post-15919`) **3×**. A handful of

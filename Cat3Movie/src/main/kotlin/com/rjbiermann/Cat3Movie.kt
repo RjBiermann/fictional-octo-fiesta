@@ -166,6 +166,12 @@ class Cat3Movie : MainAPI() {
                                 type = ExtractorLinkType.M3U8
                             ) {
                                 this.referer = "https://hlsfast.com/"
+                                // issue #417: hlsfast segments are referer-gated just like
+                                // hlsfree (#247) — live probe: seg-1-f1-v1-a1.woff2 → 403
+                                // without Referer: https://hlsfast.com/, 200 with it. The
+                                // header map keeps the header on segment fetches regardless
+                                // of datasource path (same hardening HlsFree got for #247).
+                                this.headers = mapOf("Referer" to "https://hlsfast.com/")
                                 this.quality = Qualities.Unknown.value
                             }
                         )
