@@ -46,8 +46,14 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # v2 unconditionally installs the SDK package `tools`, which Google removed
+      # from the SDK repository (run 35045695055 died before Gradle). v3 still lists
+      # `tools` in its default `packages`, so skip package installation explicitly:
+      # the runner image preinstalls the SDK and the action keeps accepting licenses.
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v2
+        uses: android-actions/setup-android@v3
+        with:
+          packages: ''
 
       # Cold-runner bootstrap: fetch cloudstream3:pre-release classes.jar from the official release asset into
       # mavenLocal (jitpack 404s the coordinate; warm-cache residue masked this
