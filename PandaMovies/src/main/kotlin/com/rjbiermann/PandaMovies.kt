@@ -31,10 +31,9 @@ class PandaMovies : MainAPI() {
         val home = Parse.cards(document).mapNotNull { it.toSearchResult(this@PandaMovies) }
         return newHomePageResponse(
             list = HomePageList(name = request.name, list = home, isHorizontalImages = false),
-            // ponytail: unconditional hasNext — WP serves page-1-style overflow items past the
-            // last real page (FINDINGS Pagination); CloudStream stops paging when an empty page
-            // comes back, so this only trades one extra fetch for never truncating a row early.
-            hasNext = true
+            // WP `posts_per_page=40`: a full 40-card page may continue, a shorter one is the
+            // real last page (continuing returns one extra empty card-less 200 instead).
+            hasNext = Parse.hasFeatures(document)
         )
     }
 
@@ -45,8 +44,8 @@ class PandaMovies : MainAPI() {
         val list = Parse.cards(document).mapNotNull { it.toSearchResult(this@PandaMovies) }
         return newSearchResponseList(
             list,
-            // ponytail: same overflow tradeoff as getMainPage — see note there.
-            hasNext = true
+            // same WP posts_per_page=40 rule as getMainPage
+            hasNext = Parse.hasFeatures(document)
         )
     }
 
@@ -142,6 +141,13 @@ object Parse {
                     null
                 }
             }.distinctBy { it.href }
+
+    /** WP search semantics (live, #425): WP `posts_per_page=40` — search and archive
+     *  listings serve up to 40 cards per page. A page with fewer cards is the last
+     *  real page; continuing yields an empty card-less 200 (or a search 404). No
+     *  pagination block is rendered on these pages, so card count is the signal. */
+    fun hasFeatures(document: org.jsoup.nodes.Document): Boolean =
+        document.select("div.ml-item a[data-movie-id]").size >= 40
 
     /** One video page's LoadResponse fields (`.mvic-thumb` / `h3[itemprop=name]` / `.mvic-info`). */
     fun videoPage(document: org.jsoup.nodes.Document): VideoPage {
