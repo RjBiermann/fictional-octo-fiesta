@@ -22,8 +22,12 @@ A Reviewer agent run (opencode) that reviews a pull request and may push fix com
 _Avoid_: critic, checker, self-review
 
 **Agent run**:
-One headless agent invocation, bounded by hard caps (max turns, wall-clock timeout). The unit of cost and retry.
+One headless agent invocation, bounded by hard caps (max turns, wall-clock timeout). The unit of cost and retry. Issue-scoped runs (build, spec) budget at `build_timeout` (3600s), PR-scoped runs (review, repair) at `timeout` (1800s); every timeout spends an Attempt, and a Daily cap bounds Attempts per issue per day.
 _Avoid_: session, job (job = the CI wrapper, not the agent invocation)
+
+**Daily cap**:
+Per-issue ceiling on Attempts per calendar day (`max_per_day`; 0 = unlimited). The runaway-spend protection behind the per-issue Attempt cap — a time-bombed issue can't burn sweeps all day without a human re-label.
+_Avoid_: rate limit, quota
 
 **Round**:
 One Reviewer pass over a pull request. Bounded: 2 rounds maximum, tracked by a round label. A Round is spent only by a completed pass — a Superseded or failed run spends nothing. Fixes pushed by a Reviewer may trigger a new Round but never a new PR.

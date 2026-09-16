@@ -58,7 +58,9 @@ CI (`.github/workflows/build.yml`) builds all providers on push to `master`/`mai
 
 This repo runs [devloop](https://github.com/RjBiermann/devloop) — a forge-agnostic AI-native
 development framework (spec → breakdown → build → human merge). Config:
-`config.toml` + `skills/` (both gitignored; regenerate with `devloop init`).
+`config.toml` (committed; per-kind `[runtime.<kind>]` and split budgets arrive
+with devloop v0.3.12's ADR-0004) + `skills/` (gitignored; regenerate with
+`devloop init`).
 The domain skills in `.pi/skills/` are unchanged — they are what the agent
 uses for provider work (probe → evidence → minimal change → build → verify).
 
