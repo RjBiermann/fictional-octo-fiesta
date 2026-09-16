@@ -27,6 +27,20 @@ object JavGuruParse {
     /** turbovidhls.com player pages can serve a literal MP4 in `var urlPlay` instead of an m3u8 (issue #310). */
     fun parseUdMp4(playerHtml: String): String? =
         Regex("urlPlay\\s*=\\s*['\"]([^'\"]+\\.mp4)['\"]").find(playerHtml)?.groupValues?.get(1)
+
+    /** Poster host cdn.javmiku.com is Cloudflare-challenged; the identical /wp-content path
+     *  serves 200 from jav.guru itself (issue #424) — rewrite before handing to an image loader. */
+    fun parsePosterUrl(url: String?): String? {
+        if (url.isNullOrBlank()) return null
+        val fixed = when {
+            url.startsWith("//") -> "https:$url"
+            url.startsWith("http") -> url
+            else -> "https://jav.guru/" + url.removePrefix("/")  // mainUrl; resolve relative src like fixUrlNull did
+        }
+        return if (fixed.startsWith("https://cdn.javmiku.com/"))
+            "https://jav.guru/" + fixed.removePrefix("https://cdn.javmiku.com/")
+        else fixed
+    }
 }
 
 
@@ -116,7 +130,7 @@ class JavGuru : MainAPI() {
 
         if (title.contains("Advanced search", ignoreCase = true)) return null
 
-        val posterUrl = fixUrlNull(imgElement?.attr("src") ?: imgElement?.attr("data-src"))
+        val posterUrl = JavGuruParse.parsePosterUrl(imgElement?.attr("src") ?: imgElement?.attr("data-src"))
 
         return newMovieSearchResponse(title, href, TvType.NSFW) {
             this.posterUrl = posterUrl
@@ -142,7 +156,7 @@ class JavGuru : MainAPI() {
 
         val title = JavGuruParse.parseTitle(document)
 
-        val poster = fixUrlNull(document.selectFirst("div.large-screenshot img")?.attr("src"))
+        val poster = JavGuruParse.parsePosterUrl(document.selectFirst("div.large-screenshot img")?.attr("src"))
 
         val description =
             document.select("div.wp-content p:not(:has(img))").joinToString(" ") { it.text() }
@@ -174,7 +188,7 @@ class JavGuru : MainAPI() {
         if (title.isNullOrBlank()) return null
 
         val href = fixUrlNull(this.selectFirst("a")?.attr("href")) ?: return null
-        val posterUrl = fixUrlNull(this.selectFirst("a img")?.attr("src"))
+        val posterUrl = JavGuruParse.parsePosterUrl(this.selectFirst("a img")?.attr("src"))
 
         return newMovieSearchResponse(title, href, TvType.NSFW) {
             this.posterUrl = posterUrl
