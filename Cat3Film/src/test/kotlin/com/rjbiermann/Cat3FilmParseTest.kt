@@ -2,7 +2,9 @@ package com.rjbiermann
 
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -16,6 +18,16 @@ class Cat3FilmParseTest {
     private fun res(name: String) =
         javaClass.getResourceAsStream("/$name")?.readBytes()?.toString(Charsets.UTF_8)
             ?: error("fixture $name missing")
+
+    // --- home page type (#416) ----------------------------------------------
+
+    @Test fun `movie detail page has Movie badge`() {
+        assertTrue(Parse.movieTypeTag(res("detail-handmaiden.html")) == "Movie")
+    }
+
+    @Test fun `series detail page uses TV badge not Movie`() {
+        assertFalse(Parse.movieTypeTag(res("detail-hache.html")) == "Movie")
+    }
 
     // --- score ---------------------------------------------------------------
 

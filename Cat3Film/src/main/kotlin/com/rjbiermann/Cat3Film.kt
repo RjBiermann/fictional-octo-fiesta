@@ -118,9 +118,22 @@ class Cat3Film : MainAPI() {
         }
 
         val slug = url.removePrefix("$mainUrl/").trimEnd('/')
-        return newTvSeriesLoadResponse(
-            title, url, TvType.NSFW, loadEpisodes(slug)
-        ) {
+        if (Parse.movieTypeTag(html) == "Movie") {
+            // #416: movies carry a "Movie" badge and one full-length epbtn; load as a movie
+            // so the TV-series episode chrome is never rendered for a film.
+            val epData = loadEpisodes(slug).firstOrNull()?.data ?: "1"
+            return newMovieLoadResponse(title, url, TvType.NSFW, epData) {
+                this.posterUrl = poster
+                this.plot = plot
+                this.tags = genres
+                this.year = year
+                this.duration = duration
+                this.score = rating?.let { Score.from10(it.toString()) }
+                this.recommendations = recommendations
+                addActors(actors)
+            }
+        }
+        return newTvSeriesLoadResponse(title, url, TvType.NSFW, loadEpisodes(slug)) {
             this.posterUrl = poster
             this.plot = plot
             this.tags = genres
@@ -189,6 +202,20 @@ object Parse {
     /** ld+json aggregateRating.ratingValue (0–10), Double or null. */
     fun rating(html: String?): Double? =
         html?.let { RATING.find(it)?.groupValues?.get(1)?.toDoubleOrNull() }
+
+    /**
+     * Detail-page type tag from the badges row: movies render `badge>Movie`,
+     * series render `badge>TV` (FINDINGS-416 probe). Null when neither is present.
+     */
+    fun movieTypeTag(html: String?): String? {
+        if (html == null) return null
+        val badges = org.jsoup.Jsoup.parse(html).select(".badges .badge").map { it.text().trim() }
+        return when {
+            badges.contains("Movie") -> "Movie"
+            badges.contains("TV") -> "TV"
+            else -> null
+        }
+    }
 
     /**
      * Stream URL from a sources-API `file` token. Null for blank input. The site player
