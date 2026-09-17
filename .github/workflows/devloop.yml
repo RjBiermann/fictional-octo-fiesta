@@ -50,15 +50,11 @@ jobs:
     #   unconditionally replaces the extraheader that checkout installed,
     #   so branch push/force-push/delete always authenticates with the
     #   PAT, never the GITHUB_TOKEN — contents: read is sufficient here.
-    #   Caveat: re-audited at the v0.3.18 pin bump — the BRANCH_PREFIX
-    #   trigger contract stays `devloop/issue-`, and v0.3.17/0.3.18
-    #   (refactor of rounds/delivery + closeout/rebase-lease fixes) add no
-    #   GitHub write outside issues/pull-requests (the rebase lease is a
-    #   local `git update-ref` in the checkout). If a future devloop
-    #   version performs a GitHub write outside issues/pull-requests
-    #   (e.g. deleting a branch via `gh api -X DELETE .../git/refs/...`),
-    #   contents: read fails loudly mid-run — re-audit this block when
-    #   bumping the pinned tag.
+    #   Caveat: this argument is verified against devloop v0.3.18 (the
+    #   pinned tag). If a future devloop version performs a GitHub write
+    #   outside issues/pull-requests (e.g. deleting a branch via
+    #   `gh api -X DELETE .../git/refs/...`), contents: read fails loudly
+    #   mid-run — re-audit this block when bumping the pinned tag.
     permissions:
       issues: write
       pull-requests: write
