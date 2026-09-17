@@ -2,6 +2,7 @@
 
 package com.byayzen
 
+import com.kraptor.DurationParse
 import com.kraptor.registerHostExtractors
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -22,11 +23,9 @@ object MissAVParse {
     fun parseTags(document: Document): List<String> =
         document.select("div.text-secondary:has(> span:containsOwn(genre)) a").map { it.text().trim() }
 
-    /** og:video:duration is seconds on missav.live; CloudStream duration is minutes (issue #302). */
-    fun parseDuration(seconds: String?): Int? {
-        val s = seconds?.toIntOrNull() ?: return null
-        return (s / 60).takeIf { it > 0 }
-    }
+    /** og:video:duration is seconds on missav.live; CloudStream duration is minutes
+     *  (issue #302) — the conversion lives in the shared DurationParse module. */
+    fun parseDuration(seconds: String?): Int? = DurationParse.fromSeconds(seconds)
 }
 
 class MissAV : MainAPI() {

@@ -1,5 +1,6 @@
 package com.byayzen
 
+import com.kraptor.DurationParse
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -14,15 +15,16 @@ class PorntrexParseTest {
         Jsoup.parse(File("src/test/resources/porntrex_video_page.html").readText())
     }
 
-    /** TDD for issue #309: the clock badge lives in the .video-info stats row on live DOM. */
+    /** TDD for issue #309: the clock badge lives in the .video-info stats row on live DOM.
+     *  Repo convention: CloudStream `duration` is minutes, floored (shared DurationParse). */
     @Test fun `duration parsed from video-info stats row`() {
-        assertEquals(50 * 60 + 55, PorntrexParse.durationOf(doc))
+        assertEquals(50, PorntrexParse.durationOf(doc))
     }
 
     @Test fun `duration parses H MM SS clock text`() {
         val doc2 = Jsoup.parse("""<div class="block-details"><div class="item">
             <span><i class="fa fa-clock-o"></i> <em class="badge">1:06:09</em></span></div></div>""")
-        assertEquals(3969, PorntrexParse.durationOf(doc2))
+        assertEquals(66, PorntrexParse.durationOf(doc2))
     }
 
     @Test fun `no details row yields null not navbar garbage`() {
@@ -30,12 +32,12 @@ class PorntrexParseTest {
         assertNull(PorntrexParse.durationOf(doc3))
     }
 
-    @Test fun `parseDurationSeconds pure cases`() {
-        assertEquals(369, PorntrexParse.parseDurationSeconds("6min 09sec"))
-        assertEquals(3969, PorntrexParse.parseDurationSeconds("1:06:09"))
-        assertEquals(600, PorntrexParse.parseDurationSeconds("10min"))
-        assertNull(PorntrexParse.parseDurationSeconds("Latest"))
-        assertNull(PorntrexParse.parseDurationSeconds(null))
+    @Test fun `duration clock grammar covered by shared DurationParse`() {
+        assertEquals(6, DurationParse.minutes("6min 09sec"))
+        assertEquals(66, DurationParse.minutes("1:06:09"))
+        assertEquals(10, DurationParse.minutes("10min"))
+        assertNull(DurationParse.minutes("Latest"))
+        assertNull(DurationParse.minutes(null))
     }
 
     /** Issue #256: all KVS quality variants, in flashvar order. */

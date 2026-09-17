@@ -1,8 +1,8 @@
 // Deep parse module for the repo's card → SearchResponse shape (glossary: Parse function).
-// One home for the null-guards, lazyload poster fallback and `data:`-placeholder skip that
-// were duplicated in ~15 providers' private Element.toSearchResult copies. Callers pass
-// FINDINGS selectors; site quirks (attribute-title fallbacks, gated cards) stay local as
-// documented exceptions around this module. The Parse function is pure and fixture-tested;
+// One home for the null-guards, lazyload poster fallback, `data:`-placeholder skip and the
+// attr-title shape that were duplicated in providers' private Element.toSearchResult copies.
+// Callers pass FINDINGS selectors; deep fallback chains and root-anchor cards stay local as
+// documented exceptions around this module. The Parse functions are pure and fixture-tested;
 // the MainAPI adapter applies fixUrl + emission (MainAPI flows stay with Verification).
 package com.kraptor
 
@@ -42,9 +42,14 @@ object SearchCard {
         titleSel: String,
         hrefSel: String? = null,
         posterSel: String? = null,
+        titleAttr: String? = null,
     ): CardFields? {
         val anchor = card.selectFirst(titleSel) ?: return null
-        val title = anchor.text().trim().takeIf { it.isNotEmpty() } ?: return null
+        // titleAttr (Cat3Movie a.halim-thumb / ixiporn a.infos shape): the title lives in
+        // the anchor attribute, not its text; blank attr falls back to anchor text
+        val title = (titleAttr?.let { anchor.attr(it).trim().takeIf { t -> t.isNotEmpty() } }
+            ?: anchor.text().trim())
+            .takeIf { it.isNotEmpty() } ?: return null
         val href = (hrefSel?.let { card.selectFirst(it)?.attr("href") }
             ?: anchor.attr("href").takeIf { it.isNotEmpty() }
             ?: firstCardLink(card, title))
@@ -55,6 +60,27 @@ object SearchCard {
         }
         return CardFields(title, href, poster)
     }
+
+    /**
+     * Pure Parse function: one listing page → [CardFields], deduped by href.
+     *
+     * The WP-theme shape behind this module renders the newest posts twice on homepage
+     * archives (top "Latest" strip + main grid — Cat3Movie issue #203) and related strips
+     * serve duplicated entries (AllClassicPorn issue #266); homeCards dedupes by card href.
+     * Broken cards are dropped, never fail the list. Search pages that must keep every
+     * element call [parse] per element instead (dedupe is homepage-only behavior).
+     */
+    fun homeCards(
+        document: org.jsoup.nodes.Document,
+        cardSel: String,
+        titleSel: String,
+        hrefSel: String? = null,
+        posterSel: String? = null,
+        titleAttr: String? = null,
+    ): List<CardFields> =
+        document.select(cardSel)
+            .mapNotNull { parse(it, titleSel, hrefSel, posterSel, titleAttr) }
+            .distinctBy { it.href }
 
     /**
      * Fallback href: the card's first `<a>` that actually carries the card link.
@@ -99,7 +125,8 @@ fun MainAPI.searchCard(
     titleSel: String,
     hrefSel: String? = null,
     posterSel: String? = null,
-): SearchResponse? = SearchCard.parse(card, titleSel, hrefSel, posterSel)?.let { f ->
+    titleAttr: String? = null,
+): SearchResponse? = SearchCard.parse(card, titleSel, hrefSel, posterSel, titleAttr)?.let { f ->
     newMovieSearchResponse(f.title, fixUrl(f.href), TvType.NSFW) {
         this.posterUrl = fixUrlNull(f.poster)
     }

@@ -131,19 +131,8 @@ class HQPorner : MainAPI() {
         val year            = document.selectFirst("div.extra span.C a")?.text()?.trim()?.toIntOrNull()
         val tags            = document.select("section h3 + p a").map { it.text() }
         val score           = document.selectFirst("span.dt_rating_vgs")?.text()?.trim()
-        val duration        = document.selectFirst("li.icon.fa-clock-o")
-            ?.text()
-            ?.let { text ->
-                val parts = text.split(" ")
-                var totalMinutes = 0
-                parts.forEach { part ->
-                    when {
-                        part.endsWith("h") -> totalMinutes += part.removeSuffix("h").toIntOrNull()?.times(60) ?: 0
-                        part.endsWith("m") -> totalMinutes += part.removeSuffix("m").toIntOrNull() ?: 0
-                    }
-                }
-                totalMinutes
-            }
+        // duration clock grammar ("1h 22m" badges) lives in the shared DurationParse Parse function
+        val duration        = DurationParse.minutes(document.selectFirst("li.icon.fa-clock-o")?.text())
 
         val recommendations = document.select("div.\\34 u section").mapNotNull { it.toMainPageResult() }
         val actors          = document.select("li.icon.fa-star-o a").map { Actor(it.text()) }
