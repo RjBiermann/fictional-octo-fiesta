@@ -61,7 +61,14 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
+          # persist-credentials off: checkout's includeIf credentials file
+          # (GITHUB_TOKEN) plus the AGENT_PAT extraheader below send TWO
+          # Authorization headers to github.com — GitHub 400s the request
+          # ("Duplicate header: Authorization"), killing every build fetch.
+          # One credential channel: the PAT header set in the next step.
+          persist-credentials: false
       - uses: actions/setup-java@v5
         with: { java-version: "17", distribution: temurin }
       - uses: actions/setup-python@v7
