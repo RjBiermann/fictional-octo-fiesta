@@ -50,11 +50,13 @@ jobs:
     #   unconditionally replaces the extraheader that checkout installed,
     #   so branch push/force-push/delete always authenticates with the
     #   PAT, never the GITHUB_TOKEN — contents: read is sufficient here.
-    #   Caveat: this argument is verified against devloop v0.3.18 (the
-    #   pinned tag). If a future devloop version performs a GitHub write
-    #   outside issues/pull-requests (e.g. deleting a branch via
-    #   `gh api -X DELETE .../git/refs/...`), contents: read fails loudly
-    #   mid-run — re-audit this block when bumping the pinned tag.
+    #   Caveat: this argument is verified against devloop v0.3.19 (the
+    #   pinned tag; v0.3.18→v0.3.19 re-audited: adds issue progress
+    #   comments only — issues: write already covers it). If a future
+    #   devloop version performs a GitHub write outside issues/
+    #   pull-requests (e.g. deleting a branch via `gh api -X DELETE
+    #   .../git/refs/...`), contents: read fails loudly mid-run —
+    #   re-audit this block when bumping the pinned tag.
     permissions:
       issues: write
       pull-requests: write
@@ -76,7 +78,7 @@ jobs:
       - name: Install devloop (pinned)
         run: >-
           pip install
-          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.3.18
+          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.3.19
       - name: Install agent runtime (pi) + model config
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -129,7 +131,9 @@ jobs:
           # rebase_branch), only when unset — a human's config always wins
       - name: Run pipeline
         if: github.event_name != 'issue_comment'
-        run: devloop once
+        # -v: decision trace in CI logs (v0.3.19) — queue skips, gate
+        # PASS/FAIL, deferrals with reasons
+        run: devloop -v once
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run comment command
