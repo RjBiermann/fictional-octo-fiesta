@@ -1,4 +1,4 @@
-version = 9 // #417 hlsfast HlsFast link carries Referer header map (segment 403 hardening, #247 parity)
+version = 10 // #417 hlsfast HlsFast link carries Referer header map (segment 403 hardening, #247 parity)
 
 cloudstream {
     authors     = listOf("RjBiermann")

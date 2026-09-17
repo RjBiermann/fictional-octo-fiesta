@@ -6,6 +6,8 @@ import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.network.CloudflareKiller
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.kraptor.CardFields
+import com.kraptor.SearchCard
 import com.kraptor.registerHostExtractors
 import okhttp3.Interceptor
 import okhttp3.Response
@@ -52,25 +54,21 @@ class Cat3Movie : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = if (page <= 1) request.data else "${request.data}/page/$page"
         val document = app.get(url, interceptor = cfInterceptor).document
-        val home = Parse.homeCards(document).mapNotNull { it.toSearchResult() }
+        val home = SearchCard.homeCards(
+            document, "article.thumb",
+            titleSel = "a.halim-thumb", titleAttr = "title", posterSel = "img[data-src]",
+        ).map { it.toSearchResult() }
         return newHomePageResponse(
             list = HomePageList(name = request.name, list = home, isHorizontalImages = false),
             hasNext = true
         )
     }
 
-    private fun Element.toSearchResult(): SearchResponse? = try {
-        val link = selectFirst("a.halim-thumb") ?: return null
-        val href = link.attr("href").takeIf { it.isNotBlank() } ?: return null
-        val title = link.attr("title").ifBlank { link.text() }.takeIf { it.isNotBlank() } ?: return null
-        val poster = selectFirst("img[data-src]")?.attr("data-src")
-        newMovieSearchResponse(title, href, TvType.NSFW) {
+    /** Emission adapter for the shared SearchCard module (halimmovies hrefs are absolute). */
+    private fun CardFields.toSearchResult(): SearchResponse =
+        newMovieSearchResponse(title, fixUrl(href), TvType.NSFW) {
             this.posterUrl = fixUrlNull(poster)
         }
-    } catch (e: Exception) {
-        Log.d("Cat3Movie", "card parse: ${e.message}")
-        null
-    }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
         // /search/<slug> — no pagination on this site (page 2 is 404)
@@ -78,7 +76,11 @@ class Cat3Movie : MainAPI() {
             .filter { it.isLetterOrDigit() || it.isWhitespace() }
             .replace(Regex("\\s+"), "-")
         val document = app.get("$mainUrl/search/$slug", interceptor = cfInterceptor).document
-        val list = Parse.searchCards(document).mapNotNull { it.toSearchResult() }
+        // search keeps every element (dedupe is homepage-only); the shared Parse function
+        // drops only cards without a real title/link, exactly like the old local copy
+        val list = Parse.searchCards(document)
+            .mapNotNull { SearchCard.parse(it, "a.halim-thumb", posterSel = "img[data-src]", titleAttr = "title") }
+            .map { it.toSearchResult() }
         return newSearchResponseList(list, hasNext = false)
     }
 
@@ -97,7 +99,10 @@ class Cat3Movie : MainAPI() {
             .flatMap { it.select("a").map { a -> a.text() } }
         val plot = document.selectFirst("div.entry-content article.item-content p")?.text()?.trim()
             ?: document.selectFirst("meta[name=description]")?.attr("content")
-        val recommendations = document.select("section.related-movies article.thumb").mapNotNull { it.toSearchResult() }
+        val recommendations = SearchCard.homeCards(
+            document, "section.related-movies article.thumb",
+            titleSel = "a.halim-thumb", titleAttr = "title", posterSel = "img[data-src]",
+        ).map { it.toSearchResult() }
 
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster
@@ -230,16 +235,10 @@ class Cat3Movie : MainAPI() {
 }
 
 /**
- * Pure card-parsing hooks (TDD-first, ADR-0005). The halimmovies theme renders the newest
- * posts twice on the homepage archive (top "Latest" strip + main grid); homeCards dedupes
- * by card href. Search pages have no duplicates.
+ * Pure parse hooks (TDD-first, ADR-0005). Card selection/dedupe/emission moved to the shared
+ * SearchCard module (SearchCard.homeCards + SearchCard.parse); site-specific Parse hooks stay.
  */
 object Parse {
-    fun homeCards(document: org.jsoup.nodes.Document): List<Element> =
-        document.select("article.thumb")
-            .filter { it.selectFirst("a.halim-thumb") != null }
-            .distinctBy { it.selectFirst("a.halim-thumb")?.attr("href") }
-
     fun searchCards(document: org.jsoup.nodes.Document): List<Element> =
         document.select("article.thumb").toList()
 
