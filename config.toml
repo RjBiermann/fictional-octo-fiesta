@@ -10,7 +10,7 @@ repo = "RjBiermann/fictional-octo-fiesta"        # where issues and PRs live
 # Rename freely — your vocabulary, your users.
 fix = "ai-fix"             # broken thing, agent repairs it
 new = "ai-new-site"       # new unit of work, agent builds it
-remove = "ai-remove-site"  # delete something, with evidence first
+remove = "ai-remove"  # delete something, with evidence first
 
 [runtime]
 engine = "opencode"        # opencode | claude | goose | custom
