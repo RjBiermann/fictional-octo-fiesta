@@ -111,3 +111,26 @@ only a device can produce (in-app testing is maintainer-only at merge time, AGEN
    one mechanism we cannot observe after the fact).
 3. If search shows results but playback fails, that is a different surface (extractor),
    not `search()` — file against the watch page instead.
+
+## Re-probe addendum — 2026-09-17 ~04:04 UTC (this run, fresh checkout)
+
+Independent re-probe on `devloop/issue-439` after a clean checkout, before trusting
+the audit above:
+
+- `https://pandamovies.pw/?s=rocco%27s+intimacy` → HTTP 200, 8 `ml-item` cards
+  (189,981 bytes).
+- `https://pandamovies.pw/search/rocco%27s+intimacy` (the URL the provider builds) →
+  HTTP 200, 8 cards (190,036 bytes).
+- Fresh capture card-by-card **identical** to the committed fixture
+  `panda-search-roccos-intimacy.html`: same 8 `oldtitle`s
+  (Rocco's Intimacy, …Intimacy 2, 4 Cams POV ×4, One On One 2/11), same hrefs. No site
+  drift since the audit probes ~20 min earlier.
+- `./gradlew bootstrapCloudstream && ./gradlew PandaMovies:test` — green
+  (PandaMoviesParseTest 7/7 incl. the #439 cited-query test, 0 failures; full
+  provider suite incl. shared tests executed, `--rerun-tasks`, BUILD SUCCESSFUL).
+- `.pi/skills/verify-provider/scripts/verify.sh` still absent from this checkout —
+  flagged, not silently skipped (unchanged from the audit's gate note).
+
+Conclusion stands: **not reproducible as reported** from runner egress, code current,
+no evidence for any code change. Maintainer in-app evidence (§ Recommendation) remains
+the only path that can reproduce the symptom.
