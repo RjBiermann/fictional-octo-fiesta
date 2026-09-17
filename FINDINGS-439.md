@@ -36,7 +36,9 @@ endpoint paginates the same way (`?...&paged=N`). No asymmetry to exploit or fix
 
 ## 3. Runtime path verified end-to-end at fixture level
 
-Saved a real probe of the exact search URL, parsed with the provider's actual
+Saved a real probe of the exact search URL (committed as
+`PandaMovies/src/test/resources/panda-search-roccos-intimacy.html` so this verdict is
+auditable without re-probing the live site), parsed with the provider's actual
 `Parse.cards` (unit-test run against the live capture): 8 cards, correct titles, hrefs,
 posters — including the `oldtitle` → h2 fallback path. Result:
 
@@ -48,7 +50,7 @@ poster=https://i2.wp.com/pandanetwork.club/.../1376910h.jpg), ...]
 Downstream of search also healthy: both `watch-roccos-intimacy*` pages serve 200 with
 3 `a[id=#iframe]` embeds each (LuluStream/…, all registry-covered).
 
-## 4. Deplyed artifact is current — not a stale-plugin explanation
+## 4. Deployed artifact is current — not a stale-plugin explanation
 
 `plugins.json` on the `builds` branch lists PandaMovies v2, sha
 `4d6d5051…`; downloaded the actual `PandaMovies.cs3` and confirmed the manifest
@@ -57,8 +59,23 @@ Master (commit `2dbd1c5`, merged 2026-09-16 after the #425 audit) is what ships.
 
 ## 5. Unit tests and build
 
+The cited-query capture is now committed as a fixture and pinned by a unit test
+(`PandaMoviesParseTest.`cited #439 query parses 8 cards…``), so the claim in §3 is
+reproducible offline.
+
 `./gradlew bootstrapCloudstream && ./gradlew PandaMovies:test` — all green
 (existing parse/page suites pass unchanged against current code).
+
+## Gate evidence
+
+AGENTS.md validation is `gradlew test` + clean build + `.pi/skills/verify-provider/
+Verification` against the live site. This run's checkout does not contain
+`.pi/skills/verify-provider/` (it is a devloop-side skill asset, not present in the
+run workspace), so verify.sh could not be executed here — flagged rather than
+silently skipped. There is **no code change in this PR** (findings report only, plus
+this evidence fixture/test), so the build and verify gates are vacuous: nothing
+shipped that could regress parsing or extraction, and `PandaMovies:test` — the
+parse-level portion of the gate — is green, now including the #439 capture.
 
 ## Eliminated hypotheses (verified here, in addition to most of #425's list)
 
@@ -67,7 +84,7 @@ Master (commit `2dbd1c5`, merged 2026-09-16 after the #425 audit) is what ships.
   still results, still 200; not a zero-results bug).
 - Search-page 2 of the cited query: 404, but with 8 cards `hasNextPage` is false and
   the app never requests page 2 — no tail error possible.
-- CLoudflare / region / UA: no challenge, all UAs 200 (from this egress; a user-region
+- Cloudflare / region / UA: no challenge, all UAs 200 (from this egress; a user-region
   difference cannot be reproduced from the runner — see gap below).
 - WP caching flakiness: single-entry `cache-control: max-age=3` observed, but 30+
   probes show no degraded/empty serving; raw `< ?php` fragments in the markup are a

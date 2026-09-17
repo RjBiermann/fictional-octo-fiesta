@@ -34,6 +34,21 @@ class PandaMoviesParseTest {
         )
     }
 
+    @Test fun `cited #439 query parses 8 cards from live capture (oldtitle→h2 fallback)`() {
+        val doc = Jsoup.parse(
+            javaClass.getResourceAsStream("/panda-search-roccos-intimacy.html")!!,
+            "UTF-8", base
+        )
+        val cards = Parse.cards(doc)
+        assertEquals(8, cards.size)
+        assertEquals("Rocco’s Intimacy", cards.first().title)
+        assertEquals(
+            "https://pandamovies.pw/watch-roccos-intimacy-movie-online-free",
+            cards.first().href
+        )
+        assertTrue(cards.first().poster?.contains("1376910h.jpg") == true)
+    }
+
     @Test fun `video page fields parse`() {
         val page = Parse.videoPage(videoDoc)
         assertEquals("We Live Together 31", page.title)
