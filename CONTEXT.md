@@ -169,6 +169,14 @@ _Avoid_: duration helper, time parser, per-provider date regex
 The deep shared Parse function (`shared/.../PackedJs.kt`, com.kraptor) that owns the Dean-Edwards `eval(function(p,a,c,k,e,d){...})` unpacket grammar (radix keys, escaped quotes, unmapped-token preservation). Callers pass a whole embed page or bare script and get the unpacked payload, or null when nothing packed is present (caller falls back to raw input). Extractor adapters use it for the JWPlayer/JS packer embeds.
 _Avoid_: unpacker helper, packer class, eval regex (per-adapter regex copies)
 
+**Duration parse**:
+The deep shared Parse module (`shared/.../DurationParse.kt`, com.kraptor) that owns the video-duration clock grammars — `h:m:s` colon clocks, `h/m/min/sec` tokens (HQPorner's badge shape), and plain seconds (`og:video:duration`, MissAV) — always returning minutes, floored (repo convention), null on junk/absent/sub-minute. Providers call `minutes(text)` / `fromSeconds(seconds)` instead of maintaining their own per-provider copies; ISO-8601 JSON-LD input stays with JSON-LD meta parse.
+_Avoid_: seconds parser (duration is minutes here), per-provider clock regex, duration helper
+
+**Card parse**:
+The deep shared Parse module (`shared/.../SearchCard.kt`, com.kraptor) for the listing-card → per-video identity shape: `parse(card, selectors)` returns one `CardFields` (title/href/poster), `homeCards(document, selectors)` returns a pageful deduped by href. Owns the null-guards, lazyload poster fallback, `data:`-placeholder skip and the attr-title shape (`titleAttr`); the MainAPI adapter applies fixUrl + emission. Documented exceptions stay local: root-anchor cards (AllClassicPorn, Cat3Film, HQPorner), deep title fallback chains (Eroticmv, Sexfilm), gated-card skips (FreePornVideos).
+_Avoid_: toSearchResult copy (per-provider private Element extension), card helper, home parser
+
 **Quick search**:
 The live-typing/suggest search surface CloudStream calls while the user types, backed by `quickSearch` + `hasQuickSearch`. Distinct from **search**: a separate endpoint (often AJAX) that many sites don't have — when the site has none, `hasQuickSearch` stays `false` and the absence is recorded explicitly in FINDINGS, never faked.
 _Avoid_: instant search, autocomplete (describes UI behavior, not the provider surface)
