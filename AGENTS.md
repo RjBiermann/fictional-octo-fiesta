@@ -72,9 +72,9 @@ rule). rtk filters bash output before the agent reads it (ADR-0009).
 - **Trigger labels**: `ai-fix`, `ai-new-site`, `ai-remove-site` —
   mutually exclusive (devloop's pre-flight, `Config.kind_for`, raises
   on an issue carrying more than one), applied by humans only. Without a
-  label nothing runs. (`ai-task` existed through devloop v0.3.0 and was
-  dropped by the framework in v0.3.1 — issues carrying only that label
-  are ignored.)
+  label nothing runs. Non-build work is specified as a normal trigger like
+  everything else; the old speculative `ai-task` label was dropped by
+  devloop v0.3.0 and is not live vocabulary.
 - **Spec loop**: `devloop spec <n>` — one round per invocation: ① clarify
   questions → you answer in the thread, ② breakdown → an authorized human
   replies `approved`, ③ sub-issues created (unlabeled) + issue body becomes
