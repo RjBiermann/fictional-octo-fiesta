@@ -2,6 +2,7 @@ package com.coxju
 
 import com.kraptor.JsonLdParse
 import com.kraptor.registerHostExtractors
+import com.kraptor.searchCard
 
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
@@ -32,7 +33,8 @@ class ixiporn : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get(request.data + page).document
-        val home     = document.select("div.col-12.col-md-4.col-lg-3.col-xl-3 > div.video-block").mapNotNull { it.toSearchResult() }
+        val home     = document.select("div.col-12.col-md-4.col-lg-3.col-xl-3 > div.video-block")
+            .mapNotNull { searchCard(it, "a.infos", titleAttr = "title", posterSel = "a.thumb > img") }
 
         return newHomePageResponse(
             list    = HomePageList(
@@ -44,15 +46,8 @@ class ixiporn : MainAPI() {
         )
     }
 
-    private fun Element.toSearchResult(): SearchResponse {
-        val title     = fixTitle(this.select("a.infos").attr("title")).trim()
-        val href      = fixUrl(this.select("a.infos").attr("href"))
-        val posterUrl = fixUrlNull(this.select("a.thumb > img").attr("data-src"))
-
-        return newMovieSearchResponse(title, href, TvType.NSFW) {
-            this.posterUrl = posterUrl
-        }
-    }
+    // Card grammar lives in the shared SearchCard Parse function (title from a.infos[title],
+    // poster a.thumb>img lazyload); emission (fixUrl + newMovieSearchResponse) via searchCard.
 
     override suspend fun search(query: String): List<SearchResponse> {
         val searchResponse = mutableListOf<SearchResponse>()
@@ -60,7 +55,8 @@ class ixiporn : MainAPI() {
         for (i in 1..10) {
             val document = app.get("${mainUrl}/page/$i?s=$query").document
 
-            val results = document.select("div.col-12.col-md-4.col-lg-3.col-xl-3 > div.video-block").mapNotNull { it.toSearchResult() }
+            val results = document.select("div.col-12.col-md-4.col-lg-3.col-xl-3 > div.video-block")
+                .mapNotNull { searchCard(it, "a.infos", titleAttr = "title", posterSel = "a.thumb > img") }
 
             if (!searchResponse.containsAll(results)) {
                 searchResponse.addAll(results)
@@ -83,7 +79,8 @@ class ixiporn : MainAPI() {
         val tags        = document.select("#video-tags a").map { it.text().trim() }
         val duration    = document.selectFirst("meta[itemprop=duration]")?.attr("content")?.let { JsonLdParse.minutes(it) } // shared ISO-8601 grammar (glossary: JSON-LD meta parse)
         val year        = document.selectFirst("meta[itemprop=uploadDate]")?.attr("content")?.take(4)?.toIntOrNull()
-        val related     = document.select(".related-videos div.video-block").mapNotNull { it.toSearchResult() }
+        val related     = document.select(".related-videos div.video-block")
+            .mapNotNull { searchCard(it, "a.infos", titleAttr = "title", posterSel = "a.thumb > img") }
 
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster

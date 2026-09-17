@@ -40,4 +40,15 @@
   <div class="mb">
     <div class="mbimg"><img src="/thumbs/9999.jpg" /></div>
   </div>
+  <!-- attr-title card: the title lives in the anchor's title attribute, not its text
+       (Cat3Movie a.halim-thumb / ixiporn a.infos shape); text fallback covers blank attrs -->
+  <div class="attrtitle">
+    <a class="thumb" title="Attr Title Scene" href="/videos/9012/attr-scene/"><img src="/thumbs/9012.jpg" /></a>
+  </div>
+  <!-- duplicate of the first card: same href, different title/poster — homeCards
+       must dedupe by href (halimmovies newest-posts-twice shape, issue #203) -->
+  <div class="mb">
+    <div class="mbimg"><img data-src="/contents/videos_screenshots/1000/1234/preview2.jpg" /></div>
+    <p class="mbtit"><a href="/videos/1234/hot-scene/">Hot Scene (dupe)</a></p>
+  </div>
 </div>

@@ -2,6 +2,7 @@
 
 package com.byayzen
 
+import com.kraptor.DurationParse
 import com.kraptor.registerHostExtractors
 import com.lagradost.api.Log
 import org.jsoup.nodes.Element
@@ -215,24 +216,11 @@ class Porntrex : MainAPI() {
 // Issue #215: pure parsing helpers, unit-tested against src/test/resources fixtures.
 object PorntrexParse {
 
-    /** "6min 09sec" -> 369; "1:06:09" -> 3600+360+9; "10min" -> 600; junk -> null. */
-    fun parseDurationSeconds(text: String?): Int? {
-        if (text == null) return null
-        val t = text.trim().lowercase()
-        if (t.contains(':')) {
-            val parts = t.split(':').map { it.trim().toIntOrNull() ?: return null }
-            if (parts.size < 2 || parts.any { it < 0 }) return null
-            return parts.fold(0) { acc, p -> acc * 60 + p }
-        }
-        val mins = Regex("(\\d+)\\s*min").find(t)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-        val secs = Regex("(\\d+)\\s*sec").find(t)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-        return if (mins == 0 && secs == 0) null else mins * 60 + secs
-    }
-
     /** Duration from the video details stats row (i.fa-clock-o inside block-details or the
-     *  .video-info stats row, issue #309), in seconds. */
+     *  .video-info stats row, issue #309), in minutes (repo convention). The clock grammar
+     *  itself lives in the shared fixture-tested DurationParse module. */
     fun durationOf(document: org.jsoup.nodes.Document): Int? =
-        parseDurationSeconds(
+        DurationParse.minutes(
             // issue #309: on live full-page DOM the badge sits in the .video-info stats row,
             // outside div.block-details. Widen to both; em.badge still keeps navbar "Latest" out.
             document.selectFirst("div.block-details div.item span:has(i.fa-clock-o) em.badge, .video-info .item span:has(i.fa-clock-o) em.badge")?.text()

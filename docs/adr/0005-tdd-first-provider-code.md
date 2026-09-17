@@ -12,13 +12,18 @@ refactors of working, Verification-covered providers — or the HTTP-mocking sea
 rejected above. Providers whose extraction is inline in `load()` (no Parse seam
 to test) are **grandfathered**:
 
-- `FreePornVideos`, `FullPorner`, `HQPorner`, `XMoviesForYou`, `ixiporn`
-  (the complete list as of this decision; all predate ADR-0005 with no
-  Parse function).
+- `FreePornVideos`, `FullPorner`, `XMoviesForYou`, `ixiporn`
+  (the list as of 2026-09-16; HQPorner retired that day — see below; all
+  remaining entries predate ADR-0005 with no Parse function).
 - The exception closes itself through the base rule: **the next change that
   touches a provider's parsing/extraction logic must extract a Parse function
   and develop it red → green**, which retires the provider from the list.
   Unrelated fixes (headers, plugin shape, version bumps) do not trigger it.
+- `HQPorner` retired 2026-09-16 (architecture review): its duration parsing
+  moved into the shared `DurationParse` Parse function (red→green unit tests
+  in `shared/src/test/kotlin`), so its parsing logic now lives behind a tested
+  Parse seam. Card parsing stays local (root-anchor cards + the
+  `kraptor`-suffixed poster contract are documented SearchCard exceptions).
 - The list is drift-visible: a provider shipping no `src/test` without being
   in this list is a review finding, not a CI failure.
 - Enforcement remains available if drift shows the addendum being ignored —

@@ -1,5 +1,6 @@
 package com.rjbiermann
 
+import com.kraptor.SearchCard
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -15,16 +16,19 @@ class Cat3MovieParseTest {
     private val html = javaClass.getResourceAsStream("/home-dup.html")
         ?.readBytes()?.toString(Charsets.UTF_8) ?: error("fixture home-dup.html missing")
 
-    @Test fun `homepage cards are deduped by href`() {
+    @Test fun `homepage cards are deduped by href (shared SearchCard homeCards)`() {
         val doc = Jsoup.parse(html)
         val all = doc.select("article.thumb")
         assertEquals(61, all.size)
         val hrefs = all.mapNotNull { it.selectFirst("a.halim-thumb")?.attr("href") }
         assertEquals(58, hrefs.size)
         assertEquals(48, hrefs.distinct().size)
-        val parsed = Parse.homeCards(doc)
+        val parsed = SearchCard.homeCards(
+            doc, "article.thumb",
+            titleSel = "a.halim-thumb", titleAttr = "title", posterSel = "img[data-src]",
+        )
         assertEquals(48, parsed.size)
-        assertEquals(hrefs.distinct(), parsed.mapNotNull { it.selectFirst("a.halim-thumb")?.attr("href") })
+        assertEquals(hrefs.distinct(), parsed.map { it.href })
     }
 
     @Test fun `search keeps duplicates (dedupe is homepage-only)`() {
