@@ -18,6 +18,8 @@ buildscript {
         // (-SNAPSHOT metadata resolves under Gradle 9.7.1 as of 2026-09-12; the
         // earlier vendoring existed only for the then-broken jitpack -SNAPSHOT path).
         classpath("com.github.recloudstream.gradle:gradle:-SNAPSHOT")
+        // Pinned: CodeQL's Kotlin extractor cannot parse newer versions;
+        // codeql.yml downgrades to 2.4.10 to build (ADR-0010). Dependabot ignores this.
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.20")
     }
 }

@@ -13,3 +13,6 @@ updates:
       # Deliberate pin: Jackson >2.13.1 breaks older Android devices
       # (build.gradle.kts). Dependabot otherwise re-opens the bump weekly.
       - dependency-name: "com.fasterxml.jackson*"
+      # Pinned: CodeQL's Kotlin extractor cannot parse newer Kotlin Gradle
+      # plugins; codeql.yml downgrades to 2.4.10 to build (ADR-0010).
+      - dependency-name: "org.jetbrains.kotlin:kotlin-gradle-plugin"

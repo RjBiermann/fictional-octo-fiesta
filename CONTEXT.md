@@ -128,7 +128,7 @@ The twice-weekly (Mon + Thu) verdict table the Monitor posts on the `provider-he
 _Avoid_: status update, monitor output
 
 **Chronic**:
-A provider that keeps failing the Drift probe after fixes merge — measured as four or more closed drift issues on its name. The Health report flags a Chronic provider as a removal candidate; the Removal decision stays maintainer-only.
+A provider that keeps failing the Drift probe after fixes merge — measured as four or more closed drift issues on its name. The Health report flags a Chronic provider as a removal candidate; the Removal decision stays maintainer-only. Before that threshold, recurring drift obliges a hardening fix (structural matching, multi-host fallback) instead of another point fix — see AGENTS.md, "Drift recurrence".
 _Avoid_: repeat offender, unstable (rot is the site's doing, not the code's)
 
 **Triage**:
