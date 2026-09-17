@@ -131,9 +131,10 @@ jobs:
           # rebase_branch), only when unset — a human's config always wins
       - name: Run pipeline
         if: github.event_name != 'issue_comment'
-        # -v: decision trace in CI logs (v0.3.19) — queue skips, gate
-        # PASS/FAIL, deferrals with reasons
-        run: devloop -v once
+        # -v (v0.3.19): decision trace in CI logs — queue skips, gate
+        # PASS/FAIL, deferrals with reasons. Flag lives on the
+        # subcommand parser, so it comes after `once`.
+        run: devloop once -v
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run comment command
