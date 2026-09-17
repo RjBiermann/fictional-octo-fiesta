@@ -24,12 +24,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: "src"
 
       - name: Checkout builds
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: "builds"
           path: "builds"
@@ -44,14 +44,14 @@ jobs:
           distribution: temurin
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       # v2 unconditionally installs the SDK package `tools`, which Google removed
       # from the SDK repository (run 35045695055 died before Gradle). v3 still lists
       # `tools` in its default `packages`, so skip package installation explicitly:
       # the runner image preinstalls the SDK and the action keeps accepting licenses.
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
           packages: ''
 

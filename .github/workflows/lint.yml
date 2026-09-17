@@ -24,7 +24,7 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: actionlint
         uses: reviewdog/action-actionlint@v1
         with:
@@ -35,7 +35,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Jackson must not exceed 2.13.1
         run: |
           # -n keeps file:line in the failure output (-h hid it, review #347 P1-7).
@@ -53,9 +53,9 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Dependency review
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@v5
 
   # One-grep gate (issue #169 addendum 2): every provider registers inline via
   # BasePlugin() at the bottom of the provider file. Legacy ': Plugin()' classes
@@ -65,7 +65,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: No legacy Plugin() classes or pass-through provider files
         run: |
           # WatchPorn/FullPorner keep Plugin(context) — context-requiring constructors.
