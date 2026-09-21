@@ -1,6 +1,8 @@
 # Pipeline Verification — Mangoporn (issue #443)
 
 Live checks against https://mangoporn.net (2026-02-14, plain curl UA Firefox/144).
+Review-repair round: mirror rows + MangopornVidguard deleted, first list reduced
+to CloudWish+Maxstream, Parse functions extracted behind the tests (see FINDINGS).
 Fixtures: `/tmp/verify_home.html`, `/tmp/verify_movie.html`.
 
 | check | result |

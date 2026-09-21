@@ -62,11 +62,7 @@ class Mangoporn : MainAPI() {
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
-        val tumKelimeler = igrencKelimeler + Anamenudekiboklar
-        val desen = "\\b(?:${tumKelimeler.joinToString("|") { Regex.escape(it) }})\\w*\\b"
-        val kirliKelimeRegex = Regex(desen, RegexOption.IGNORE_CASE)
         val title = this.select("div h3").text()
-
         if (title.contains(kirliKelimeRegex)) return null
 
         val href = fixUrl(this.select("div h3 a").attr("href"))
@@ -80,11 +76,7 @@ class Mangoporn : MainAPI() {
     }
 
     private fun Element.toSearchingResult(): SearchResponse? {
-        val tumKelimeler = igrencKelimeler + Anamenudekiboklar
-        val desen = "\\b(?:${tumKelimeler.joinToString("|") { Regex.escape(it) }})\\w*\\b"
-        val kirliKelimeRegex = Regex(desen, RegexOption.IGNORE_CASE)
         val title = this.select("div.details a").text()
-
         if (title.contains(kirliKelimeRegex)) return null
 
         val href = fixUrl(this.select("div.image a").attr("href"))
@@ -135,16 +127,10 @@ class Mangoporn : MainAPI() {
             .toString()
 
         val year = document.selectFirst("span.textco a[rel=tag]")?.text()?.trim()?.toIntOrNull()
-        val duration = document.selectFirst("span.duration")?.text()?.let {
-            val hours = Regex("""(\d+)\s*hrs""").find(it)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-            val minutes = Regex("""(\d+)\s*mins""").find(it)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-            (hours * 60) + minutes
-        }
+        val duration = document.selectFirst("span.duration")?.text()?.let { MangopornParse.durationMinutes(it) }
         val description = document.selectFirst("div.wp-content > p")?.text()
         val actors = document.select("div.persons a[href*=/pornstar/]").map { Actor(it.text()) }
 
-        val desen = "\\b(?:${igrencKelimeler.joinToString("|") { Regex.escape(it) }})\\w*\\b"
-        val kirliKelimeRegex = Regex(desen, RegexOption.IGNORE_CASE)
         val tags = document.select("span.valors a[href*=/genre/]").map { it.text() }
 
         val recommendations = document.select("div.sbox.srelacionados article").map {
@@ -197,13 +183,11 @@ class Mangoporn : MainAPI() {
         Log.d("MANGOPORN", "Res | ${response.code}")
 
         val document = response.document
-        val tabs = document.select("div#pettabs > ul a")
+        val tabs = MangopornParse.embedLinks(document)
         Log.d("MANGOPORN", "Sekme | ${tabs.size}")
 
-        val links = tabs.map { it.attr("href") }.filter { it.isNotEmpty() }
+        val links = tabs
         Log.d("MANGOPORN", "Linkler | ${links.size} | $links")
-
-        val blockedHosts = listOf("rapidgator.net", "nitroflare.com", "uploaded.net", "filefactory.com")
 
         return coroutineScope {
             val jobs = links.mapIndexed { index, link ->
@@ -212,28 +196,14 @@ class Mangoporn : MainAPI() {
                         val fullUrl = fixUrl(link)
                         Log.d("MANGOPORN", "Çıkan link [$index] | $fullUrl")
 
-                        val isBlocked = blockedHosts.any { fullUrl.contains(it) }
-                        if (isBlocked) {
-                            Log.d("MANGOPORN", "Atlandı [$index] | Dosya indirme sitesi")
-                            return@launch
-                        }
-
-                        when {
-                            fullUrl.contains("my.player4me.online") -> {
-                                Player4Me().getUrl(fullUrl, mainUrl, subtitleCallback, callback)
-                            }
-                            fullUrl.contains("vip.player4me.vip") -> {
-                                Vip4me().getUrl(fullUrl, mainUrl, subtitleCallback, callback)
-                            }
-                            else -> {
-                                loadExtractor(fullUrl, subtitleCallback) { extractorLink ->
-                                    Log.d(
-                                        "MANGOPORN",
-                                        "Başarı[$index] | ${extractorLink.name} | ${extractorLink.url} | ${extractorLink.quality}"
-                                    )
-                                    callback.invoke(extractorLink)
-                                }
-                            }
+                        // All embed hosts are served by the shared extractor table
+                        // (ADR-0002); dispatch flows through loadExtractor.
+                        loadExtractor(fullUrl, subtitleCallback) { extractorLink ->
+                            Log.d(
+                                "MANGOPORN",
+                                "Başarı[$index] | ${extractorLink.name} | ${extractorLink.url} | ${extractorLink.quality}"
+                            )
+                            callback.invoke(extractorLink)
                         }
                     } catch (e: Exception) {
                         Log.d("MANGOPORN", "Hata [$index] | ${e.message}")
@@ -245,7 +215,7 @@ class Mangoporn : MainAPI() {
         }
     }
 
-    private val igrencKelimeler = listOf(
+    internal val igrencKelimeler = listOf(
         "gay",
         "homosexual",
         "queer",
@@ -306,6 +276,8 @@ class Mangoporn : MainAPI() {
         "crossdress",
         "Bisexual"
     )
+
+    private val kirliKelimeRegex = MangopornParse.dirtyWordRegex(igrencKelimeler)
 
     private val Anamenudekiboklar = listOf("TS", "Trans", "TGirl", "gay", "pegging", "bi", "femboy", "T-Boy", "Bisexual", "Transsexual", "Trans")
 }

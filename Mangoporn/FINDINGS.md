@@ -52,14 +52,13 @@ Source port: https://github.com/Kraptor123/Cs-GizliKeyif/tree/master/Mangoporn
 ## Port decisions
 
 - Provider MainAPI + settings UI (`MangoAyarlar`) ported near-verbatim; settings
-  dialog needs `appcompat`/`recyclerview`/`material` (deps copied per issue).
+  dialog needs `appcompat`/`recyclerview` (deps copied per issue).
 - Extractors: the shared/ host table (Extractorlar.kt) already contains byte-equivalent
   ports of the same upstream code (Filemoon/Byse resolver incl. PoW+captcha path,
   Streamwish, VidHidePro, DoodStream, StreamTAPE, Player4Me, LULUBASE, VidNest,
-  Playmate, Vidguardto, Turtleviplay). Per ADR-0002 no extractor duplication:
-  plugin registers shared hosts first, then the provider-only extras (CloudWish
-  incl. its packed-JS unpack, Javclan/Javggvideo/swhoi/MixDropis/Javmoon/StbP2P/
-  Playerupnone/MixDropAG/MixDropMy/Turboplayers + mirror rows).
+  Playmate, Vidguardto, Turtleviplay). Per ADR-0002 no extractor duplication and
+  no provider mirror rows: the plugin registers only the hosts the shared table
+  lacks (CloudWish incl. its packed-JS unpack, framework Maxstream).
 - VidHidePro body uses framework `getPacked/getAndUnpack` (present in the pinned
   pre-release jar) instead of shared `PackedJs` — ported as-is.
 - Framework `DoodLaExtractor` hardcodes `dood.la` pass_md5 host handling; the

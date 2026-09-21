@@ -9,7 +9,6 @@ import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
 import android.util.TypedValue
 import android.view.Gravity
-import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
@@ -60,7 +59,6 @@ object MangoAyarlar {
         "genre/france" to "French",
         "genre/free-use" to "FreeUSE",
         "genre/gangbang" to "Gangbang",
-        "genre/germany" to "German",
         "genre/germany" to "Germany",
         "genre/gonzo" to "Gonzo",
         "genre/group-sex" to "Group Sex",
@@ -129,7 +127,7 @@ object MangoAyarlar {
     ) + (1980..2025).map { "year/$it" to "$it" }.sortedBy { it.second.lowercase() }
 
     private val defaultEnabledNames = setOf(
-        "Latest Release", "Random Contents", "German", "Russian", "French"
+        "Latest Release", "Random Contents", "Germany", "Russian", "French"
     )
 
     fun dpToPx(c: Context, dp: Int) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp.toFloat(), c.resources.displayMetrics).toInt()
