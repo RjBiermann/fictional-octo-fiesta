@@ -45,10 +45,16 @@ while healthy result pages always overlap (every real result for the cited query
 - `PandaMovies:test` — new tests (red → green) on committed fixtures: cited-query capture
   must NOT be a mismatch; the reproduced garbage page shape must be a mismatch; curly
   input normalizes.
-- Clean build (`gradle build`) per pipeline.
-- `.pi/skills/verify-provider/scripts/verify.sh` — not present in the run workspace
-  (devloop-side skill asset), same flag as FINDINGS-439; parse-level substitute is the
-  fixture suite + this run's probes.
+- CI scope is `test`/`make`/`makePluginsJson` — no lint or full `gradle build` runs in
+  the pipeline (corrects an earlier draft of this section that claimed a clean build).
+  Note: `lintDebug` currently fails on a pre-existing `shared/Extractorlar.kt:663` lint
+  flagged by the refreshed classes.jar — flagged, not fixed here.
+- Live-site Verification (run in PR repair after AI review flagged its absence):
+  `GET /search/Rocco%27s+intimacy` and the retry endpoint `GET /?s=Rocco%27s+intimacy`
+  both return the same 8 correct cards (Rocco’s Intimacy, … 2, Rocco’s 4 Cams POV…,
+  Rocco One On One 2/11) — matching the issue's expected list exactly; the `?s=` retry
+  assumption (retry endpoint serves the healthy page) is confirmed live. Page 2 of the
+  search URL is 404 past the end, consistent with the `hasNextPage` rule.
 - Version bumped 2 → 3.
 
 Not merged here; left committed for human review.

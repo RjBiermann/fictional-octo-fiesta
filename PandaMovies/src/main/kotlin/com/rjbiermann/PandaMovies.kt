@@ -40,19 +40,24 @@ class PandaMovies : MainAPI() {
     }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
-        val url = { q: String ->
-            val slug = java.net.URLEncoder.encode(Parse.normalizeQuery(q.trim()), "UTF-8")
-            if (page <= 1) "$mainUrl/search/$slug" else "$mainUrl/search/$slug/page/$page"
-        }
-        var document = app.get(url(query)).document
-        var list = Parse.cards(document)
         // #444 hardening: WP search intermittently serves garbage fuzzy pages (zero
         // query/title overlap, reproduced live in this issue). Retry once via the
-        // equivalent `?s=` endpoint.
-        if (page == 1 && Parse.queryMismatch(list, query)) {
-            document = app.get("$mainUrl/?s=" + java.net.URLEncoder.encode(Parse.normalizeQuery(query.trim()), "UTF-8")).document
-            val retry = Parse.cards(document)
-            if (!Parse.queryMismatch(retry, query)) list = retry
+        // equivalent `?s=` endpoint. The zero-overlap detector can't catch garbage
+        // that happens to contain a query token — accepted residual.
+        // ponytail: single retry per request; retry-loop if server junk persists.
+        val slug = java.net.URLEncoder.encode(Parse.normalizeQuery(query.trim()), "UTF-8")
+        var document = app.get(if (page <= 1) "$mainUrl/search/$slug" else "$mainUrl/search/$slug/page/$page").document
+        val firstDoc = document
+        var list = Parse.cards(document)
+        if (Parse.queryMismatch(list, query)) {
+            val retryDoc = app.get("$mainUrl/?s=$slug").document
+            val retry = Parse.cards(retryDoc)
+            if (!Parse.queryMismatch(retry, query)) {
+                list = retry
+                document = retryDoc
+            } else {
+                document = firstDoc
+            }
         }
         return newSearchResponseList(
             list.mapNotNull { it.toSearchResult(this@PandaMovies) },
@@ -176,9 +181,16 @@ object Parse {
         if (tokens.isEmpty()) return false
         return cards.none { c ->
             val title = normalizeQuery(c.title).lowercase()
-            tokens.any { title.contains(it) }
+            tokens.any { wordBoundaryContains(title, it) }
         }
     }
+
+    /** Strict token match: `token` in `title` at word boundaries (same normalization
+     *  as [queryMismatch]). Word-boundary instead of substring containment: a
+     *  false-negative keeps the reported bug alive, a false-positive retry is cheap
+     *  (one request, falls back to the first response). */
+    private fun wordBoundaryContains(title: String, token: String): Boolean =
+        token in title.split(Regex("[^a-z0-9]+"))
 
     /** Is there a next page? (live, #425): WP `posts_per_page=40` — search and archive
      *  listings serve up to 40 cards per page. A page with fewer cards is the last
