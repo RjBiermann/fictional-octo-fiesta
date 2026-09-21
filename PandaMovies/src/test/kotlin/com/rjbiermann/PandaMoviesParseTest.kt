@@ -49,6 +49,34 @@ class PandaMoviesParseTest {
         assertTrue(cards.first().poster?.contains("1376910h.jpg") == true)
     }
 
+    @Test fun `queryMismatch is false for healthy results (#444)`() {
+        val doc = Jsoup.parse(
+            javaClass.getResourceAsStream("/panda-search-roccos-intimacy.html")!!,
+            "UTF-8", base
+        )
+        assertTrue(!Parse.queryMismatch(Parse.cards(doc), "Rocco's intimacy"))
+        assertTrue(!Parse.queryMismatch(Parse.cards(doc), "rocco’s intimacy"))
+    }
+
+    @Test fun `queryMismatch flags zero-overlap garbage results (#444)`() {
+        // titles reproduced live from pandamovies.pw for near-miss query encodings
+        val garbage = listOf(
+            Parse.Card("The Best of Taylor Sands", "x", null),
+            Parse.Card("AT-22", "x", null),
+            Parse.Card("Picking Up Teen", "x", null),
+            Parse.Card("By Appointment Only", "x", null),
+        )
+        assertTrue(Parse.queryMismatch(garbage, "Rocco's intimacy"))
+        // empty results are never a mismatch (legit no-hit search)
+        assertTrue(!Parse.queryMismatch(emptyList(), "Rocco's intimacy"))
+    }
+
+    @Test fun `normalizeQuery maps curly apostrophe (#444)`() {
+        assertEquals("Rocco's intimacy", Parse.normalizeQuery("Rocco\u2019s intimacy"))
+        assertEquals("Rocco's intimacy", Parse.normalizeQuery("Rocco’s intimacy"))
+        assertEquals("Rocco's intimacy", Parse.normalizeQuery("Rocco's intimacy"))
+    }
+
     @Test fun `video page fields parse`() {
         val page = Parse.videoPage(videoDoc)
         assertEquals("We Live Together 31", page.title)

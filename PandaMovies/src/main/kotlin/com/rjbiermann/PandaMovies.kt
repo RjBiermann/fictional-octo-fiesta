@@ -40,13 +40,22 @@ class PandaMovies : MainAPI() {
     }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
-        val slug = java.net.URLEncoder.encode(query.trim(), "UTF-8")
-        val url = if (page <= 1) "$mainUrl/search/$slug" else "$mainUrl/search/$slug/page/$page"
-        val document = app.get(url).document
-        val list = Parse.cards(document).mapNotNull { it.toSearchResult(this@PandaMovies) }
+        val url = { q: String ->
+            val slug = java.net.URLEncoder.encode(Parse.normalizeQuery(q.trim()), "UTF-8")
+            if (page <= 1) "$mainUrl/search/$slug" else "$mainUrl/search/$slug/page/$page"
+        }
+        var document = app.get(url(query)).document
+        var list = Parse.cards(document)
+        // #444 hardening: WP search intermittently serves garbage fuzzy pages (zero
+        // query/title overlap, reproduced live in this issue). Retry once via the
+        // equivalent `?s=` endpoint.
+        if (page == 1 && Parse.queryMismatch(list, query)) {
+            document = app.get("$mainUrl/?s=" + java.net.URLEncoder.encode(Parse.normalizeQuery(query.trim()), "UTF-8")).document
+            val retry = Parse.cards(document)
+            if (!Parse.queryMismatch(retry, query)) list = retry
+        }
         return newSearchResponseList(
-            list,
-            // same WP posts_per_page=40 rule as getMainPage (search past the end: 404)
+            list.mapNotNull { it.toSearchResult(this@PandaMovies) },
             hasNext = Parse.hasNextPage(document)
         )
     }
@@ -143,6 +152,33 @@ object Parse {
                     null
                 }
             }.distinctBy { it.href }
+
+    /**
+     * #444: normalize keyboard curly apostrophes to the straight form the site's
+     * healthy search path uses. WP's fuzzy engine serves garbage pages for curly
+     * variants; incumbent straight-apostrophe paths are proven by fixtures.
+     */
+    fun normalizeQuery(text: String): String =
+        text.replace('\u2018', '\'').replace('\u2019', '\'')
+
+    /**
+     * #444 structural check: garbage result pages (transient WP/CDN responses) share
+     * zero alphanumeric tokens (len >= 3, apostrophe-stripped, case-insensitive) with
+     * the query — every healthy result page overlaps, fixtures prove it. Empty results
+     * are a legitimate no-hit, never a mismatch.
+     */
+    fun queryMismatch(cards: List<Card>, query: String): Boolean {
+        if (cards.isEmpty()) return false
+        val tokens = normalizeQuery(query).lowercase()
+            .split(Regex("[^a-z0-9]+"))
+            .filter { it.length >= 3 }
+            .toSet()
+        if (tokens.isEmpty()) return false
+        return cards.none { c ->
+            val title = normalizeQuery(c.title).lowercase()
+            tokens.any { title.contains(it) }
+        }
+    }
 
     /** Is there a next page? (live, #425): WP `posts_per_page=40` — search and archive
      *  listings serve up to 40 cards per page. A page with fewer cards is the last
