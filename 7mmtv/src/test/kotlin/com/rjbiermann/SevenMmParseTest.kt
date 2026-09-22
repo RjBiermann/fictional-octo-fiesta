@@ -108,7 +108,29 @@ class SevenMmParseTest {
             recs.map { com.kraptor.DistinctBar.VideoIdentity(it.title, it.poster, it.href) })
     }
 
-    // --- listing / search cards ---
+    // --- TURBOVID chain: iframeencrypteda page → wrapped iframeencryptedb → m3u8 ---
+
+    @Test fun `turbovidWrapped resolves absolute and protocol-relative iframe srcs`() {
+        // live page (uncensored group, 2026-09-22): src='https://…' — the //heuristic misses it
+        assertEquals(
+            "https://7mmtv.sx/en/uncensored_iframeencryptedb/0/0/40.html",
+            SevenMm.turbovidWrapped(
+                "<iframe src='https://7mmtv.sx/en/uncensored_iframeencryptedb/0/0/40.html'></iframe>"))
+        SevenMm.turbovidWrapped(fixture("turbovid-chain-a.html")).let { w ->
+            assertTrue(w!!.startsWith("https://7mmtv.sx/en/uncensored_iframeencryptedb"))
+        }
+        assertNull(SevenMm.turbovidWrapped("<iframe src='https://other.com/e/x'></iframe>"))
+    }
+
+    @Test fun `turbovidM3u8 prefers urlPlay, falls back to data-hash`() {
+        val page = Jsoup.parse(fixture("turbovid-chain-b.html")).html()
+        assertTrue(SevenMm.turbovidM3u8(page)!!.contains(".m3u8"))
+        assertEquals("https://cdn4.turboviplay.com/data1/x/x.m3u8",
+            SevenMm.turbovidM3u8("<div data-hash=\"https://cdn4.turboviplay.com/data1/x/x.m3u8\"></div>"))
+        assertNull(SevenMm.turbovidM3u8("<p>nope</p>"))
+    }
+
+    // --- listing / search cards, dedupe ---
 
     @Test fun `search page cards parse`() {
         val doc = Jsoup.parse(fixture("search-all.html"))
@@ -117,5 +139,41 @@ class SevenMmParseTest {
         assertTrue(cards.all { it.href.contains("_content/") && it.title.isNotBlank() })
         com.kraptor.DistinctBar.assertDistinctVideos(
             cards.map { com.kraptor.DistinctBar.VideoIdentity(it.title, it.poster, it.href) })
+    }
+
+    /** Cross-pipeline repeats: MISM-456 appears at 206177 (censored) and 107156 — different
+     *  ids and poster urls (jpg vs webp), same movie code in the href. Poster-key dedupe
+     *  misses the jpg/webp pair; the movie-key dedupe collapses all repeats. */
+    @Test fun `cards dedupe collapses cross-pipeline repeats by movie code, not poster`() {
+        val doc = Jsoup.parse(fixture("search-all.html"))
+        val cards = SevenMm.cards(doc)
+        assertEquals(1, cards.count { it.href.endsWith("/MISM-456.html") })
+        // the two repeats really do carry different poster urls — the old key was blind to this
+        val repeats = com.kraptor.SearchCard.homeCards(doc, "div.video", "h3.video-title a")
+            .filter { it.href.endsWith("/MISM-456.html") }
+        assertEquals(2, repeats.size)
+        assertTrue(repeats[0].poster != repeats[1].poster)
+        // key derivation itself
+        assertEquals("MISM-456", SevenMm.movieKey("https://7mmtv.sx/en/censored_content/206177/MISM-456.html"))
+        assertEquals("134651", SevenMm.movieKey("https://7mmtv.sx/en/amateur_content/134651/content.html"))
+    }
+
+    /** Uncensored + reducing-mosaic groups: per-page key/IV pairing (first-alias heuristic)
+     *  verified against live fixtures from those groups (issue's own example pages). */
+    @Test fun `mvarr rows decode on uncensored and reducing-mosaic fixtures`() {
+        val fc2 = SevenMm.serverRows(Jsoup.parse(fixture("fc24979713-video.html")))
+        assertEquals(9, fc2.size)
+        assertEquals(2, fc2.count { it.kind == SevenMm.Kind.PLAY })
+        assertEquals(1, fc2.count { it.kind == SevenMm.Kind.TURBOVID })
+        assertEquals(6, fc2.count { it.kind == SevenMm.Kind.EMBED })
+        assertTrue(fc2.any { it.src == "https://mmsi02.com/e/qrdmwnvj3mjx" })
+        assertTrue(fc2.any { it.src == "https://mmvh02.com/v/g2wchzd1bfae" })
+        assertTrue(fc2.any { it.src.startsWith("https://7mmtv.sx/en/uncensored_iframeencrypteda/") })
+
+        val jufe = SevenMm.serverRows(Jsoup.parse(fixture("jufe321-video.html")))
+        assertEquals(2, jufe.size)
+        assertEquals(1, jufe.count { it.kind == SevenMm.Kind.PLAY })
+        assertEquals(1, jufe.count { it.kind == SevenMm.Kind.TURBOVID })
+        assertTrue(jufe.any { it.src.startsWith("https://7mmtv.sx/en/reducing-mosaic_iframeencrypteda/") })
     }
 }

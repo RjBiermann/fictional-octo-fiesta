@@ -72,6 +72,18 @@ object SevenMm {
         return rows
     }
 
+    /** Pure Parse function: 7mmtv /iframeencrypteda/ chain page → the wrapped
+     *  /iframeencryptedb/ iframe target (protocol-relative or absolute src). */
+    fun turbovidWrapped(chainPage: String): String? =
+        Regex("src='((?:https?:)?//[^']*iframeencryptedb[^']*)'")
+            .find(chainPage)?.groupValues?.get(1)
+
+    /** Pure Parse function: turbovidhls embed page → the emturbovid m3u8
+     *  (var urlPlay first, data-hash attribute fallback). */
+    fun turbovidM3u8(vhPage: String): String? =
+        Regex("urlPlay\\s*=\\s*'([^']+m3u8[^']*)'").find(vhPage)?.groupValues?.get(1)
+            ?: Regex("data-hash=\"([^\"]+m3u8[^\"]*)\"").find(vhPage)?.groupValues?.get(1)
+
     /** Pure Parse function: play.php player page → DISTINCT direct m3u8 urls. */
     fun playSources(doc: Document): List<String> =
         Regex("src:\\s*'([^'\\s]+\\.m3u8)\\s*'").findAll(doc.html())
@@ -104,11 +116,19 @@ object SevenMm {
     fun recs(doc: Document): List<com.kraptor.CardFields> =
         SearchCard.homeCards(doc, "div.video.video-related", "h3.video-title a")
 
-    /** Listing / search result cards. The site legitimately repeats the same movie across
-     *  its content pipelines in search results (censored + amateur pipelines) — dedupe. */
+    /** Listing / search result cards. The site repeats one movie across its content
+     *  pipelines in search results (censored + reducing-mosaic: different pairwise ids
+     *  AND poster urls — jpg vs webp — but the same movie code in the href); dedupe by
+     *  that href-derived identity. Amateur group urls carry a numeric id instead of a
+     *  code (…/134651/content.html) — also collapsed correctly. */
     fun cards(doc: Document): List<com.kraptor.CardFields> =
         SearchCard.homeCards(doc, "div.video", "h3.video-title a")
-            .distinctBy { it.poster ?: it.href }
+            .distinctBy { movieKey(it.href) }
+
+    fun movieKey(href: String): String {
+        val segs = href.trimEnd('/').substringBeforeLast('.').split('/')
+        return segs.lastOrNull { it != "content" } ?: href
+    }
 }
 
 class SevenMmTv : MainAPI() {
@@ -189,11 +209,8 @@ class SevenMmTv : MainAPI() {
                     // (iframe a → iframe b) to turbovidhls.com — resolved like Javmost's
                     // emturbovid stream (page-derived, same documented exception)
                     SevenMm.Kind.TURBOVID -> {
-                        val wrapped = Regex("src='(//[^']*iframeencryptedb[^']*)'")
-                            .find(app.get(row.src).text)?.groupValues?.get(1) ?: continue
-                        val vhPage = app.get(fixUrl(wrapped), referer = data).text
-                        val m3u8 = Regex("urlPlay\\s*=\\s*'([^']+m3u8[^']*)'").find(vhPage)?.groupValues?.get(1)
-                            ?: Regex("data-hash=\"([^\"]+m3u8[^\"]*)\"").find(vhPage)?.groupValues?.get(1)
+                        val wrapped = SevenMm.turbovidWrapped(app.get(row.src).text) ?: continue
+                        val m3u8 = SevenMm.turbovidM3u8(app.get(fixUrl(wrapped), referer = data).text)
                             ?: continue
                         callback.invoke(
                             newExtractorLink(name, name, m3u8, ExtractorLinkType.M3U8) {
