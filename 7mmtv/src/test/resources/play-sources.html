@@ -1,0 +1,76 @@
+<html><body><script>over_information.animate({opacity:"0"},100,function(){$(this).remove();});
+			}		
+		}
+				
+	});
+</script>
+<script type="application/javascript">var ad_idzone = "5462076",ad_popup_fallback = false,ad_popup_force = true,ad_chrome_enabled = true,ad_new_tab = false,ad_frequency_period = 15,ad_frequency_count = 1,ad_trigger_method = 1,ad_trigger_delay = 0,ad_t_venor = false; </script><script type="application/javascript" src="https://a.pemsrv.com/popunder1000.js"></script><script type="application/javascript">var ad_idzone = "5462074",ad_popup_fallback = false,ad_popup_force = true,ad_chrome_enabled = true,ad_new_tab = false,ad_frequency_period = 15,ad_frequency_count = 1,ad_trigger_method = 1,ad_trigger_delay = 0,ad_t_venor = false; </script><script type="application/javascript" src="https://a.pemsrv.com/popunder1000.js"></script>	
+	
+	<style>
+		.plyr_width {width: 100%;margin:0 auto;text-align:center;}
+		#player_top,
+		#player_top .plyr--video {
+		  width: 100%;
+		  aspect-ratio: 16 / 9; /* 預先保留高度，避免 CLS */
+		}
+
+		#player_top video,
+		#player_top .plyr__video-wrapper,
+		#player_top .plyr__video-wrapper video {
+		  display: block;
+		  width: 100%;
+		  height: 100%;
+		  object-fit: contain;
+		}
+		
+	</style>
+	
+	<div class='plyr_width'>
+		<div id="player_top"></div>
+  </div>
+
+  <link rel="stylesheet" href="plyr_3.7.8.css">
+	<script src="plyr_3.7.8.js"></script>
+	<script src="hls.min.v1.5.7.js?2024b"></script>
+	<script src="plyr-plugin-thumbnail.js"></script>
+	
+  <script>
+		document.addEventListener('DOMContentLoaded', () => {
+
+		  // =========================
+		  // [新增] 將 Hls 宣告成可重建的變數（原本 const 無法 destroy 後重建）
+		  // =========================
+		  let hls = null;
+
+		  // =========================
+		  // [新增] HLS 建立函數：集中管理 options
+		  // =========================
+		  function buildHls() {
+		    return new Hls({
+		      liveSyncDurationCount: 4,
+		      maxBufferLength: 40,
+		    });
+		  }
+
+		  const playerContainer = document.getElementById('player_top');
+
+		     
+		  const videoSources = [
+
+				{src: 'https://embedsozgfdiu0pzo1el0e9lwgacz1cq.streamsuperpro.com/63e9d23716daa89c36b363e44a29a0ba/18/1/TLTKi1aH6VFsMhJhk7L9OA/TLTKi1aH6VFsMhJhk7L9OA.m3u8',type: 'application/x-mpegURL', size: 480},{src: 'https://embedsozgfdiu0pzo1el0e9lwgacz1cq.streamsuperpro.com/63e9d23716daa89c36b363e44a29a0ba/18/2/TLTKi1aH6VFsMhJhk7L9OA/TLTKi1aH6VFsMhJhk7L9OA.m3u8',type: 'application/x-mpegURL', size: 720},		  ];
+
+		  const createPlayer = (src) => {
+
+		    const video = document.createElement('video');
+		    video.id = 'player';
+		    
+		    video.width = 16;
+				video.height = 9;
+		    
+		    video.controls = true;
+
+		    video.setAttribute('preload', 'auto');							// 自動預載入視訊資料，以提高播放時的響應速度
+		    video.crossOrigin = 'anonymous';										// 避免跨域資源（字幕/縮圖/某些環境）引發播放/抓取問題
+		    
+		    //IOS。默認不進入iOS原生全螢幕模式，但點選全螢幕按鈕可以進入iOS原生全螢幕模式
+		    video.setAttribute('playsinline', 'true');				</script></body></html>

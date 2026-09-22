@@ -1277,6 +1277,11 @@ fun streamwishMirror(url: String, nm: String): Streamwish =
 fun filesimMirror(url: String, nm: String): Filesim =
     object : Filesim() { override var mainUrl = url; override var name = nm }
 
+// issue #452: mmsi02.com (7mmtv "SW" rows) serves the same packed-eval links={hls2..4}
+// JW shape as javclan.com — same family adapter, one registry row per domain.
+fun javclanMirror(url: String, nm: String): Javclan =
+    object : Javclan() { override var mainUrl = url; override var name = nm }
+
 fun mixdropMirror(url: String): MixDrop =
     object : MixDrop() { override var mainUrl = url }
 

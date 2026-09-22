@@ -54,6 +54,8 @@ internal fun sharedHostRegistry(): List<ExtractorApi> = listOf(
         vidHidePro("https://vidhidevip.com", "VidhideVIP"),
         dood("https://dooood.com"),
         dood("https://dood.ws"),   // javmost.ws g41 server row returns dood.ws embeds (issue #376)
+        javclanMirror("https://mmsi02.com", "StreamHG"),   // 7mmtv SW rows (issue #452)
+        vidHidePro("https://mmvh02.com", "VidHide"),        // 7mmtv VH rows (issue #452)
         vidHidePro("https://javlion.xyz", "Javlion"),
         vidHidePro("https://dhcplay.com", "DHC Play"),
         vidHidePro("https://smoothpre.com", "EarnVids"),
