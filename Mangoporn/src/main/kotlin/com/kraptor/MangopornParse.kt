@@ -27,6 +27,12 @@ object MangopornParse {
     /** File-locker hosts loadLinks skips (rapidgator/nitroflare-style download links). */
     private val blockedHosts = listOf("rapidgator.net", "nitroflare.com", "uploaded.net", "filefactory.com")
 
+    /** Search URL for page n; query is URL-encoded (raw space breaks OkHttp/NiceHttp). */
+    fun searchUrl(baseUrl: String, query: String, page: Int): String {
+        val encoded = java.net.URLEncoder.encode(query, "UTF-8").replace("+", "%20")
+        return if (page <= 1) "$baseUrl/?s=$encoded" else "$baseUrl/page/$page/?s=$encoded"
+    }
+
     /** Embed links from the stream tabs (`div#pettabs > ul a[href]`), file lockers filtered out. */
     fun embedLinks(document: org.jsoup.nodes.Document): List<String> =
         document.select("div#pettabs > ul a").map { it.attr("href") }

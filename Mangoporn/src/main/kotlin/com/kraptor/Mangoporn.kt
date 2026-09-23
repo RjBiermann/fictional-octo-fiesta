@@ -95,12 +95,11 @@ class Mangoporn : MainAPI() {
         val searchResponse = mutableListOf<SearchResponse>()
 
         for (i in 1..2) {
-            val searchUrl = if (i <= 1) {
-                "${mainUrl}/?s=$query"
-            } else {
-                "${mainUrl}/page/$i/?s=$query"
+            val document = try {
+                app.get(MangopornParse.searchUrl(mainUrl, query, i)).document
+            } catch (_: Exception) {
+                break // dead site / bad response — return what was found so far
             }
-            val document = app.get(searchUrl).document
 
             val results = document.select("article")
                 .mapNotNull { it.toSearchingResult() }

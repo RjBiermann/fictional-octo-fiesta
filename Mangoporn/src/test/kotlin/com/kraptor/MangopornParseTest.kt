@@ -62,4 +62,23 @@ class MangopornParseTest {
         assertFalse(links.any { it.contains("rapidgator") || it.contains("nitroflare") })
         assertTrue(links.isNotEmpty())
     }
+
+    // ---- search URL (issue #456: raw query broke multi-word searches) ----
+
+    @Test
+    fun searchUrlEncodesQuery() {
+        assertEquals(
+            "https://mangoporn.net/?s=two%20words",
+            MangopornParse.searchUrl("https://mangoporn.net", "two words", 1)
+        )
+        assertEquals(
+            "https://mangoporn.net/page/2/?s=two%20words",
+            MangopornParse.searchUrl("https://mangoporn.net", "two words", 2)
+        )
+        // OkHttp rejects URLs with a literal space — this used to crash search()
+        assertEquals(
+            "https://mangoporn.net/?s=na%C3%AFve%20%22quote%22",
+            MangopornParse.searchUrl("https://mangoporn.net", "naïve \"quote\"", 1)
+        )
+    }
 }
