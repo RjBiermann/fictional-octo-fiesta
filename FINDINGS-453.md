@@ -1,6 +1,6 @@
 # FINDINGS-453 — fix pipeline
 
-Issue: fixed-octo-fiesta#453 (`ai-fix`, verdict: **devloop issue, not a pipeline/repo issue** — answer to the issue's question)
+Issue: fictional-octo-fiesta#453 (`ai-fix`, verdict: **devloop issue, not a pipeline/repo issue** — answer to the issue's question)
 Failure run: https://github.com/RjBiermann/fictional-octo-fiesta/actions/runs/35751526301/job/106826609112
 Date: run timestamp 2026-09-22T16:03Z, probed 2026-09-23.
 
