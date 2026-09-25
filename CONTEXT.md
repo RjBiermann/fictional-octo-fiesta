@@ -72,11 +72,14 @@ The ordered fallback of probe instruments: curl → TLS-impersonated curl → br
 _Avoid_: playwright (a tool, not the concept), browser testing
 
 **Blocked**:
-The live site refused the runner or serves nothing a provider could use. A PR may open as Blocked with an explicit note; the human verifies in-app instead. FINDINGS records the exact **Blocked reason** so the dead end is never re-probed.
-_Avoid_: failure (a failure stops the run; Blocked completes it with a caveat)
+The live site refused the runner or serves nothing a provider could use **after the site-probe escalation ladder ran** (plain curl → TLS-impersonated curl → browser diagnosis, ADR-0011). A PR may open as Blocked with an explicit note; the human verifies in-app instead. FINDINGS records the exact **Blocked reason** so the dead end is never re-probed.
+_Avoid_: failure (a failure stops the run; Blocked completes it with a caveat); using Blocked for a pre-escalation challenge
 
 **Blocked reason**:
 The recorded cause of a Blocked outcome — `client-rendered (JS-only)` (DOM has content, HTTP body doesn't, no SSR/API fallback) or `challenge, no unlock`. Recorded in FINDINGS Risks/blockers; a future agent reads it, not re-probes it.
+
+**Suspected (challenge from datacenter probe IP)**:
+A Cloudflare challenge (403/turnstile) received from the CI runner's datacenter IP, before any escalation ran. Cloudflare challenges datacenter IPs unconditionally on many sites, so this measures the runner's IP reputation, not site health — **never a finding on its own**. Evidence: the issue-#460 audit's five false Blocked verdicts (FullPorner, Film1k, FreePornVideos, XMoviesForYou, EPorner) vs the residential-IP differential (local 200s). Becomes Blocked only after the escalation ladder fails; otherwise escalate (site-probe) or record as Suspected with the response evidence.
 _Avoid_: blocked type, block category
 
 **Lead**:
