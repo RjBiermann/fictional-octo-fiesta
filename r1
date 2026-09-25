@@ -1,0 +1,25 @@
+Traceback (most recent call last):
+  File "/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/curl_cffi/requests/session.py", line 827, in _request_once
+    c.perform()
+  File "/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/curl_cffi/curl.py", line 594, in perform
+    self._check_error(ret, "perform")
+  File "/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/curl_cffi/curl.py", line 320, in _check_error
+    raise error
+curl_cffi.curl.CurlError: Failed to perform, curl: (6) Could not resolve host: -e. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "<stdin>", line 12, in <module>
+  File "/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/curl_cffi/requests/__init__.py", line 153, in get
+    return request(method="GET", url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/curl_cffi/requests/__init__.py", line 145, in request
+    return s.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/curl_cffi/requests/session.py", line 900, in request
+    return self._request_once(
+           ^^^^^^^^^^^^^^^^^^^
+  File "/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/curl_cffi/requests/session.py", line 834, in _request_once
+    raise error(str(e), e.code, rsp) from e
+curl_cffi.requests.exceptions.DNSError: Failed to perform, curl: (6) Could not resolve host: -e. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.
