@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "note": "Instrument calibration canaries, checked at audit start. expected maps instrument tier -> HTTP outcome. If observed != expected, follow 'on_mismatch': environment-degraded (downgrade all Blocked to Suspected) or expectation-stale (verify via differential, propose expectation update in the run PR). Maintainer confirms expectation changes in review.",
+  "canaries": [
+    {
+      "name": "film1k-challenge-pair",
+      "site": "https://www.film1k.com/",
+      "purpose": "detects datacenter-IP Cloudflare challenge (known since FINDINGS-408)",
+      "expected": {"plain-curl": 403, "tls-impersonated": 200},
+      "on_mismatch": "environment-degraded",
+      "last_verified": "2026-09-25"
+    },
+    {
+      "name": "eporner-healthy",
+      "site": "https://www.eporner.com/",
+      "purpose": "known-good SSR homepage; any failure = instrument or network degradation",
+      "expected": {"plain-curl": 200},
+      "on_mismatch": "environment-degraded",
+      "last_verified": "2026-09-25"
+    },
+    {
+      "name": "pandamovies-dead-origin",
+      "site": "https://pandamovies.pw/",
+      "purpose": "known-dead origin (CF 522); validates unreachable detection",
+      "expected": {"plain-curl": 522, "tls-impersonated": 522},
+      "on_mismatch": "expectation-stale",
+      "last_verified": "2026-09-25"
+    }
+  ]
+}

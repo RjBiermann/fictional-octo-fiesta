@@ -17,12 +17,12 @@ engine = "opencode"        # opencode | claude | goose | custom
 argv = ["pi", "--no-session", "--mode", "text", "--model", "go/glm-5.3-flash", "--thinking", "low", "--approve"]  # prompt appended as final argument; --approve = trust project .pi (headless ignores project resources otherwise)
 
 [pipeline]
-verify = ""              # the gate. e.g. "make verify" — empty = skip
+verify = "bash .pi/skills/audit-providers/scripts/check-findings.sh"              # the gate. e.g. "make verify" — empty = skip
 review_rounds = 2          # AI pre-review rounds before human review
 max_parallel = 2           # parallel builds: own worktree each; file-overlap deliveries defer to a later sweep
 poll_seconds = 300         # watch-mode poll interval
 timeout = 1800             # PR-scoped run budget (review/repair) — v0.3.12 splits budgets
-                          # build_timeout (default 3600) covers issue-scoped runs
+build_timeout = 5400       # issue-scoped runs: fleet sweep + canary + 4-provider deep tier ≈ 50 min
 max_per_day = 2           # per-issue daily attempt cap; 0 = unlimited — stop runaway spend
 
 [access]
