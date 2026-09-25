@@ -1,12 +1,15 @@
 {
   "schema": 1,
   "note": "Machine source of truth for the provider fleet audit. drift_confirmed counts only closed issues CONFIRMED as drift/broken (Suspected findings closed as false positives are exclusions, never occurrences). Audits update this file; the lint (scripts/check-findings.sh) must pass before delivery.",
-  "updated": "2026-09-25",
+  "updated": "2026-09-25T18:00Z",  
   "last_runs": [
     {"id": "run1", "date": "2026-09-24", "pr": 469, "findings": [461, 462, 463, 464, 465, 466, 467, 468], "false_positives": [461, 462, 465, 466, 467], "note": "datacenter-IP CF challenges verdicted Blocked without escalation"},
     {"id": "run2", "date": "2026-09-25", "pr": 474, "findings": [471, 472, 473], "false_positives": [473], "duplicates": [471, 472], "note": "471/472 closed as duplicates of standing 463/464; 473 false-positive per residential differential; audit-providers skill + registry shipped in 7044dc9"}
-  ],
-  "providers": {
+,    {"id": "run3", "date": "2026-09-25", "pr": null, "findings": [517, 518, 519], "false_positives": [], "duplicates": [], "note": "fleet sweep 24 providers, all canaries pass; Javbangers search 404 (#517), PornXP search zero-cards (#518), Javseen AJAX search shell (#519, suspected)"}
+  ],  "providers": {
+    "Javbangers": {"site": "javbangers.com", "verdict": "ok-drift", "reason": "search with page suffix 404s: /search/anal/1/ 404 vs /search/anal/ 200; video pages and get_file streams 200 OK", "tier": "plain-curl", "surfaces": {"home": "200", "search": "404 (with /N/ suffix)", "video": "200", "stream": "200 mp4"}, "issue": 517, "standing_issue": null, "drift_confirmed": 1, "chronic": false},
+    "PornXP": {"site": "pxp.news", "verdict": "ok-drift", "reason": "search?query=anal returns 200 zero-byte body / zero cards, while browse surfaces (/released/…) and video pages with direct sd.pornxp.sh mp4s work", "tier": "tls-impersonated", "surfaces": {"home": "200", "search": "200 empty", "video": "200", "stream": "206 mp4"}, "issue": 518, "standing_issue": null, "drift_confirmed": 1, "chronic": false},
+    "Javseen": {"site": "javseen.tv", "verdict": "ok-suspected", "reason": "search endpoint returns 200 one-hit page shell (AJAX-served results suspected, not confirmable without browser); embed/stream chain verified end-to-end (mycloudz → dramiyos-cdn m3u8 → MPEG-TS segment)", "tier": "plain-curl", "surfaces": {"home": "200", "search": "200 1-hit shell", "video": "200", "stream": "200 m3u8+seg"}, "issue": 519, "standing_issue": null, "drift_confirmed": 1, "chronic": false},
     "PandaMovies": {"site": "pandamovies.pw", "verdict": "blocked", "reason": "origin down (CF 522); confirmed identical from residential differential", "tier": "residential-differential", "surfaces": {"home": "522"}, "issue": 463, "standing_issue": 463, "drift_confirmed": 4, "chronic": true},
     "Mangoporn": {"site": "mangoporn.net", "verdict": "blocked", "reason": "origin down (CF 522); confirmed identical from residential differential", "tier": "residential-differential", "surfaces": {"home": "522"}, "issue": 464, "standing_issue": 464, "drift_confirmed": 1, "chronic": false},
     "ixiporn": {"site": "ixiporn.org", "verdict": "ok-drift", "reason": "mainUrl .org double-redirects to .live (2 hops per request)", "tier": "tls-impersonated", "surfaces": {"home": "200", "search": "200", "video": "200"}, "issue": 468, "standing_issue": 468, "drift_confirmed": 0, "chronic": false},
@@ -14,6 +17,7 @@
     "Film1k": {"site": "www.film1k.com", "verdict": "ok-suspected", "reason": "plain curl 403 from datacenter IP; TLS-impersonated 200; residential differential 200", "tier": "tls-impersonated", "surfaces": {"home": "200"}, "issue": null, "standing_issue": null, "drift_confirmed": 0, "suspected_excluded": [448, 465], "chronic": false},
     "FreePornVideos": {"site": "freepornvideos.xxx", "verdict": "ok-suspected", "reason": "plain curl 403 from datacenter IP; TLS-impersonated 200; residential differential 200", "tier": "tls-impersonated", "surfaces": {"home": "200"}, "issue": null, "standing_issue": null, "drift_confirmed": 0, "suspected_excluded": [449, 466], "chronic": false},
     "FullPorner": {"site": "fullporner.com", "verdict": "ok-suspected", "reason": "plain curl 403 from datacenter IP; TLS-impersonated 200; residential differential 200", "tier": "tls-impersonated", "surfaces": {"home": "200"}, "issue": null, "standing_issue": null, "drift_confirmed": 0, "suspected_excluded": [461], "chronic": false},
-    "EPorner": {"site": "www.eporner.com", "verdict": "ok", "reason": "age-wall markup is inert modal script; homepage serves content; residential differential 200", "tier": "residential-differential", "surfaces": {"home": "200"}, "issue": null, "standing_issue": null, "drift_confirmed": 0, "suspected_excluded": [447, 462], "chronic": false}
+    "EPorner":
+ {"site": "www.eporner.com", "verdict": "ok", "reason": "age-wall markup is inert modal script; homepage serves content; residential differential 200", "tier": "residential-differential", "surfaces": {"home": "200"}, "issue": null, "standing_issue": null, "drift_confirmed": 0, "suspected_excluded": [447, 462], "chronic": false}
   }
 }
