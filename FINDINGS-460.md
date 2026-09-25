@@ -1,4 +1,4 @@
-# FINDINGS-460 — live-site audit of all 25 provider directories
+# FINDINGS-460 — live-site audit of all 26 provider directories
 
 Audit-only run (issue #460): probe every provider's live site, record what works and what is
 broken. No code changed. Working region of prober: EU IP, Chrome UA + implicit
@@ -14,13 +14,13 @@ broken. No code changed. Working region of prober: EU IP, Chrome UA + implicit
 | Cat3Movie | https://cat3movie.org | `article.thumb` cards (50) | 200, `data-nonce` + `post_id` present | player.php sv1–3 → hlsfast iframe both answered | OK |
 | EPorner | https://www.eporner.com | 200 cards | 200, `EP.video.player.hash` present | xhr with base36-converted hash → `available:true` + mp4/HLS sources | OK |
 | Eroticmv | https://eroticmv.com | `?s=milf` 200 cards | 200 | `video_embed=33322` present | OK |
-| Film1k | https://www.film1k.com | 403 to plain curl, **200 via Chrome-TLS impersonation** | — | — | OK (fingerprint wall; see notes) |
-| FreePornVideos | https://www.freepornvideos.xxx | 403 curl, 200 impersonated; `custom_list_videos…items` block + cards | 200 | `<video><source src='…get_file/…mp4'>` present | OK (fingerprint wall) |
-| FullPorner | https://fullporner.com | 403 curl, 200 impersonated; `video-card` ×57 | /watch/<id> 200 | embed iframe `//xiaoshenke.net/video/…` | OK (fingerprint wall) |
+| Film1k | https://www.film1k.com | 403 to plain curl, **200 via Chrome-TLS impersonation** | — | — | unverified (fingerprint wall; see notes) |
+| FreePornVideos | https://www.freepornvideos.xxx | 403 curl, 200 impersonated; `custom_list_videos…items` block + cards | 200 | `<video><source src='…get_file/…mp4'>` present | unverified (fingerprint wall) |
+| FullPorner | https://fullporner.com | 403 curl, 200 impersonated; `video-card` ×57 | /watch/<id> 200 | embed iframe `//xiaoshenke.net/video/…` | unverified (fingerprint wall) |
 | HQPorner | https://hqporner.com | 200, `section:has(a.image)` rows | 200 | `mydaddy` embeds present (×3) on probed page | OK |
 | JavGuru | https://jav.guru | 200 page-1/2 differ | 200 | `iframe_url:"aHR0…"×5` (base64 embeds) present | OK |
 | Javbangers | https://www.javbangers.com | `/search/big-tits/` 200, `video-item` ×75 (page ≥2 is 404 by site design; provider `hasNext=false`) | 200 | `video_url: '…get_file/…275849.mp4/?v-acctoken=…'` | OK |
-| Javmost | https://www.javmost.ws | `showlist2/search/1/milf/` 200 JSON w/ result array | (load is embed-driven via `loadExtractor`) | — | OK |
+| Javmost | https://www.javmost.ws | `showlist2/search/1/milf/` 200 JSON w/ result array | (load is embed-driven via `loadExtractor`) | — | unverified (not traced through the extractor adapter) |
 | Javseen | https://javseen.tv | ajax search 200 JSON-wrapped `li id="video-"` ×~60 | — | homepage ajax `browse_videos` 200 ×~60 | OK |
 | Javtiful | https://javtiful.com | 200 page-1/2 differ | 200 | `.mp4` present | OK |
 | Mangoporn | https://mangoporn.net | **522** on home and search | — | — | **DOWN** |
@@ -43,28 +43,39 @@ broken. No code changed. Working region of prober: EU IP, Chrome UA + implicit
 - Cloudflare **522** (origin unreachable), 7.2 KB error page both cases.
 - Successor-looking `www.pandamovies.com` exists but is a hard Cloudflare challenge page
   ("Just a moment…" body, no content) — no unlock tested positive via Chrome-TLS impersonation.
-- Prior drift evidence: #457 "issue with pandamovies" (closed) followed a #444 search fix (#446). 1
-  closed drift-history issue → below hardening threshold, but nothing to fix while the origin is down.
+- Prior drift evidence: #425, #439, #444, #457 all closed, in a chain of recurring search/drift
+  failures, and #463 already calls this provider **Chronic** (5th occurrence) — that matches the
+  4+ closed-drift verdict in CONTEXT.md: **Chronic**, removal candidate (maintainer decision).
 
 ### Mangoporn — site dead (522)
 - URL probed: `https://mangoporn.net/`, `https://mangoporn.net/?s=milf`
 - Cloudflare **522** both.
 - `mangoporn.com` redirects to https://wank.com/ (200, 549 KB) — plausibly the rebrand, but it is a
   different name/content shape; re-probe + FINDINGS would be required before pointing the provider there.
-- Prior drift: #33 closed drift, #456 follow-up. 2 closed drift/broken issues.
+- Prior drift: #33 closed drift (selector changes), #456 closed broken issue (its body calls it a
+  follow-up), and #464's recurrence chain — 2 closed drift/broken issues counted strictly. That
+  sits at the hardening threshold by recurrence but below the 4+ line: **hardening candidate**,
+  not Chronic.
+- Filed as #472 (open, unlabeled).
 
 ### XMoviesForYou — Cloudflare challenge on search (recurrence)
 - URL probed: `https://xmoviesforyou.com/search?q=milf` + `&page=1`
 - Plain curl + desktop UA: **403 "Just a moment…" challenge** (5.5 KB), while the homepage fetched 200
   earlier in the same run. Chrome-TLS impersonation returns 200 (105 KB) with real cards.
-- History: #450 (challenge on search) → closed; #467 (recurrence, same failure) → closed. 4 closed
-  issues on this provider, at least 2 of them drift-flavored — this is the second occurrence of the
-  identical root cause, which speaks to brittleness rather than bad luck.
+- History: #37 drift, #103 CI cloudflare challenge, #450 challenge on search, #467 recurrence
+  (#450's) — four closed issues, of which #450 and #467 (plus arguably #37) are drift-flavored and
+  the same root cause recurred at least twice. That is ≥3 recurrence-bearing closed issues and at
+  the 4-closed mark by raw issue count: **Chronic** (CONTEXT.md), removal candidate (maintainer
+  decision) — hardening-or-removal, not another point-in-time selector swap.
+- Filed as #473 (open, unlabeled).
 
 ## Notes
 - The three "fingerprint-wall" sites (Film1k, FreePornVideos, FullPorner) serve 403 to curl but 200 to
-  a Chrome-tier TLS client. In-app OkHttp requests are neither fingerprint; whether real clients pass
-  was not tested here — worth an in-app spot check by a maintainer if users report those providers.
+  a Chrome-tier TLS client, and Javmost was verified only at embed level. Their matrix verdicts are
+  recorded as **unverified**, not OK: in-app OkHttp requests are neither fingerprint, and real-client
+  behavior was not tested here — worth an in-app spot check by a maintainer if users report those
+  providers. Related history: Film1k #448/#465, FreePornVideos #449/#466, FullPorner #461, all closed.
+- PandaMovies finding filed as #471 (open, unlabeled).
 - Verified stream serving: MissAV playlist (`#EXTM3U` stream), EPorner xhr (mp4 src), plus stream-bearing
   pages above — every provider whose stream extraction depends on a downloader extractor
   (`loadExtractor`) was checked only at embed/URL level, not through the adapter itself.
