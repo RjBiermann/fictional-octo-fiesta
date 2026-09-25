@@ -14,7 +14,7 @@ remove = "ai-remove"  # delete something, with evidence first
 
 [runtime]
 engine = "opencode"        # opencode | claude | goose | custom
-argv = ["pi", "--no-session", "--mode", "text", "--model", "go/glm-5.3-flash", "--thinking", "low", "--approve"]  # prompt appended as final argument; --approve = trust project .pi (headless ignores project resources otherwise)
+argv = ["pi", "--no-session", "--mode", "text", "--model", "go/glm-5.3-flash", "--approve"]  # prompt appended as final argument; --approve = trust project .pi (headless ignores project resources otherwise); --thinking dropped — 'go' gateway routes GLM to upstreams that reject native reasoning_effort (2026-09-25, #479 attempts 1-2: identical 400s)
 
 [pipeline]
 verify = "bash .pi/skills/audit-providers/scripts/check-findings.sh"              # the gate. e.g. "make verify" — empty = skip
