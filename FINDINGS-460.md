@@ -89,17 +89,27 @@ Male/Unclear-URL notes: two sweep probes first landed on listing pages (`?p=3466
 - Reproduction: `curl -s -A "$UA" https://www.javbangers.com/search/anal/1/ | head` → 404
   page; replace `1/` with `""` → 200 + cards.
 - Instrument tier: plain-curl × both patterns (deterministic, no escalation needed).
-- Drift: 1st confirmed occurrence (registry `drift_confirmed` rises 0→1).
+- Drift: 1st occurrence; `drift_confirmed` stays 0 in the registry until #517 is closed as
+  confirmed drift (schema counts only closed issues).
+- Dedup lifecycle (Phase 3, `gh issue list` open+closed, 2026-09-25): Javbangers history =
+  #81 (provider add, closed), #297/#324 (data-completeness fixes, closed). No open or closed
+  issue about search pagination/404 → genuinely new condition, #517 filed.
 - Impact: search page ≥2 comes back empty to users. Probe page-2 alternatives
   (`?page=2`, `page/2/`) via follow-up if review wants more; 404 is the mechanism.
 
 ### Finding-2 — PornXP search returns zero results · issue #518 · `ok-drift`
 - Evidence: homepage 200 with credible grid; search `https://pxp.news/search?query=anal`
-  → 200 but body carries zero video-card markers (0 keyword hits, 0 of the site's
-  card classes), while the homepage cards use distinct `<article …>` markup.
-- Reproduction: `curl -s -A "$UA" 'https://pxp.news/search?query=anal'` → 200, no cards.
-- Instrument tier: plain-curl (both sides, so no challenge confound).
-- Drift: 1st confirmed occurrence.
+  → **200 with a zero-byte body** (hence trivially 0 video cards, 0 keyword hits),
+  while the homepage cards use distinct `<article …>` markup.
+- Reproduction: `curl -s -A "$UA" 'https://pxp.news/search?query=anal'` → 200, 0 bytes.
+  Same 200/zero-byte result re-verified on the plain-curl tier 2026-09-25 (repair pass)
+  and via TLS-impersonated curl — no challenge confound either way.
+- Instrument tier: plain-curl (+ TLS-impersonated cross-check, same result).
+- Drift: 1st occurrence; `drift_confirmed` stays 0 until #518 is closed as confirmed drift.
+- Dedup lifecycle (Phase 3, `gh issue list` open+closed, 2026-09-25): PornXP history =
+  #13 (provider add), #151/#131/#235/#330/#331 (correctness/data fixes — all closed;
+  conditions were title parsing, actors population, app loading — not search).
+  No open or closed issue about a search zero-results condition → new, #518 filed.
 - Impact: search surface degrades to no-op; a follow-up probe of the
   correct query-string shape (`/search?q=` vs `?query=`) belongs in the fix issue.
 
@@ -112,7 +122,11 @@ Male/Unclear-URL notes: two sweep probes first landed on listing pages (`?p=3466
   → 200 + one-line page shell, no result list.
 - Instrument tier: plain-curl. Not verifiable further without a browser,
   which is Diagnose tier — outside FINDINGS.
-- Drift: 1st confirmed occurrence.
+- Drift: 1st occurrence; `drift_confirmed` stays 0 while #519 is open/suspected.
+- Dedup lifecycle (Phase 3, `gh issue list` open+closed, 2026-09-25): Javseen history =
+  #31/#118/#145 (closed drift issues about embed/extractor hosts — all closed),
+  #208/#209 (correctness/data fixes, closed). No open or closed issue about the search
+  AJAX shell → new, #519 filed.
 - Impact: unclear; needs a browser-diagnose pass to tell real drift from an
   overly-thin curl view of an AJAX-served surface.
 
@@ -128,6 +142,13 @@ Male/Unclear-URL notes: two sweep probes first landed on listing pages (`?p=3466
 
 ## Risks / blockers
 
+- **Phase 2 (rotating deep tier) was not run this run.** The registry carried no
+  `last_deep` stamps before this run, so oldest-stamp rotation had no baseline to select
+  from; rotational deep audits start next run using the `last_deep` stamps this run seeds.
+  The "Deep checks" table above is sweep-grade stream-chain verification (one video page,
+  one stream per provider), not the Phase 2 definition (every homepage row's pagination
+  page-1-vs-2 disjoint, quickSearch endpoint, ≥3 video pages). Providers with end-to-end
+  stream verification this run carry `last_deep: 2026-09-25` in findings.json.
 - Datacenter-IP CF challenge on 3 sites (Film1k, FreePornVideos, FullPorner) —
   all already in `suspected_excluded` with clean TLS-impersonated 200s; probe-tier only.
 - `RESIDENTIAL_PROXY_URL` not set in this environment; no residential differential tier
