@@ -4,7 +4,7 @@
   "updated": "2026-09-25",
   "last_runs": [
     {"id": "run1", "date": "2026-09-24", "pr": 469, "findings": [461, 462, 463, 464, 465, 466, 467, 468], "false_positives": [461, 462, 465, 466, 467], "note": "datacenter-IP CF challenges verdicted Blocked without escalation"},
-    {"id": "run2", "date": "2026-09-25", "pr": 474, "findings": [471, 472, 473], "false_positives": [], "note": "pending: 471/472 duplicate standing 463/464; 473 false-positive differential recorded"}
+    {"id": "run2", "date": "2026-09-25", "pr": 474, "findings": [471, 472, 473], "false_positives": [473], "duplicates": [471, 472], "note": "471/472 closed as duplicates of standing 463/464; 473 false-positive per residential differential; audit-providers skill + registry shipped in 7044dc9"}
   ],
   "providers": {
     "PandaMovies": {"site": "pandamovies.pw", "verdict": "blocked", "reason": "origin down (CF 522); confirmed identical from residential differential", "tier": "residential-differential", "surfaces": {"home": "522"}, "issue": 463, "standing_issue": 463, "drift_confirmed": 4, "chronic": true},
