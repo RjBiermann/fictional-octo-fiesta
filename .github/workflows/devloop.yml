@@ -50,10 +50,11 @@ jobs:
     #   unconditionally replaces the extraheader that checkout installed,
     #   so branch push/force-push/delete always authenticates with the
     #   PAT, never the GITHUB_TOKEN — contents: read is sufficient here.
-    #   Caveat: this argument is verified against devloop v0.3.24 (the
-    #   pinned tag; v0.3.23→v0.3.24 re-audited: /repair adds issue/PR
-    #   comment reads and writes only — pushes stay PAT-authenticated
-    #   git, no new GitHub writes, contents: read still sufficient).
+    #   Caveat: this argument is verified against devloop v0.3.25 (the
+    #   pinned tag; v0.3.24→v0.3.25 re-audited: rounds gain GhostDiffError
+    #   — on an empty/404 diff it aborts the round with a PR comment only,
+    #   no new GitHub writes — pushes stay PAT-authenticated git,
+    #   contents: read still sufficient).
     #   If a future
     #   devloop version performs a GitHub write outside issues/
     #   pull-requests (e.g. deleting a branch via `gh api -X DELETE
@@ -80,7 +81,7 @@ jobs:
       - name: Install devloop (pinned)
         run: >-
           pip install
-          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.3.24
+          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.3.25
       - name: Install agent runtime (pi) + model config
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
