@@ -123,6 +123,9 @@ class AllClassicPorn : MainAPI() {
                 type = ExtractorLinkType.VIDEO
             ) {
                 this.referer = data
+                // Issue #483: surface the site's quality caption as structured quality so
+                // CloudStream knows the exact resolution (not just the display name).
+                this.quality = getQualityFromName(quality)
             }
         )
 
