@@ -24,7 +24,7 @@ class Cat3Movie : MainAPI() {
     override val supportedTypes = setOf(TvType.NSFW)
 
     // issue #411: cat3movie.org enabled Cloudflare JS Detection (the JSD snippet now sits
-    // on every healthy 200 page — see FINDINGS-411.md). On a challenged client every leg
+    // on every healthy 200 page — see FINDINGS.md). On a challenged client every leg
     // fails silently: the watch page comes back as a "Just a moment…" interstitial →
     // streamConfig finds no post_id → loadLinks returns false with zero callbacks →
     // CS3 shows "No links found". Route every fetch through CloudflareKiller (repo

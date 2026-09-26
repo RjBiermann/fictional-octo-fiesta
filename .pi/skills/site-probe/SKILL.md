@@ -175,7 +175,10 @@ heavier one first:
    evidence directly.
 2. **`scripts/impersonate.sh`** — TLS-impersonated curl (`curl_cffi`, Chrome fingerprint).
    Reach for it when curl gets 403/challenge-walled but the site itself is fine
-   (see FINDINGS-408 / film1k). Its transcripts are evidence: same plain HTTP, better
+   (see FINDINGS-408 / film1k — file kept out of HEAD by the #484 findings
+   cleanup, content in git history: `git log --follow FINDINGS-408.md`; its
+   last pre-deletion state is commit `9f130f2^` — 7f8cc5a). Its transcripts
+   are evidence: same plain HTTP, better
    TLS fingerprint — exactly what a real client presents.
 3. **`scripts/browser-probe.py`** — headless Chromium. The last resort, for diagnosis only
    (ADR-0008): rendered-vs-raw verdict on suspected client-rendered sites, the player's

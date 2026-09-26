@@ -104,7 +104,7 @@ class Cat3MovieEmbedTest {
 }
 
 /** Issue #411: cat3movie.org enabled Cloudflare JS Detection (the JSD snippet now sits on
- *  every healthy 200 page — see FINDINGS-411.md). A challenged client gets a "Just a
+ *  every healthy 200 page — see FINDINGS.md). A challenged client gets a "Just a
  *  moment…" interstitial instead of the watch page; loadLinks must detect that shape so
  *  the CF interceptor can retry. Fixture cf-challenge.html reproduces the interstitial.
  *  Healthy-page markers: the JSD snippet alone must NOT count as a challenge. */

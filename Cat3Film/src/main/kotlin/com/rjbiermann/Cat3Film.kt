@@ -25,11 +25,13 @@ class Cat3Film : MainAPI() {
 
     private val mapper = ObjectMapper().registerKotlinModule()
 
-    // Issue #410: CF decisions on cat3film.com / cat3.asuka-vod.site are client- and
-    // IP-scoped (probed okhttp-cold: 200 here, challenged plain-curl on /index.json,
-    // "No links found" in-app). The only zero-links path is the sources fetch returning
-    // a "Just a moment…" interstitial that Jackson then fails on. Route fetches through
-    // CloudflareKiller (repo precedent: FullPorner/Film1k).
+    // Issue #410: CF decisions are client- and IP-scoped (probed okhttp-cold: 200 here,
+    // challenged plain-curl on /index.json, "No links found" in-app). Note: the stream CDN
+    // host itself has since moved (cat3.asuka-vod.site → abyssssss.top) and is NOT
+    // CF-challenged — the challenge exposure is the main-site fetches. The only zero-links
+    // path is the sources fetch returning a "Just a moment…" interstitial that Jackson
+    // then fails on. Route fetches through CloudflareKiller (repo precedent:
+    // FullPorner/Film1k).
     private val cloudflareKiller by lazy { CloudflareKiller() }
     // Shared CfChallengeInterceptor (audit finding 2): identical marker check as the
     // inner class it replaces — "Just a moment" → CloudflareKiller solves + replays.
@@ -196,7 +198,7 @@ object Parse {
 
     /**
      * Detail-page type tag from the badges row: movies render `badge>Movie`,
-     * series render `badge>TV` (FINDINGS-416 probe). Null when neither is present.
+     * series render `badge>TV` (FINDINGS.md #416 probe). Null when neither is present.
      */
     fun movieTypeTag(html: String?): String? {
         if (html == null) return null
@@ -218,7 +220,7 @@ object Parse {
         val f = file?.trim().orEmpty()
         if (f.isBlank()) return null
         // Only HLS/playlist URLs pass through; the sources API only ever returns
-        // "type": "hls" tokens (FINDINGS-410), so anything else is a bare token that
+        // "type": "hls" tokens (FINDINGS.md #410), so anything else is a bare token that
         // gets the /index.m3u8 suffix (#410).
         return if (f.matches(Regex(".*\\.(m3u8|json)(\\?.*)?$"))) f else f.trimEnd('/') + "/index.m3u8"
     }
