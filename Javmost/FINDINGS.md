@@ -461,3 +461,60 @@ JSON bridged into minimal card HTML on 127.0.0.1:8777):
 - `gradlew :Javmost:test` 19/19 green (`embedTargets` ×4 red→green, fixtures:
   dooplayer-ajax-response + inline multi-element/unescape/error cases);
   `gradlew :Javmost:make` clean, `Javmost.cs3` built.
+
+## Re-probe 2026-09-26 (issue #480 — alleged home pagination clamp on /showlist2/all/{page}/all/)
+
+**Not reproducible today — issue closes as not-a-bug.** Evidence (plain curl, datacenter IP,
+`Cache-Control: no-cache`, 3 fresh fetches per URL ~10 min apart, all stable):
+
+```
+$ md5sum jm1b jm2 jm3            # issue's surface, all/all
+09bcb531f9baabea25412fa3a7d95c55  page 1  (first=FNS-260-REDUCING-MOSAIC)
+e95d70a6560dcc456e6d15e8fcb1a79f  page 2  (first=PRED-901-REDUCING-MOSAIC)
+ee628a87adc001a1bf7b9bb83177d5ce  page 3  (first=START-638-REDUCING-MOSAIC)
+overlap(page1,page2) = 0 URLs; total=328791, 24 items/page
+```
+
+Two mismatches against the issue's evidence:
+
+1. **The audit's "page 1" md5 (e95d70a6…) is today's page 2** — page-1 content has shifted
+   since the 2026-09-26 audit snapshot (new releases rotate at the head). The identity claim
+   was made against a moving listing; the audit's before/after hashes compare different
+   snapshots, not the same page.
+2. **`/showlist2/all/{page}/all/` is not a provider surface.** The Javmost mainPage rows are
+   `uncensor::category`, `censor::category`, `new::release` (the all-group "All Movies" row
+   was dropped in the #332 fix — it is the null-meta pending bucket; today still 24/24
+   null-meta on all/all pages 1–2). Re-probed every provider row live: uncensor/category,
+   censor/category, new/release all 24×24, page 2 fully disjoint (0 overlap), distinct md5s,
+   correct `total`s — **pagination is healthy on every surface the provider exposes.**
+
+Note: `type=all` is accepted by the backend for any group but aliases the all/all listing
+(identical md5s across groups ×type=all). CloudStream's own in-app "next page" on the all/all
+surface is unaffected because no row maps to it.
+
+Drift history: 0 prior confirmed records — and this occurrence is refuted by live evidence;
+registry unchanged, no provider change, no version bump. If the clamp ever appears on a real
+provider row, re-probe then; suggested mitigation (skip page 2) would be wrong even for
+all/all, where pages are disjoint today.
+
+### Verification (2026-09-26, issue #480) — verify.sh **RESULT: PASS** (exit 0, log /tmp/verify-480.txt)
+Provider code unchanged since the PASS of 2026-09-11; this run exists to prove the disputed
+surface. Same bridging mechanics as prior runs (listing pages are JS templates → live
+`showlist2` JSON bridged to minimal card HTML on 127.0.0.1:8777):
+- search: `/showlist2/avop/{1,2}/search/` → 24×24 cards, no cross-page duplicates.
+- home: all three live rows, page 1 + page 2 each — `/showlist2/uncensor/{1,2}/category/`,
+  `/showlist2/censor/{1,2}/category/`, `/showlist2/new/{1,2}/release/` → 24×24 cards every
+  page, verify.sh's cross-page duplicate assertion (which FAILs on a page returning page-1
+  items) passed on every row — **pagination healthy on every surface the provider exposes.**
+- quick search: none exists (explicit NOTE, unchanged).
+- 8 live video pages (DLDSS-529, AVSA-457, ABW-286, NHDTB-715, DLDSS-534,
+  SW-256-UNCENSORED-EDIT, AVOP-364, EUUD-091) → 200, `button[onclick*=select_part]` 2–13
+  matches; tags/actors/year/duration present 8/8.
+- streams: 8 position-matched `--stream-url`s resolved live through the provider's exact
+  AJAX→emturbovid→turbovidhls chain (fresh probe, all distinct paths) → **all HTTP 206**
+  `application/vnd.apple.mpegurl`.
+- check 6: recommendations/tags/plot/duration/year/actors/posters all assigned.
+- related-videos flag omitted: recorded limitation (2026-09-09) — video-page related anchors
+  and the two self-referencing title anchors share selector `a[alt]`; the script cannot
+  exclude self links, the provider filters `.filter { it.url != url }` in code (with the
+  related flag the run FAILs on every page for exactly that reason).
