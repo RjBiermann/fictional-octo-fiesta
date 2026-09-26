@@ -99,3 +99,21 @@ Search: single page (no pagination).
   JSON page has no `a.card`. Provider uses exactly this endpoint; agreement re-proven by curl:
   `_ajax/search?q=hache` → `{"slug":"hache","title":"Hache","year":2019}` matching load page
   `/hache` (Hache S1 2019). Site shape, not a provider defect.
+
+## 2026-09-16 re-probes (issues #410 / #416 — distilled from the per-issue probes)
+
+**#410** ("video doesn't play"): the whole chain (detail → watch `?sv=1&part=1` →
+`/api/v1/episodes/{id}/sources` → `<cdn>/token/index.m3u8`) re-verified 200 for 17
+episodes, also over a raw okhttp/NiceHttp fingerprint — no site-side drift. Silent
+"no links found" is the CF-challenge-on-client path: the sources fetch throws on
+challenge HTML and `loadLinks` swallows → zero callbacks. Fix shipped: CloudflareKiller
+interceptor on Cat3Film fetches (repo precedent FullPorner/Film1k), suffix logic moved
+into pure `Parse.streamUrl()` (TDD).
+
+**#416** (movies shown as TV shows): detail-page badges row is the type signal —
+movies render `<span class="badge">Movie` (verified `/the-handmaiden`, `/russian-lolita`,
+`/impregnation-nation`, `/conflict-of-emotions`), series render `badge>TV` with 0×
+"Movie" (verified `/hache`, `/hot-line`, `/risque-business-japan`, `/virgin`).
+Search JSON also carries `format: "Movie"|"TV"` per result (future tie-breaker).
+CDN moved `cat3.asuka-vod.site` → `abyssssss.top` this run and is NOT CF-challenged
+(m3u8 200 with/without Referer, okhttp UA) — old challenged-CDN note obsolete.

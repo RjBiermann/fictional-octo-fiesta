@@ -196,7 +196,7 @@ object Parse {
 
     /**
      * Detail-page type tag from the badges row: movies render `badge>Movie`,
-     * series render `badge>TV` (FINDINGS-416 probe). Null when neither is present.
+     * series render `badge>TV` (FINDINGS.md #416 probe). Null when neither is present.
      */
     fun movieTypeTag(html: String?): String? {
         if (html == null) return null
@@ -218,7 +218,7 @@ object Parse {
         val f = file?.trim().orEmpty()
         if (f.isBlank()) return null
         // Only HLS/playlist URLs pass through; the sources API only ever returns
-        // "type": "hls" tokens (FINDINGS-410), so anything else is a bare token that
+        // "type": "hls" tokens (FINDINGS.md #410), so anything else is a bare token that
         // gets the /index.m3u8 suffix (#410).
         return if (f.matches(Regex(".*\\.(m3u8|json)(\\?.*)?$"))) f else f.trimEnd('/') + "/index.m3u8"
     }
