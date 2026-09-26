@@ -25,11 +25,13 @@ class Cat3Film : MainAPI() {
 
     private val mapper = ObjectMapper().registerKotlinModule()
 
-    // Issue #410: CF decisions on cat3film.com / cat3.asuka-vod.site are client- and
-    // IP-scoped (probed okhttp-cold: 200 here, challenged plain-curl on /index.json,
-    // "No links found" in-app). The only zero-links path is the sources fetch returning
-    // a "Just a moment…" interstitial that Jackson then fails on. Route fetches through
-    // CloudflareKiller (repo precedent: FullPorner/Film1k).
+    // Issue #410: CF decisions are client- and IP-scoped (probed okhttp-cold: 200 here,
+    // challenged plain-curl on /index.json, "No links found" in-app). Note: the stream CDN
+    // host itself has since moved (cat3.asuka-vod.site → abyssssss.top) and is NOT
+    // CF-challenged — the challenge exposure is the main-site fetches. The only zero-links
+    // path is the sources fetch returning a "Just a moment…" interstitial that Jackson
+    // then fails on. Route fetches through CloudflareKiller (repo precedent:
+    // FullPorner/Film1k).
     private val cloudflareKiller by lazy { CloudflareKiller() }
     // Shared CfChallengeInterceptor (audit finding 2): identical marker check as the
     // inner class it replaces — "Just a moment" → CloudflareKiller solves + replays.

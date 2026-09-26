@@ -62,8 +62,8 @@ stay (this is the fix-provider skill's own output location for issue reports).
 
 ## Decision
 
-Delete 18 root-level files: all 8 pure-infra reports (349, 350, 352, 354, 419, 435,
-436, multi-issue FINDINGS.md), the 6 provider reports whose durable content already
+Delete 19 root-level files: all 8 pure-infra reports (349, 350, 352, 354, 419, 435,
+436, multi-issue FINDINGS.md), the 9 provider reports whose durable content already
 lives in the provider's own FINDINGS.md (410, 411, 416, 417, 424, 427, 429, 439,
 444), and the 2 root-level fleet sweeps (408, 479) whose machine truth is in
 `audits/findings.json` + `audits/canaries.json`.
@@ -81,7 +81,7 @@ Keep in place:
 
 ## Change
 
-1. `git rm` 18 root-level files (listed above with classification evidence).
+1. `git rm` 19 root-level files (listed above with classification evidence).
 2. `docs/adr/0008-probe-instruments-vs-verification.md` and
    `docs/adr/0011-domain-skills-are-pipeline-critical.md` and
    `.pi/skills/site-probe/SKILL.md` cite FINDINGS-408 by name as the escalation-ladder

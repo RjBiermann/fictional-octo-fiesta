@@ -40,26 +40,28 @@ All sources come from an API call the JW Player page makes:
 GET /api/v1/episodes/{episodeId}/sources   (episodeId from .epbtn[data-ep] on the watch page)
 Referer: https://cat3film.com/watch/{slug}
 ```
-- draft-1669 (ep 1796): `{"sources":[{"file":"https://cat3.asuka-vod.site/DHd_sdtq0NcRENMr0XvPaoymrl9VfrAIh4cEjTnyRLc","type":"hls"}],"subs":[],"success":true}`
-- hache ep 449: `https://cat3.asuka-vod.site/H7tLlX8xolDaa4YvPuXminlKqCLCw_qYT_rtEv9SAcI` (hls)
-- impregnation-nation ep 886: `https://cat3.asuka-vod.site/3YSGlZGAR4vMLneedThMqHMO9VxkL-7fKSY2B-3dbzg` (hls)
-- russian-lolita ep 307: `https://cat3.asuka-vod.site/sCJlSvPOu0JJfrdUElG_AQ` (hls)
-- the-handmaiden ep 405: `https://cat3.asuka-vod.site/nxG4hhNy43ysiZnhvOslpZseNdnE7Q8cmIXE-OjCmGc` (hls)
-- jailhouse-wardress ep 1765: `https://cat3.asuka-vod.site/4SqvP94CWnvZSho7SfjrvEEUe9RLENZgbac6rCtPy7k` (hls)
+- draft-1669 (ep 1796): first probe (2026-09-10): `https://cat3.asuka-vod.site/DHd_sdtq0NcRENMr0XvPaoymrl9VfrAIh4cEjTnyRLc` (hls) — host since moved, see re-probe note below
+- hache ep 449 / impregnation-nation ep 886 / russian-lolita ep 307 / the-handmaiden ep 405 / jailhouse-wardress ep 1765: first probe returned the same `cat3.asuka-vod.site` bare-token shape — host since moved, see re-probe note below
 
 Single server (`sv=1`, "Watch Online"). All hls, no qualities/alt urls.
 
-**Token URLs are bare** (`https://cat3.asuka-vod.site/<token>`, no extension). The site
+**CDN host has moved**: re-probes (2026-09-16, see the re-probe section below) recorded
+`cat3.asuka-vod.site` → `abyssssss.top`; the `cat3.asuka-vod.site` URLs above are the
+original first-probe record, superseded. Bare-token shape unchanged (no extension,
+site JS appends `/index.m3u8`).
+
+**Token URLs are bare** (`https://<cdn-host>/<token>`, no extension — host currently
+`abyssssss.top`, formerly `cat3.asuka-vod.site`). The site
 player's JS (`withSuffix()` in /static/js/site.js) appends `/index.m3u8` (or `/index.json`
 per-UA) before loading. The bare URL serves Cloudflare 403 HTML — only the suffixed
 `/token/index.m3u8` serves a real `#EXTM3U` playlist (segments are camouflaged as `.jpg`).
 
 ## Headers / referer
-Source API worked with plain UA + referer. **Stream CDN `cat3.asuka-vod.site` is behind a
-Cloudflare JS challenge for this runner** (403 "Just a moment..." with/without referer,
-multiple UAs, http1.1). Main site cat3film.com serves 200 normally. Content-type of the
-m3u8 could therefore not be confirmed from this machine — playback may only work on an
-unblocked client. See Risks.
+Source API worked with plain UA + referer. ~~Stream CDN `cat3.asuka-vod.site` is behind a
+Cloudflare JS challenge for this runner~~ — **retracted 2026-09-16**: that early-probe 403
+did not hold up; re-probes (below) found the CDN unchallenged (m3u8 200 with/without
+Referer, okhttp UA) and the host has since moved to `abyssssss.top`. Main site
+`cat3film.com` serves 200 normally.
 
 ## Pagination
 Listings: `?page=N` query param. Page 2 of `/movies` returns different items (verified:
@@ -70,7 +72,9 @@ Search: single page (no pagination).
 - ~~Stream CDN blocked~~: resolved — the bare token URL got Cloudflare 403; `/token/index.m3u8`
   (with browser UA + main-site referer) serves a valid VOD playlist (200, #EXTM3U, thousands
   of segments). Suffix appended in `loadLinks`.
-- Iframe allowlist on the main site includes `https://cat3.asuka-vod.site`.
+- ~~Iframe allowlist on the main site includes `https://cat3.asuka-vod.site`.~~ Superseded:
+  the CDN host moved to `abyssssss.top` (2026-09-16 re-probes below); treated as
+  illustrative of the main site whitelisting its own CDN, whatever host it uses.
 
 ## Issue #292 re-verification (2026-09-11, audit-fix run)
 
