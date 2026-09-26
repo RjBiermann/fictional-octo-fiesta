@@ -1,4 +1,4 @@
-version = 13 // inline distinctByHref (ponytail audit)
+version = 14 // issue #483: KVS quality caption → ExtractorLink.quality
 
 cloudstream {
     authors     = listOf("imperialbob")

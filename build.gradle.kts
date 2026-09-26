@@ -5,6 +5,12 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
 buildscript {
     repositories {
+        // Vendored recloudstream gradle plugin (issue #483): jitpack's -SNAPSHOT
+        // maven-metadata.xml advertises gradle--32895aedb6-1 whose pom/jar 404
+        // (re-verified 2026-09-26) — CI Build red since 2026-09-26. The vendor/ maven
+        // dir carries the -SNAPSHOT pom+jar directly, so resolution never reaches
+        // jitpack. Drop this repo when jitpack heals; see gradlelibs/INTEGRITY.txt.
+        maven("$rootDir/vendor")
         google()
         mavenCentral()
         // Shitpack repo which contains our tools and dependencies
@@ -15,8 +21,7 @@ buildscript {
         classpath("com.android.tools.build:gradle:8.7.3")
         // Cloudstream gradle plugin which makes everything work and builds plugins —
         // original source: com.github.recloudstream.gradle:gradle via jitpack
-        // (-SNAPSHOT metadata resolves under Gradle 9.7.1 as of 2026-09-12; the
-        // earlier vendoring existed only for the then-broken jitpack -SNAPSHOT path).
+        // (resolves from vendor/ first; jitpack is backfill only).
         classpath("com.github.recloudstream.gradle:gradle:-SNAPSHOT")
         // Pinned: CodeQL's Kotlin extractor cannot parse newer versions;
         // codeql.yml downgrades to 2.4.10 to build (ADR-0010). Dependabot ignores this.
@@ -87,6 +92,11 @@ subprojects {
         }
     }
 
+    // P0-15 (issue #360): every provider build path runs the vendored-jar integrity gate.
+    tasks.matching { it.name == "make" || it.name == "test" || it.name == "check" }.configureEach {
+        dependsOn(rootProject.tasks.named("verifyVendoredJars"))
+    }
+
     dependencies {
         val cloudstream by configurations
         val implementation by configurations
@@ -130,6 +140,41 @@ subprojects {
 // searches LAST (backfill only, never shadow). The bootstrap fetch is
 // unverified by design — `pre-release` is a moving tag, so upstream refreshes
 // compile against whatever the current jar is.
+// P0-15 (issue #360): integrity gate for committed build-critical binaries.
+// Recomputes SHA-256 over every file listed in gradlelibs/INTEGRITY.txt and fails on
+// mismatch, so a changed vendored jar is a visible diff in that record.
+tasks.register("verifyVendoredJars") {
+    val record = rootDir.resolve("gradlelibs/INTEGRITY.txt")
+    inputs.file(record)
+    group = "verification"
+    description = "Verifies vendored build-critical jars against gradlelibs/INTEGRITY.txt"
+    doLast {
+        val entries = record.readLines()
+            .filter { it.startsWith("SHA256 ") }
+            .map { it.removePrefix("SHA256 ").trim() }
+            .map { it.substringBefore(' ') to it.substringAfterLast(' ') }
+        check(entries.isNotEmpty()) { "$record contains no SHA256 entries" }
+        for ((path, expected) in entries) {
+            val file = rootDir.resolve(path)
+            check(file.isFile) { "$record lists an absent file: $path" }
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            file.inputStream().use { input ->
+                val buf = ByteArray(64 * 1024)
+                while (true) {
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    md.update(buf, 0, n)
+                }
+            }
+            val actual = md.digest().joinToString("") { "%02x".format(it) }
+            check(actual == expected) {
+                "INTEGRITY mismatch for $path:\n  expected $expected\n  actual   $actual\n" +
+                    "If this jar change is intentional, update gradlelibs/INTEGRITY.txt (and record provenance) — review is the gate."
+            }
+        }
+    }
+}
+
 tasks.register("bootstrapCloudstream") {
     group = "build setup"
     description = "Fetches the official cloudstream3:pre-release classes.jar and installs it into mavenLocal"

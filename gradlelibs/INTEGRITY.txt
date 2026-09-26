@@ -1,0 +1,17 @@
+# Integrity record for committed build-critical binaries (issue #360 / P0-15).
+#
+# The vendored jar is committed because jitpack's recloudstream -SNAPSHOT
+# maven-metadata.xml advertises a timestamped snapshot (gradle--32895aedb6-1)
+# whose pom/jar 404 — re-verified 2026-09-26 (issue #483); CI Build red since
+# 2026-09-26. vendor/ carries the -SNAPSHOT pom+jar directly so the buildscript
+# resolves locally. The `verifyVendoredJars` Gradle task (root build.gradle.kts)
+# recomputes every digest below and fails the build on mismatch, so any change
+# to these files is a visible diff in this record.
+# One line per file: SHA256 <repo-relative path> <sha256>.
+#
+# Provenance: both files restored verbatim from git history (commit f0ec7c7,
+# "Builder: resolve #98 (#111)", 2026-09-07) — the identical vendoring that was
+# dropped in 00512f5 when jitpack's -SNAPSHOT metadata briefly resolved.
+
+SHA256 vendor/com/github/recloudstream/gradle/gradle/-SNAPSHOT/gradle--SNAPSHOT.jar 5358ef5bfe9ea8fad162fe9c4895e5706a92659c34a38bbd91457d902fadcb21
+SHA256 vendor/com/github/recloudstream/gradle/gradle/-SNAPSHOT/gradle--SNAPSHOT.pom 203e5d3055690ccc65ff1eb47d16f9d4f71984ea02f51b8509c217fe5f7c8fbd
