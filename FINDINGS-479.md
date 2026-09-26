@@ -16,7 +16,7 @@ Escalation ladder per site-probe skill: plain curl → TLS-impersonated
 | eporner-healthy | 200 | — | 200 | match |
 | pandamovies-dead-origin | 522 | 522 | 522 / 522 | match |
 
-## Phase 1 — sweep (25 providers)
+## Phase 1 — sweep (26 providers; Cat3Film's sweep row is covered by its Phase 2 deep audit below)
 
 Verdicts recorded per `audits/findings.json`. Transcripts abbreviated;
 raw captures in `/tmp/sweep479/` at probe time.
