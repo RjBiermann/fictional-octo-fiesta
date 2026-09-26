@@ -1,6 +1,7 @@
 package com.example.neporn
 
 import com.kraptor.JsonLdParse
+import com.kraptor.KvsFlashvars
 import com.kraptor.registerHostExtractors
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
@@ -100,9 +101,8 @@ class Neporn : MainAPI() {
     ): Boolean {
         val html = app.get(data).text
         // KVS flashvars: single source, e.g. video_url: 'https://neporn.com/get_file/.../41865_720p.mp4/?v-acctoken=...'
-        val sources = listOf("video_url", "video_alt_url", "video_alt_url2").mapNotNull { key ->
-            Regex("""$key\s*:\s*'([^']+)'""").find(html)?.groupValues?.get(1)?.takeIf { it.isNotBlank() }
-        }.distinct()
+        // Shared grammar (audit finding 1): same default keys, first-match, distinct.
+        val sources = KvsFlashvars.videoSources(html)
         for (src in sources) {
             callback(
                 ExtractorLink(

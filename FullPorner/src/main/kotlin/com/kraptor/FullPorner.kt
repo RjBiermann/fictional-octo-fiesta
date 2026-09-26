@@ -6,6 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.kraptor.cfChallenge
 import com.kraptor.searchCard
 import com.lagradost.api.Log
 import org.jsoup.nodes.Element
@@ -16,10 +17,9 @@ import com.lagradost.cloudstream3.network.CloudflareKiller
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import okhttp3.Interceptor
-import okhttp3.Response
+
 import org.json.JSONObject
-import org.jsoup.Jsoup
+
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import kotlin.text.ifEmpty
@@ -47,21 +47,9 @@ class FullPorner(private val context: Context) : MainAPI() {
     )
 
     private val cloudflareKiller by lazy { CloudflareKiller() }
-    private val interceptor      by lazy { CloudflareInterceptor(cloudflareKiller) }
-
-    class CloudflareInterceptor(private val cloudflareKiller: CloudflareKiller): Interceptor {
-        override fun intercept(chain: Interceptor.Chain): Response {
-            val request  = chain.request()
-            val response = chain.proceed(request)
-            val doc      = Jsoup.parse(response.peekBody(1024 * 1024).string())
-
-            if (doc.html().contains("Just a moment")) {
-                return cloudflareKiller.intercept(chain)
-            }
-
-            return response
-        }
-    }
+    // Shared CfChallengeInterceptor (audit finding 2): identical "Just a moment" check
+    // as the CloudflareInterceptor inner class it replaces.
+    private val interceptor      by lazy { cfChallenge(cloudflareKiller) }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get("${request.data}${page}", interceptor = interceptor).document
@@ -325,7 +313,6 @@ class FullPorner(private val context: Context) : MainAPI() {
 return@withContext true
 }
 }
-
 
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 class FullPornerPlugin: com.lagradost.cloudstream3.plugins.Plugin() {

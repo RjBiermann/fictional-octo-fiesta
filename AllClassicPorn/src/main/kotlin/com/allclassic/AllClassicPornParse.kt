@@ -1,5 +1,6 @@
 package com.allclassic
 
+import com.kraptor.KvsFlashvars
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 
@@ -39,23 +40,17 @@ object AllClassicPornParse {
             ?.text()?.replaceFirst(Regex("^Description:\\s*"), "")?.trim()?.takeIf { it.isNotEmpty() }
     }
 
-    /** Comma-separated flashvars field from the inline KVS JS (issue #205, D1). */
-    private fun flashvarsField(html: String, field: String): String? {
-        // KVS escapes literal apostrophes in names as \' inside the JS string.
-        // Matches both `video_models: 'x'` (object literal) and `flashvars['video_models'] = 'x'` forms.
-        val value = Regex("(?:$field\\s*:|$field'\\]\\s*=)\\s*'((?:[^'\\\\]|\\\\.)*)'").find(html)?.groupValues?.get(1) ?: return null
-        return value.replace("\\'", "'").trim().takeIf { it.isNotEmpty() }
-    }
+    /** Comma-separated flashvars field from the inline KVS JS (issue #205, D1).
+     *  Both `video_models: 'x'` (object literal) and `flashvars['video_models'] = 'x'`
+     *  forms, `\'` escapes unescaped — the shared grammar (audit finding 1). */
+    private fun flashvarsField(html: String, field: String): String? = KvsFlashvars.field(html, field)
 
     fun parseActors(html: String): List<String> = listFromField(html, "video_models")
     fun parseTags(html: String): List<String> = listFromField(html, "video_tags")
     fun parseCategories(html: String): List<String> = listFromField(html, "video_categories")
 
-    /** Quality caption: matches both `video_url_text: 'x'` and `flashvars['video_url_text'] = 'x'` (issue #322, D2). */
-    fun parseQuality(html: String): String? {
-        val value = Regex("(?:video_url_text\\s*:|video_url_text'\\]\\s*=)\\s*'([^']+)'").find(html)?.groupValues?.get(1)
-        return value?.trim()?.takeIf { it.isNotEmpty() }
-    }
+    /** Quality caption: both `video_url_text: 'x'` and `flashvars['video_url_text'] = 'x'` (issue #322, D2) — the shared grammar. */
+    fun parseQuality(html: String): String? = KvsFlashvars.field(html, "video_url_text")
 
     /** Home-page URL for a paginated row. Feed base `…/page/` 301s to root when bare, so page 1 uses canonical `…/page/1/` (issue #322, D1). */
     fun homePageUrl(base: String, page: Int): String = when {

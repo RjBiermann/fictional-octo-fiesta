@@ -7,7 +7,31 @@ import com.lagradost.api.Log
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.USER_AGENT
 import com.lagradost.cloudstream3.app
+import com.lagradost.cloudstream3.network.CloudflareKiller
 import com.lagradost.cloudstream3.utils.*
+import okhttp3.Interceptor
+import okhttp3.Response
+import org.jsoup.Jsoup
+
+/**
+ * Shared Cloudflare-challenge interceptor (audit finding 2 — was copied as an inner
+ * class in Cat3Film, Cat3Movie and FullPorner). Wraps every request: when the response
+ * body looks like a challenge page, CloudflareKiller solves it and the request replays
+ * with the cf_clearance cookie. [isChallenge] lets a provider pin its own marker set
+ * (Cat3Movie serves interstitial markers beyond "Just a moment"); the default checks
+ * the literal "Just a moment" phrase, same as the old copies did.
+ */
+fun cfChallenge(
+    killer: CloudflareKiller,
+    isChallenge: (String) -> Boolean = { Jsoup.parse(it).html().contains("Just a moment") }
+): Interceptor = Interceptor { chain ->
+    val response = chain.proceed(chain.request())
+    if (isChallenge(response.peekBody(1024 * 1024).string())) {
+        killer.intercept(chain)
+    } else {
+        response
+    }
+}
 
 open class MyDaddyExtractor : ExtractorApi() {
     override val name = "MyDaddy"

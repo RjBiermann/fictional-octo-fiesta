@@ -1,6 +1,7 @@
 package com.allclassic
 
 import com.kraptor.JsonLdParse
+import com.kraptor.KvsFlashvars
 import com.kraptor.registerHostExtractors
 import com.lagradost.api.Log
 import org.jsoup.nodes.Element
@@ -111,9 +112,10 @@ class AllClassicPorn : MainAPI() {
         val html = app.get(data, referer = mainUrl).text
 
         // Direct KVS flashvars: video_url + video_url_text pairs; skip ?login upsell "alt" urls.
-        // flashvars caption uses the [X] = form on every live page; colon form kept as fallback (issue #322, D2).
+        // Shared grammar (audit finding 1); caption uses the [X] = form on every live page,
+        // colon form kept as fallback (issue #322, D2).
         val quality = AllClassicPornParse.parseQuality(html)
-        val videoUrl = Regex("video_url:\\s*'([^']+)'").find(html)?.groupValues?.get(1) ?: return false
+        val videoUrl = KvsFlashvars.field(html, "video_url") ?: return false
 
         callback(
             newExtractorLink(

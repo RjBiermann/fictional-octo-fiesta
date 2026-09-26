@@ -1,5 +1,6 @@
 package com.rjbiermann
 
+import com.kraptor.KvsFlashvars
 import com.kraptor.registerHostExtractors
 import com.lagradost.api.Log
 import org.jsoup.nodes.Element
@@ -99,38 +100,32 @@ class Javbangers : MainAPI() {
     ): Boolean {
         val html = app.get(data).document.html()
         val flash = html.substringAfter("flashvars = {").substringBefore("};")
-        val sources = mutableMapOf(
-            "video_url" to flash.substringAfterJb("video_url"),
-            "video_alt_url" to flash.substringAfterJb("video_alt_url")
-        )
-        var pushed = false
+        // Shared grammar (audit finding 1); the http-anchor filter is Javbangers-specific:
+        // a non-url video_url value means a page this provider must not emit.
+        val sources = listOf("video_url", "video_alt_url").mapNotNull { key ->
+            KvsFlashvars.field(flash, key)?.takeIf { it.startsWith("http") }?.let { key to it }
+        }
         for ((key, url) in sources) {
-            val v = url ?: continue
             // quality label from video_url_text / video_alt_url_text
-            val qualityKey = key + "_text"
-            val label = Regex("$qualityKey:\\s*'([^']+)'").find(flash)?.groupValues?.get(1)
+            val label = KvsFlashvars.label(flash, key)
             callback(
                 newExtractorLink(
                     source = name,
                     name = name,
-                    url = v,
+                    url = url,
                     type = ExtractorLinkType.VIDEO
                 ) {
                     this.referer = mainUrl
                     this.quality = getQualityFromName(label ?: "")
                 }
             )
-            pushed = true
         }
-        return pushed
+        return sources.isNotEmpty()
     }
 }
 
 // FINDINGS: flashvars keys are unquoted (video_url: 'https://...'), values single-quoted. Keep it first-order: if a future video ships an encrypted / shifted flashvars instead of a plain URL, detect the missing get_file and drop a comment — do not guess the KVS cipher.
-private fun String.substringAfterJb(key: String): String? {
-    val m = Regex(key + "\\s*:\\s*'([^']+)'").find(this)?.groupValues?.get(1)
-    return m?.takeIf { it.startsWith("http") }
-}
+// (grammar now shared: com.kraptor.KvsFlashvars, audit finding 1)
 
 // TDD for issue #297: video pages carry a Tags row (div.item starting "Tags:") whose
 // anchors have no href — the old categories-only selector never captured it.

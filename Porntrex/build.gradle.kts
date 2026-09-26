@@ -1,5 +1,5 @@
 // ! This Extension Made By @ByAyzen for GizliKeyif
-version = 14
+version = 15 // shared KvsFlashvars (audit applied)
 
 cloudstream {
     authors     = listOf("ByAyzen")

@@ -1,4 +1,4 @@
-version = 10
+version = 11 // shared KvsFlashvars + CfChallengeInterceptor (audit applied)
 
 cloudstream {
     authors     = listOf("RjBiermann")

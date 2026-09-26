@@ -8,9 +8,9 @@ import com.lagradost.cloudstream3.network.CloudflareKiller
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.kraptor.CardFields
 import com.kraptor.SearchCard
+import com.kraptor.cfChallenge
 import com.kraptor.registerHostExtractors
 import okhttp3.Interceptor
-import okhttp3.Response
 import org.jsoup.nodes.Element
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
@@ -31,17 +31,10 @@ class Cat3Movie : MainAPI() {
     // precedent: Cat3Film #410, FullPorner, Film1k). Healthy pages carry the JSD snippet
     // too, so the trigger is the interstitial markers only (Parse.isChallengePage).
     private val cloudflareKiller by lazy { CloudflareKiller() }
-    private val cfInterceptor by lazy { CfInterceptor(cloudflareKiller) }
-
-    class CfInterceptor(private val killer: CloudflareKiller) : Interceptor {
-        override fun intercept(chain: Interceptor.Chain): Response {
-            val response = chain.proceed(chain.request())
-            if (Parse.isChallengePage(response.peekBody(1024 * 1024).string())) {
-                return killer.intercept(chain)
-            }
-            return response
-        }
-    }
+    // Shared CfChallengeInterceptor (audit finding 2): Cat3Movie keeps its broader
+    // marker set (Parse.isChallengePage) as the challenge predicate — healthier pages
+    // also carry the JSD snippet, markers alone are the trigger.
+    private val cfInterceptor by lazy { cfChallenge(cloudflareKiller) { Parse.isChallengePage(it) } }
 
     override val mainPage = mainPageOf(
         "$mainUrl" to "Latest",

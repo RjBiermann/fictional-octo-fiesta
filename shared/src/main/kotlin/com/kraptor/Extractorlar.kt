@@ -1003,7 +1003,7 @@ open class Player4Me : ExtractorApi() {
         Log.d("Player4Me", id)
         val response = app.get("$mainUrl/api/v1/video?id=$id", referer = "${mainUrl}/", headers = mapOf(
             "Host" to mainUrl.substringAfter("://"),
-            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:144.0) Gecko/20100101 Firefox/144.0",
+            "User-Agent" to FIREFOX_UA,
             "Accept" to "*/*",
             "Cookie" to "popunderCount/=1",
         ))
@@ -1031,7 +1031,7 @@ open class Player4Me : ExtractorApi() {
                 ExtractorLinkType.M3U8
             ) {
                 this.referer = "${mainUrl}/"
-                this.headers = mapOf("User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:144.0) Gecko/20100101 Firefox/144.0")
+                this.headers = mapOf("User-Agent" to FIREFOX_UA)
             })
         } else {
             Log.d("Player4Me", "Bitiş")
@@ -1054,7 +1054,7 @@ open class DoodStream : ExtractorApi() {
         val response = app.get(
             embedUrl,
             referer = mainUrl,
-            headers = mapOf("User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:144.0) Gecko/20100101 Firefox/144.0")
+            headers = mapOf("User-Agent" to FIREFOX_UA)
         ).text
 
         val md5Regex = Regex("/pass_md5/([^/]*)/([^/']*)")
@@ -1067,7 +1067,7 @@ open class DoodStream : ExtractorApi() {
         val md5Response = app.get(
             md5Url,
             referer = embedUrl,
-            headers = mapOf("User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:144.0) Gecko/20100101 Firefox/144.0")
+            headers = mapOf("User-Agent" to FIREFOX_UA)
         ).text
 
         val baseLink = md5Response.trim()
@@ -1084,7 +1084,7 @@ open class DoodStream : ExtractorApi() {
                 this.referer = "https://myvidplay.com"
                 this.quality = Qualities.Unknown.value
                 this.headers =
-                    mapOf("User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:144.0) Gecko/20100101 Firefox/144.0")
+                    mapOf("User-Agent" to FIREFOX_UA)
             })
     }
 }

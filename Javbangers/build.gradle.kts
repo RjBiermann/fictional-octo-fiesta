@@ -1,4 +1,4 @@
-version = 6
+version = 7 // shared KvsFlashvars (audit applied)
 
 cloudstream {
     authors     = listOf("RjBiermann")

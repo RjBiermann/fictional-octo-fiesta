@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 11
+version = 12 // shared FIREFOX_UA const (audit applied)
 
 cloudstream {
     authors     = listOf("kraptor")

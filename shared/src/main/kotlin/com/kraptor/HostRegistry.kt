@@ -15,6 +15,14 @@ import com.lagradost.cloudstream3.extractors.MixDropAg
 import com.lagradost.cloudstream3.utils.ExtractorApi
 
 /**
+ * Browser UA used by hosts whose edge blocks framework defaults; one const so the
+ * fingerprint can't drift between copies (audit finding 7 — the same string was
+ * pasted 11× across Extractorlar.kt and HQPorner).
+ */
+const val FIREFOX_UA =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:144.0) Gecko/20100101 Firefox/144.0"
+
+/**
  * The shared host table itself (ADR-0005 pure-data seam, issue #353): one row per
  * embed-host mirror. Kept separate from registration so unit tests can pin the
  * ordering/dedup/naming invariants on the data without touching the framework's

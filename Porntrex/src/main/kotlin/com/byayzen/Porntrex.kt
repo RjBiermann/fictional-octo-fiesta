@@ -3,6 +3,7 @@
 package com.byayzen
 
 import com.kraptor.DurationParse
+import com.kraptor.KvsFlashvars
 import com.kraptor.registerHostExtractors
 import com.lagradost.api.Log
 import org.jsoup.nodes.Element
@@ -237,9 +238,8 @@ object PorntrexParse {
         for (key in listOf("url", "alt_url", "alt_url2", "alt_url3", "alt_url4")) {
             // KVS's own redirect flag: 1 means the alt URL is a page, never an ExtractorLink.
             if (Regex("video_${key}_redirect:\\s*'1'").containsMatchIn(flashvars)) continue
-            val url = Regex("video_${key}:\\s*'([^']+)'").find(flashvars)?.groupValues?.get(1) ?: continue
-            val label = Regex("video_${key}_text:\\s*'([^']+)'").find(flashvars)?.groupValues?.get(1)
-            out.add(label to url)
+            val url = KvsFlashvars.field(flashvars, "video_$key") ?: continue
+            out.add(KvsFlashvars.label(flashvars, "video_$key") to url)
         }
         return out
     }

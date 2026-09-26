@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 12 // shared SearchCard href-fallback fix (P0-14)
+version = 13 // shared CfChallengeInterceptor (audit applied)
 
 cloudstream {
     authors     = listOf("kraptor")

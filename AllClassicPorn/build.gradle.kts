@@ -1,4 +1,4 @@
-version = 14 // issue #483: KVS quality caption → ExtractorLink.quality
+version = 15 // shared KvsFlashvars (audit applied) on top of #483 quality pass-through
 
 cloudstream {
     authors     = listOf("imperialbob")

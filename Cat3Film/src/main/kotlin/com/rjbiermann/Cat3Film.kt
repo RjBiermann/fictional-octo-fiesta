@@ -1,14 +1,14 @@
 package com.rjbiermann
 
 import com.kraptor.JsonLdParse
+import com.kraptor.cfChallenge
 import com.kraptor.registerHostExtractors
 import com.lagradost.api.Log
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import com.lagradost.cloudstream3.network.CloudflareKiller
-import okhttp3.Interceptor
-import okhttp3.Response
+
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
@@ -31,18 +31,9 @@ class Cat3Film : MainAPI() {
     // a "Just a moment…" interstitial that Jackson then fails on. Route fetches through
     // CloudflareKiller (repo precedent: FullPorner/Film1k).
     private val cloudflareKiller by lazy { CloudflareKiller() }
-    private val cfInterceptor by lazy { CfInterceptor(cloudflareKiller) }
-
-    class CfInterceptor(private val killer: CloudflareKiller) : Interceptor {
-        override fun intercept(chain: Interceptor.Chain): Response {
-            val response = chain.proceed(chain.request())
-            if (Jsoup.parse(response.peekBody(1024 * 1024).string()).html().contains("Just a moment")) {
-                return killer.intercept(chain)
-            }
-            return response
-        }
-    }
-
+    // Shared CfChallengeInterceptor (audit finding 2): identical marker check as the
+    // inner class it replaces — "Just a moment" → CloudflareKiller solves + replays.
+    private val cfInterceptor by lazy { cfChallenge(cloudflareKiller) }
 
     override val mainPage = mainPageOf(
         "$mainUrl/movies" to "Movies",
