@@ -44,7 +44,7 @@ A maintainer-applied issue label (`ai-fix`, `ai-new-site`, `ai-remove-site`) tha
 _Avoid_: auto label, bot label
 
 **Command**:
-A maintainer comment on an issue or PR (`/retry`, `/review`) that the pipeline dispatches. A Command can only re-fire work a Trigger label already created — it never creates work, never spends a Round itself. Issues and PRs alike accept Commands; trigger labels live on issues only.
+A maintainer comment on an issue or PR (`/retry`, `/review`, `/repair`) that the pipeline dispatches. A Command can only re-fire work a Trigger label already created — it never creates work, never spends a Round itself. Issues and PRs alike accept Commands; trigger labels live on issues only. `/repair` re-fires Repair on a delivered PR — Review re-derives the findings against the current diff, Repair acts on them; it refuses non-devloop PRs and never counts against the attempt budget.
 _Avoid_: slash command, bot command, retrigger
 
 **Rebuild**:
