@@ -288,3 +288,14 @@ cache-buster (`_` param — 200 with and without it); year falls back to the tit
 suffix, the one change that fixes a verified gap (episode pages lack `p.released`; base movie
 pages, which `load` normally receives, still have it). Tags/actors stay wired — the site just
 does not expose them on watch pages today (payload-escaped only).
+
+## 2026-09-26 re-probe (issue #488 — "video doesn't play", carnal-olympics-1983)
+
+Third consecutive non-reproducible "doesn't play" report (#250, #417, #488). Full chain replay
+for carnal-olympics-1983 (post_id 34471, nonce 35d3222271): sv1 hlsfree/958 → manifest 200
+mpegurl → segment 200 w/ referer — **all healthy**; sv2 cdn.loadvid.com now **522 origin down**
+(host was blob-gated-alive in #250/#417, dead today); sv3 hlsfast/#o3izje → video deleted
+upstream. Only 1 of 3 servers yields a playable source per title now. 9-title sv1 sweep: 9/9
+manifest 200. Emitted-link hardening complete since #247/#417; no provider defect found.
+Closed drift issues: six (#143 #180 #203 #250 #411 #417) — past the Chronic threshold.
+Evidence: FINDINGS-488.md. No code change, no version bump (#480 precedent).
