@@ -59,6 +59,16 @@ make/test/check. No other file touched: the classpath coordinate, deps, and
 → `./gradlew bootstrapCloudstream` → BUILD SUCCESSFUL; `AllClassicPorn:test`,
 `AllClassicPorn:make` → BUILD SUCCESSFUL, `.cs3` produced.
 
+**Review decision point (maintainer call — carried here, not settled):** this
+repair restores the previously reviewed vendoring shape (P0-15), but a smaller
+alternative exists: jitpack serves the pinned timestamped coordinate
+`com.github.recloudstream.gradle:gradle:-32895aedb6-1` (pom/jar verified 200)
+with a byte-identical pom, so pinning the buildscript classpath to that
+coordinate would fix resolution with no committed binary. Vendored binary vs.
+pinned snapshot coordinate vs. waiting for jitpack to heal is a merge
+decision, and this build repair arguably deserves its own issue rather than
+riding under #483 — flagged for review, not silently bundled.
+
 ## Phase 1 — sweep (deep tier this run: AllClassicPorn, issue's surfaces)
 
 ### AllClassicPorn — deep audit (home, load, loadLinks, search, quicksearch, pagination, dedup)
@@ -81,7 +91,8 @@ All plain curl, UA `Mozilla/5.0 (X11; Linux x86_64; rv:130.0)`:
 | stream | 2252 + 6161 `video_url` with UA+referer | **206 video/mp4**, `ftypisom…avc1` header |
 
 Quicksearch: site has no distinct quick-search endpoint (explicit FINDINGS
-note, audit-#204 — provider `hasQuickSearch = false`).
+note, audit-#204). No provider edit is involved — `hasQuickSearch = false` is
+the MainAPI default, applied by omission as the scaffold requires.
 
 ### Engineered fix — loadLinks quality pass-through (issue requirement)
 
@@ -107,6 +118,10 @@ fixture tests (2252 → `480p`); the wiring is the only untestable line
 RESULT: FAIL (2 standing script-side artifacts below)
 ```
 
+Re-run during PR repair (2026-09-26, same flags): reproduces exactly this
+state — all surface / no-dup / stream / agreement / field checks pass on the
+current diff; the only FAILs are the two standing script artifacts below.
+
 **Standing mechanical FAILs — ok-suspected site design, not provider defects**
 (all previously classified in AllClassicPorn/FINDINGS.md audits #204/#266;
 re-verified live this run):
@@ -120,25 +135,49 @@ re-verified live this run):
    stable poster is og:image `preview.jpg`. Same video, same screenshot tree;
    site exposes different thumbnail variants per surface.
 
-### Remaining Unknown-quality emitters (no-fix rationale, per this run's probes of sibling providers)
+### Remaining Unknown-quality emitters (no-fix rationale — per-provider evidence provenance)
 
-- **Cat3Film / Cat3Movie** — player-obfuscated watch pages (atob/eval, season
-  panes); no quality caption exposed to a `loadLinks`-visible surface.
-- **Javmost** — `/ri3123o235r/` AJAX → emturbovid m3u8 (master playlist); HLS
-  master quality is resolved by the player, no discrete caption on the page.
+**Screened for an exposed caption — evidence cited per run:**
+
+- **Cat3Film** — deep-tier provider of run 3 (2026-09-26, issue #479): watch
+  page player-obfuscated (atob/eval, season panes); no quality caption on a
+  `loadLinks`-visible surface. Registry row unchanged this run, no new
+  condition.
+- **Javmost** — deep-tier provider of run 3 (issue #479): `/ri3123o235r/`
+  AJAX → emturbovid m3u8 (master playlist); HLS master quality is resolved by
+  the player, no discrete caption on the page. No new condition this run.
 - **ixiporn** — direct mp4 but no quality attribute/caption anywhere on the
   video page (grep-verified across sweeps #479/#483 evidence).
+- **Cat3Movie** — **absence of evidence only**: registry rows (runs 2–4)
+  record home/search/video 200 with stream via obfuscated player (extractor
+  path). No probe has ever looked specifically for a quality caption there;
+  the "no caption" claim is not caching of a caption check — treat as
+  unscreened until probed.
 
-Forcing a quality guess there would be fiction; `Qualities.Unknown` is the
-honest value. Any new provider whose site exposes a caption must follow the
-AllClassicPorn pattern (`getQualityFromName`), per the scaffold.
+Forcing a quality guess on any of the above would be fiction;
+`Qualities.Unknown` is the honest value. Any new provider whose site exposes a
+caption must follow the AllClassicPorn pattern (`getQualityFromName`), per the
+scaffold.
+
+**Not screened this run:** the remaining ~21 providers' `loadLinks` emitters
+were not probed for an exposed quality caption; their `Qualities.Unknown`
+rests only on absence of evidence from earlier (shallower) probes that did not
+look for captions. Caption-screening the rest of the fleet is open work under
+issue #483 — an exposed caption found later gets the AllClassicPorn pattern,
+not a locked-in "no caption".
 
 ## Phase 2/3 — registry + lifecycle
 
 - `audits/findings.json`: `run4` appended (`false_positives: []` — no finding
-  issues filed this run; the two mechanical FAILs above are standing
-  script-side artifacts, not conditions warranting issues);
-  AllClassicPorn stamped `last_deep: 2026-09-26`, verdict `ok`.
+  issues filed this run); AllClassicPorn stamped `last_deep: 2026-09-26`,
+  verdict `ok`.
+- The two standing mechanical FAILs are recorded as **still-open script
+  artifacts, not closed lifecycle items** (see `run4` note in
+  `audits/findings.json`); their standing classification and re-classification
+  history live in `AllClassicPorn/FINDINGS.md` audits #204 (artifact 1:
+  og:video embed grab; artifact 2: poster mismatch) and #266 (poster mismatch
+  extended). A reviewer needing the justification should read those, not
+  re-derive it.
 - `check-findings.sh`: **PASS**.
 - Probe-IP challenge artifacts (Film1k / FreePornVideos / FullPorner /
   XMoviesForYou search) not re-filed per `suspected_excluded` family
@@ -156,5 +195,10 @@ AllClassicPorn pattern (`getQualityFromName`), per the scaffold.
 - **all fields utilized**: check-6 all LoadResponse fields assigned (tags,
   actors, year, duration, plot, recommendations, poster).
 - **TDD**: Parse tests green (fixtures); build repair verified from cold env.
-- Fleet-wide remaining providers: verdicts unchanged from run 3 (2026-09-26,
-  PR #481) — no new conditions observed this run.
+- **Fleet scope of this run: AllClassicPorn only.** The checklist items above
+  are demonstrated for AllClassicPorn, not the fleet. Remaining providers:
+  registry verdicts unchanged from run 3 (2026-09-26, PR #481 — deep tier
+  Cat3Film/Eroticmv/Javmost/Xhamster), no new conditions observed this run;
+  caption-screening the remaining `loadLinks` emitters and fleet-wide
+  hardening of rows/pagination/dedup remain open. Issue #483 stays open
+  accordingly.
