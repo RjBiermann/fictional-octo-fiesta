@@ -190,7 +190,8 @@ Full chain replay for women-at-play-1985 (post_id 34514, nonce bc43d77bbc from l
 sv1 hlsfree/937 chain 200 end-to-end (manifest 200 mpegurl, segment 3.4 MB with referer),
 sv2 loadvid blob-gated as before, sv3 hlsfast/#9qgavp → "Video not found or deleted" (upstream).
 Same for heat/joy/blue-money/baby-cat/bamboo sv1 chains. **No server-side reproduction** of the
-report; details in FINDINGS-417.md. /watch-women-at-play-1985 now 404s (provider uses the base
+report; replay above is the record (per-issue probe distilled 2026-09-26, issue #484 cleanup).
+/watch-women-at-play-1985 now 404s (provider uses the base
 movie URL — unaffected).
 
 Hardening shipped on this run (the same class of defect #247 fixed for hlsfree): the emitted
@@ -288,3 +289,17 @@ cache-buster (`_` param — 200 with and without it); year falls back to the tit
 suffix, the one change that fixes a verified gap (episode pages lack `p.released`; base movie
 pages, which `load` normally receives, still have it). Tags/actors stay wired — the site just
 does not expose them on watch pages today (payload-escaped only).
+
+## 2026-09-13 re-probe (issue #411 — Cloudflare JSD + silent zero links)
+
+Root-cause evidence: cat3movie.org now injects Cloudflare **JS Detection**
+(`$ curl -s https://cat3movie.org/mind-the-gap-2007 | grep -c 'challenge-platform/scripts/jsd/main.js'`
+→ ≥1; healthy-page fixture home-dup.html carries it too, so the JSD snippet alone is not
+a challenge marker). On a challenged client every leg fails silently: the watch-page fetch
+returns a "Just a moment…" interstitial → `Parse.streamConfig` finds no post_id →
+`loadLinks` returns false with zero callbacks → CS3 shows "No links found".
+Server-side chain itself fully intact (4 fresh videos: post_id + body[data-nonce] present,
+player.php 200 per server sv1/sv2/sv3, hlsfree + hlsfast legs unchanged per #247 shape).
+Fix shipped: every fetch routed through `CloudflareKiller` via a wrapper interceptor; the
+challenge predicate is the interstitial markers only (`Parse.isChallengePage`, fixture
+`cf-challenge.html`). Runner-side fingerprints pass — method same as the #410 Cat3Film probe.
