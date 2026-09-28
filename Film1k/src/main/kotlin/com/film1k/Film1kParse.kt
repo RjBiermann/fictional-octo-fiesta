@@ -43,4 +43,11 @@ object Film1kParse {
         // page-controlled look-alike host like evilturboviplay.com
         Regex("""https://(?:[A-Za-z0-9-]+\.)*turboviplay\.com/data3/[a-zA-Z0-9]+/[A-Za-z0-9]+\.m3u8""")
             .find(embedHtml)?.value
+
+    /** Issue #483: quality from the turbovid master playlist's first
+     *  #EXT-X-STREAM-INF RESOLUTION (height). Null when absent → caller falls back to Unknown. */
+    fun turbovidQuality(playlistText: String?): Int? =
+        playlistText?.lineSequence()
+            ?.firstOrNull { it.startsWith("#EXT-X-STREAM-INF") }
+            ?.let { Regex("RESOLUTION=\\d+x(\\d+)").find(it)?.groupValues?.get(1)?.toIntOrNull() }
 }

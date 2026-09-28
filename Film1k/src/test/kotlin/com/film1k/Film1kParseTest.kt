@@ -92,6 +92,16 @@ class Film1kParseTest {
         assertEquals("https://cdn3.turboviplay.com/data3/696f9b3d701a3/696f9b3d701a3.m3u8", url)
     }
 
+    @Test fun `turbovid quality from master playlist resolution`() {
+        val master = javaClass.getResource("/f1k-master.txt")?.readText() ?: error("fixture missing")
+        assertEquals(480, Film1kParse.turbovidQuality(master))
+    }
+
+    @Test fun `turbovid quality null without resolution tag`() {
+        assertNull(Film1kParse.turbovidQuality("#EXTM3U\n#EXT-X-VERSION:6\nseg.ts"))
+        assertNull(Film1kParse.turbovidQuality(null))
+    }
+
     @Test fun `turbovid master m3u8 rejects look-alike host`() {
         // page-controlled look-alike (evilturboviplay.com) must not be handed to the player
         assertNull(
@@ -101,3 +111,4 @@ class Film1kParseTest {
         )
     }
 }
+

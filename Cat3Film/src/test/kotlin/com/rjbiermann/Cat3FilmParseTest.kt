@@ -82,4 +82,17 @@ class Cat3FilmParseTest {
         assertNull(Parse.streamUrl(null))
         assertNull(Parse.streamUrl("   "))
     }
+
+    // --- source quality (issue #483) -----------------------------------------
+
+    @Test fun `numeric source type yields its quality`() {
+        assertEquals(480, Parse.sourceQuality("480p"))
+        assertEquals(360, Parse.sourceQuality("360p"))
+    }
+
+    @Test fun `non-numeric source type yields null (Unknown quality)`() {
+        assertNull(Parse.sourceQuality("hls"))
+        assertNull(Parse.sourceQuality(null))
+        assertNull(Parse.sourceQuality(""))
+    }
 }

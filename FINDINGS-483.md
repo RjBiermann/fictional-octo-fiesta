@@ -202,3 +202,65 @@ not a locked-in "no caption".
   caption-screening the remaining `loadLinks` emitters and fleet-wide
   hardening of rows/pagination/dedup remain open. Issue #483 stays open
   accordingly.
+
+## Run 5 (2026-09-28) — caption-screening the remaining loadLinks emitters
+
+Completed the open caption-screening item from run 4. Per-provider verdicts
+(registry: `audits/findings.json` run5; live probe artifacts under /tmp during
+run, key numbers recorded below):
+
+- **Cat3Film — FIXED (TDD, version 12).** Deep probe of the `/api/v1/episodes/N/sources`
+  response via the decrypted Abyss backup chain (enc-dec.app `dec-abyss`, AES
+  `datas` blob) shows the API mixes two source shapes: bare hls tokens
+  (`"type":"hls"`, no quality — correctly Unknown) and numeric captions
+  (`"type":"480p"` with size 891870150, `"type":"360p"` with size 596330364).
+  `Parse.sourceQuality(type)` returns the height for numeric captions, null
+  otherwise; `loadLinks` falls back to `Qualities.Unknown` when null. Tests
+  red→green in `Cat3FilmParseTest`.
+- **Film1k — FIXED (TDD, version 9).** Turbovid chain re-probed live
+  (`/t/6aa6d81c07b98` → `cdn1.turboviplay.com/.../​.m3u8` master): the master
+  playlist carries `#EXT-X-STREAM-INF:BANDWIDTH=52800,RESOLUTION=854x480`.
+  `Parse.turbovidQuality(playlistText)` reads the first STREAM-INF's RESOLUTION
+  height; `loadLinks` fetches the master it already knows the URL of and
+  captions the quality (falls back to Unknown when the tag is absent; fetch
+  failure is non-fatal). Tests red→green in `Film1kParseTest` with
+  `f1k-master.txt` fixture.
+- **Cat3Movie — no-fix, caption check now evidenced (was absence-of-evidence).**
+  Probed the full hallim player flow on two videos (old + newer): watch page →
+  `player.php` AJAX (nonce) → hlsfree embed → token HLS
+  (`hlsfree.com/api/hls/serve?token=...` → s1.cat3hls.com). Neither the embed
+  HTML nor the served playlist carries any resolution or variant tag — the site
+  exposes no quality caption anywhere in the chain. `Qualities.Unknown` is the
+  honest value; forcing a guess would be fiction.
+- **Javmost — no-fix.** Video pages served via emturbovid master m3u8; the
+  captions live solely in player-resolved variant playlists, which the player
+  (not the provider) already uses. No discrete caption on host pages.
+- **MissAV — no-fix.** surrit master playlists are variant-tagged
+  (`RESOLUTION=640x360/854x480/1280x720` probed) but the provider hands the
+  app the master and the player selects; no per-source caption exists on the
+  host page to caption a single link with.
+- **Sexfilm / JavGuru / Javseen — no-fix.** cfglobalcdn / searcho-redirect /
+  button_choice_server chains yield bare m3u8 with no caption on the pages
+  the provider reads.
+- **Xhamster — verdict `blocked` (broken-datacenter).** Re-probe 2026-09-28:
+  every surface (home, search, video) now serves a server-side age-verification
+  signup wall for this datacenter IP — `initials.isAgeVerificationRequired:true`
+  (jurisdiction text: "To use your account age verification may be required by
+  Virginia state law"). Plain curl, curl_cffi chrome/safari impersonation, and
+  a headless Chromium (Yes please click + reload) are all walled; no cookie,
+  geo, or header bypass. The guest-tier `xplayerSettings.sources.standard`
+  flow the provider depends on is gone from both xhamster.com pages and
+  xh.video embeds (field present but null). Unfixable without an account —
+  flagged as a maintainer decision (removal candidate; hardness-rule cohort).
+- **Eroticmv / Javtiful / others** — no caption exposed (DRM/DASH setups or
+  byte-size fields the provider already passes through).
+
+Skipped (YAGNI): playlist-level per-variant quality for MissAV-style master
+handed to the player — CloudStream resolves variant selection itself; a fake
+per-variant link set would duplicate the player's job.
+
+Checklist deltas this run: loadLinks quality → CloudStream now covered for
+**Cat3Film and Film1k** in addition to the run-4-verified AllClassicPorn and
+the previously-verified emitters; every remaining Unknown cap now has positive
+probe evidence (not absence of evidence). Issue #483's remaining scope stays
+with the maintainer (Xhamster disposition).

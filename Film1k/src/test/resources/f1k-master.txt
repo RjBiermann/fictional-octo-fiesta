@@ -1,0 +1,4 @@
+#EXTM3U
+#EXT-X-VERSION:6
+#EXT-X-STREAM-INF:BANDWIDTH=52800,RESOLUTION=854x480,CODECS="avc1.64001e,mp4a.40.2"
+https://gs12.turbosplayer.com/file/b7a3aba3-f097-48d2-9032-75af0e0e5f07/master.m3u8

@@ -1,4 +1,4 @@
-version = 8 // issue #408: search no longer paginates (page 2 hard-404) — stop at page 1
+version = 9 // issue #408: search no longer paginates (page 2 hard-404) — stop at page 1
 
 cloudstream {
     authors     = listOf("cloudstream")

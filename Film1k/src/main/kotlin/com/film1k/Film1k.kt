@@ -193,6 +193,11 @@ class Film1k : MainAPI() {
             ).text
             val master = Film1kParse.turbovidStreamUrl(embedHtml)
             if (master != null) {
+                // Issue #483: the turbovid master carries an #EXT-X-STREAM-INF RESOLUTION —
+                // caption the real quality instead of Unknown.
+                val masterBody = runCatching {
+                    app.get(master, referer = "https://turbovidhls.com/").text
+                }.getOrNull()
                 callback(
                     newExtractorLink(
                         name = name,
@@ -201,7 +206,8 @@ class Film1k : MainAPI() {
                         type = ExtractorLinkType.M3U8
                     ) {
                         this.referer = "$mainUrl/"
-                        this.quality = Qualities.Unknown.value
+                        this.quality = Film1kParse.turbovidQuality(masterBody)
+                            ?: Qualities.Unknown.value
                     }
                 )
                 return true

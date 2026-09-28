@@ -78,8 +78,7 @@ class Cat3Film : MainAPI() {
                 posterUrl = fixUrlNull(r.thumb)
             }
         }
-        return newSearchResponseList(list, hasNext = false)
-    }
+        return newSearchResponseList(list, hasNext = false)    }
 
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url, interceptor = cfInterceptor).document
@@ -167,7 +166,10 @@ class Cat3Film : MainAPI() {
                     callback.invoke(
                         newExtractorLink(name, name, fixUrl(f), ExtractorLinkType.M3U8) {
                             this.referer = "$mainUrl/"
-                            this.quality = Qualities.Unknown.value
+                            // Issue #483: sources carry a numeric "type" caption
+                            // ("480p"/"360p", live-probed) alongside the hls tokens.
+                            this.quality = Parse.sourceQuality(src.type)
+                                ?: Qualities.Unknown.value
                         }
                     )
                 }
@@ -188,6 +190,14 @@ class Cat3Film : MainAPI() {
 // Pure parsing for issue #292 (unit-tested in Cat3FilmParseTest, no CloudStream deps).
 object Parse {
     data class Ep(val data: String, val name: String?, val season: Int?, val number: Int)
+
+    /**
+     * Issue #483: the sources API mixes hls tokens ("type":"hls", no quality) with
+     * numeric captions ("type":"480p"/"360p" — live-probed via the decrypted Abyss
+     * backup chain). Return the height for numeric captions, null otherwise (Unknown).
+     */
+    fun sourceQuality(type: String?): Int? =
+        type?.trim()?.filter { it.isDigit() }?.takeIf { it.isNotEmpty() }?.toIntOrNull()
 
     private val RATING = Regex("""\\?"ratingValue\\?"\s*:\s*\\?"?([\d.]+)""")
     private val SEASON = Regex("""Season (\d+)""")
