@@ -50,11 +50,20 @@ jobs:
     #   unconditionally replaces the extraheader that checkout installed,
     #   so branch push/force-push/delete always authenticates with the
     #   PAT, never the GITHUB_TOKEN — contents: read is sufficient here.
-    #   Caveat: this argument is verified against devloop v0.3.28 (the
-    #   pinned tag; v0.3.27→v0.3.28 re-audited: --version now derives the
-    #   released version from package metadata (was a stale hardcoded
-    #   literal), no command/config/GitHub-write surface change, pushes stay
-    #   PAT-authenticated git, contents: read still sufficient. Prior
+    #   Caveat: this argument is verified against devloop v0.3.29 (the
+    #   pinned tag; v0.3.28→v0.3.29 re-audited: close_pr no longer dies over
+    #   a failed branch delete — the delete is now best-effort try/except via
+    #   `gh api -X DELETE .../git/refs/...`, so a contents-write IS attempted
+    #   under GITHUB_TOKEN — it 403s (or 404s on a wrong ref, the upstream
+    #   wrong-ref bug filed 2026-09-29) and is caught as a warning, never
+    #   fails the run; no other command/config/GitHub-write surface change,
+    #   pushes stay PAT-authenticated git, contents: read still sufficient.
+    #   An AGENT_PAT-backed GH_TOKEN for the command step was tried on
+    #   2026-09-29 (commit d775185) and reverted: with v0.3.29's wrong-ref
+    #   delete a PAT makes collateral ref deletion possible; GITHUB_TOKEN's
+    #   403 is the safe failure. Prior v0.3.27→v0.3.28: --version now derives
+    #   the released version from package metadata (was a stale hardcoded
+    #   literal), no command/config/GitHub-write surface change. Prior
     #   v0.3.26→v0.3.27: internal refactor — core.py split at the build
     #   seam, shared queue selection policy — no GitHub API surface touched
     #   (github_api.py/config.py unchanged). Prior v0.3.25→v0.3.26: command
@@ -86,7 +95,7 @@ jobs:
       - name: Install devloop (pinned)
         run: >-
           pip install
-          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.3.28
+          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.3.29
       - name: Install agent runtime (pi) + model config
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
@@ -147,16 +156,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run comment command
         if: github.event_name == 'issue_comment'
-        # AGENT_PAT, not GITHUB_TOKEN: /retry deletes the rebuilt branch via
-        # `gh api -X DELETE .../git/refs/...` — a contents-write the GITHUB_TOKEN
-        # deliberately does not have (least privilege, #350). On 2026-09-29
-        # (/retry 487) that delete 403'd "Resource not accessible by
-        # integration" AFTER closing PR #491, killing the run and stranding the
-        # issue. ADR-0004's second credential channel covers git-refs
-        # operations; issues/pull-requests writes stay valid under the PAT too.
         run: devloop command
         env:
-          GH_TOKEN: ${{ secrets.AGENT_PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Close out merged devloop PR's issue
         if: github.event_name == 'pull_request'
         run: devloop merged
