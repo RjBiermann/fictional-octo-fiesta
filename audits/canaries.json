@@ -6,25 +6,33 @@
       "name": "film1k-challenge-pair",
       "site": "https://www.film1k.com/",
       "purpose": "detects datacenter-IP Cloudflare challenge (known since FINDINGS-408)",
-      "expected": {"plain-curl": 403, "tls-impersonated": 200},
+      "expected": {
+        "plain-curl": 403,
+        "tls-impersonated": 200
+      },
       "on_mismatch": "environment-degraded",
-      "last_verified": "2026-09-25"
+      "last_verified": "2026-09-29"
     },
     {
       "name": "eporner-healthy",
       "site": "https://www.eporner.com/",
       "purpose": "known-good SSR homepage; any failure = instrument or network degradation",
-      "expected": {"plain-curl": 200},
+      "expected": {
+        "plain-curl": 200
+      },
       "on_mismatch": "environment-degraded",
-      "last_verified": "2026-09-25"
+      "last_verified": "2026-09-29"
     },
     {
-      "name": "pandamovies-dead-origin",
+      "name": "pandamovies-redirect-origin",
       "site": "https://pandamovies.pw/",
-      "purpose": "known-dead origin (CF 522); validates unreachable detection",
-      "expected": {"plain-curl": 522, "tls-impersonated": 522},
+      "purpose": "PROPOSED rename+expectation update 2026-09-29 (maintainer confirms in review): origin healed — pandamovies.pw 302-redirects to live pandamovies.org (200). Validates redirect-following + reachable-origin detection. Prior expectation (522 both tiers) stale since ~2026-09-29.",
+      "expected": {
+        "plain-curl": 302,
+        "tls-impersonated": 200
+      },
       "on_mismatch": "expectation-stale",
-      "last_verified": "2026-09-25"
+      "last_verified": "2026-09-29"
     }
   ]
 }
