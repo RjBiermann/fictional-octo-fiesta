@@ -31,13 +31,20 @@ object Film1kParse {
         return Regex("""film1k\.xyz/e/([a-zA-Z0-9]+)""").find(html)?.groupValues?.get(1)
     }
 
-    /** Turbovid (turbovidhls.com) embed code — issue #408: streaming pages now also serve
-     *  `/t/{code}` JW embeds from a third host the provider did not know. JW setup on the
-     *  embed page carries the cdn{N}.turboviplay.com/data3/{code}/{code}.m3u8 master. */
-    fun turbovidCode(html: String): String? =
-        Regex("""turbovidhls\.com/t/([a-zA-Z0-9]+)""").find(html)?.groupValues?.get(1)
+    /** Turbovid (turbovidhls.com) — issue #496: that whole family (turbovidhls.com with
+     *  its turboviplay.com / turbosplayer.com CDN) lost DNS entirely (A NODATA across
+     *  resolvers, MX still answers), so nothing it served was reachable and the
+     *  hardcoded-turbovidhls loadLinks branch was removed. A resurrected family
+     *  rebuilds the embed-code parser from git history (fixture stays). */
 
-    /** HLS master URL from the turbovid embed page (plain string, not packed). */
+    /** Abyssplayer embed URL — issue #233 gap 2 (SoTrym/enc-dec chain, shared adapter).
+     *  End of the loadLinks ladder: last parseable embed on a page with no byse embed. */
+    fun abyssUrl(html: String): String? =
+        Regex("""abyssplayer\.com/\?v=[A-Za-z0-9]+""").find(html)?.value
+
+    /** HLS master URL from the turbovid embed page (plain string, not packed).
+     *  Kept Parse-tested (unreachable while turbovidhls.com stays DNS-dead — the
+     *  loadLinks branch was removed with the family): the resurrection recipe. */
     fun turbovidStreamUrl(embedHtml: String): String? =
         // subdomain anchored — a loose [A-Za-z0-9.]* prefix would also match a
         // page-controlled look-alike host like evilturboviplay.com

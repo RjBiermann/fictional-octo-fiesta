@@ -1,4 +1,5 @@
-version = 8 // issue #408: search no longer paginates (page 2 hard-404) — stop at page 1
+version = 9 // issue #496: turbovid embed family DNS-dead — branch removed, loadLinks
+// fetches guarded (uncaught DNS exception), turbovid-only pages fall through cleanly
 
 cloudstream {
     authors     = listOf("cloudstream")
