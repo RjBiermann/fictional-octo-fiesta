@@ -82,4 +82,23 @@ class Cat3FilmParseTest {
         assertNull(Parse.streamUrl(null))
         assertNull(Parse.streamUrl("   "))
     }
+
+    // --- backup mirror embed (#487) ------------------------------------------
+
+    @Test fun `backup field extracts mirror embed url`() {
+        assertEquals("https://player.abyssplayer.com/yXQfibqVK",
+            Parse.backupEmbed(res("sources-1798.json")))
+    }
+
+    @Test fun `json-escaped backup url unescapes`() {
+        assertEquals("https://player.abyssplayer.com/yXQfibqVK",
+            Parse.backupEmbed("""{"backup":"https:\/\/player.abyssplayer.com\/yXQfibqVK","sources":[]}"""))
+    }
+
+    @Test fun `missing blank or non-json backup yields null`() {
+        assertNull(Parse.backupEmbed("""{"sources":[],"success":true}"""))
+        assertNull(Parse.backupEmbed("""{"backup":"",\"sources\":[]}"""))
+        assertNull(Parse.backupEmbed(null))
+        assertNull(Parse.backupEmbed("<html>Just a moment…</html>"))
+    }
 }

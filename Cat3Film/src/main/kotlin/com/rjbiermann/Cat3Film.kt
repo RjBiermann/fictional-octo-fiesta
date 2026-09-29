@@ -172,6 +172,18 @@ class Cat3Film : MainAPI() {
                     )
                 }
             }
+            // #487: the API's top-level `backup` embed is the site's own fallback mirror
+            // (site.js auto-switches to it when sources are empty or the player errors).
+            // Emitted after the primary token source — a second route, not a replacement;
+            // the shared AbyssPlayer adapter (issue #233, registered repo-globally in
+            // HostRegistry) resolves the embed (datas → dec-abyss → sora sources).
+            Parse.backupEmbed(res.text)?.let { embed ->
+                try {
+                    loadExtractor(embed, "$mainUrl/", subtitleCallback, callback)
+                } catch (e: Exception) {
+                    Log.i(name, "loadLinks backup: ${e.message}")
+                }
+            }
         } catch (e: Exception) {
             Log.i(name, "loadLinks: ${e.message}")
         }
@@ -208,6 +220,19 @@ object Parse {
             badges.contains("TV") -> "TV"
             else -> null
         }
+    }
+
+    /**
+     * Backup mirror embed from a sources-API body (#487). The site's own player
+     * treats this URL as the fallback route when `sources` is empty or the player
+     * errors (site.js: `backupURL = (d && d.backup) || ""`, auto-switch on error) —
+     * the provider must carry it too or those states leave zero playable links.
+     * Null for no/blank backup, plain text, or challenge HTML.
+     */
+    fun backupEmbed(body: String?): String? {
+        val m = Regex(""""backup"\s*:\s*"([^"]+)""")
+            .find(body ?: return null) ?: return null
+        return m.groupValues[1].replace("\\/", "/").takeIf { it.isNotBlank() }
     }
 
     /**
