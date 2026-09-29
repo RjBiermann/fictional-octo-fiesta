@@ -17,6 +17,41 @@ class Eroticmv : MainAPI() {
                 .distinct()
 
         /**
+         * Browse facets (issue #497, FINDINGS 2026-09-29): eroticmv.com exposes 75
+         * browse facets whose pages reuse the homepage card markup (`article.post-item`).
+         * Facet pages are site-preloaded in one request; /page/2/ and ?paged=2 both 404.
+         */
+        val facets = listOf(
+            "country/australia", "country/austria", "country/brazil", "country/canada",
+            "country/china", "country/denmark", "country/england", "country/france",
+            "country/germany", "country/greece", "country/india", "country/italy",
+            "country/japan", "country/korea", "country/mexico", "country/philippines",
+            "country/poland", "country/russia", "country/scotland", "country/spain",
+            "country/sweden", "country/switzerland", "country/thailand", "country/turkey",
+            "country/usa",
+            "genre/animation", "genre/asian-erotica", "genre/bdsm", "genre/bondage",
+            "genre/cheating", "genre/chikan", "genre/classic-erotica", "genre/classic-porn",
+            "genre/comedy", "genre/cops", "genre/cosplay", "genre/cuckold",
+            "genre/exploitation", "genre/gangbang", "genre/ghost", "genre/group",
+            "genre/incest", "genre/interracial", "genre/lesbian", "genre/maid",
+            "genre/medieval", "genre/milf", "genre/monster", "genre/newage-erotica",
+            "genre/newage-porn", "genre/nuns", "genre/office", "genre/orgy",
+            "genre/parody", "genre/prison", "genre/prostitution", "genre/religious",
+            "genre/school", "genre/science-fiction", "genre/snuff", "genre/supernatural",
+            "genre/swinging", "genre/vampire", "genre/vanilla", "genre/violence",
+            "genre/voyeur", "genre/witches", "genre/young-and-old",
+            "decades/1960s", "decades/1970s", "decades/1980s", "decades/1990s",
+            "decades/2000s", "decades/2010s", "decades/2020s",
+        )
+
+        fun facetUrl(key: String): String = "https://eroticmv.com/category/$key/"
+
+        fun facetTitle(key: String): String =
+            key.substringAfter('/').split('-').joinToString(" ") { w ->
+                if (w == "and") "and" else w.replaceFirstChar { it.uppercase() }
+            }
+
+        /**
          * og:video:url comes in two shapes (FINDINGS 2026-09-11):
          * A: "http://<base64>.m3u8" → decode token directly.
          * B: "...?video_embed=<id>" → stream lives on the embed page's <source src> tag;
@@ -45,19 +80,26 @@ class Eroticmv : MainAPI() {
 
     override val mainPage = mainPageOf(
         "$mainUrl/" to "Latest Erotic Movies",  // pagination → /page/N/
+        *facets.map { key -> facetUrl(key) to facetTitle(key) }.toTypedArray()
     )
+
+    // Facet rows are 1-page: theme preloads the full facet; /page/2/ → 404 (FINDINGS-497)
+    private fun isFacet(request: MainPageRequest): Boolean = request.data != "$mainUrl/"
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = if (page > 1) "$mainUrl/page/$page/" else request.data
         val document = app.get(url, referer = mainUrl).document
 
         val home = document.select("article.post-item").mapNotNull { it.toSearchResult() }
+        val hasNext = if (isFacet(request)) false else home.isNotEmpty()
 
         return newHomePageResponse(
             HomePageList(request.name, home, isHorizontalImages = false),
-            hasNext = home.isNotEmpty()
+            hasNext = hasNext
         )
     }
+
+    fun parseCard(element: Element): SearchResponse? = element.toSearchResult()
 
     private fun Element.toSearchResult(): SearchResponse? {
         return try {
