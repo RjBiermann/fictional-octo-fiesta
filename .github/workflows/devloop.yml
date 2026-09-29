@@ -147,9 +147,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run comment command
         if: github.event_name == 'issue_comment'
+        # AGENT_PAT, not GITHUB_TOKEN: /retry deletes the rebuilt branch via
+        # `gh api -X DELETE .../git/refs/...` — a contents-write the GITHUB_TOKEN
+        # deliberately does not have (least privilege, #350). On 2026-09-29
+        # (/retry 487) that delete 403'd "Resource not accessible by
+        # integration" AFTER closing PR #491, killing the run and stranding the
+        # issue. ADR-0004's second credential channel covers git-refs
+        # operations; issues/pull-requests writes stay valid under the PAT too.
         run: devloop command
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.AGENT_PAT }}
       - name: Close out merged devloop PR's issue
         if: github.event_name == 'pull_request'
         run: devloop merged
