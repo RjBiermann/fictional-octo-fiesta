@@ -187,6 +187,5 @@ scope for this issue's fix commit; branch ships the provider change only):
 
 ## Progress comments (≤3)
 1. id 5895151463 — diagnosis + fix shipped on branch (2026-09-29)
-2. verify results summary (this file's §verify.sh run) — 2026-09-29
-3. PR link — reserved
+2. id 5895622968 — verify results summary + PR link #495 (2026-09-29); 2 of ≤3 used
 
