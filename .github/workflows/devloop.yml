@@ -50,20 +50,27 @@ jobs:
     #   unconditionally replaces the extraheader that checkout installed,
     #   so branch push/force-push/delete always authenticates with the
     #   PAT, never the GITHUB_TOKEN — contents: read is sufficient here.
-    #   Caveat: this argument is verified against devloop v0.3.29 (the
-    #   pinned tag; v0.3.28→v0.3.29 re-audited: close_pr no longer dies over
-    #   a failed branch delete — the delete is now best-effort try/except via
-    #   `gh api -X DELETE .../git/refs/...`, so a contents-write IS attempted
-    #   under GITHUB_TOKEN — it 403s (or 404s on a wrong ref, the upstream
-    #   wrong-ref bug filed 2026-09-29) and is caught as a warning, never
-    #   fails the run; no other command/config/GitHub-write surface change,
-    #   pushes stay PAT-authenticated git, contents: read still sufficient.
-    #   An AGENT_PAT-backed GH_TOKEN for the command step was tried on
-    #   2026-09-29 (commit d775185) and reverted: with v0.3.29's wrong-ref
-    #   delete a PAT makes collateral ref deletion possible; GITHUB_TOKEN's
-    #   403 is the safe failure. Prior v0.3.27→v0.3.28: --version now derives
-    #   the released version from package metadata (was a stale hardcoded
-    #   literal), no command/config/GitHub-write surface change. Prior
+    #   Caveat: this argument is verified against devloop v0.3.30 (the
+    #   pinned tag; v0.3.29→v0.3.30 re-audited: close_pr looks up the PR's
+    #   actual head branch (gh pr view → headRefName) and deletes that ref,
+    #   fixing the v0.3.29 wrong-ref derivation (devloop#13) — a PAT-backed
+    #   delete can no longer hit a sibling branch; the delete is still
+    #   best-effort try/except, so under GITHUB_TOKEN it 403s and logs a
+    #   warning (auto branch-cleanup stays inert here by design — branch
+    #   removal is upkeep, not correctness). No other command/config/
+    #   GitHub-write surface change, pushes stay PAT-authenticated git,
+    #   contents: read still sufficient. Prior v0.3.28→v0.3.29: close_pr no
+    #   longer dies over a failed branch delete — the delete is best-effort
+    #   try/except via `gh api -X DELETE .../git/refs/...`, so a
+    #   contents-write IS attempted under GITHUB_TOKEN — it 403s and is
+    #   caught as a warning, never fails the run. An AGENT_PAT-backed
+    #   GH_TOKEN for the command step was tried on 2026-09-29 (d775185) and
+    #   reverted while the wrong-ref bug was live; v0.3.30 removes the
+    #   hazard but cleanup stays inert under contents: read either way —
+    #   not worth widening the credential channel for upkeep-only gain.
+    #   Prior v0.3.27→v0.3.28: --version now derives the released version
+    #   from package metadata (was a stale hardcoded literal), no
+    #   command/config/GitHub-write surface change. Prior
     #   v0.3.26→v0.3.27: internal refactor — core.py split at the build
     #   seam, shared queue selection policy — no GitHub API surface touched
     #   (github_api.py/config.py unchanged). Prior v0.3.25→v0.3.26: command
@@ -95,7 +102,7 @@ jobs:
       - name: Install devloop (pinned)
         run: >-
           pip install
-          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.3.29
+          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.3.30
       - name: Install agent runtime (pi) + model config
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
