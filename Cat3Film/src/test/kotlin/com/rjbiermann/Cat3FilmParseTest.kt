@@ -82,4 +82,18 @@ class Cat3FilmParseTest {
         assertNull(Parse.streamUrl(null))
         assertNull(Parse.streamUrl("   "))
     }
+
+    // --- backup embed (#487) --------------------------------------------------
+
+    @Test fun `backup embed url is extracted unescaped`() {
+        val json = """{"backup":"https:\/\/player.abyssplayer.com\/yXQfibqVK","sources":[],"success":true}"""
+        assertEquals("https://player.abyssplayer.com/yXQfibqVK", Parse.backupEmbed(json))
+    }
+
+    @Test fun `backup embed absent or blank yields null`() {
+        assertNull(Parse.backupEmbed("{\"sources\":[{}]}"))
+        assertNull(Parse.backupEmbed("{\"backup\":\"\"}"))
+        assertNull(Parse.backupEmbed("not json at all"))
+        assertNull(Parse.backupEmbed(null))
+    }
 }

@@ -1,4 +1,4 @@
-version = 11 // shared KvsFlashvars + CfChallengeInterceptor (audit applied)
+version = 12 // #487: sources-API backup embed emitted as second route (multi-host fallback)
 
 cloudstream {
     authors     = listOf("RjBiermann")

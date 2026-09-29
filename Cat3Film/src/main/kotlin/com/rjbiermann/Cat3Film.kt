@@ -161,7 +161,8 @@ class Cat3Film : MainAPI() {
         // data = episode id
         try {
             val res = app.get("$mainUrl/api/v1/episodes/$data/sources", referer = "$mainUrl/", interceptor = cfInterceptor)
-            val json = mapper.readValue<SourcesJson>(res.text)
+            val body = res.text
+            val json = mapper.readValue<SourcesJson>(body)
             json.sources.orEmpty().forEach { src ->
                 Parse.streamUrl(src.file)?.let { f ->
                     callback.invoke(
@@ -172,6 +173,12 @@ class Cat3Film : MainAPI() {
                     )
                 }
             }
+            // #487: the sources response also carries a hydrax/abyssplayer mirror embed
+            // (site.js `backupAuto` — the site takes it automatically when the main
+            // source is empty or errors at playback); emitted as the second route so
+            // those states play instead of returning zero links (shared AbyssPlayer
+            // adapter, already registered repo-globally; Cat3Movie precedent).
+            Parse.backupEmbed(body)?.let { loadExtractor(it, "$mainUrl/", subtitleCallback, callback) }
         } catch (e: Exception) {
             Log.i(name, "loadLinks: ${e.message}")
         }
@@ -223,6 +230,20 @@ object Parse {
         // "type": "hls" tokens (FINDINGS.md #410), so anything else is a bare token that
         // gets the /index.m3u8 suffix (#410).
         return if (f.matches(Regex(".*\\.(m3u8|json)(\\?.*)?$"))) f else f.trimEnd('/') + "/index.m3u8"
+    }
+
+    /**
+     * Backup embed URL from the sources-API response (`backup` field, JSON \/-escaped,
+     * FINDINGS-487). Regex + null-on-nothing: the site's own player auto-falls back to
+     * this mirror when the main source is empty or fails at playback (site.js
+     * `backupAuto: true`), so a response without usable `sources` entries is not a dead
+     * end — #487. Null when absent/blank, or when handed challenge HTML instead of JSON.
+     */
+    fun backupEmbed(sourcesJson: String?): String? {
+        val raw = sourcesJson ?: return null
+        val url = Regex("\"backup\"\\s*:\\s*\"([^\"]+)\"")
+            .find(raw)?.groupValues?.get(1)?.replace("\\/", "/")?.trim()
+        return url?.takeIf { it.startsWith("http") }
     }
 
     /**
