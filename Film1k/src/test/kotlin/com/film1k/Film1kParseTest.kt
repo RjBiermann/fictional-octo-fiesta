@@ -11,8 +11,8 @@ class Film1kParseTest {
     private val byseNoSlashDoc by lazy {
         javaClass.classLoader.getResource("film1k_video_byse_noslash.html")!!.readText()
     }
-    private val turbovidDoc by lazy {
-        javaClass.classLoader.getResource("film1k_video_turbovid.html")!!.readText()
+    private val turbovidDeadDoc by lazy {
+        javaClass.classLoader.getResource("film1k_video_turbovid_dead.html")!!.readText()
     }
     private val turbovidEmbed by lazy {
         javaClass.classLoader.getResource("film1k_turbovid_embed.html")!!.readText()
@@ -82,9 +82,21 @@ class Film1kParseTest {
         assertNull(Film1kParse.byseCode("<html>nothing here</html>"))
     }
 
-    @Test fun `turbovid code from page markup`() {
-        assertEquals("696f9b3d701a3", Film1kParse.turbovidCode(turbovidDoc))
-        assertNull(Film1kParse.turbovidCode("<html></html>"))
+    // ---- issue #496: turbovid embed family DNS-dead (NODATA across resolvers) ----
+
+    @Test fun `no live embed on a turbovid-only page parses nothing`() {
+        // live fixture: tarzan-x page embedding only turbovidhls.com — scored dead in #496.
+        // No abyss fallback either: loadLinks falls through to `return false`, no stream,
+        // no exception (the pre-fix uncaught DNS throw).
+        assertNull(Film1kParse.abyssUrl(turbovidDeadDoc))
+    }
+
+    @Test fun `no abyssplayer embed yields null url`() {
+        assertNull(Film1kParse.abyssUrl("<html></html>"))
+        assertEquals(
+            "abyssplayer.com/?v=abc123XYZ",
+            Film1kParse.abyssUrl("<iframe src=\"https://abyssplayer.com/?v=abc123XYZ\"></iframe>")
+        )
     }
 
     @Test fun `turbovid master m3u8 extracted from embed page`() {

@@ -161,7 +161,13 @@ class Film1k : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val html = app.get(data).text
+        val html = try {
+            app.get(data).text
+        } catch (e: Exception) {
+            // issue #496 secondary: a dead page host must never throw out of loadLinks —
+            // no stream, not LoadResponse-sourced, skip the ladder cleanly
+            return false
+        }
         // issue #408: markup drift probe 2026-09-13 — Byse source tags no longer carry a
         // trailing slash (`film1k.xyz/e/{code}` / `/e/{code}/{slug}.mp4`); the code capture
         // is a pure Parse function now (Unit-tested against fresh fixtures)
@@ -181,37 +187,14 @@ class Film1k : MainAPI() {
             )
             return true
         }
-        // issue #408: a third embed host (turbovidhls.com JW) now shares the video pages.
-        // The embed page is an unpacked JW config — grab the cdn{N}.turboviplay.com master
-        // m3u8 and hand it to the app directly (variant chain serves via turbosplayer/
-        // googleusercontent inside the playlist, no extra headers needed).
-        val turbovid = Film1kParse.turbovidCode(html)
-        if (turbovid != null) {
-            val embedHtml = app.get(
-                "https://turbovidhls.com/t/$turbovid",
-                referer = "$mainUrl/"
-            ).text
-            val master = Film1kParse.turbovidStreamUrl(embedHtml)
-            if (master != null) {
-                callback(
-                    newExtractorLink(
-                        name = name,
-                        source = name,
-                        url = master,
-                        type = ExtractorLinkType.M3U8
-                    ) {
-                        this.referer = "$mainUrl/"
-                        this.quality = Qualities.Unknown.value
-                    }
-                )
-                return true
-            }
-            // master extraction failed — fall through to the abyssplayer branch instead of
-            // aborting loadLinks (turbovid and abyssplayer embeds share the same pages)
-        }
+        // issue #496: the turbovid embed family (turbovidhls.com, turboviplay.com,
+        // turbosplayer.com) lost DNS entirely (A NODATA across resolvers, MX still answers
+        // — deliberate removal) and the branch hardcoded turbovidhls, so it could not
+        // produce a stream for any matched page. Branch removed with its Parse helpers;
+        // if the family ever returns, restore from git history (fixture kept for context).
+
         // issue #233 gap 2: abyssplayer embeds (SoTrym/enc-dec chain) — shared adapter
-        val abyssUrl = Regex("""abyssplayer\.com/\?v=[A-Za-z0-9]+""").find(html)?.value
-            ?: return false
+        val abyssUrl = Film1kParse.abyssUrl(html) ?: return false
         return try {
             loadExtractor("https://$abyssUrl", mainUrl, subtitleCallback, callback)
         } catch (e: Exception) {
