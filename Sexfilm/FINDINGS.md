@@ -128,3 +128,39 @@ verify.sh (2026-09-09): PASS. NOTES understood:
   original page XML is a comment/img block + h2 text; `py field "meta[itemprop=duration]" content`
   → PT5304S. Code assigns both and app renders them.
 - related checked via `div.sect-c div.short a.th-title` (anchor block shape for pydom).
+
+## Poster ground truth re-probe (issue #493, 2026-09-29)
+"Any poster and video poster (load) is not loading image. It is blank." Server side fully
+ruled out (NOT-REPRO from the runner): fixture and live markup match, and every wire shape
+the app can send is served.
+
+- Markup: `div.short` → `a.short-poster img-box with-mask[href]` wrapping
+  `<img data-src="https://sex-empire.org/uploads/posts/2026-09/thumbs/<slug>.webp">`.
+  No plain `src`, no `data:` placeholder; load page `<meta property="og:image">` =
+  full-size non-thumb path (`https://sex-empire.org/uploads/posts/2026-09/cum-in-my-dreams.webp`,
+  same on 6760/167/11660/11698).
+- URL serving: card thumb, og:image full, and 30/30 listing posters (2019–2026 uploads)
+  → 200 with real RIFF/VP8 webp bytes; non-existent path → 404 (origin-served, no CF
+  catch-all); HEAD, HTTP/1.1, HTTP/2, curl_cffi-impersonated, every UA variant incl. no-UA
+  and the app's Chrome-116 shape → 200 (Content-Type header absent on 200s — Coil's
+  BitmapFactory path is content-agnostic, `file` shows valid webp).
+- Image host: exactly **one** live — `sex-empire.org` (Cloudflare zone; the challenge
+  applies only to its **HTML root** — `https://sex-empire.org/` plain-curl 403 "Just a
+  moment" — image paths are exempt and serve without it). No on-domain fallback exists:
+  `en.sex-film.biz/uploads/...` → 404; zero on-domain `/uploads/` paths across movies/,
+  page/2, hd/fullhd/parodies/vintage. TLS 1.2 and 1.3 both negotiate (ECDHE-ECDSA) —
+  API 21+ fine; `link[rel=image_src]` is not present on live pages (dropped DLE 9-era
+  convention). DNS across Google/Cloudflare/Quad9 resolvers resolves to the same
+  Cloudflare pairs.
+- Remaining suspects are app/regional (network-level Cloudflare bot-filtering for the
+  reporter's ASN, or Coil device disk-cache failure) — not provable from the runner.
+
+Fix shipped in #493: `Parse.poster(doc)` — `og:image` first, `div#s-desc a.highslide[href]`
+fallback when og:image is absent/blank; search/eager card posters unchanged (`img[data-src]`).
+Because the probe ruled out every runner-provable server cause, this fallback is defensive
+hardening for an og:image-less template variant — the reported blank-poster symptom itself
+has no code-level fix here and needs in-app verification to confirm.
+
+Standing risk: poster URLs stay third-party-hosted on `sex-empire.org` — a future zone-wide
+auth there takes out search, home, and load posters at once. Single point of image failure
+for this provider.

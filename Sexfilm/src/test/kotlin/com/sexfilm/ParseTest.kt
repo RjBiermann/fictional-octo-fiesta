@@ -60,18 +60,35 @@ class ParseTest {
         assertEquals(emptyList<String>(), Parse.tags(d))
     }
 
-    // issue #493 poster fallback: full-size image anchor inside the description
-    // (DLE TBegin/highslide) when the page omits meta[property=og:image]
-    @Test fun `poster falls back to full-size image anchor inside s-desc`() {
+    // issue #493 poster: og:image is the proven live selector; when a page omits it
+    // (or leaves the content blank), the load page's own full-size image anchor inside
+    // the description (DLE TBegin/highslide) carries the same URL
+    @Test fun `poster prefers og-image meta and falls back to highslide anchor`() {
+        // both sources live → og:image wins (fixture: og:image + div#s-desc highslide)
+        assertEquals(
+            "https://sex-empire.org/uploads/posts/2026-09/classy.webp",
+            Parse.poster(doc())
+        )
+        // og:image absent → highslide anchor inside div#s-desc
         val d = Jsoup.parse(
             """<div id="s-desc"><a href="https://sex-empire.org/uploads/posts/2026-09/classy.webp" class="highslide">""" +
                 """<img data-src="https://sex-empire.org/uploads/posts/2026-09/thumbs/classy.webp" alt=""></a></div>"""
         )
-        assertEquals("meta", null, d.selectFirst("meta[property=og:image]"))
         assertEquals(
             "https://sex-empire.org/uploads/posts/2026-09/classy.webp",
-            d.selectFirst("div#s-desc a.highslide[href]")?.attr("href")
+            Parse.poster(d)
         )
+        // og:image present but content blank → fallback fires
+        val blank = Jsoup.parse(
+            """<meta property="og:image" content="">""" +
+                """<div id="s-desc"><a href="https://sex-empire.org/uploads/posts/2026-09/classy.webp" class="highslide"></a></div>"""
+        )
+        assertEquals(
+            "https://sex-empire.org/uploads/posts/2026-09/classy.webp",
+            Parse.poster(blank)
+        )
+        // neither → no poster
+        assertEquals(null, Parse.poster(Jsoup.parse("<div></div>")))
     }
 
     // DLE search pagination: page 1 without search_start, page N appends &search_start=N;
