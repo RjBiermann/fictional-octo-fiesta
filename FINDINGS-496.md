@@ -55,6 +55,36 @@ is moot for them, but harmless.
   (home/search/load/related) unaffected.
 - Run from US IP (GitHub Actions runner region), chrome TLS fingerprint for site surfaces.
 
+## Post-merge re-verification (2026-09-30 follow-up run)
+
+Issue closed via PR #500 (merged 2026-09-30); this run re-proved the live condition against
+the current state rather than assuming it:
+
+- **turbovid family still DNS-dead.** Google DoH `type=A` on turbovidhls.com → `Status:0`
+  NODATA (SOA only in Authority); cdn1.turboviplay.com → `Status:3` NXDOMAIN with SOA;
+  turbosplayer.com → NODATA same shape. turbovid family is still gone, not resurrected.
+- **main site healthy on the TLS-impersonated tier** (curl_cffi chrome 0.15): home `/?s=`
+  tarzan video page → 200 each; still plain-curl 403 with `cf-mitigated: challenge`
+  (fingerprint wall, UA-independent).
+- **tarzan-x page unchanged**: only `<source src="https://turbovidhls.com/t/694ec0c39ccbb.mp4">`
+  + lazy iframe — zero reachable streams, the reported condition, handled by the shipped
+  clean fall-through. No byse/abyss embed on the page.
+- **load() fields intact** on the turbovid-only page: `h1.title`, og:title/image/description,
+  `strong:containsOwn(Runtime/Genres/Actors)` adjacency, Related Videos section inside
+  `<main><section class="Eroz-Thumbs List">` with `article.loop-post` cards.
+- **byse chain end-to-end live again**: first fresh captcha fetch → `pow_difficulty: 16`;
+  the PoW was re-solved in C with the golden-parity instrument (`/tmp/bysepow` matched the
+  pinned `BysePowTest` solutions "19" (deadbeef,12) and "100367" (abc123,16) bit-for-bit
+  before touching the live challenge); verify → token ok; playback → AES-256-GCM envelope;
+  key = parts[v-1]+parts[31-v-1] (v=7, 30-element list) decrypted; source 480p master
+  `edge2-waw-sprintcdn.r66nv9ed.com/.../master.m3u8?...` → HTTP 200
+  `application/vnd.apple.mpegurl` with a real `#EXT-X-STREAM-INF` playlist.
+- **Film1k (+ shared-regression suite)**: `gradlew Film1k:test Film1k:make` green after
+  `bootstrapCloudstream` (fresh checkout needed it); plugin builds `Film1k.cs3`, version 9
+  (no provider change this run → no bump).
+
+No drift found; this run ships no code change — the merged fix remains current.
+
 ## Fix direction (shipped — branch deletion + guarded page fetch)
 
 1. The turbovid branch's `app.get` on the dead host could only ever throw (DNS) — and it
