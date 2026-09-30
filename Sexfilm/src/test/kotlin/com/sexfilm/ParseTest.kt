@@ -60,6 +60,20 @@ class ParseTest {
         assertEquals(emptyList<String>(), Parse.tags(d))
     }
 
+    // issue #493 poster fallback: full-size image anchor inside the description
+    // (DLE TBegin/highslide) when the page omits meta[property=og:image]
+    @Test fun `poster falls back to full-size image anchor inside s-desc`() {
+        val d = Jsoup.parse(
+            """<div id="s-desc"><a href="https://sex-empire.org/uploads/posts/2026-09/classy.webp" class="highslide">""" +
+                """<img data-src="https://sex-empire.org/uploads/posts/2026-09/thumbs/classy.webp" alt=""></a></div>"""
+        )
+        assertEquals("meta", null, d.selectFirst("meta[property=og:image]"))
+        assertEquals(
+            "https://sex-empire.org/uploads/posts/2026-09/classy.webp",
+            d.selectFirst("div#s-desc a.highslide[href]")?.attr("href")
+        )
+    }
+
     // DLE search pagination: page 1 without search_start, page N appends &search_start=N;
     // raw spaces in the query break the request (HTTP 000), so story= must stay encoded
     @Test fun `search url paginates via search_start and encodes query`() {
