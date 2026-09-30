@@ -42,6 +42,14 @@ object Parse {
         val start = if (page > 1) "&search_start=$page" else ""
         return "$mainUrl/index.php?do=search&subaction=search&story=$q$start"
     }
+
+    // issue #493: og:image is the proven live selector; when a page omits it or leaves
+    // the content blank, the load page's own full-size image anchor inside the
+    // description (DLE TBegin/highslide) carries the same URL
+    fun poster(doc: Element): String? =
+        doc.selectFirst("meta[property=og:image]")?.attr("content")
+            ?.takeIf { it.isNotBlank() }
+            ?: doc.selectFirst("div#s-desc a.highslide[href]")?.attr("href")
 }
 
 class Sexfilm : MainAPI() {
@@ -92,7 +100,7 @@ class Sexfilm : MainAPI() {
         val title = doc.selectFirst("h1#s-title")?.text()?.trim()
             ?: doc.selectFirst("meta[property=og:title]")?.attr("content")?.trim()
             ?: url.substringAfterLast('/').substringBefore(".html")
-        val poster = doc.selectFirst("meta[property=og:image]")?.attr("content")
+        val poster = Parse.poster(doc)
         val desc = doc.selectFirst("div#s-desc")?.text()?.trim()
         val recommendations = doc.select("div.sect-c div.short").mapNotNull { it.toSearchResult() }
         // meta[itemprop=duration] is ISO-8601 PT8173S; JsonLdParse floors to minutes (repo convention)
