@@ -50,16 +50,19 @@ jobs:
     #   unconditionally replaces the extraheader that checkout installed,
     #   so branch push/force-push/delete always authenticates with the
     #   PAT, never the GITHUB_TOKEN — contents: read is sufficient here.
-    #   Caveat: this argument is verified against devloop v0.3.30 (the
-    #   pinned tag; v0.3.29→v0.3.30 re-audited: close_pr looks up the PR's
-    #   actual head branch (gh pr view → headRefName) and deletes that ref,
-    #   fixing the v0.3.29 wrong-ref derivation (devloop#13) — a PAT-backed
-    #   delete can no longer hit a sibling branch; the delete is still
-    #   best-effort try/except, so under GITHUB_TOKEN it 403s and logs a
-    #   warning (auto branch-cleanup stays inert here by design — branch
-    #   removal is upkeep, not correctness). No other command/config/
-    #   GitHub-write surface change, pushes stay PAT-authenticated git,
-    #   contents: read still sufficient. Prior v0.3.28→v0.3.29: close_pr no
+    #   Caveat: this argument is verified against devloop v0.3.31 (the
+    #   pinned tag; v0.3.30→v0.3.31 re-audited: hardens the review/repair
+    #   loop per RjBiermann/devloop#14 — runtime.run() now catches
+    #   TimeoutExpired/OSError into RunResult(False) instead of raising
+    #   past run_round's failure-comment contract; run_round refuses to
+    #   post an empty or decode-collapsed tail; findings reaching repair
+    #   must pass valid_findings (file:line shape, not degenerate) on both
+    #   the sweep and /repair paths; custom-argv engines get a deny
+    #   binding (pi via a generated --extension tool_call gate, unknown
+    #   binaries log a visible warning). GitHub-write surface unchanged
+    #   from the v0.3.30 audit below — pr/issue comments + the best-effort
+    #   branch delete in close_pr; contents: read still sufficient.
+    #   Prior v0.3.28→v0.3.29: close_pr no
     #   longer dies over a failed branch delete — the delete is best-effort
     #   try/except via `gh api -X DELETE .../git/refs/...`, so a
     #   contents-write IS attempted under GITHUB_TOKEN — it 403s and is
@@ -102,7 +105,7 @@ jobs:
       - name: Install devloop (pinned)
         run: >-
           pip install
-          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.3.30
+          git+https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/RjBiermann/devloop@v0.3.31
       - name: Install agent runtime (pi) + model config
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
