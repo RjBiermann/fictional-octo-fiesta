@@ -67,9 +67,11 @@ Daily runs append evidence below under \`### Run\` headings."
   echo "created issue #$TARGET"
 fi
 
-# Pointers: any other open load-check issue (its plugin set changed) is
-# superseded by the fresh one.
+# Pointers: other open load-check issues of the SAME KIND (their plugin set
+# changed) are superseded by the fresh one. Different KINDs keep their issues —
+# compile healing while load breaks must not fragment the load evidence.
 for s in "${!open_since[@]}"; do
+  [[ $s == "Load check (${KIND}): "* ]] || continue
   old=${open_since[$s]}
   [[ $s == "$TITLE" ]] && continue
   gh issue comment "$old" \
@@ -100,7 +102,4 @@ $(tail -n 120 "$LOG")
 </details>"
 
 gh issue comment "$TARGET" --body "$body" >/dev/null
-# Re-assert the mechanical label on every append too (humans may remove it to
-# pause the loop; the next daily failure re-arms the fix run).
-gh issue edit "$TARGET" --add-label ai-fix >/dev/null
 echo "evidence → #$TARGET"

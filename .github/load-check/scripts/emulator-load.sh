@@ -11,12 +11,13 @@
 #                  PluginManager: Failed to load plugin  X: <reason>
 # Emulator results are never Geo-gated evidence (same runner IP, ADR-0012).
 #
-# Usage: emulator-load.sh <cs3-dir> <jar-sha-file>
+# Usage: emulator-load.sh <cs3-dir>
 # Inputs: running emulator (workflow starts it), ANDROID_HOME, GH_TOKEN.
 # Exit 1 with loadcheck-evidence/failing-plugins.txt populated on failure.
 set -euo pipefail
 
 CS3_DIR=$1
+source "$(dirname "$0")/parse-log.sh"
 EVIDENCE=loadcheck-evidence
 mkdir -p "$EVIDENCE"
 PKG=com.lagradost.cloudstream3
@@ -56,23 +57,29 @@ adb shell "for f in /storage/emulated/0/Cloudstream3/plugins/*.cs3; do chmod -w 
 
 adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null || true
 sleep 8
-adb shell am start -a android.intent.action.VIEW -d 'cloudstreamapp:' "$PKG"
+# Exactly upstream DeployWithAdbTask's args: `start -a android.intent.action.VIEW
+# -d cloudstreamapp:` — no trailing package argument.
+adb shell am start -a android.intent.action.VIEW -d 'cloudstreamapp:' >/dev/null || true
 
 # ---- wait until every plugin reports or the deadline hits -----------------
 mapfile -t expected < <(cd "$CS3_DIR" && ls *.cs3 | sed 's/\.cs3$//' | sort)
 printf '%s\n' "${expected[@]:-}" > "$EVIDENCE/expected-plugins.txt"
 echo "expected ${#expected[@]} plugins"
 
-extract_loaded() {
-  grep -oP 'PluginManager: Loaded plugin \K[^\s]+(?= successfully)' \
-    "$EVIDENCE/logcat.log" 2>/dev/null | sort -u
+# ponytail: substring match tolerates version suffixes in logged plugin names
+# ("EPorner (4)" vs expected "EPorner"); distinct .cs3 stems make false
+# positives unlikely.
+all_loaded() {
+  local l="$1" e
+  for e in "${expected[@]}"; do grep -qF "$e" <<<"$l" || return 1; done
+  return 0
 }
 
 timed_out=0
 deadline=$((SECONDS + 300))
 while :; do
-  if [[ $(extract_loaded | wc -l) -eq ${#expected[@]} ]] \
-     && ! grep -qP 'PluginManager: Failed to load ' "$EVIDENCE/logcat.log"; then
+  loaded=$(extract_loaded "$EVIDENCE/logcat.log" || true)
+  if all_loaded "$loaded" && ! has_failed "$EVIDENCE/logcat.log"; then
     echo "ALL ${#expected[@]} plugins loaded"
     break
   fi
@@ -81,12 +88,12 @@ while :; do
 done
 
 # ---- failing set: expected minus successfully-loaded (best-effort names) --
-extract_loaded > "$EVIDENCE/loaded-plugins.txt" || true
-comm -23 "$EVIDENCE/expected-plugins.txt" "$EVIDENCE/loaded-plugins.txt" \
-  > "$EVIDENCE/failing-plugins.txt"
-# plus any file names the failure logs name directly
-grep -oP 'Failed to load plugin\s+\K\S+' "$EVIDENCE/logcat.log" 2>/dev/null | sed 's/\.cs3$//' \
-  >> "$EVIDENCE/failing-plugins.txt" || true
+printf '%s\n' "$loaded" > "$EVIDENCE/loaded-plugins.txt"
+for e in "${expected[@]}"; do
+  grep -qF "$e" <<<"$loaded" || echo "$e" >> "$EVIDENCE/failing-plugins.txt"
+done
+# plus any plugin names the failure logs name directly
+extract_failed "$EVIDENCE/logcat.log" >> "$EVIDENCE/failing-plugins.txt" || true
 sort -u -o "$EVIDENCE/failing-plugins.txt" "$EVIDENCE/failing-plugins.txt"
 
 if [[ $timed_out -eq 1 ]]; then

@@ -94,7 +94,10 @@ jobs:
           JAR_SHA: ${{ steps.bootstrap.outputs.jar_sha }}
         run: |
           ./.github/load-check/scripts/failure-issue.sh \
-            --plugins <(sed -n 's/> Task :\([A-Za-z0-9]*\):make FAILED/\1/p' compile.log | sort -u) \
+            --plugins <( { sed -n 's/> Task :\([A-Za-z0-9]*\):make FAILED/\1/p' compile.log | sort -u; } > failing-plugins.txt; \
+              [[ -s failing-plugins.txt ]] || { \
+                echo 'unknown-attribution (root-level failure: no per-provider FAILED task line)' > failing-plugins.txt; }; \
+              cat failing-plugins.txt ) \
             --log compile.log
 
   load:
@@ -130,7 +133,7 @@ jobs:
       - name: Run load check
         id: check
         run: |
-          ./.github/load-check/scripts/emulator-load.sh artifact/cs3 artifact/jar-sha.txt
+          ./.github/load-check/scripts/emulator-load.sh artifact/cs3
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v5
@@ -146,6 +149,7 @@ jobs:
           GH_TOKEN: ${{ secrets.AGENT_PAT }}
           KIND: load
         run: |
+          export JAR_SHA=$(cat artifact/jar-sha.txt 2>/dev/null || echo unknown)
           ./.github/load-check/scripts/failure-issue.sh \
             --plugins <(sort -u loadcheck-evidence/failing-plugins.txt) \
             --log loadcheck-evidence/logcat.log \
