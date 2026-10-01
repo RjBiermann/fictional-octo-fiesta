@@ -1,0 +1,152 @@
+name: Load check
+
+# ADR-0012 — scheduled fleet-wide compile + emulator load check.
+# Zero AI steps: bootstrap, compile, emulator, logcat grep are pure bash/Gradle/adb.
+# A failing plugin set opens ONE issue (dedup key = sorted failing-plugin list,
+# see .github/load-check/) with a mechanical `ai-fix` label (ADR-0006, AGENT_PAT —
+# a GITHUB_TOKEN label event would not fire devloop, and AGENT_PAT is what makes
+# the unattended failure → next fix run work). Emulator results are never
+# Geo-gated evidence (same runner IP).
+
+on:
+  schedule:
+    # Off the top of the hour so the Gradle build never collides with devloop /
+    # build.yml crons; queued, never cancelled mid-emulator.
+    - cron: "37 4 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: load-check
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+
+      # Step 1 of ADR-0012: fetch the LIVE, UNPINNED pre-release classes.jar.
+      # This is the point of the check — it also catches upstream jar refreshes
+      # that never touch any of our commits.
+      - name: Bootstrap cloudstream3 pre-release jar
+        id: bootstrap
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./gradlew bootstrapCloudstream
+          JAR=$(find ~/.m2/repository/com/lagradost/cloudstream3/pre-release -name 'classes*.jar' | head -1)
+          SHA=$(sha256sum "$JAR" | cut -d' ' -f1)
+          {
+            echo "jar_sha=$SHA"
+          } >> "$GITHUB_OUTPUT"
+          echo "$SHA" > jar-sha.txt
+
+      # Step 2: compile all providers against it. --continue so one broken
+      # provider still reports the others; failures are parsed from the log.
+      - name: Compile all providers
+        run: |
+          chmod +x gradlew
+          ./gradlew make --continue 2>&1 | tee compile.log
+          test "${PIPESTATUS[0]}" -eq 0
+        # makePluginsJson artifacts (repo.json/plugins.json) are NOT produced
+        # here — the emulator loads local plugins directly (upstream's
+        # deployWithAdb mechanism), no repo server involved.
+      - name: Stage .cs3 files
+        run: |
+          mkdir -p cs3
+          cp -- */build/*.cs3 cs3/
+          ls -la cs3
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: load-check
+          path: |
+            cs3/
+            jar-sha.txt
+            compile.log
+          if-no-files-found: warn
+
+      - name: Failure issue (compile)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.AGENT_PAT }}
+          KIND: compile
+          JAR_SHA: ${{ steps.bootstrap.outputs.jar_sha }}
+        run: |
+          ./.github/load-check/scripts/failure-issue.sh \
+            --plugins <(sed -n 's/> Task :\([A-Za-z0-9]*\):make FAILED/\1/p' compile.log | sort -u) \
+            --log compile.log
+
+  load:
+    needs: compile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: load-check
+          path: artifact
+
+      # Step 3: KVM emulator on the ubuntu runner, load every plugin in one boot.
+      - name: Setup emulator
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y jq
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "system-images;android-34;google_apis;x86_64" "platform-tools" > /dev/null
+          echo no | avdmanager create avd -n loadcheck -k "system-images;android-34;google_apis;x86_64" -d pixel
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+
+      - name: Start emulator
+        run: |
+          $ANDROID_HOME/emulator/emulator -avd loadcheck -no-window -no-audio \
+            -no-boot-anim -gpu swiftshader_indirect -no-snapshot &
+          echo "EMULATOR_PID=$!" >> "$GITHUB_ENV"
+
+      - name: Run load check
+        id: check
+        run: |
+          ./.github/load-check/scripts/emulator-load.sh artifact/cs3 artifact/jar-sha.txt
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: load-check-logcat
+          path: loadcheck-evidence/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Failure issue (load)
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.AGENT_PAT }}
+          KIND: load
+        run: |
+          ./.github/load-check/scripts/failure-issue.sh \
+            --plugins <(sort -u loadcheck-evidence/failing-plugins.txt) \
+            --log loadcheck-evidence/logcat.log \
+            --version loadcheck-evidence/app-version.txt

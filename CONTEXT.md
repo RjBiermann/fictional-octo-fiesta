@@ -68,7 +68,7 @@ Live-site checks (via the verify script) proving the code's selectors and stream
 _Avoid_: testing, validation, smoke test
 
 **Load check**:
-An emulator-based check proving a plugin registers and loads inside the real CloudStream app — fleet-wide and scheduled (ADR-0012), asserted at logcat/`uiautomator` level only. Distinct from a **build** (compile) and **Verification** (live-site selectors/streams); it shares the runner's IP, so it is never **Geo-gated** evidence.
+An emulator-based check proving a plugin registers and loads inside the real CloudStream app — fleet-wide and scheduled (ADR-0012), running daily from `.github/workflows/load-check.yml` (zero AI: bootstrap → compile against the live unpinned pre-release jar → KVM emulator → logcat grep; local-plugin load via upstream's `deployWithAdb` mechanism, no repo server). Asserted at logcat/`uiautomator` level only. Distinct from a **build** (compile) and **Verification** (live-site selectors/streams); it shares the runner's IP, so it is never **Geo-gated** evidence. A failing plugin set lands in one open issue per sorted failing-plugin list, appended by daily runs; load failures are **Correctness** findings — never Drift, never Chronic-counted.
 _Avoid_: smoke test, emulator test, in-app testing (full in-app testing stays maintainer-only)
 
 **Probe escalation**:
