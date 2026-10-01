@@ -118,7 +118,7 @@ jobs:
           cat > ~/.pi/agent/models.json <<'JSON'
           {
             "providers": {
-              "go": {
+              "opencode-go": {
                 "baseUrl": "https://opencode.ai/zen/go/v1",
                 "api": "openai-completions",
                 "apiKey": "${OPENCODE_API_KEY}",
