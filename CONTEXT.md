@@ -67,6 +67,10 @@ _Avoid_: research notes, scrape log
 Live-site checks (via the verify script) proving the code's selectors and stream URLs actually work. Plain HTTP only — it mirrors what the app's runtime can do, never a probe instrument (ADR-0008). Distinct from a **build**, which only proves compilation. A PR requires both.
 _Avoid_: testing, validation, smoke test
 
+**Load check**:
+An emulator-based check proving a plugin registers and loads inside the real CloudStream app — fleet-wide and scheduled (ADR-0012), asserted at logcat/`uiautomator` level only. Distinct from a **build** (compile) and **Verification** (live-site selectors/streams); it shares the runner's IP, so it is never **Geo-gated** evidence.
+_Avoid_: smoke test, emulator test, in-app testing (full in-app testing stays maintainer-only)
+
 **Probe escalation**:
 The ordered fallback of probe instruments: curl → TLS-impersonated curl → browser. Escalate one step only when the cheaper one fails or the HTTP body lacks content the page visibly has; the browser is a last-resort diagnosis tool, never the default.
 _Avoid_: playwright (a tool, not the concept), browser testing

@@ -1,3 +1,7 @@
 # AI-first repository, no local development
 
+> Partially superseded by ADR-0012: pipeline-run emulator **load checks** are now
+> agent-visible. The no-local-development ban and maintainer-only full in-app
+> testing stand as written below.
+
 This repo is operated end to end by the AI pipeline (Monitor, Triage, Builder, Reviewer, audit Task runs — see CONTEXT.md); humans participate only through GitHub (applying trigger labels, reviewing, merging) and by consuming CI-built `.cs3` artifacts. We decided there is deliberately **no local development path**: no local toolchain, no device install (`deployWithAdb`), no "test it on your phone" step in any agent or doc workflow. Validation is whatever the pipeline can run — `gradlew make`, Parse-function unit tests (`gradlew test`, see ADR-0005), plus live-site Verification (`verify.sh`). In-app testing is maintainer-only, at merge time, from CI artifacts. Alternative rejected: keeping local-dev affordances in agent-facing docs — they are unrunnable by the pipeline and contradict the only consumers of these docs (agents).
