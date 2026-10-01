@@ -2,113 +2,151 @@
 
 Audit-only run: probe every provider against live sites + the CloudStream API
 contract, file data-population findings, update the registry. No provider code
-changes. Probe run 2026-09-29, branch `devloop/issue-494`. 26 providers.
+changes. Probe run 2026-09-30, branch `devloop/issue-494`, third sweep of this
+issue (runs 5 and 6 both on #494; run 5 delivered PR #498, merged). 26 providers.
 
 ## Canary calibration (Phase 0)
 
 | Canary | Expected | Observed | Outcome |
 |---|---|---|---|
 | film1k-challenge-pair | plain 403 / TLS 200 | plain 403 / TLS 200 | **match** |
-| eporner-healthy | plain 200 | 200 (106 KB homepage) | **match** |
-| pandamovies-dead-origin | 522 / 522 | plain **302** → pandamovies.org 200; TLS 200 | **mismatch, expectation-stale** |
+| eporner-healthy | plain 200 | 200 | **match** |
+| pandamovies-redirect-origin (.pw → .org) | plain 302 / TLS 200 | `.pw` 302 → `pandamovies.org` 200 both tiers | **match** |
 
-PandaMovies origin **healed**: `pandamovies.pw` 302-redirects to a live
-`pandamovies.org` (real 336 KB homepage). Per canary policy the expectation
-update is **proposed in this PR** (`audits/canaries.json`: renamed
-`pandamovies-redirect-origin`, expected plain 302 / TLS 200) — maintainer
-confirms in review. No environment degradation: Blocked verdicts stand.
+All three canaries match the (run-5-updated) expectations — no drift in the
+instrument this run.
 
 ## Sweep (Phase 1) — verdict table
 
-| Provider | Verdict | Tier | Evidence (2026-09-29) |
+| Provider | Verdict | Tier | Evidence (2026-09-30) |
 |---|---|---|---|
-| AllClassicPorn | ok | plain-curl | search `/videos/` links; KVS get_file stream 206. Single-use tokens: a consumed token 403s, fresh replay 206 (explains earlier 403s) |
-| Cat3Film | ok | plain-curl | `_ajax/search` JSON alive: q=sex→8, teen→8, anal→2; q=milf→0 = no matching titles on this niche site (search page itself 404s — provider uses `_ajax` directly) |
-| Cat3Movie | ok | plain-curl | search 200 with `/movie` links (`/milf-2010`) |
-| EPorner | ok-suspected | plain-curl | **full-page age-verification wall** from regulated-region probe IP (`geocc: ca`), camera-liveness unlock (`/age_liveness_start`) — no curl-reachable unlock; canary 200. Suspected probe-IP geo artifact (#447/#462 class); residential differential (HITL) decides |
-| Eroticmv | ok (gap #497) | plain-curl | deep re-run: rows p1/p2 24/24 cards, 0 overlap; search `hasNext=false` correct (no site search pagination); og:video:url base64 → `vidcdn2.eroticmv.com/.../ilconfessionale1998.m3u8` → 200 `#EXTM3U`. Open gap: single homepage row vs 75 live facets → **#497** |
-| Film1k | ok-drift | tls-impersonated | main site TLS 200 (home/search/video); byse embed `film1k.xyz/e/u5iq5hndmnok` 200; **turbovid embed CDN family DNS-dead** → **#496** |
-| FreePornVideos | ok-suspected | tls-impersonated | TLS 200 home/search/video; get_file 403 bare = KVS session-bound anti-leech (extractor path) |
-| FullPorner | ok-suspected | tls-impersonated | TLS 200 search (24 `video-card`), video 200; embed `xiaoshenke.net` JS quality map (extractor path) |
-| HQPorner | ok | plain-curl | deep: see below; mydaddy.cc embed requires referer → mp4 206 (both handled by MyDaddyExtractor `requiresReferer=true`) |
-| Javbangers | ok-drift | plain-curl | search 200, 150 `/video/` links; KVS kt_player extractor path. Standing #475 re-confirmed: `/search/<q>/1/`, `/2/` still 404 |
-| JavGuru | ok | plain-curl | home/search/video 200; javmiku base64 iframe (extractor path) |
-| Javmost | ok | plain-curl | **standing #480 CLEARED**: `/showlist2/{all,uncensor,censor,new}/p1|p2|p3` all distinct JSON, 0 URL overlap, 24 results each |
-| Javseen | ok | plain-curl | AJAX search 200 escaped-JSON video links (#477 stays clear); video 200; embed 200 |
-| Javtiful | ok | plain-curl | deep: see below; native `<video>` mp4 source |
-| Mangoporn | blocked | residential-differential | **522 re-confirmed** on home (standing #464; #456/#472 history) |
-| MissAV | ok | plain-curl | deep: see below; eval-packed surrit m3u8 (known flow) |
-| Neporn | ok | plain-curl | search/video 200; get_file 403 bare = session-bound cookie flow (known, unchanged) |
-| PerverZija | ok | plain-curl | search 200 (64 post blocks, root-level post URLs); video 200; `pervl2.xtremestream.xyz` player (extractor path) |
-| PandaMovies | ok-drift | plain-curl | **origin healed at .org**: .pw 302→.org; home/search/video 200; embed-host streams (seekplayer/dood, extractor path). Standing #463/#471 522 condition cleared; canary update proposed |
-| PornXP | ok | plain-curl | `/tags/<q>` 36 cards (#476 stays clear); stream 206 `cdrn.pornxp.sh/.../360.mp4` |
-| Porntrex | ok | plain-curl | search 200 (85 cards); video 200; stream 206 on live videos (fresh single-use token); one old video (1743439) file 404s on CDN — single dead asset, not a listing defect |
-| Sexfilm | ok | plain-curl | two-step cookie-jar flow: search 200, `div.short nl2` cards with video links |
-| WatchPorn | ok | plain-curl | search 200 (`/video/<id>/` cards); fresh get_file → 200 `image/gif` 37 B = KVS anti-leech for non-session replay — session-bound flow **as recorded in run 3**, not drift |
-| Xhamster | ok | plain-curl | search 200 (47 `/videos/` cards); video 200; m3u8 200 `video-nss.xhcdn.com` |
-| ixiporn | ok-drift | plain-curl | `.org`→`.live` double-redirect re-confirmed (standing #468): final URL `ixiporn.live/page/1?s=milf`, 30 `video-block` cards |
-| XMoviesForYou | ok-suspected | tls-impersonated | TLS 200 search: SSR anchor cards (`/faketaxi-...-needs-sperm`, posters, HD badges); video 200 |
+| AllClassicPorn | ok | plain-curl | search `/videos/` links; KVS get_file stream 206 (single-use tokens) |
+| Cat3Film | ok-suspected | plain-curl | `_ajax/search` alive; sources API 200: backup `abyssplayer` 200 (encrypted SoTrym media, `window.SoTrym` + obfuscated `iamcdn.net` bundle — not decryptable in probe), source `abyssssss.top` hls 404; embed chain live, stream unresolved this run |
+| Cat3Movie | ok (deep) | tls+plain | deep: see below — hlsfast AES-CBC chain verified end-to-end |
+| EPorner | ok-suspected (deep) | plain-curl | deep: full-page `/agecheck/` wall (5,743 B, `EP.account.login.openModalAgeVer`, camera-liveness unlock, no static bypass) = regulated-region probe-IP artifact (`geocc=ca`); canary matches; residential differential decides |
+| Eroticmv | ok | tls-impersonated | facet p1 200 (46 cards); `/category/genre/milf/2|3/` 404 = 1-page facets **by design** (code clamps `hasNext=false`, `hasNext` covered by the same clamp; #497 gap already filed for the row surface); og:video base64 → `vidcdn2.eroticmv.com/...m3u8` 200 `#EXTM3U` |
+| Film1k | ok (deep) | tls-impersonated | deep: see below — Byse PoW/AES-GCM playback chain verified end-to-end; turbovid branch removed (#500/#501) confirmed current |
+| FreePornVideos | ok-suspected (deep) | tls-impersonated | TLS 200 home/search/video; search p2 TLS 24 cards, 0 overlap; KVS `get_file` 403 bare (session-bound anti-leech, extractor path) |
+| FullPorner | ok-suspected | tls-impersonated | TLS 200 search (24 `/watch/<hex>` cards); video 200 → xiaoshenke embed live (JS quality map, extractor path); probed video's direct `vid/<id>/<q>` 404 = per-video content death, not a provider defect |
+| HQPorner | ok | plain-curl | deep run 5 (67 rows, streams verified); no drift this run |
+| Javbangers | ok-drift | plain-curl | home 75 cards; **stream VERIFIED**: `get_file/4/...103436.mp4` 5.6 MB downloaded before truncation; standing #475 re-confirmed: `/search/<q>/2/` 404 |
+| JavGuru | ok-suspected | plain-curl | home/search/pagination 200, p1∩p2 = 0; embed chain live: shortcode → `/searcho/?xd=<token>` → cfg decode → `/searcho/?xr=<reversed>` = **CF 520** (16 B) transient — stream unverifiable this run |
+| Javmost | ok | plain-curl | **#480 stays CLEARED**: `/showlist2/{group}/{page}/{type}/` distinct JSON per page; watch-page 404 template AJAX-references `www5.javmost.com` host (harmless residue) |
+| Javseen | ok (deep) | tls-impersonated | deep: see below — home is AJAX-only **by site design** and the provider already fetches the AJAX rows (verified 30 items); stream end-to-end via savedvids/streamhg |
+| Javtiful | ok | tls-impersonated | 3 `/video/...` home links; video 200 (preview mp4s on `/videos/previews/...` — real source path per run-5 deep tier) |
+| Mangoporn | blocked | residential-differential | **522 both tiers** (`mangoporn.net` TLS, plain DNS fail/.co 522; standing #464; #456/#472 history) |
+| MissAV | ok (deep) | tls-impersonated | deep: see below — eval-packed surrit chain unpacked and verified live |
+| Neporn | ok | tls-impersonated | video `/video/<id>/` 200; KVS `video_url` `get_file/7/...720p.mp4` **session-bound 200, 15.4 MB flowing** (bare = 403 anti-leech, known) |
+| PerverZija | ok | tls-impersonated | stream VERIFIED: `index_cf.php` (referer/session CF tier) → `xs1.php?data=…` 200 `#EXTM3U` (854x480 variant) → `pervl5.xspcdn01.click/cdn/.../4800.html` segments 200 TS-bytes |
+| PandaMovies | ok-drift | plain-curl | `.pw` 302→`.org` re-confirmed (healed; standing #463/#471 stay cleared); home 87 cards; `/genre/movies` 200 (heal condition) |
+| PornXP | ok | tls-impersonated | **deep**: `pornxp.com/videos/<id>` 301→`youporn.com/channel/brazzers/` = channel vanity redirects (not provider path — `mainUrl=pxp.news`); `pxp.news/videos/<id>` 200 with `<source>` 360p/1080p `xxx.pornxp.sh/...mp4` → **20.8 MB flowing**; #476 stays clear |
+| Porntrex | ok | tls-impersonated | video 200; KVS `video_url` `get_file/15/...1311225.mp4` in-session **7.1 MB flowing** (`/video/<id>/` card shape) |
+| Sexfilm | ok | plain-curl | two-step cookie-jar flow re-confirmed |
+| WatchPorn | ok | tls-impersonated | video 200 (`/video/<id>/<slug>/` shape); KVS `video_url` `get_file/9/...21344_720p.mp4` in-session **5.3 MB flowing** |
+| Xhamster | ok | tls-impersonated | 50 home cards; video 200 → signed `video7.xhcdn.com ...m3u8` → **200 `#EXTM3U`** |
+| ixiporn | ok-drift | plain-curl | `.org`→`.live` double-redirect (standing #468); home 32 cards via `.live/...`; video 200 with `.mp4` |
+| XMoviesForYou | ok | tls-impersonated | provider's `?q=$query&page=$page` pagination **verified correct** (24 cards p2, 0 overlap); dedi node `/api/stream/<vid>?target=dedi_1` needs `X-Requested-With` (matches code) → node m3u8 403 at CDN = probe-IP block; **streamtape fallback 200** — multi-host contract intact (`XMoviesForYou.kt:169`) |
 
-Verdicts: 18 ok, 4 ok-drift (Film1k #496, Javbangers #475, ixiporn #468,
-PandaMovies healed), 4 ok-suspected (probe-IP/session-bound artifact classes),
-1 blocked (Mangoporn, dead origin). False positives filed this run: 0.
+Verdicts: 17 ok (4 newly deep-verified: Cat3Movie, Film1k, Javseen, MissAV;
+stream smokes confirm 9 more), 4 ok-drift all standing (Javbangers #475,
+ixiporn #468, PandaMovies healed), 5 ok-suspected
+(probe-IP artifact classes: Cat3Film, EPorner, FreePornVideos, FullPorner,
+JavGuru), 1 blocked (Mangoporn #464). **Findings filed this run: 0.**
+False-positive set untouched: #447 #448 #449 #450 #461 #462 #465 #466 #467
+#473.
 
-## Deep tier (Phase 2) — Eroticmv, MissAV, Javtiful, HQPorner
+## Deep tier (Phase 2)
 
-Method: every homepage row's pagination p1 vs p2 card-disjointness (scoped to
-each provider's own card selector — naive href regexes over-count from
-sidebars/footers), search p1 vs p2 disjointness, hasNext discipline from code +
-live, ≥1 video page + stream resolution.
+### Cat3Movie (new deep)
 
-| Provider | Rows | Row pagination | Search pagination | hasNext | Stream |
-|---|---|---|---|---|---|
-| Eroticmv | 1 | 24/24, 0 overlap | none (site) — `hasNext=false`, page>1 returns empty | `home.isNotEmpty()` | m3u8 200 (b64 og:video chain) |
-| MissAV | 21 | 20 disjoint; `/en/new` 1 pinned card both pages (benign sticky); Tokyo Hot p2 empty (8-item series, benign) | 12/12, 0 overlap | `home.isNotEmpty()` | surrit m3u8 via eval-packed flow |
-| Javtiful | 4 | all disjoint | 24/24, 0 overlap | Next-link check | native mp4 |
-| HQPorner | 67 | 55 disjoint; 12 rows with 1–3 rotating featured repeats (≤6%, site rotation, benign) | 50/47, 0 overlap | blanket `true` in search + single-arg `newHomePageResponse` (CloudStream default) — noted, not a defect: /top/999 returns distinct non-clamped content | mp4 206 via mydaddy (referer-gated) |
+- Watch mechanics: `player.php?episode_slug=full&server_id=N&subsv_id=&post_id=…&nonce=…` +
+  `X-Requested-With` + referer `/full-sv1/` + cache-buster → `<iframe src="https://hlsfast.com/#<hash>">`.
+  Nonce is **unvalidated** server-side (code comment confirmed live); CF-cached
+  404 dodged via referer + cache-buster — code matches site.
+- Stream chain VERIFIED (All About Anna, hash `5z6s5u`): `/api/v1/video?id=<hash>&w=1280&h=720&r=cat3movie.org`
+  → AES-CBC blob; openssl decrypt with key `kiemtienmua911ca` IV
+  `1234567890oiuytr` (= `HLSFAST_KEY`/`HLSFAST_IV` in code) → JSON `{cf,
+  player, title, thumbnail, poster, swarmId}` → direct-IP `94.131.217.177/v4/…`
+  master.m3u8 200 → `index-f1-v1-a1.m3u8` (720x366) → `seg-1-f1-v1-a1.m4s`
+  **200 video/mp4 231 KB**.
+- Per-movie dead hashes (`putipx`, `lslxrt`, `tyxlmz`) → 404 "Video not found
+  or deleted" = content-level, not provider bug.
+- Search: `/search/milf/` 12 cards; `/search/milf/2` 200-but-empty → **no
+  search pagination** — provider comment (line ~67) matches live.
+- Static admin endpoints (`halim-ajax.php`, admin-ajax) → `0`. Dead.
 
-`last_deep` stamped 2026-09-29 for all four (Eroticmv re-stamped; its fresh
-single-row evidence fed #497).
+### Film1k (new deep — full playback chain)
+
+- Home/search/video TLS 200 (`www.film1k.com` canonical; `film1k.xyz` plain-tier 403).
+- Home p1∩p2 = 9/33 shared = site's own pagination markup rotation (same pages
+  the provider would render) — benign.
+- Byse embed chain **verified programmatically end-to-end**: `/api/videos/<code>/embed/captcha/`
+  200 (`pow_nonce`, difficulty 16, `pow_token`) → shared `solvePow` port answers
+  verify 200 (`SOL=12872`, JVM classes, goldens green) → `/playback/` 200 with
+  AES-GCM payload → key assembly (`key_parts[version-1]` ‖
+  `key_parts[31-version-1]`) decrypts → JSON `{sources:[{url:"https://edge2-waw-sprintcdn...master.m3u8?t=…"}]}`
+  → master 200 → `index-v1-a1.m3u8` 200 → `seg-1-v1-a1.ts` **200 5.9 MB**.
+  Matches `Film1k.kt:118–150` exactly.
+- `Film1kV.html` options are all abyssplayer/byse variants (no other hosts);
+  turbovid (#496) branch already removed by #500/#501 — confirmed current.
+
+### EPorner (deep attempted — wall-limited)
+
+Full-page age-verification wall for the datacenter probe region. `/agecheck/`
+5,743 B, `#ageverifybox`, AI age-estimation unlock, `EP.user.agever` gate; no
+static bypass markers (no liveness/bltoken in served HTML). Canary matches —
+instrument fine, verdict stays ok-suspected pending residential differential.
+
+### FreePornVideos (deep)
+
+TLS 200 video page (186 KB) KVS flashvars with `get_file/8512/..._480m|720m`
+(bare get_file 403 = session/referer anti-leech, extractor-path). og:image
+medium@2x poster. Search TLS p1∩p2 = 0.
+
+### Javseen (deep — resolves run-5 candidate)
+
+Run-5 flagged live `/recent/` serving **skeleton markup** (`fp-sk-card`,
+`id="sk-browse"`, zero `li[id^=video-]`) as a potential home-rows defect.
+Resolved: the site is AJAX-only by design, and the provider's `getMainPage`
+already fetches `"/recent/?ajax=browse_videos"` and
+`"/<cat>/?ajax=category_videos"` → JSON `{html}` → 200 with **30** video items
+per row (verified for browse + category). Search path likewise AJAX (30/page,
+p1∩p2 = 0). Stream end-to-end: video page `data-embeds` b64 → 7 embeds →
+`worker5.savedvids.com` streamhg `var FIRST` → m3u8 200 → segment **200
+video/MP2T 144 KB**. **Candidate dismissed — provider is correct; nothing filed.**
+
+### Stream smokes (Phase 1.5, this run)
+
+End-to-end bytes-verified this run: Neporn get_file 15.4 MB, WatchPorn 5.3 MB,
+Porntrex 7.1 MB, Javbangers 5.6 MB, PornXP pxp.news 20.8 MB, Xhamster m3u8
+200, MissAV surrit playlist 200 (`eval`-pack p,a,c,k,e,d unpacked manually —
+matches provider flow), PerverZija xs1 200 + segments 200, Film1k segment
+5.9 MB, Cat3Movie segment 231 KB, Javseen segment 144 KB, XMFY streamtape
+fallback 200. Eroticmv og:video m3u8 200.
 
 ## Findings lifecycle (Phase 3)
 
-New (unlabeled, dedup-checked via `gh issue list --search` over open+closed):
-
-- **#496 Film1k: turbovid embed CDN family DNS-dead** — `turbovidhls.com`,
-  `cdn{1,5}.turboviplay.com`, `turbosplayer.com` have no A record (local
-  resolver + Google DoH + Cloudflare DoH agree; MX still answers, so deliberate).
-  Videos sourced only via turbovidhls get zero streams, and `loadLinks`' turbovid
-  branch (`app.get("https://turbovidhls.com/t/$code")`) raises an uncaught DNS
-  exception instead of falling through. byse-path videos unaffected.
-  Not a recurrence of #448/#465 (origin 403 challenge class).
-- **#497 Eroticmv: single hard-coded homepage row vs 75 live browse facets** —
-  `country/genre/decades` taxonomy (e.g. `/category/country/canada/` → 200, 24
-  `article.post-item` cards) never surfaced by `mainPageOf("$mainUrl/" to "Latest…")`.
-  Lens item 1 (single row when site exposes facets). Not a recurrence of #175
-  (card metadata fields) or #290/#321 (loadLinks shape-B, re-verified healthy).
-
-Standing conditions:
-
-- **Javmost #480 CLEARED** — the byte-identical page-2 condition is gone (all
-  rows paginate disjointly). Registry verdict → ok; maintainer may close out.
-- **PandaMovies #463/#471 HEALED** — origin alive at .org; verdict → ok-drift;
-  canary expectation update proposed in this PR. `chronic: true` retained
-  (5 historical 522 recurrences — maintainer's retirement call).
-- **Mangoporn #464 re-confirmed** — still CF 522.
-- **Javbangers #475 re-confirmed** — search page suffix still 404s.
-- **ixiporn #468 re-confirmed** — double-redirect still present.
-
-False-positive registry untouched: #447 #448 #449 #450 #461 #462 #465 #466
-#467 #473.
+- **New findings: none.** Every candidate triaged: Javseen home (provider
+  correct, dismissed), XMFY node 403 (CDN probe-block, fallback verified),
+  FullPorner vid 404 (per-video content death), JavGuru CF 520 (transient),
+  Cat3Film abyssssss 404 (per-video/source-level; backup live), Cat3Movie
+  per-movie 404s (content-level), PornXP .com 301 (channel vanity redirect,
+  provider uses pxp.news).
+- Standing conditions re-confirmed: Mangoporn #464 (522), Javbangers #475
+  (search p2 404), ixiporn #468 (double-redirect). Javmost #480 stays cleared;
+  PandaMovies #463/#471 stay healed.
+- Open gaps from run 5 unchanged: #496 (Film1k turbovid — fix merged, current),
+  #497 (Eroticmv facet rows).
+- False-positive registry untouched: #447 #448 #449 #450 #461 #462 #465
+  #466 #467 #473.
 
 ## Instrument notes
 
-- Probe IP is datacenter (regulated region for adult content in some
-  jurisdictions): EPorner's wall is the only new geo-artifact this run; all
-  other challenge-class surfaces behaved per canary/registry expectations.
-- KVS single-use tokens: get_file URLs are consumed on first fetch — sweep
-  stream checks replay with a fresh token from a fresh page fetch; WatchPorn's
-  37-byte `image/gif` response is the KVS anti-leech answer for non-session
-  replay (session-bound, provider flows carry the cookie jar).
-- TLS tier via curl_cffi chrome impersonation used where plain curl 403s
-  (Film1k, FreePornVideos, FullPorner, XMoviesForYou).
+- Probe IP is datacenter (regulated region in some jurisdictions): EPorner's
+  age-wall and JavGuru's searcho-520 are the two surfaces where the probe IP
+  plausibly degrades the verdict; canaries show no other instrument drift.
+- Session-based confirmations (KVS get_file, PerverZija xs1, XMFY api) require
+  the chrome-impersonated `curl_cffi` session with probe-referer — bare fetches
+  403 is the anti-leech expected class, not drift.
+- `solvePow` was validated live via the compiled JVM classes (golden test suite
+  green; live solve → verify 200 → playback 200 → segment 200).
