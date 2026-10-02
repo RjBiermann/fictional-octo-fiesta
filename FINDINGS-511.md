@@ -13,9 +13,12 @@ Probe IP: 20.49.61.55 (Microsoft Azure, Boydton VA — regulated US state).
 |---|---|---|---|
 | film1k-challenge-pair | plain 403 / TLS 200 | 403 / 200 | MATCH |
 | eporner-healthy | plain 200 | 200 | MATCH |
-| pandamovies-redirect-origin | plain 302 / TLS 200 | 302 / 200 | MATCH |
+| pandamovies-redirect-origin | plain 302 / TLS 200 | 302 plain / TLS **unmet** (transfer stalled at 29 KB, slow origin) | matched on the verified plain legs (TLS unmet) |
 
-All three MATCH — instrument healthy. `last_verified` stamps bumped to
+pandamovies-redirect-origin and eporner-healthy MATCH — instrument
+healthy on the verified legs; the pandamovies TLS tier went unmet this
+run (origin transfer stalled, covered by the plain 200 on the redirected
+.org origin). `last_verified` stamps bumped to
 2026-10-02 in `audits/canaries.json`.
 
 ## Phase 1 — sweep (26 providers)
@@ -29,6 +32,7 @@ All three MATCH — instrument healthy. `last_verified` stamps bumped to
 | Film1k | ok-drift | tls | main site 200 TLS; turbovid embed family still NX (#496) |
 | FreePornVideos | ok-suspected | tls | search 200, 48 cards |
 | FullPorner | ok-suspected | tls | search 200 (2 cards `/watch/<id>`); **stream now verified**: `xiaoshenke.net/vid/<reversedId>/<360\|720\|1080>` → 206 video/mp4 (Range), reverse-of-embed-id + `quality=parseInt("13")` (=360/720/1080 bit-flags) confirmed live |
+| ixiporn | ok-drift | plain | `.org` → `.live` double redirect persists; search page-1 200, `/2/` 404 — provider pins suffix-free page-1; #468 unchanged |
 | HQPorner | ok | plain | home/search/stream spot 200 |
 | JavGuru | ok | plain | deep-verified stream (see below) |
 | Javbangers | ok-drift | plain | search 200 (64 post ids); `/search/<q>/1/` + `/2/` still 404 — #475 re-confirmed |
@@ -189,11 +193,12 @@ out with no PR. This redelivery recovers the run-6 artifacts verbatim
 from `refs/pull/513/head` and re-verifies the load-bearing claims live
 before commit:
 
-- **Canaries re-probed this run** (Phase 0 discipline): film1k plain 403
-  / TLS 200, eporner plain 200, pandamovies.pw plain 302 — MATCH.
+- **Canaries re-probed this run**: film1k plain 403
+  / TLS 200 and eporner plain 200 — MATCH; pandamovies.pw plain 302
+  with the redirected **pandamovies.org origin re-verified plain 200**.
   pandamovies TLS-impersonated transfer stalled at 29 KB (slow origin
-  transfer, not a challenge); the expectation's object of record, the
-  redirected **pandamovies.org origin, re-verified plain 200** this run.
+  transfer, not a challenge) — the canary's TLS tier went **unmet** this
+  run, expectation matched on the verified plain legs only.
 - **Xhamster AV-wall** re-confirmed: plain curl with the provider's
   desktop UA returns the SPA shell — `window.initials` chrome only
   (`videoEntity`/`videoModel`/`searchResult` absent), page-hidden CSS

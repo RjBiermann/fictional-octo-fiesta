@@ -26,7 +26,7 @@
     {
       "name": "pandamovies-redirect-origin",
       "site": "https://pandamovies.pw/",
-      "purpose": "PROPOSED rename+expectation update 2026-09-29 (maintainer confirms in review): origin healed \u2014 pandamovies.pw 302-redirects to live pandamovies.org (200). Validates redirect-following + reachable-origin detection. Prior expectation (522 both tiers) stale since ~2026-09-29.",
+      "purpose": "PROPOSED rename+expectation update 2026-09-29 (maintainer confirms in review): origin healed — pandamovies.pw 302-redirects to live pandamovies.org (200). Validates redirect-following + reachable-origin detection. Prior expectation (522 both tiers) stale since ~2026-09-29.",
       "expected": {
         "plain-curl": 302,
         "tls-impersonated": 200
