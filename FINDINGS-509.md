@@ -57,7 +57,10 @@ async): chain title extraction returns real per-card titles with matching covers
 Offline parser fixture (networkless; single runnable check):
 `.pi/skills/verify-provider/scripts/test_pydom.sh` — asserts nested-div cards don't
 clip, chain `p.inf a` returns the real title, the poster still resolves through
-lazyload `data-src`, and the within/cross duplicate partition is href-keyed.
+lazyload `data-src`, the within/cross duplicate partition stays pinned (within-only
+and cross-only repeat values, disjoint with fixed sizes — the pre-fix parser, which
+ignored the mode argument, prints the 4-value union both times), and `dups title`
+/`dups poster` key their own columns, never the href column (round-3 P1 repair).
 
 ## Repro 2 — site-side catalog duplicates (Hardcore home row)
 
@@ -89,9 +92,12 @@ finding, re-verified with fresh fetches since the catalog moves.
    (FINDINGS-declared: this file; Porntrex Hardcore row) — a repeat WITHIN one page
    stays a FAIL even with the flag.
 3. `title` collisions dropped from the FAIL column (different hrefs = different
-   videos may legitimately share a title) — dumped to a NOTE instead. The pre-fix
-   "96 same-value title collisions" can't come back (that regime required clipping,
-   which the balanced walk removes); a repeated-title NOTE stays the visible trace.
+   videos may legitimately share a title) — reported as a NOTE keyed on the TITLE
+   column: any repeated title value on the surface (different videos sharing a
+   title, and the same video re-listed on a later page) stays visible without
+   failing the run. The pre-fix "96 same-value title collisions" can't come back
+   (that regime required clipping, which the balanced walk removes); the
+   repeated-title NOTE is the visible trace.
 
 SKILL.md updated: `--cross-page-dups-note` documented as
 FINDINGS-authorization-required, enforced home-only in the script (passing it for
@@ -102,7 +108,9 @@ search listings has no effect — a search page 2 repeating page 1 stays a defec
 `verify.sh` run: search milf page 1/2 (`/search/milf/` + async `from=2`), home
 `/categories/hardcore/` static + async `from=2`, `--home-selector 'div.video-preview-screen.video-item'`,
 5 fresh video URLs sampled from the LIVE home row catalog (all 200), stream selector
-`div.video-info`, headers, `--cross-page-dups-note`. Transcript `/tmp/verify-509.log`.
+`div.video-info`, headers, `--cross-page-dups-note`. Transcript `/tmp/verify-509.log`
+(pre-repair run) and `/tmp/verify-512-repair.log` (2026-10-02, re-run after the P1
+`dups` keying repair — all values below are from the post-repair re-run).
 
 - search page 1/2: 200, 85 + 85 cards, real per-card titles via `p.inf a`, page 2
   fresh (no href overlap) → dedupe clean.
@@ -115,8 +123,22 @@ search listings has no effect — a search page 2 repeating page 1 stays a defec
       href  /video/3348953/devicebondage-charlee-chaste-pushed-to-the-edge-…  home0,home1
       …
   ```
-  No within-page duplicate FAILs. No title-collision FAILs (the old "1080p HD x96"
-  regime is gone — repeated-title NOTE lists only the 19 genuine site repeats).
+  No within-page duplicate FAILs. No title-collision FAILs — and the repeated-title
+  NOTE stays EMPTY, live-honest: the default card title is whole-card inner_text
+  (title, view count, age, rating), so the 19 re-listed cards' page-1 and page-2
+  copies differ in the stat suffix (`1 051 views … 20 hours ago` vs `1 076 views …
+  22 hours ago`) and no two rows share a title value. The title NOTE is keyed on the
+  TITLE column (round-3 P1: the pre-repair `dups 'title'` read the href column —
+  mislabeled href dups as titles and never fired on real title repeats). The
+  companion series-poster NOTE now fires for real, with real poster paths (keyed
+  `poster`, previously dead the same way):
+  ```text
+  NOTE: repeated poster on home across different videos (episodes of one series share
+  the series poster — not a card duplicate):
+      poster  /contents/videos_screenshots/3348000/3348948/300x168/1.jpg   home0,home1
+      poster  /contents/videos_screenshots/3348000/3348953/300x168/1.jpg   home0,home1
+      …
+  ```
 - distinct bar across the 5 sampled videos: titles, posters, plots, stream paths all
   pairwise distinct — no FAIL.
 - streams (≤5 per page, first each): every `div.video-info`-embedded `video_url`

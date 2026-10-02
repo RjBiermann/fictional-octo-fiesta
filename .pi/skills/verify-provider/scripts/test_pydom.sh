@@ -2,8 +2,9 @@
 # Offline parser fixtures — issue #509 (FINDINGS-509.md).
 # Proves the two verify.sh false-FAIL mechanisms stay fixed without touching the network:
 #   1. a KVS card whose inner HTML has nested <div>s + trailing <p class="inf"> must NOT
-#      clip at the quality-icon div (card title must be the real title, direcly as the
-#      provider's `p.inf a` chain selector reads it), and
+#      clip at the quality-icon div — the DEFAULT title (fixture 1, '-' title selector =
+#      inner_text over the whole balanced card) contains the real title, and the CHAIN
+#      title read (fixture 2, `p.inf a` as the provider's Kotlin reads it) equals it, and
 #   2. duplicate detection must split within-page repeats (FAIL) from cross-page repeats
 #      (--cross-page-dups-note bucket).
 # Run with no args: bash test_pydom.sh. Exit 0 = all fixtures pass.
@@ -54,11 +55,19 @@ n=$(py count 'div.video-item' "$FIX")
 [[ "$n" == 2 ]] || { echo "FAIL: card count $n" >&2; exit 1; }
 
 # 5. duplicate partition: same href twice on the same page = 'within'; same href on
-#    different pages = 'cross' (the --cross-page-dups-note bucket).
+#    different pages = 'cross' (--cross-page-dups-note bucket). /dd and /ff are
+#    within-only, /ee and /aa cross-only — the partitions must stay disjoint with a
+#    known size, so a dropped or inverted mode arg fails this suite.
 RAW=$(mktemp /tmp/kvs_raw_XXXX.tsv)
-printf 'page0\t/aa\tt1\npage0\t/aa\tt1\npage0\t/bb\tt2\npage1\t/aa\tt1\npage1\t/cc\tt3\n' > "$RAW"
-w=$(py dups href within < "$RAW" | wc -l);  [[ "$w" == 1 ]] || { echo "FAIL: within dup count $w" >&2; exit 1; }
-x=$(py dups href cross  < "$RAW" | wc -l);  [[ "$x" == 1 ]] || { echo "FAIL: cross dup count $x" >&2; exit 1; }
+printf 'page0\t/aa\tt1\npage1\t/aa\tt1\npage0\t/bb\tt2\npage1\t/cc\tt3\npage0\t/dd\tt4\npage0\t/dd\tt4\npage1\t/ee\tt5\npage2\t/ee\tt5\npage1\t/ff\tt6\npage1\t/ff\tt6\n' > "$RAW"
+w=$(py dups href within < "$RAW" | wc -l);  [[ "$w" == 2 ]] || { echo "FAIL: within dup count $w" >&2; exit 1; }
+x=$(py dups href cross  < "$RAW" | wc -l);  [[ "$x" == 2 ]] || { echo "FAIL: cross dup count $x" >&2; exit 1; }
+# the partition partitions: no value may appear in both buckets
+py dups href within < "$RAW" | sort > /tmp/kvs_within.$$.txt
+py dups href cross  < "$RAW" | sort > /tmp/kvs_cross.$$.txt
+common=$(comm -12 /tmp/kvs_within.$$.txt /tmp/kvs_cross.$$.txt | wc -l)
+rm -f /tmp/kvs_within.$$.txt /tmp/kvs_cross.$$.txt
+[[ "$common" == 0 ]] || { echo "FAIL: within/cross partition overlaps" >&2; exit 1; }
 
 rm -f "$FIX" "$RAW" "$PYDOM"
 echo "test_pydom.sh: all fixtures pass"

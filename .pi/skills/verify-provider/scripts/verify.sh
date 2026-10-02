@@ -84,9 +84,9 @@ fi
 fail=0
 
 # ── python helper: selector counting / extraction / normalization / duplicate detection ──
-# ponytail: regex "DOM" — a card is the LAST selector part's opening tag through its closing
-# tag, so a card whose inner HTML contains another same-tag element truncates the block.
-# Upgrade to a real DOM walk if a false positive ever slips through.
+# ponytail: regex "DOM" — blocks() balances same-tag close tags and narrows selector
+# chains; keep card/field selectors grounded in FINDINGS' real site markup (test_pydom.sh
+# pins the #509 mechanisms).
 PYDOM=/tmp/verify_pydom.py
 cat > "$PYDOM" <<'PY'
 import re, sys, html as htmlmod, base64
@@ -226,12 +226,16 @@ def stream_urls(html):
     return out
 
 def dups(colspec, mode=''):
-    """stdin: id TAB …columns…; prints 'field value ids' for values shared by different ids
-    (across pages/videos) or repeated within one id (within a page). mode narrows the
-    output: 'within' = only within one id/page, 'cross' = only across ids/pages (#509)."""
-    cols = colspec.split(',')
+    """stdin: id TAB …fields…; colspec NAMES the positions in the standard id-first TSV
+    (id href|stream title poster [plot]) so a field name can never silently key another
+    column (#509: 'title'/'poster' read r[1] = href before this). Prints 'field value ids'
+    for values shared by different ids (across pages/videos) or repeated within one id
+    (within a page). mode narrows the output: 'within' = only within one id/page,
+    'cross' = only across ids/pages."""
+    pos = {'id': 0, 'href': 1, 'stream': 1, 'title': 2, 'poster': 3, 'plot': 4}
+    cols = [(pos[p], p) for p in colspec.split(',')]
     rows = [l.rstrip('\n').split('\t') for l in sys.stdin if l.strip()]
-    for ci, col in enumerate(cols, start=1):
+    for ci, col in cols:
         seen = {}
         for r in rows:
             v = url_path(r[ci]) if col in ('href', 'poster', 'stream') else inner_text(r[ci]).lower()
@@ -315,8 +319,9 @@ check_listing() {  # $1=urls-array-name $2=prefix $3=selector $4=title_sel $5=po
   # Issue #509: href is the duplicate-card key (unique per video). Cross-page repeats of a
   # listed card can be the site's own catalog (KVS async page 1/2 overlap, FINDINGS-declared
   # via --cross-page-dups-note): a NOTE then, never a false-FAIL of the provider's parse; a
-  # repeat within one page stays a FAIL. Title collisions between different hrefs are
-  # NOTEs (different videos may share a title); the old false-FAILs came from the clipped
+  # repeat within one page stays a FAIL. Repeated titles are NOTEs, keyed on TITLE (a
+  # title repeats across different videos and across pages for the same video — titles
+  # are never the card-duplicate key); the old false-FAILs came from the clipped
   # titles' 96 identical quality-label values, gone with the balanced block walk.
   t_note=$(py dups 'title' < "$raw" | awk -F'\t' '{print $2}')
   dups_out=$(py dups 'href' < "$raw")
@@ -340,7 +345,7 @@ check_listing() {  # $1=urls-array-name $2=prefix $3=selector $4=title_sel $5=po
   empty_titles=$(awk -F'\t' '$3==""{n++} END{print n+0}' "$raw")
   (( empty_titles > 0 )) && { echo "NOTE: $empty_titles $prefix card(s) with empty title (title extraction regression guard, issue #509)"; } || true
   if [[ -n "$t_note" ]]; then
-    echo "NOTE: repeated card titles on $prefix (different hrefs = different videos sharing a title — not a card duplicate):"
+    echo "NOTE: repeated card titles on $prefix (titles repeat across videos and across pages for the same video — titles are not the card-duplicate key):"
     printf '%s\n' "$t_note" | head -3
   fi
   poster_dups=$(py dups 'poster' < "$raw")
