@@ -166,6 +166,10 @@ decides whether to keep `ok`.
     without a finding and later self-cleared.
   - **Xhamster AV-wall verdict downgrade** — verdict bookkeeping in
     this registry, not a site defect.
+- Duplicate handling: the Javbangers age-wall scrape retrieved this run
+  was exactly the page already quoted in FINDINGS-494 (run 5) — note
+  only, not a new surface, and cited there rather than re-quoted or
+  filed.
 
 ## Artifacts
 

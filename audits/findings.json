@@ -1,511 +1,511 @@
 {
- "schema": 1,
- "note": "Machine source of truth for the provider fleet audit. drift_confirmed counts only closed issues CONFIRMED as drift/broken (Suspected findings closed as false positives are exclusions, never occurrences). Audits update this file; the lint (scripts/check-findings.sh) must pass before delivery.",
- "updated": "2026-10-02",
- "last_runs": [
-  {
-   "id": "run1",
-   "date": "2026-09-24",
-   "pr": 469,
-   "findings": [
-    461,
-    462,
-    463,
-    464,
-    465,
-    466,
-    467,
-    468
-   ],
-   "false_positives": [
-    461,
-    462,
-    465,
-    466,
-    467
-   ],
-   "note": "datacenter-IP CF challenges verdicted Blocked without escalation"
-  },
-  {
-   "id": "run2",
-   "date": "2026-09-25",
-   "pr": 474,
-   "findings": [
-    471,
-    472,
-    473
-   ],
-   "false_positives": [
-    473
-   ],
-   "duplicates": [
-    471,
-    472
-   ],
-   "note": "471/472 closed as duplicates of standing 463/464; 473 false-positive per residential differential; audit-providers skill + registry shipped in 7044dc9"
-  },
-  {
-   "id": "run3",
-   "date": "2026-09-26",
-   "pr": null,
-   "findings": [
-    480
-   ],
-   "false_positives": [],
-   "note": "run 3 (issue 479): full 26-provider sweep, canaries matched; deep tier Cat3Film/Eroticmv/Javmost/Xhamster; standing 463/464/468/475 re-confirmed, 476/477 cleared; new finding: Javmost home page 2 duplicates page 1; probe-IP challenge artifacts (Film1k/FreePornVideos/FullPorner/XMoviesForYou search) not re-filed per suspected_excluded"
-  },
-  {
-   "id": "run4",
-   "date": "2026-09-26",
-   "pr": null,
-   "findings": [],
-   "false_positives": [],
-   "note": "run 4 (issue 483): canaries matched (film1k 403/200 TLS, eporner 200, pandamovies 522 both tiers); AllClassicPorn deep audit + quality pass-through fix (ExtractorLink.quality); REPO BUILD REPAIR \u2014 jitpack -SNAPSHOT metadata advertises gradle--32895aedb6-1 whose pom/jar 404 (re-verified 2026-09-26, CI red since 2026-09-26T05:24), plugin re-vendored verbatim from f0ec7c7 into vendor/ behind the restored P0-15 integrity gate; scope = AllClassicPorn deep audit only, issue stays open \u2014 remaining loadLinks emitters not caption-screened this run (screened: Cat3Film/Javmost run 3 deep tier, ixiporn #479/#483 greps; Cat3Movie = absence of evidence only); REPO BUILD REPAIR \u2014 jitpack -SNAPSHOT metadata advertises gradle--32895aedb6-1 whose pom/jar 404 (re-verified 2026-09-26, CI red since 2026-09-26T05:24), plugin re-vendored verbatim from f0ec7c7 into vendor/ behind the restored P0-15 integrity gate, vendoring-vs-pinned-coordinate is a flagged maintainer decision; standing verify FAILs (og:video-embed stream check, card-vs-og:image poster) remain OPEN script artifacts tracked in AllClassicPorn/FINDINGS.md audits #204/#266 \u2014 not false positives"
-  },
-  {
-   "id": "run5",
-   "date": "2026-09-29",
-   "pr": 498,
-   "findings": [
-    496,
-    497
-   ],
-   "false_positives": [],
-   "note": "run 5 (issue 494): full 26-provider sweep + deep tier (Eroticmv, MissAV, Javtiful, HQPorner). Canaries: film1k pair match, eporner match, pandamovies-dead-origin MISMATCH expectation-stale \u2014 origin healed at .org, expectation update proposed. Standing conditions: Javmost #480 CLEARED, PandaMovies #463/#471 healed (verdict ok-drift), Mangoporn #464 re-confirmed 522, Javbangers #475 re-confirmed, ixiporn #468 re-confirmed. Findings: #496 Film1k turbovid CDN DNS-dead, #497 Eroticmv single-row vs 75 facets. EPorner full-page age-wall = suspected probe-IP geo artifact (CA), differential HITL decides."
-  },
-  {
-   "id": "run6",
-   "date": "2026-10-02",
-   "pr": 513,
-   "findings": [],
-   "false_positives": [],
-   "note": "run 6 (issue 511): canaries all 3 MATCH (stamps bumped); full 26-provider sweep; deep tier = Cat3Movie, JavGuru, Neporn, PerverZija (4 oldest last_deep=None stamps) - all four stream-verified end-to-end, rows p1/p2 disjoint except Cat3Movie homepage Latest row (=/page/2/ identical card grid 45/45 = site carousel duplication, mirrors run-3 Javmost class, NOT provider defect). Xhamster downgraded ok->ok-suspected: regulated-region AV-wall artifact this probe IP (same class as EPorner #447/#462) \u2014 full evidence in FINDINGS-511.md. Standing: #464 re-confirmed 522, #475 re-confirmed, #468 re-confirmed, #496 turbovid NX again, #497 unchanged; #463/#476/#477/#480 stay clear. Findings filed this run: 0 (Cat3Movie Latest-row dupe = site-level carousel, evidence recorded in FINDINGS-511.md; not a provider defect \u2014 filed as note only per sweep policy for row-level site duplication previously handled without new issues)."
+  "schema": 1,
+  "note": "Machine source of truth for the provider fleet audit. drift_confirmed counts only closed issues CONFIRMED as drift/broken (Suspected findings closed as false positives are exclusions, never occurrences). Audits update this file; the lint (scripts/check-findings.sh) must pass before delivery.",
+  "updated": "2026-10-02",
+  "last_runs": [
+    {
+      "id": "run1",
+      "date": "2026-09-24",
+      "pr": 469,
+      "findings": [
+        461,
+        462,
+        463,
+        464,
+        465,
+        466,
+        467,
+        468
+      ],
+      "false_positives": [
+        461,
+        462,
+        465,
+        466,
+        467
+      ],
+      "note": "datacenter-IP CF challenges verdicted Blocked without escalation"
+    },
+    {
+      "id": "run2",
+      "date": "2026-09-25",
+      "pr": 474,
+      "findings": [
+        471,
+        472,
+        473
+      ],
+      "false_positives": [
+        473
+      ],
+      "duplicates": [
+        471,
+        472
+      ],
+      "note": "471/472 closed as duplicates of standing 463/464; 473 false-positive per residential differential; audit-providers skill + registry shipped in 7044dc9"
+    },
+    {
+      "id": "run3",
+      "date": "2026-09-26",
+      "pr": null,
+      "findings": [
+        480
+      ],
+      "false_positives": [],
+      "note": "run 3 (issue 479): full 26-provider sweep, canaries matched; deep tier Cat3Film/Eroticmv/Javmost/Xhamster; standing 463/464/468/475 re-confirmed, 476/477 cleared; new finding: Javmost home page 2 duplicates page 1; probe-IP challenge artifacts (Film1k/FreePornVideos/FullPorner/XMoviesForYou search) not re-filed per suspected_excluded"
+    },
+    {
+      "id": "run4",
+      "date": "2026-09-26",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run 4 (issue 483): canaries matched (film1k 403/200 TLS, eporner 200, pandamovies 522 both tiers); AllClassicPorn deep audit + quality pass-through fix (ExtractorLink.quality); REPO BUILD REPAIR — jitpack -SNAPSHOT metadata advertises gradle--32895aedb6-1 whose pom/jar 404 (re-verified 2026-09-26, CI red since 2026-09-26T05:24), plugin re-vendored verbatim from f0ec7c7 into vendor/ behind the restored P0-15 integrity gate; scope = AllClassicPorn deep audit only, issue stays open — remaining loadLinks emitters not caption-screened this run (screened: Cat3Film/Javmost run 3 deep tier, ixiporn #479/#483 greps; Cat3Movie = absence of evidence only); REPO BUILD REPAIR — jitpack -SNAPSHOT metadata advertises gradle--32895aedb6-1 whose pom/jar 404 (re-verified 2026-09-26, CI red since 2026-09-26T05:24), plugin re-vendored verbatim from f0ec7c7 into vendor/ behind the restored P0-15 integrity gate, vendoring-vs-pinned-coordinate is a flagged maintainer decision; standing verify FAILs (og:video-embed stream check, card-vs-og:image poster) remain OPEN script artifacts tracked in AllClassicPorn/FINDINGS.md audits #204/#266 — not false positives"
+    },
+    {
+      "id": "run5",
+      "date": "2026-09-29",
+      "pr": 498,
+      "findings": [
+        496,
+        497
+      ],
+      "false_positives": [],
+      "note": "run 5 (issue 494): full 26-provider sweep + deep tier (Eroticmv, MissAV, Javtiful, HQPorner). Canaries: film1k pair match, eporner match, pandamovies-dead-origin MISMATCH expectation-stale — origin healed at .org, expectation update proposed. Standing conditions: Javmost #480 CLEARED, PandaMovies #463/#471 healed (verdict ok-drift), Mangoporn #464 re-confirmed 522, Javbangers #475 re-confirmed, ixiporn #468 re-confirmed. Findings: #496 Film1k turbovid CDN DNS-dead, #497 Eroticmv single-row vs 75 facets. EPorner full-page age-wall = suspected probe-IP geo artifact (CA), differential HITL decides."
+    },
+    {
+      "id": "run6",
+      "date": "2026-10-02",
+      "pr": 513,
+      "findings": [],
+      "false_positives": [],
+      "note": "run 6 (issue 511): canaries all 3 MATCH (stamps bumped); full 26-provider sweep; deep tier = Cat3Movie, JavGuru, Neporn, PerverZija (4 oldest last_deep=None stamps) - all four stream-verified end-to-end, rows p1/p2 disjoint except Cat3Movie homepage Latest row (=/page/2/ identical card grid 45/45 = site carousel duplication, mirrors run-3 Javmost class, NOT provider defect). Xhamster downgraded ok->ok-suspected: regulated-region AV-wall artifact this probe IP (same class as EPorner #447/#462) — full evidence in FINDINGS-511.md. Standing: #464 re-confirmed 522, #475 re-confirmed, #468 re-confirmed, #496 turbovid NX again, #497 unchanged; #463/#476/#477/#480 stay clear. Findings filed this run: 0 (Cat3Movie Latest-row dupe = site-level carousel, evidence recorded in FINDINGS-511.md; not a provider defect — filed as note only per sweep policy for row-level site duplication previously handled without new issues)."
+    }
+  ],
+  "providers": {
+    "PandaMovies": {
+      "site": "pandamovies.pw",
+      "verdict": "ok-drift",
+      "reason": "origin healed: canary 200 via .pw->.org 302 (2026-10-02); search/video 200; standing 463 stays cleared",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200 (via .pw 302)",
+        "search": "200",
+        "video": "200"
+      },
+      "issue": null,
+      "standing_issue": 463,
+      "drift_confirmed": 4,
+      "chronic": true
+    },
+    "Mangoporn": {
+      "site": "mangoporn.net",
+      "verdict": "blocked",
+      "reason": "CF 522 all surfaces (2026-10-02 re-confirmation); standing 464",
+      "tier": "residential-differential",
+      "surfaces": {
+        "home": "522"
+      },
+      "issue": 464,
+      "standing_issue": 464,
+      "drift_confirmed": 1,
+      "chronic": false
+    },
+    "ixiporn": {
+      "site": "ixiporn.org",
+      "verdict": "ok-drift",
+      "reason": "ixiporn.org -> ixiporn.live double redirect persists (2026-10-02); play page /search/<q>/1/ 200, /2/ 404 — provider pins suffix-free page-1; standing 468 unchanged",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200 (double redirect)",
+        "search": "200 (30 cards)"
+      },
+      "issue": 468,
+      "standing_issue": 468,
+      "drift_confirmed": 0,
+      "chronic": false
+    },
+    "XMoviesForYou": {
+      "site": "xmoviesforyou.com",
+      "verdict": "ok-suspected",
+      "reason": "search 200, 36 cards (2026-10-02 TLS); video page 200; streamtape fallback link present on sampled watch page",
+      "tier": "tls-impersonated",
+      "surfaces": {
+        "home": "200 TLS",
+        "search": "200 TLS",
+        "video": "200 TLS"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "suspected_excluded": [
+        450,
+        467,
+        473
+      ],
+      "chronic": false
+    },
+    "Film1k": {
+      "site": "www.film1k.com",
+      "verdict": "ok-drift",
+      "reason": "turbovidhls.com / *.turboviplay.com / turbosplayer.com still NX (getent, 2026-10-02) — turbovid embed family DNS-dead; main site 200 TLS; standing 496 unchanged",
+      "tier": "tls-impersonated",
+      "surfaces": {
+        "home": "200 TLS",
+        "search": "200 TLS",
+        "video": "200 TLS",
+        "stream": "dead on turbovid-only videos"
+      },
+      "issue": 496,
+      "standing_issue": 496,
+      "drift_confirmed": 0,
+      "suspected_excluded": [
+        448,
+        465
+      ],
+      "chronic": false
+    },
+    "FreePornVideos": {
+      "site": "www.freepornvideos.xxx",
+      "verdict": "ok-suspected",
+      "reason": "search 200, 48 video cards (2026-10-02 TLS); get_file anti-leech session-bound unchanged",
+      "tier": "tls-impersonated",
+      "surfaces": {
+        "home": "200 TLS",
+        "search": "200 TLS",
+        "video": "200 TLS"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "suspected_excluded": [
+        449,
+        466
+      ],
+      "chronic": false
+    },
+    "FullPorner": {
+      "site": "fullporner.com",
+      "verdict": "ok-suspected",
+      "reason": "search 200 (2 cards /watch/<id> xiaoshenke), video 200, stream verified 206 video/mp4 — xiaoshenke.net/vid/<reversed>/<720|1080|360> with browser-UA + Range (plain-curl 403 is challenge-class; extractor flow unaffected) (2026-10-02)",
+      "tier": "tls-impersonated",
+      "surfaces": {
+        "home": "200 TLS",
+        "search": "200 TLS",
+        "video": "200 TLS"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "suspected_excluded": [
+        461
+      ],
+      "chronic": false
+    },
+    "EPorner": {
+      "site": "www.eporner.com",
+      "verdict": "ok-suspected",
+      "reason": "full-page age-verification wall persists from regulated-region probe IP (camera-liveness unlock, no curl path, 2026-10-02) — same #447/#462 geocc class as Xhamster; ok-suspected stands; plain-curl canary 200 MATCH keeps instrument healthy",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200 (age-wall body from CA IP)",
+        "search": "n/a (walled)"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "suspected_excluded": [
+        447,
+        462
+      ],
+      "chronic": false
+    },
+    "AllClassicPorn": {
+      "site": "allclassic.porn",
+      "verdict": "ok",
+      "reason": "search/video 200, KVS stream 206 fresh-token (2026-10-02); deep 2026-09-26 unchanged",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200",
+        "video": "200",
+        "stream": "206 video/mp4"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-09-26"
+    },
+    "Cat3Film": {
+      "site": "cat3film.com",
+      "verdict": "ok",
+      "reason": "_ajax/search 200 JSON (2026-10-02 spot); deep 2026-09-26 unchanged",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200 (_ajax JSON)"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-09-26"
+    },
+    "Cat3Movie": {
+      "site": "cat3movie.org",
+      "verdict": "ok",
+      "reason": "deep 2026-10-02: all 5 rows probed (Latest/NewMovies/ClassicPorn/ClassicErotica/AsianErotica); p1/p2 disjoint on 4 rows (grid-item post-id sets, 1 sticky overlap = benign); Latest row (= homepage, page 2 /page/2/) serves an IDENTICAL card grid to page 1 (45/45 post-id overlap, canonical /page/2) — site-level carousel duplication, mirrors run-3 Javmost home-dup class; search 200 (21 cards p1, 10 p2, 0 dup); video 200 (player.php sv1: post_id+nonce -> hlsfree embed); stream 200 end-to-end m3u8 (hlsfree /api/hls/serve?token, 909 lines). Finding: Latest-row p2 duplication",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200",
+        "video": "200"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-10-02"
+    },
+    "Eroticmv": {
+      "site": "eroticmv.com",
+      "verdict": "ok",
+      "reason": "home/search/video healthy; 75-facet gap 497 unchanged (2026-10-02 spot)",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200",
+        "video": "200",
+        "stream": "200 m3u8"
+      },
+      "issue": 497,
+      "standing_issue": 497,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-09-29"
+    },
+    "HQPorner": {
+      "site": "hqporner.com",
+      "verdict": "ok",
+      "reason": "home/search/video/stream healthy (2026-10-02 spot); deep 2026-09-29 unchanged",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200",
+        "video": "200",
+        "stream": "206 video/mp4"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-09-29"
+    },
+    "JavGuru": {
+      "site": "jav.guru",
+      "verdict": "ok",
+      "reason": "deep 2026-10-02: home p1/p2 disjoint (24/24), uncensored row p1/p2 disjoint, search 200 (24 unique /NNNNNN/ video links); video 200; stream verified end-to-end: wp-btn-iframe base64 seed -> jav.guru/searcho/?<seed> -> 3 data-attrs concat+reverse -> ?xr=<tok> -> 302 javclan.com/e/<id> -> packed JS links hls4 -> m3u8 200 application/vnd.apple.mpegurl fetched against javclan.com with searcho referer (hls2 TLS-SAN mismatch 403, hls3 dead — hls4 is the live path; matches shared Extractorlar.kt Javclan class)",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200",
+        "video": "200"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-10-02"
+    },
+    "Javbangers": {
+      "site": "www.javbangers.com",
+      "verdict": "ok-drift",
+      "reason": "search 200, 64 post ids on suffix-free page-1; /search/<q>/1/ and /2/ still 404 (standing 475 re-confirmed 2026-10-02); video 200 with KVS flashvars video_url; stream 206 video/mp4 guest-session on sampled video",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200 (page-1 only)",
+        "video": "200"
+      },
+      "issue": 475,
+      "standing_issue": 475,
+      "drift_confirmed": 1,
+      "chronic": false
+    },
+    "Javmost": {
+      "site": "www.javmost.ws",
+      "verdict": "ok",
+      "reason": "showlist2 search 200 (24 results, 2026-10-02); POST /ri3123o235r AJAX 200 -> turbonewvid.com/t/<hash> 200 returning data[] embed (turbovidhls successor host resolves); deep 2026-09-26 unchanged",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200 (p2/p3 now disjoint)",
+        "search": "200 (24 results)",
+        "video": "200"
+      },
+      "issue": null,
+      "standing_issue": 480,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-09-26"
+    },
+    "Javseen": {
+      "site": "javseen.tv",
+      "verdict": "ok",
+      "reason": "search 200 escaped-JSON (31 hrefs, 2026-10-02); deep 2026-09-30 unchanged",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200 (AJAX)",
+        "video": "200"
+      },
+      "issue": null,
+      "standing_issue": 477,
+      "drift_confirmed": 0,
+      "chronic": false
+    },
+    "Javtiful": {
+      "site": "javtiful.com",
+      "verdict": "ok",
+      "reason": "search 200 (24 cards, 1 partner-card excluded by provider), video 200, stream 206 video/mp4 fast-stream.jav.si signed URL (2026-10-02)",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200",
+        "video": "200"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-09-29"
+    },
+    "MissAV": {
+      "site": "missav.live",
+      "verdict": "ok",
+      "reason": "search 200 grid markup (2026-10-02); deep 2026-09-29 unchanged; AV wall only on regulated-IP sessions (probe-IP artifact)",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200",
+        "video": "200"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-09-29"
+    },
+    "Neporn": {
+      "site": "neporn.com",
+      "verdict": "ok",
+      "reason": "deep 2026-10-02: latest-updates / most-popular / top-rated all p1/p2 disjoint (24/24, 0 overlap; provider's /page/2/ path confirmed); search 200 (32 cards); video 200; quickSearch: KVS mode=async block_id=list_videos... 200 with 4 cards (provider has no quickSearch override — note only); stream 206 video/mp4: embed page video_url get_file + v-acctoken, same-session cookies (bare get_file 403 = token binding, extractor emits the embed URL)",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200",
+        "video": "200"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-10-02"
+    },
+    "PerverZija": {
+      "site": "tube.perverzija.com",
+      "verdict": "ok",
+      "reason": "deep 2026-10-02: featured-scenes / full-movie / tag/4k-quality rows all p1/p2 disjoint (64/64 h2-title and post-id sets, 0 overlap); search p1 64 / p2 64 with 1 sticky-post overlap (benign); video 200 (xtremestream j2 player iframe on video page); stream 200 m3u8 master playlist — j2.xtremestream.xyz/player/xs1.php?data=<hash> with player referer serves #EXT-X-STREAM-INF variants; matches shared PerverZijaExtractor (index.php->xs1.php replace)",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200",
+        "video": "200"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-10-02"
+    },
+    "PornXP": {
+      "site": "pxp.news",
+      "verdict": "ok",
+      "reason": "home/search/tags-milf/video 200 (2026-10-02); /tags/milf page-2 disjoint; stream 206 mp4 highest quality; standing 476 stays clear",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200 (36 cards)",
+        "video": "200",
+        "stream": "206 video/mp4"
+      },
+      "issue": null,
+      "standing_issue": 476,
+      "drift_confirmed": 0,
+      "chronic": false
+    },
+    "Porntrex": {
+      "site": "www.porntrex.com",
+      "verdict": "ok",
+      "reason": "search/video 200 (2026-10-02 spot); deep 2026-09-30 unchanged",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200",
+        "video": "200",
+        "stream": "206 video/mp4"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false
+    },
+    "Sexfilm": {
+      "site": "en.sex-film.biz",
+      "verdict": "ok",
+      "reason": "search/video/photoset pages 200 (2026-10-02 spot); prior deep unchanged",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200",
+        "video": "200"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false
+    },
+    "WatchPorn": {
+      "site": "watchporn.to",
+      "verdict": "ok",
+      "reason": "search/video 200 (2026-10-02); stream 0-byte response on one sampled URL = probe artifact, wide range/session flow unaffected",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200",
+        "video": "200"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false
+    },
+    "Xhamster": {
+      "site": "xhamster.com",
+      "verdict": "ok-suspected",
+      "reason": "age-verification wall: regulated-region probe IP (Boydton VA datacenter) gets AV-wall SPA shell on every surface — window.initials present but videoEntity/videoModel/searchResult absent (2026-10-02); same #447/#462 regulated-geo artifact class as EPorner; ok-suspected stands (prior 2026-09-26/29 ok verdicts = geo luck; provider code untouched)",
+      "tier": "tls-impersonated",
+      "surfaces": {
+        "home": "200 (AV-wall shell)",
+        "search": "200 (initials, no results model)",
+        "video": "200 (initials, no videoModel)",
+        "stream": "blocked by AV wall from probe IP"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-09-26"
+    }
   }
- ],
- "providers": {
-  "PandaMovies": {
-   "site": "pandamovies.pw",
-   "verdict": "ok-drift",
-   "reason": "origin healed: canary 200 via .pw->.org 302 (2026-10-02); search/video 200; standing 463 stays cleared",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200 (via .pw 302)",
-    "search": "200",
-    "video": "200"
-   },
-   "issue": null,
-   "standing_issue": 463,
-   "drift_confirmed": 4,
-   "chronic": true
-  },
-  "Mangoporn": {
-   "site": "mangoporn.net",
-   "verdict": "blocked",
-   "reason": "CF 522 all surfaces (2026-10-02 re-confirmation); standing 464",
-   "tier": "residential-differential",
-   "surfaces": {
-    "home": "522"
-   },
-   "issue": 464,
-   "standing_issue": 464,
-   "drift_confirmed": 1,
-   "chronic": false
-  },
-  "ixiporn": {
-   "site": "ixiporn.org",
-   "verdict": "ok-drift",
-   "reason": "ixiporn.org -> ixiporn.live double redirect persists (2026-10-02); play page /search/<q>/1/ 200, /2/ 404 \u2014 provider pins suffix-free page-1; standing 468 unchanged",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200 (double redirect)",
-    "search": "200 (30 cards)"
-   },
-   "issue": 468,
-   "standing_issue": 468,
-   "drift_confirmed": 0,
-   "chronic": false
-  },
-  "XMoviesForYou": {
-   "site": "xmoviesforyou.com",
-   "verdict": "ok-suspected",
-   "reason": "search 200, 36 cards (2026-10-02 TLS); video page 200; streamtape fallback link present on sampled watch page",
-   "tier": "tls-impersonated",
-   "surfaces": {
-    "home": "200 TLS",
-    "search": "200 TLS",
-    "video": "200 TLS"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "suspected_excluded": [
-    450,
-    467,
-    473
-   ],
-   "chronic": false
-  },
-  "Film1k": {
-   "site": "www.film1k.com",
-   "verdict": "ok-drift",
-   "reason": "turbovidhls.com / *.turboviplay.com / turbosplayer.com still NX (getent, 2026-10-02) \u2014 turbovid embed family DNS-dead; main site 200 TLS; standing 496 unchanged",
-   "tier": "tls-impersonated",
-   "surfaces": {
-    "home": "200 TLS",
-    "search": "200 TLS",
-    "video": "200 TLS",
-    "stream": "dead on turbovid-only videos"
-   },
-   "issue": 496,
-   "standing_issue": 496,
-   "drift_confirmed": 0,
-   "suspected_excluded": [
-    448,
-    465
-   ],
-   "chronic": false
-  },
-  "FreePornVideos": {
-   "site": "www.freepornvideos.xxx",
-   "verdict": "ok-suspected",
-   "reason": "search 200, 48 video cards (2026-10-02 TLS); get_file anti-leech session-bound unchanged",
-   "tier": "tls-impersonated",
-   "surfaces": {
-    "home": "200 TLS",
-    "search": "200 TLS",
-    "video": "200 TLS"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "suspected_excluded": [
-    449,
-    466
-   ],
-   "chronic": false
-  },
-  "FullPorner": {
-   "site": "fullporner.com",
-   "verdict": "ok-suspected",
-   "reason": "search 200 (2 cards /watch/<id> xiaoshenke), video 200, stream verified 206 video/mp4 \u2014 xiaoshenke.net/vid/<reversed>/<720|1080|360> with browser-UA + Range (plain-curl 403 is challenge-class; extractor flow unaffected) (2026-10-02)",
-   "tier": "tls-impersonated",
-   "surfaces": {
-    "home": "200 TLS",
-    "search": "200 TLS",
-    "video": "200 TLS"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "suspected_excluded": [
-    461
-   ],
-   "chronic": false
-  },
-  "EPorner": {
-   "site": "www.eporner.com",
-   "verdict": "ok-suspected",
-   "reason": "full-page age-verification wall persists from regulated-region probe IP (camera-liveness unlock, no curl path, 2026-10-02) \u2014 same #447/#462 geocc class as Xhamster; ok-suspected stands; plain-curl canary 200 MATCH keeps instrument healthy",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200 (age-wall body from CA IP)",
-    "search": "n/a (walled)"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "suspected_excluded": [
-    447,
-    462
-   ],
-   "chronic": false
-  },
-  "AllClassicPorn": {
-   "site": "allclassic.porn",
-   "verdict": "ok",
-   "reason": "search/video 200, KVS stream 206 fresh-token (2026-10-02); deep 2026-09-26 unchanged",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200",
-    "video": "200",
-    "stream": "206 video/mp4"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-09-26"
-  },
-  "Cat3Film": {
-   "site": "cat3film.com",
-   "verdict": "ok",
-   "reason": "_ajax/search 200 JSON (2026-10-02 spot); deep 2026-09-26 unchanged",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200 (_ajax JSON)"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-09-26"
-  },
-  "Cat3Movie": {
-   "site": "cat3movie.org",
-   "verdict": "ok",
-   "reason": "deep 2026-10-02: all 5 rows probed (Latest/NewMovies/ClassicPorn/ClassicErotica/AsianErotica); p1/p2 disjoint on 4 rows (grid-item post-id sets, 1 sticky overlap = benign); Latest row (= homepage, page 2 /page/2/) serves an IDENTICAL card grid to page 1 (45/45 post-id overlap, canonical /page/2) \u2014 site-level carousel duplication, mirrors run-3 Javmost home-dup class; search 200 (21 cards p1, 10 p2, 0 dup); video 200 (player.php sv1: post_id+nonce -> hlsfree embed); stream 200 end-to-end m3u8 (hlsfree /api/hls/serve?token, 909 lines). Finding: Latest-row p2 duplication",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200",
-    "video": "200"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-10-02"
-  },
-  "Eroticmv": {
-   "site": "eroticmv.com",
-   "verdict": "ok",
-   "reason": "home/search/video healthy; 75-facet gap 497 unchanged (2026-10-02 spot)",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200",
-    "video": "200",
-    "stream": "200 m3u8"
-   },
-   "issue": 497,
-   "standing_issue": 497,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-09-29"
-  },
-  "HQPorner": {
-   "site": "hqporner.com",
-   "verdict": "ok",
-   "reason": "home/search/video/stream healthy (2026-10-02 spot); deep 2026-09-29 unchanged",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200",
-    "video": "200",
-    "stream": "206 video/mp4"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-09-29"
-  },
-  "JavGuru": {
-   "site": "jav.guru",
-   "verdict": "ok",
-   "reason": "deep 2026-10-02: home p1/p2 disjoint (24/24), uncensored row p1/p2 disjoint, search 200 (24 unique /NNNNNN/ video links); video 200; stream verified end-to-end: wp-btn-iframe base64 seed -> jav.guru/searcho/?<seed> -> 3 data-attrs concat+reverse -> ?xr=<tok> -> 302 javclan.com/e/<id> -> packed JS links hls4 -> m3u8 200 application/vnd.apple.mpegurl fetched against javclan.com with searcho referer (hls2 TLS-SAN mismatch 403, hls3 dead \u2014 hls4 is the live path; matches shared Extractorlar.kt Javclan class)",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200",
-    "video": "200"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-10-02"
-  },
-  "Javbangers": {
-   "site": "www.javbangers.com",
-   "verdict": "ok-drift",
-   "reason": "search 200, 64 post ids on suffix-free page-1; /search/<q>/1/ and /2/ still 404 (standing 475 re-confirmed 2026-10-02); video 200 with KVS flashvars video_url; stream 206 video/mp4 guest-session on sampled video",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200 (page-1 only)",
-    "video": "200"
-   },
-   "issue": 475,
-   "standing_issue": 475,
-   "drift_confirmed": 1,
-   "chronic": false
-  },
-  "Javmost": {
-   "site": "www.javmost.ws",
-   "verdict": "ok",
-   "reason": "showlist2 search 200 (24 results, 2026-10-02); POST /ri3123o235r AJAX 200 -> turbonewvid.com/t/<hash> 200 returning data[] embed (turbovidhls successor host resolves); deep 2026-09-26 unchanged",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200 (p2/p3 now disjoint)",
-    "search": "200 (24 results)",
-    "video": "200"
-   },
-   "issue": null,
-   "standing_issue": 480,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-09-26"
-  },
-  "Javseen": {
-   "site": "javseen.tv",
-   "verdict": "ok",
-   "reason": "search 200 escaped-JSON (31 hrefs, 2026-10-02); deep 2026-09-30 unchanged",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200 (AJAX)",
-    "video": "200"
-   },
-   "issue": null,
-   "standing_issue": 477,
-   "drift_confirmed": 0,
-   "chronic": false
-  },
-  "Javtiful": {
-   "site": "javtiful.com",
-   "verdict": "ok",
-   "reason": "search 200 (24 cards, 1 partner-card excluded by provider), video 200, stream 206 video/mp4 fast-stream.jav.si signed URL (2026-10-02)",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200",
-    "video": "200"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-09-29"
-  },
-  "MissAV": {
-   "site": "missav.live",
-   "verdict": "ok",
-   "reason": "search 200 grid markup (2026-10-02); deep 2026-09-29 unchanged; AV wall only on regulated-IP sessions (probe-IP artifact)",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200",
-    "video": "200"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-09-29"
-  },
-  "Neporn": {
-   "site": "neporn.com",
-   "verdict": "ok",
-   "reason": "deep 2026-10-02: latest-updates / most-popular / top-rated all p1/p2 disjoint (24/24, 0 overlap; provider's /page/2/ path confirmed); search 200 (32 cards); video 200; quickSearch: KVS mode=async block_id=list_videos... 200 with 4 cards (provider has no quickSearch override \u2014 note only); stream 206 video/mp4: embed page video_url get_file + v-acctoken, same-session cookies (bare get_file 403 = token binding, extractor emits the embed URL)",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200",
-    "video": "200"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-10-02"
-  },
-  "PerverZija": {
-   "site": "tube.perverzija.com",
-   "verdict": "ok",
-   "reason": "deep 2026-10-02: featured-scenes / full-movie / tag/4k-quality rows all p1/p2 disjoint (64/64 h2-title and post-id sets, 0 overlap); search p1 64 / p2 64 with 1 sticky-post overlap (benign); video 200 (xtremestream j2 player iframe on video page); stream 200 m3u8 master playlist \u2014 j2.xtremestream.xyz/player/xs1.php?data=<hash> with player referer serves #EXT-X-STREAM-INF variants; matches shared PerverZijaExtractor (index.php->xs1.php replace)",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200",
-    "video": "200"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-10-02"
-  },
-  "PornXP": {
-   "site": "pxp.news",
-   "verdict": "ok",
-   "reason": "home/search/tags-milf/video 200 (2026-10-02); /tags/milf page-2 disjoint; stream 206 mp4 highest quality; standing 476 stays clear",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200 (36 cards)",
-    "video": "200",
-    "stream": "206 video/mp4"
-   },
-   "issue": null,
-   "standing_issue": 476,
-   "drift_confirmed": 0,
-   "chronic": false
-  },
-  "Porntrex": {
-   "site": "www.porntrex.com",
-   "verdict": "ok",
-   "reason": "search/video 200 (2026-10-02 spot); deep 2026-09-30 unchanged",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200",
-    "video": "200",
-    "stream": "206 video/mp4"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false
-  },
-  "Sexfilm": {
-   "site": "en.sex-film.biz",
-   "verdict": "ok",
-   "reason": "search/video/photoset pages 200 (2026-10-02 spot); prior deep unchanged",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200",
-    "video": "200"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false
-  },
-  "WatchPorn": {
-   "site": "watchporn.to",
-   "verdict": "ok",
-   "reason": "search/video 200 (2026-10-02); stream 0-byte response on one sampled URL = probe artifact, wide range/session flow unaffected",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200",
-    "video": "200"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false
-  },
-  "Xhamster": {
-   "site": "xhamster.com",
-   "verdict": "ok-suspected",
-   "reason": "age-verification wall: regulated-region probe IP (Boydton VA datacenter) gets AV-wall SPA shell on every surface \u2014 window.initials present but videoEntity/videoModel/searchResult absent (2026-10-02); same #447/#462 regulated-geo artifact class as EPorner; ok-suspected stands (prior 2026-09-26/29 ok verdicts = geo luck; provider code untouched)",
-   "tier": "tls-impersonated",
-   "surfaces": {
-    "home": "200 (AV-wall shell)",
-    "search": "200 (initials, no results model)",
-    "video": "200 (initials, no videoModel)",
-    "stream": "blocked by AV wall from probe IP"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-09-26"
-  }
- }
 }
