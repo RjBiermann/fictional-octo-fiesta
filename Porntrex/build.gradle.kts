@@ -1,5 +1,5 @@
 // ! This Extension Made By @ByAyzen for GizliKeyif
-version = 15 // shared KvsFlashvars (audit applied)
+version = 16 // issue #506: AI row removed from mainPage
 
 cloudstream {
     authors     = listOf("ByAyzen")

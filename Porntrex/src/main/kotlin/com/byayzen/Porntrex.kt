@@ -28,7 +28,6 @@ class Porntrex : MainAPI() {
 
     override val mainPage = mainPageOf(
         "${mainUrl}/categories/4k-porn/" to "4K Porn",
-        "${mainUrl}/categories/ai/" to "Ai",
         "${mainUrl}/categories/amateur/" to "Amateur",
         "${mainUrl}/categories/asian/" to "Asian",
         "${mainUrl}/categories/blonde/" to "Blonde",
