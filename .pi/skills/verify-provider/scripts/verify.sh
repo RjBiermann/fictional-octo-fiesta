@@ -36,6 +36,9 @@ VIDEO_URLS=()
 STREAM_URL_OVERRIDES=()  # --stream-url (repeatable): JS-built stream URLs per video page,
                          # position-matched to --video-url; agent supplies from FINDINGS chain
                          # evidence, script still asserts serving/content-type/distinctness
+CROSS_PAGE_DUPS_NOTE=0   # --cross-page-dups-note: FINDINGS records the listing source
+                         # (e.g. KVS async page 1/2) re-listing the same cards; cross-page
+                         # repeated hrefs become NOTEs, within-page repeats still FAIL
 HEADERS=(-A "$UA")
 
 usage() { grep '^#' "$0" | sed 's/^# \{0,1\}//' | head -26; exit 2; }
@@ -65,6 +68,7 @@ while [[ $# -gt 0 ]]; do
     --provider-src) PROVIDER_SRC="$2"; shift 2;;
     --load-response) LOAD_RESPONSE="$2"; shift 2;;
     --header) HEADERS+=(-H "$2"); shift 2;;
+    --cross-page-dups-note) CROSS_PAGE_DUPS_NOTE=1; shift;;
     *) usage;;
   esac
 done
@@ -123,11 +127,33 @@ def count_simple(tag, match, html):
     return n
 
 def blocks(html, sel):
-    """(attrs, inner) per element matching the LAST part of a (possibly chained) selector."""
-    tag, match = compile_simple(sel.split()[-1])
-    for blk in re.finditer(rf'<{tag}\b([^>]*)>(.*?)</{tag}\s*>', html, re.S):
-        if match(blk.group(1)):
-            yield blk.group(1), blk.group(2)
+    """(attrs, inner) per element matching a (possibly chained) selector.
+
+    Two #509 fixes: ① the full descendant chain is honored — narrow through every ancestor
+    part (the old code kept only the last part, so `p.inf a` matched the first `<a>` in the
+    card = the thumb wrap, whose text was the quality icon "1080p HD"); ② same-tag
+    close-tag balancing — the old `<tag…>…</tag>` non-greedy regex ended a block at the
+    FIRST close tag, clipping KVS card blocks (nested divs + trailing p.inf) at the
+    quality-icon div. Block targets here are container tags (`div`, `p`, `a`, `h1`…),
+    so open/close pairing is safe; self-closing tags (`img`, `source`) stay on the
+    attribute path that scans opening tags."""
+    parts = sel.split()
+    for part in parts[:-1]:
+        html = ''.join(inner for _, inner in blocks(html, part))
+    tag, match = compile_simple(parts[-1])
+    until = re.compile(rf'<{tag}\b[^>]*>|</{tag}\s*>')
+    lifo = []
+    out = []
+    for blk in until.finditer(html):
+        if blk.group(0)[1] == '/':
+            if lifo:
+                attrs, istart = lifo.pop()
+                if match(attrs):
+                    out.append((istart, attrs, html[istart:blk.start()]))
+        else:
+            lifo.append((blk.group(0)[1:-1], blk.end()))
+    for _, attrs, inner in sorted(out, key=lambda t: t[0]):
+        yield attrs, inner
 
 def inner_text(s):
     s = re.sub(r'<[^>]+>', ' ', s)
@@ -199,9 +225,10 @@ def stream_urls(html):
                     return out
     return out
 
-def dups(colspec):
+def dups(colspec, mode=''):
     """stdin: id TAB …columns…; prints 'field value ids' for values shared by different ids
-    (across pages/videos) or repeated within one id (within a page)."""
+    (across pages/videos) or repeated within one id (within a page). mode narrows the
+    output: 'within' = only within one id/page, 'cross' = only across ids/pages (#509)."""
     cols = colspec.split(',')
     rows = [l.rstrip('\n').split('\t') for l in sys.stdin if l.strip()]
     for ci, col in enumerate(cols, start=1):
@@ -212,7 +239,11 @@ def dups(colspec):
                 continue
             seen.setdefault(v, []).append(r[0])
         for v, ids in sorted(seen.items()):
-            if len(set(ids)) > 1 or len(ids) > 1:
+            if len(ids) > 1:
+                if mode == 'within' and len(set(ids)) == len(ids):   # no copy within one page
+                    continue
+                if mode == 'cross' and len(set(ids)) == 1:           # only within one page
+                    continue
                 print(f'{col}\t{v}\t{",".join(ids)}')
 
 cmd = sys.argv[1]
@@ -254,8 +285,8 @@ elif cmd == 'normcards':  # id href title poster TSV → id path title poster
     for l in sys.stdin:
         f = (l.rstrip('\n').split('\t') + [''] * 4)[:4]
         print(f'{f[0]}\t{url_path(f[1])}\t{f[2]}\t{f[3]}')
-elif cmd == 'dups':  # colspec; stdin TSV, id first
-    dups(sys.argv[2])
+elif cmd == 'dups':  # colspec [within|cross]; stdin TSV, id first
+    dups(*sys.argv[2:])
 PY
 py() { python3 "$PYDOM" "$@"; }
 norm() { python3 -c 'import sys,html,re;print(re.sub(r"\s+"," ",html.unescape(sys.stdin.read())).strip().lower())'; }
@@ -264,8 +295,11 @@ norm() { python3 -c 'import sys,html,re;print(re.sub(r"\s+"," ",html.unescape(sy
 # Fetch each URL, require 200 + ≥1 card, dedupe within/across pages (a card repeating on
 # page 2 = pagination returning the same items = FAIL), write normalized TSV to $6.
 check_listing() {  # $1=urls-array-name $2=prefix $3=selector $4=title_sel $5=poster_sel $6=out.tsv
+  # dedupe: runs on hrefs (unique per video); --cross-page-dups-note (FINDINGS-declared
+  # site-side repeats across listing pages, issue #509) keeps within-page repeats as FAIL
+  # and downgrades cross-page repeats to a NOTE.
   local -n _urls=$1; local prefix=$2 sel=$3 tsel=$4 psel=$5 out=$6
-  local raw=/tmp/verify_${prefix}_raw.tsv i SU F code n dups_out
+  local raw=/tmp/verify_${prefix}_raw.tsv i SU F code n dups_out within cross empty_titles t_note
   : > "$raw"
   for i in "${!_urls[@]}"; do
     SU="${_urls[$i]}"; F="/tmp/verify_${prefix}_$i.html"
@@ -278,10 +312,36 @@ check_listing() {  # $1=urls-array-name $2=prefix $3=selector $4=title_sel $5=po
     py cards "$sel" "${tsel:--}" "${psel:--}" "$F" \
       | awk -F'\t' -v p="${prefix}$i" 'BEGIN{OFS="\t"}{print p,$1,$2,$3}' >> "$raw"
   done
-  dups_out=$(py dups 'href,title' < "$raw")
+  # Issue #509: href is the duplicate-card key (unique per video). Cross-page repeats of a
+  # listed card can be the site's own catalog (KVS async page 1/2 overlap, FINDINGS-declared
+  # via --cross-page-dups-note): a NOTE then, never a false-FAIL of the provider's parse; a
+  # repeat within one page stays a FAIL. Title collisions between different hrefs are
+  # NOTEs (different videos may share a title); the old false-FAILs came from the clipped
+  # titles' 96 identical quality-label values, gone with the balanced block walk.
+  t_note=$(py dups 'title' < "$raw" | awk -F'\t' '{print $2}')
+  dups_out=$(py dups 'href' < "$raw")
   if [[ -n "$dups_out" ]]; then
-    echo "FAIL duplicate $prefix cards (same video twice on a page or across pages):"
-    echo "$dups_out"; fail=1
+    within=$(py dups 'href' within < "$raw")
+    cross=$(py dups 'href' cross < "$raw")
+    if [[ -n "$within" ]]; then
+      echo "FAIL duplicate $prefix cards (same video listed twice within one page):"
+      echo "$within"; fail=1
+    fi
+    if [[ -n "$cross" ]]; then
+      if [[ "$prefix" == home ]] && (( CROSS_PAGE_DUPS_NOTE )); then
+        echo "NOTE: duplicated cards across $prefix pages (FINDINGS-declared site-side repeat; provider parses each card once) — $(printf '%s\n' "$cross" | wc -l) href(s):"
+        echo "$cross" | head -3
+      else
+        echo "FAIL duplicate $prefix cards (same video on multiple pages):"
+        echo "$cross"; fail=1
+      fi
+    fi
+  fi
+  empty_titles=$(awk -F'\t' '$3==""{n++} END{print n+0}' "$raw")
+  (( empty_titles > 0 )) && { echo "NOTE: $empty_titles $prefix card(s) with empty title (title extraction regression guard, issue #509)"; } || true
+  if [[ -n "$t_note" ]]; then
+    echo "NOTE: repeated card titles on $prefix (different hrefs = different videos sharing a title — not a card duplicate):"
+    printf '%s\n' "$t_note" | head -3
   fi
   poster_dups=$(py dups 'poster' < "$raw")
   if [[ -n "$poster_dups" ]]; then

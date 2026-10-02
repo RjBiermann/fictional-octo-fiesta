@@ -46,6 +46,11 @@ supplies what to check (judgment, from FINDINGS + the provider's Kotlin), the sc
   `getMainPage` renders (FINDINGS Homepage section). Omit page 2 only when FINDINGS explicitly
   records "homepage does not paginate". `--home-selector` defaults to the search selector —
   override when the homepage rows use a different card shape.
+- `--cross-page-dups-note`: pass ONLY when FINDINGS records that the listing source itself
+  re-lists cards across pages (e.g. KVS async page 1/2 overlap — repro Porntrex
+  `/categories/hardcore/`, issue #509): the duplicated hrefs are then a NOTE with the
+  duplicate list as evidence, not a FAIL; a repeat WITHIN one page stays a FAIL. Never
+  pass it for search pages — search page 2 repeating page 1 is broken pagination.
 - `--quick-search-url`: **required when FINDINGS records a distinct quick-search endpoint**
   (the site's live-typing/suggest endpoint). Quick search is a single page — no pagination.
   When FINDINGS records "no distinct quick-search endpoint", omit it; the script NOTEs, and the
@@ -67,8 +72,12 @@ supplies what to check (judgment, from FINDINGS + the provider's Kotlin), the sc
    duplicate cards within a page or across pages — so page 2 must return *different* items than
    page 1 (pagination returning the same cards is a FAIL).
 1a. **Homepage rows** (`getMainPage`): same bar as search — every `--home-url` fetches, ≥1 card,
-    no duplicates within/across pages (page 2 must return new items). Defaults to the search
-    card shape unless `--home-selector` is given.
+    no duplicate cards WITHIN a page (page 2 must return new items). Defaults to the search
+    card shape unless `--home-selector` is given. Exception (issue #509): when FINDINGS
+    records that the listing source itself re-lists cards across pages of a row (KVS async
+    page 1/2 catalog overlap), pass `--cross-page-dups-note` — the cross-page repeats
+    become a NOTE with the duplicate list as evidence instead of a FAIL; a same-page
+    duplicate is still a FAIL.
 1b. **Quick search**: when `--quick-search-url` is passed, the endpoint fetches and returns ≥1
     card, no duplicate cards (single page, no pagination).
 2. **Video pages**: every page fetches, matches `--stream-selector`, and yields a title.
