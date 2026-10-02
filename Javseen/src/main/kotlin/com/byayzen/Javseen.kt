@@ -24,6 +24,7 @@ class Javseen : MainAPI() {
     override val mainPage = mainPageOf(
         "${mainUrl}/recent/" to "Recent Videos",
         "${mainUrl}/jav-censored/" to "Jav Censored",
+        "${mainUrl}/tag/uncensored/" to "Uncensored",
         "${mainUrl}/solowork/" to "Solowork",
         "${mainUrl}/amateur/" to "Amateur",
         "${mainUrl}/asian/" to "Asian",
@@ -77,21 +78,17 @@ class Javseen : MainAPI() {
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val baseUrl = request.data.removeSuffix("/")
-        val isRecent = baseUrl.endsWith("/recent")
-        val ajaxParam = if (isRecent) "browse_videos" else "category_videos"
-
-        // Categories paginate as {cat}/recent/{page}/ (the old {cat}/{page}/ 404s).
-        val pageBase =
-            if (page <= 1) baseUrl else if (isRecent) "$mainUrl/recent/$page" else "$baseUrl/recent/$page"
-        val url = "$pageBase/?ajax=$ajaxParam"
+        // Row URL: bare-slug panels paginate as {cat}/recent/{page}/ (the old {cat}/{page}/
+        // 404s); /tag/ pages use ?ajax=browse_videos&page=N (FINDINGS-507).
+        val refererBase = request.data.removeSuffix("/")
+        val url = JavseenParse.homePageUrl(request.data, page)
         Log.d("Ayzen", "URL: $url")
 
         val json = app.get(
             url,
             headers = mapOf(
                 "Accept" to "*/*",
-                "Referer" to "$pageBase/"
+                "Referer" to "$refererBase/"
             )
         ).parsedSafe<Anamenujson>()
 
