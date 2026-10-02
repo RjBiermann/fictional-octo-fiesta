@@ -76,7 +76,7 @@
   {
    "id": "run6",
    "date": "2026-10-02",
-   "pr": null,
+   "pr": 513,
    "findings": [],
    "false_positives": [],
    "note": "run 6 (issue 511): canaries all 3 MATCH (stamps bumped); full 26-provider sweep; deep tier = Cat3Movie, JavGuru, Neporn, PerverZija (4 oldest last_deep=None stamps) - all four stream-verified end-to-end, rows p1/p2 disjoint except Cat3Movie homepage Latest row (=/page/2/ identical card grid 45/45 = site carousel duplication, mirrors run-3 Javmost class, NOT provider defect). Xhamster downgraded ok->ok-suspected: regulated-region AV-wall artifact this probe IP (same class as EPorner #447/#462) \u2014 full evidence in FINDINGS-511.md. Standing: #464 re-confirmed 522, #475 re-confirmed, #468 re-confirmed, #496 turbovid NX again, #497 unchanged; #463/#476/#477/#480 stay clear. Findings filed this run: 0 (Cat3Movie Latest-row dupe = site-level carousel, evidence recorded in FINDINGS-511.md; not a provider defect \u2014 filed as note only per sweep policy for row-level site duplication previously handled without new issues)."
