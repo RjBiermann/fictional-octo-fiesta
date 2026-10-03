@@ -1,4 +1,4 @@
-version = 9 // shared SearchCard href-fallback fix (P0-14)
+version = 10 // FINDINGS-515: Vintage tag row
 
 cloudstream {
     authors     = listOf("rjbiermann")

@@ -80,11 +80,11 @@ class HQPorner : MainAPI() {
         "${mainUrl}/category/stockings"            to "Stockings",
         "${mainUrl}/category/tattooed"             to "Tattooed",
         "${mainUrl}/category/teen-porn"            to "Teen porn",
+        "${mainUrl}/category/vintage"              to "Vintage",
 //        "${mainUrl}/category/threesome"            to "threesome",
 //        "${mainUrl}/category/undressing"           to "undressing",
         "${mainUrl}/category/uniforms"             to "Uniforms",
 //        "${mainUrl}/category/vibrator"             to "vibrator",
-//        "${mainUrl}/category/vintage"              to "vintage",
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {

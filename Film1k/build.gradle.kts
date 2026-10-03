@@ -1,4 +1,4 @@
-version = 9 // issue #496: turbovid embed family DNS-dead — branch removed, loadLinks
+version = 10 // FINDINGS-515: Classic Porn category row
 // fetches guarded (uncaught DNS exception), turbovid-only pages fall through cleanly
 
 cloudstream {

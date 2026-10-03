@@ -29,6 +29,7 @@ class FreePornVideos : MainAPI() {
         "$mainUrl/networks/adult-time" to "Adult Time",
         "$mainUrl/networks/rk-com" to "Reality Kings",
         "$mainUrl/categories/jav-uncensored" to "Jav",
+        "$mainUrl/categories/vintage" to "Vintage",
         "$mainUrl/networks/mom-lover" to "MILF"
 
     )

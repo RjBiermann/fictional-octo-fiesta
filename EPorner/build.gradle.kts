@@ -1,5 +1,5 @@
 // ! Bu araç @ByAyzen tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 16 // shared SearchCard href-fallback fix (P0-14)
+version = 17 // FINDINGS-515: Vintage category row
 
 cloudstream {
     authors     = listOf("ByAyzen")

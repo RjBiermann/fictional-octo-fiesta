@@ -1,5 +1,5 @@
 // ! This Extension Made By @ByAyzen for GizliKeyif
-version = 16 // issue #506: AI row removed from mainPage
+version = 17 // FINDINGS-515: Vintage category row
 
 cloudstream {
     authors     = listOf("ByAyzen")

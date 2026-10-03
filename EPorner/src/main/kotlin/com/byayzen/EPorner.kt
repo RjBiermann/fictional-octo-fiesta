@@ -49,8 +49,8 @@ class EPorner : MainAPI() {
         "$mainUrl/tag/cowgirl/" to "Cowgirl",
         "$mainUrl/tag/riding/" to "Riding",
         "$mainUrl/tag/turkish/" to "Turkish",
-        "$mainUrl/cat/housewives/" to "Housewives"
-
+        "$mainUrl/cat/housewives/" to "Housewives",
+        "$mainUrl/cat/vintage/" to "Vintage"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {

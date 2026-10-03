@@ -29,6 +29,7 @@ class Film1k : MainAPI() {
         "$mainUrl/category/horror" to "Horror",
         "$mainUrl/category/drama" to "Drama",
         "$mainUrl/category/thriller" to "Thriller",
+        "$mainUrl/category/classic-porn" to "Classic Porn",
     )
 
     private fun pageUrl(url: String, page: Int): String = when {

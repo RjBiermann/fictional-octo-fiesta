@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 12
+version = 13 // FINDINGS-515: Classic tag row
 
 cloudstream {
     authors     = listOf("kraptor")
