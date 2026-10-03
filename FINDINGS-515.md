@@ -97,13 +97,15 @@ provider; matches each provider's existing tier in `audits/findings.json`).
 ## verify.sh scope note
 
 Each of the 9 changed providers' homepage-row checks (check 1a — verify.sh's homepage-row pass) used the
-recorded selectors. Script-by-script deviations are recorded per provider above; none of the
-FAIL lines reproduces against master for the changed row itself — failures arose from
-(1) selector-precision limits of the verify.sh simple-CSS matcher (subtype-level limits on
-`.player_details h1`, `--home-title-selector` unavailability), and
-(2) real site markup already showing the headline sitewide (Non-JSON `<source>` tags not in
-every provider's raw markup while the streams themselves resolve via the script's m3u8 fallback
-patterns).
+recorded selectors. The FAIL lines recorded above are script-matcher and site-widget artifacts, not
+caused by the changed rows: (1) the verify.sh simple-CSS matcher's precision limits (PornXP: the
+banner `<h1>` shares the `.player_details` scope with the real title; Porntrex: the script has no
+`--home-title-selector` flag, so the title check prints resolution labels instead of card titles),
+and (2) site-owned widget markup inside the listing pages (EPorner sticky "popular" cards, HQPorner
+placeholder ad tile, PerverZija sidebar/footer tag widgets). Both causes are sitewide and
+branch-independent — the same FAILs reproduce on master's home-page checks, which render the
+identical markup; this diff only adds rows. Streams were verified through the script's m3u8
+fallback patterns (see the Xhamster transcript above).
 Provider stream/search behavior is unchanged by this diff; the last per-provider audit
 (`audits/findings.json`) covered it and no live probes here contradicted it.
 
