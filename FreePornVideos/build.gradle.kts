@@ -1,4 +1,4 @@
-version = 10 // shared SearchCard href-fallback fix (P0-14)
+version = 11 // FINDINGS-515: Vintage category row
 
 cloudstream {
     authors     = listOf("kerimmkirac")

@@ -39,6 +39,8 @@ class xHamster : MainAPI() {
         "${mainUrl}/categories/hardcore" to "Hardcore",
         "${mainUrl}/categories/homemade" to "Homemade",
         "${mainUrl}/categories/amateur" to "Amateur",
+        // FINDINGS-515: category page hydrates via pagesCategoryComponent (JSON parse extension tested)
+        "${mainUrl}/categories/retro" to "Retro",
         "${mainUrl}/categories/compilation" to "Compilation",
         "${mainUrl}/categories/lesbian" to "Lesbian",
         "${mainUrl}/categories/russian" to "Russian",
@@ -95,7 +97,8 @@ class xHamster : MainAPI() {
         val layout = initials?.layoutPage
         return (initials?.searchResult?.videoThumbProps
             ?: layout?.videoListProps?.videoThumbProps
-            ?: layout?.trendingVideoListProps?.videoThumbProps).orEmpty().mapNotNull { thumb ->
+            ?: layout?.trendingVideoListProps?.videoThumbProps
+            ?: initials?.pagesCategoryComponent?.trendingVideoListProps?.videoThumbProps).orEmpty().mapNotNull { thumb ->
             val name = thumb.title?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
             val link = thumb.pageURL ?: return@mapNotNull null
             newMovieSearchResponse(name, link, TvType.NSFW) {
@@ -277,6 +280,9 @@ class xHamster : MainAPI() {
         // 2026-09-11 (issue #338): listing surfaces also hydrate via this JSON now.
         val searchResult: SearchResultProps? = null,
         val layoutPage: LayoutPage? = null,
+        // FINDINGS-515 (2026-10-03 probe): category listing pages (/categories/retro)
+        // hydrate cards via pagesCategoryComponent.trendingVideoListProps; layoutPage is absent there.
+        val pagesCategoryComponent: PagesCategoryComponent? = null,
         val videoModel: VideoModel? = null,
         val videoEntity: VideoEntity? = null,
         val videoPageComponent: VideoPageComponent? = null,
@@ -285,6 +291,9 @@ class xHamster : MainAPI() {
     )
 
     data class SearchResultProps(val videoThumbProps: List<VideoThumb>? = null)
+
+    // category pages only: trendingVideoListProps carries the listing thumbs
+    data class PagesCategoryComponent(val trendingVideoListProps: VideoListProps? = null)
 
     // layoutPage is the string "default" on shell pages; the object only on listing pages.
     data class LayoutPage(

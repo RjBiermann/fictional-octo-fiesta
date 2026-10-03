@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 12 // shared FIREFOX_UA const (audit applied)
+version = 13 // FINDINGS-515:Vintage category row uncommented
 
 cloudstream {
     authors     = listOf("kraptor")

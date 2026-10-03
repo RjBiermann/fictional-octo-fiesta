@@ -1,4 +1,4 @@
-version = 21
+version = 22 // FINDINGS-515: Retro category row + pagesCategoryComponent initials parse
 
 cloudstream {
     authors     = listOf("kraptor","coxju","SIX")

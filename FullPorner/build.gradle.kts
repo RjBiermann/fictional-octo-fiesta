@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 13 // shared CfChallengeInterceptor (audit applied)
+version = 14 // FINDINGS-515: Vintage category row
 
 cloudstream {
     authors     = listOf("kraptor")

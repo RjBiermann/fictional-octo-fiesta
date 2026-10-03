@@ -21,7 +21,8 @@ class PerverZija : MainAPI() {
         "${mainUrl}/featured-scenes" to "Featured Scenes",
         "${mainUrl}/studio" to "Porn Scenes",
         "${mainUrl}/tag/4k-quality/" to "4K Quality",
-        "${mainUrl}/full-movie/" to "Full Movie"
+        "${mainUrl}/full-movie/" to "Full Movie",
+        "${mainUrl}/tag/classic/" to "Classic"
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {

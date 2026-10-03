@@ -44,6 +44,7 @@ class FullPorner(private val context: Context) : MainAPI() {
         "${mainUrl}/category/orgasm/"     to "Orgasm",
         "${mainUrl}/category/threesome/"  to "ThreeSome",
         "${mainUrl}/category/group-sex/"  to "Group Sex",
+        "${mainUrl}/category/vintage/"   to "Vintage",
     )
 
     private val cloudflareKiller by lazy { CloudflareKiller() }

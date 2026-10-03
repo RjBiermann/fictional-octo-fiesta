@@ -189,6 +189,19 @@ class XhamsterParseTest {
         fourK.forEach { assertTrue(it.url!!.startsWith("https://xhamster.com/videos/")) }
     }
 
+    // FINDINGS-515: category listing surfaces (e.g. /categories/retro) hydrate cards via
+    // pagesCategoryComponent.trendingVideoListProps instead of layoutPage — the row was
+    // added and this extension covers the fifth initials surface.
+    @Test fun `category page initials cards parse from pagesCategoryComponent`() {
+        val retro = xHamster().cardsFromInitials(xHamster().getInitialsJson(pageFixture("xhamster-home-retro.html")))
+        assertTrue("retro ${retro.size}", retro.size >= 40)
+        retro.forEach {
+            assertTrue(it.url!!.startsWith("https://xhamster.com/videos/"))
+            assertTrue(it.name!!.isNotBlank())
+            assertTrue(it.posterUrl!!.startsWith("https://"))
+        }
+    }
+
     private fun pageFixture(name: String): String =
         javaClass.getResource("/$name")!!.readText()
 

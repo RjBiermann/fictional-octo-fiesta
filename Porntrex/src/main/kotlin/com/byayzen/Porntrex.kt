@@ -58,6 +58,7 @@ class Porntrex : MainAPI() {
         "${mainUrl}/categories/teen/" to "Teen",
         "${mainUrl}/categories/toys/" to "Toys",
         "${mainUrl}/categories/uniform/" to "Uniform",
+        "${mainUrl}/categories/vintage/" to "Vintage",
         "${mainUrl}/categories/webcam/" to "Webcam",
         "${mainUrl}/categories/wife/" to "Wife"
     )

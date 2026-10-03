@@ -48,7 +48,8 @@ class PornXP : MainAPI() {
         "$mainUrl/" to "New Videos",
         "$mainUrl/best/" to "Best Videos",
         "$mainUrl/released/" to "New Releases",
-        "$mainUrl/hd/" to "HD"
+        "$mainUrl/hd/" to "HD",
+        "$mainUrl/tags/Vintage" to "Vintage"
     )
 
     // shared card Parse + .item_dur piggybacked onto the url (issue #331)
