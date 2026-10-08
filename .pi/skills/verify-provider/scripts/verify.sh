@@ -123,8 +123,22 @@ def count_simple(tag, match, html):
     return n
 
 def blocks(html, sel):
-    """(attrs, inner) per element matching the LAST part of a (possibly chained) selector."""
-    tag, match = compile_simple(sel.split()[-1])
+    """(attrs, inner) per element matching the LAST part of a (possibly chained) selector,
+    scoped to the ancestors when the selector is chained."""
+    parts = sel.split()
+    if len(parts) > 1:
+        tag, match = compile_simple(parts[0])
+        if match is None:
+            return
+        # scoped sweep: only consider subtrees that carry the ancestor part
+        for blk in re.finditer(rf'<{tag}\b([^>]*)>(.*?)</{tag}\s*>', html, re.S):
+            if match(blk.group(1)):
+                for a, inner in blocks(blk.group(2), ' '.join(parts[1:])):
+                    yield a, inner
+        return
+    tag, match = compile_simple(parts[0])
+    if match is None:
+        return
     for blk in re.finditer(rf'<{tag}\b([^>]*)>(.*?)</{tag}\s*>', html, re.S):
         if match(blk.group(1)):
             yield blk.group(1), blk.group(2)

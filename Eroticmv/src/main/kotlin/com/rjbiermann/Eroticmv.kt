@@ -52,6 +52,16 @@ class Eroticmv : MainAPI() {
             }
 
         /**
+         * Issue #517 (FINDINGS-517): homepage "Latest" row paginates via /page/N/
+         * (live-verified). Facet rows are 1-page (FINDINGS-497): page > 1 ⇒ null.
+         */
+        fun homeUrlFor(data: String, page: Int): String? = when {
+            page > 1 && data == "https://eroticmv.com/" -> "https://eroticmv.com/page/$page/"
+            page > 1 -> null
+            else -> data
+        }
+
+        /**
          * og:video:url comes in two shapes (FINDINGS 2026-09-11):
          * A: "http://<base64>.m3u8" → decode token directly.
          * B: "...?video_embed=<id>" → stream lives on the embed page's <source src> tag;
@@ -87,7 +97,8 @@ class Eroticmv : MainAPI() {
     private fun isFacet(request: MainPageRequest): Boolean = request.data != "$mainUrl/"
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val url = if (page > 1) "$mainUrl/page/$page/" else request.data
+        val url = homeUrlFor(request.data, page)
+            ?: return newHomePageResponse(HomePageList(request.name, emptyList()), hasNext = false)
         val document = app.get(url, referer = mainUrl).document
 
         val home = document.select("article.post-item").mapNotNull { it.toSearchResult() }
