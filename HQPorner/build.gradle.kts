@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 13 // FINDINGS-515:Vintage category row uncommented
+version = 14 // issue #518: player-derived poster fallback for plain/library loads
 
 cloudstream {
     authors     = listOf("kraptor")
