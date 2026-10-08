@@ -56,10 +56,14 @@ class Eroticmv : MainAPI() {
          * (live-verified). Facet rows are 1-page (FINDINGS-497): page > 1 ⇒ null.
          */
         fun homeUrlFor(data: String, page: Int): String? = when {
-            page > 1 && data == "https://eroticmv.com/" -> "https://eroticmv.com/page/$page/"
+            page > 1 && homepageRow(data) -> "https://eroticmv.com/page/$page/"
             page > 1 -> null
             else -> data
         }
+
+        /** Single source of truth for the homepage "Latest" row (issue #517 review round 2):
+         *  homeUrlFor and isFacet both derive from this — never encode it twice. */
+        fun homepageRow(data: String): Boolean = data == "https://eroticmv.com/"
 
         /**
          * og:video:url comes in two shapes (FINDINGS 2026-09-11):
@@ -93,8 +97,9 @@ class Eroticmv : MainAPI() {
         *facets.map { key -> facetUrl(key) to facetTitle(key) }.toTypedArray()
     )
 
-    // Facet rows are 1-page: theme preloads the full facet; /page/2/ → 404 (FINDINGS-497)
-    private fun isFacet(request: MainPageRequest): Boolean = request.data != "$mainUrl/"
+    // Facet rows are 1-page: theme preloads the full facet; /page/2/ → 404 (FINDINGS-497).
+    // Derived from homepageRow — homeUrlFor is the one place the homepage URL literal lives.
+    private fun isFacet(request: MainPageRequest): Boolean = !homepageRow(request.data)
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = homeUrlFor(request.data, page)

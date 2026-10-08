@@ -27,4 +27,9 @@ class EroticmvPaginationTest {
             Eroticmv.homeUrlFor("https://eroticmv.com/category/genre/ghost/", 1)
         )
     }
+
+    @Test fun `homepage row predicate is the single source of truth`() {
+        assertTrue(Eroticmv.homepageRow("https://eroticmv.com/"))
+        assertFalse(Eroticmv.homepageRow("https://eroticmv.com/category/genre/ghost/"))
+    }
 }

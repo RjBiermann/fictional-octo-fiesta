@@ -84,3 +84,25 @@ sidebar "Trending Today" widget (which legitimately lists the current video, e.g
 now scopes chained selectors to the ancestor part (`.single-related-posts` subtree).
 _PROVIDER WAS NEVER WRONG_: site markup puts the self-card only in the sidebar widget.
 No provider change; counts gate unaffected; recorded here so later runs don't chase it.
+
+## Review round 2 — fixes applied
+
+- verify.sh `blocks()`: the chained branch unpacked `compile_simple(parts[0])` before its
+  None guard — a tag-less first part (`.single-related-posts article.post-item`, the
+  provider's own Kotlin selector shape) raised TypeError and, under `set -euo pipefail`,
+  aborted the whole gate. Guard now runs first (mirrors `count` → -1); offline self-check
+  added at `.pi/skills/verify-provider/scripts/verify_selfcheck.sh` (standalone, no network:
+  extracts PYDOM from verify.sh, asserts tag-less-ancestor degradation + scoped chaining). Ancestor-truncation ceiling documented in the
+  PYDOM header comment.
+- Eroticmv: homepage-row identity previously encoded twice (`homeUrlFor` literal and
+  `isFacet`'s `!= "$mainUrl/"`). Both now derive from one companion `homepageRow(data)`
+  predicate (test added); behavior unchanged.
+
+## Verification re-run (verify.sh, 2026-10-01, post-repair) — PASS bar intact
+
+All checks green with the repaired script (search `?s=body+heat` 11 cards; `/` and
+`/page/2/` 24 cards each; title agreement OK with `--search-title-selector h3` — the
+FINDINGS markup-shift correction above; chains scoped, no sidebar leak; 5/5 streams
+200/206 m3u8). Remaining FAIL: the poster crop mismatch (`1546036h-165x248.jpg` data-src
+vs `body-heat-2010.jpg` og:image) — the same theme-crop artifact adjudicated in FINDINGS
+321/497 and above; unchanged by this PR, not a regression.
