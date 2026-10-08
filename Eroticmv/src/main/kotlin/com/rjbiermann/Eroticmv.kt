@@ -52,6 +52,20 @@ class Eroticmv : MainAPI() {
             }
 
         /**
+         * Issue #517 (FINDINGS-517): homepage "Latest" row paginates via /page/N/
+         * (live-verified). Facet rows are 1-page (FINDINGS-497): page > 1 ⇒ null.
+         */
+        fun homeUrlFor(data: String, page: Int): String? = when {
+            page > 1 && homepageRow(data) -> "https://eroticmv.com/page/$page/"
+            page > 1 -> null
+            else -> data
+        }
+
+        /** Single source of truth for the homepage "Latest" row (issue #517 review round 2):
+         *  homeUrlFor and isFacet both derive from this — never encode it twice. */
+        fun homepageRow(data: String): Boolean = data == "https://eroticmv.com/"
+
+        /**
          * og:video:url comes in two shapes (FINDINGS 2026-09-11):
          * A: "http://<base64>.m3u8" → decode token directly.
          * B: "...?video_embed=<id>" → stream lives on the embed page's <source src> tag;
@@ -83,11 +97,13 @@ class Eroticmv : MainAPI() {
         *facets.map { key -> facetUrl(key) to facetTitle(key) }.toTypedArray()
     )
 
-    // Facet rows are 1-page: theme preloads the full facet; /page/2/ → 404 (FINDINGS-497)
-    private fun isFacet(request: MainPageRequest): Boolean = request.data != "$mainUrl/"
+    // Facet rows are 1-page: theme preloads the full facet; /page/2/ → 404 (FINDINGS-497).
+    // Derived from homepageRow — homeUrlFor is the one place the homepage URL literal lives.
+    private fun isFacet(request: MainPageRequest): Boolean = !homepageRow(request.data)
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val url = if (page > 1) "$mainUrl/page/$page/" else request.data
+        val url = homeUrlFor(request.data, page)
+            ?: return newHomePageResponse(HomePageList(request.name, emptyList()), hasNext = false)
         val document = app.get(url, referer = mainUrl).document
 
         val home = document.select("article.post-item").mapNotNull { it.toSearchResult() }

@@ -82,7 +82,10 @@ fail=0
 # ── python helper: selector counting / extraction / normalization / duplicate detection ──
 # ponytail: regex "DOM" — a card is the LAST selector part's opening tag through its closing
 # tag, so a card whose inner HTML contains another same-tag element truncates the block.
-# Upgrade to a real DOM walk if a false positive ever slips through.
+# Chained selectors match this per part: blocks() stops an ANCESTOR at its first closing tag
+# too, so a nested same-tag wrapper under the ancestor silently truncates the chain's subtree
+# (scoped cards < whole-page count). Upgrade to a real DOM walk if a false positive slips
+# through — until then `py cards` scoped counts are a lower bound, never an assertion on N.
 PYDOM=/tmp/verify_pydom.py
 cat > "$PYDOM" <<'PY'
 import re, sys, html as htmlmod, base64
@@ -123,8 +126,20 @@ def count_simple(tag, match, html):
     return n
 
 def blocks(html, sel):
-    """(attrs, inner) per element matching the LAST part of a (possibly chained) selector."""
-    tag, match = compile_simple(sel.split()[-1])
+    """(attrs, inner) per element matching the LAST part of a (possibly chained) selector,
+    scoped to the ancestors when the selector is chained."""
+    parts = sel.split()
+    part = compile_simple(parts[0])
+    if part is None:  # tag-less first part (.cls/#id) — degrade to empty, like `count` → -1
+        return
+    tag, match = part
+    if len(parts) > 1:
+        # scoped sweep: only consider subtrees that carry the ancestor part
+        for blk in re.finditer(rf'<{tag}\b([^>]*)>(.*?)</{tag}\s*>', html, re.S):
+            if match(blk.group(1)):
+                for a, inner in blocks(blk.group(2), ' '.join(parts[1:])):
+                    yield a, inner
+        return
     for blk in re.finditer(rf'<{tag}\b([^>]*)>(.*?)</{tag}\s*>', html, re.S):
         if match(blk.group(1)):
             yield blk.group(1), blk.group(2)
