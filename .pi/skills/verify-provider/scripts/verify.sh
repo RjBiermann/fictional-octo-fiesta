@@ -94,6 +94,11 @@ import re, sys, html as htmlmod, base64
 from urllib.parse import urlsplit
 
 def compile_simple(s):
+    # :not(.cls)/:not(#id) exclusion (issue #534: javtiful ad cards carry the same tag+class
+    # vocabulary as real cards — article.video-card:not(.video-card--partner)). jsoup-faithful,
+    # one simple selector per parentheses; unsupported forms are left as-is (count → -1).
+    nots = re.findall(r':not\((\.|#)([\w-]+)\)', s)
+    s = re.sub(r':not\([^)]*\)', '', s)
     m = re.match(r'([a-zA-Z][a-zA-Z0-9]*)((?:[.#][\w-]+|\[[^\]]+\])*)$', s)
     if not m:
         return None
@@ -119,6 +124,9 @@ def compile_simple(s):
                     if got != v: ok = False
             else:
                 if not re.search(rf'{re.escape(attr)}[=\s>]', attrs): ok = False
+        for kind, name in nots:
+            if kind == '.' and re.search(rf'class="[^"]*(?<![\w-]){re.escape(name)}(?![\w-])', attrs): ok = False
+            if kind == '#' and re.search(rf'\bid\s*=\s*["\'][^"\']*\b{re.escape(name)}\b', attrs): ok = False
         return ok
     return tag, match
 
@@ -132,7 +140,9 @@ def _true_block(html, start, end_open):
     """Inner HTML of the element whose opening tag ends at end_open, honoring same-tag
     nesting (depth starts at 1: the first <div> ... </div> pair inside the element
     must not end it) — mangoporn-style cards sit inside wrapper divs."""
-    tag = html[start:end_open].lstrip("<").split()[0].lower()
+    # tag from the opening tag's name only — tail.split()['0'] glues '>' onto attr-less tags
+    # (h1, a), breaking the closing-tag pair regex below (junk drifted in after </h1>)
+    tag = re.match(r'<([a-zA-Z][a-zA-Z0-9]*)', html[start:end_open]).group(1).lower()
     depth = 1
     p = end_open
     pair = re.compile(rf'<(/?){tag}\b[^>]*>', re.I | re.S)
@@ -215,8 +225,9 @@ def cards_html(html, selector, title_sel, poster_sel):
             href = sub_field(inner, 'a', 'href')
         title = sub_field(inner, title_sel, 'text') if title_sel else inner_text(inner)
         poster = sub_field(inner, poster_sel, 'src') if poster_sel else sub_field(inner, 'img', 'src')
-        if '/img/placeholder.png' in poster or poster.startswith('data:'):  # lazy-poster theme: real URL is in data-src
-            poster = sub_field(inner, poster_sel or 'img', 'data-src')
+        if poster.startswith('data:') or 'placeholder' in poster:  # lazy-poster themes: real URL lives in a data-* attr
+            poster = sub_field(inner, poster_sel or 'img', 'data-front-lazy-src') or \
+                     sub_field(inner, poster_sel or 'img', 'data-src')
         print(f'{href}\t{title}\t{poster}')
 
 def stream_urls(html):

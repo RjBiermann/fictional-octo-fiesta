@@ -11,6 +11,7 @@ import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import okhttp3.Request
 import org.jsoup.nodes.Element
+import org.jsoup.select.Elements
 
 // Page-URL builder for main-page rows; top-level (not on the MainAPI subclass) so its
 // unit test can run without the cloudstream stubs on the test runtime classpath.
@@ -21,6 +22,43 @@ fun pagedUrl(url: String, page: Int): String =
 fun isHls(src: String, mimeType: String?): Boolean =
     mimeType?.contains("mpegurl", ignoreCase = true) == true ||
         src.substringBefore('?').endsWith(".m3u8")
+
+// Pure redesign selectors (issue #534): the site dropped the whole `front-*` vocabulary.
+// Top-level so the unit tests run without the cloudstream stubs on the test classpath.
+
+/** Listing cards are article.video-card; partner ad cards carry video-card--partner. */
+fun videoCards(res: Element): Elements =
+    res.select("article.video-card:not(.video-card--partner)")
+
+/** Card title/href from a.video-card__title, poster from img[data-front-lazy-src]
+ *  (src is a placeholder svg — lazy only). Null drops the card. */
+fun videoCard(card: Element): Triple<String, String, String>? {
+    val link = card.selectFirst("a.video-card__title") ?: return null
+    val title = link.text().trim()
+    val href = link.attr("href").trim()
+    if (title.isEmpty() || href.isEmpty()) return null
+    val img = card.selectFirst("a.video-card__thumbnail img")
+    val poster = img?.attr("data-front-lazy-src")
+        ?.trim()?.takeIf { it.isNotEmpty() }
+        ?: img?.attr("src").orEmpty()
+    return Triple(title, href, poster)
+}
+
+/** Redesigned pagination: Next label on a.pagination__link, disabled as is-disabled. */
+fun hasNextPage(res: Element): Boolean =
+    res.select("a.pagination__link").any { it.text() == "Next" && !it.hasClass("is-disabled") }
+
+/** Year from the watch page's "Added on" datetime attribute. */
+fun addedOnYear(res: Element): Int? =
+    res.selectFirst("div.watch-detail:contains(Added on) time[datetime]")
+        ?.attr("datetime")?.split("-")?.firstOrNull()?.toIntOrNull()
+
+/** Categories watch-detail carries is-category chips, Tags carries plain ones. */
+fun watchTags(res: Element): List<String> =
+    res.select(
+        "div.watch-detail:contains(Categories) a.watch-link-chip, " +
+            "div.watch-detail:contains(Tags) a.watch-link-chip"
+    ).map { it.text().trim() }
 
 class Javtiful : MainAPI() {
     override var mainUrl = "https://javtiful.com"
@@ -64,10 +102,10 @@ class Javtiful : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = pagedUrl(request.data, page)
         val res = app.get(url).document
-        val home = res.select("article.front-video-card:not(.front-partner-card)").mapNotNull {
-            it.mainPageResults()
-        }.distinctBy { it.name } // site lists censored + reducing-mosaic variants of a code under one title
-        val hasNext = res.selectFirst("a.front-pagination-link:contains(Next)") != null
+        val cards = videoCards(res)
+        val home = cards.mapNotNull { it.mainPageResults() }
+            .distinctBy { it.name } // site lists censored + reducing-mosaic variants of a code under one title
+        val hasNext = hasNextPage(res)
         return newHomePageResponse(
             list = HomePageList(
                 name = request.name,
@@ -82,45 +120,31 @@ class Javtiful : MainAPI() {
         val url =
             if (page <= 1) "$mainUrl/search?q=$query" else "$mainUrl/search?page=$page&q=$query"
         val res = app.get(url).document
-        val results = res.select("article.front-video-card:not(.front-partner-card)").mapNotNull {
-            it.mainPageResults()
-        }.distinctBy { it.name } // same censored/reducing-mosaic variant dedupe
-        val hasNext = res.selectFirst("a.front-pagination-link:contains(Next)") != null
+        val results = videoCards(res).mapNotNull { it.mainPageResults() }
+            .distinctBy { it.name } // same censored/reducing-mosaic variant dedupe
+        val hasNext = hasNextPage(res)
         return newSearchResponseList(results, hasNext)
     }
 
     private fun Element.mainPageResults(): SearchResponse? {
-        val link = this.selectFirst("a.front-video-title") ?: return null
-        val title = link.text().trim()
-        val href = fixUrlNull(link.attr("href")) ?: return null
-        val img = this.selectFirst("img") ?: return null
-        val poster = fixUrlNull(img.attr("data-front-lazy-src").ifEmpty { img.attr("src") })
+        val (title, href, poster) = videoCard(this) ?: return null
         return newMovieSearchResponse(title, href, TvType.NSFW) {
-            this.posterUrl = poster
+            this.posterUrl = fixUrlNull(poster)
         }
     }
 
 
     override suspend fun load(url: String): LoadResponse? {
         val res = app.get(url).document
-        val title = res.selectFirst("div.front-watch-title h1")?.text()?.trim() ?: return null
+        val title = res.selectFirst("div.watch-title h1")?.text()?.trim() ?: return null
         val poster = res.selectFirst("meta[property=\"og:image\"]")?.attr("content")
 
         val recommendations =
-            res.select("div.front-video-grid-related article.front-video-card:not(.front-partner-card)")
-                .mapNotNull {
-                    val link = it.selectFirst("a.front-video-title") ?: return@mapNotNull null
-                    val rectitle = link.text().trim()
-                    val rechref = fixUrl(link.attr("href"))
-                    val img = it.selectFirst("img") ?: return@mapNotNull null
-                    val recposter = img.attr("data-front-lazy-src").ifEmpty { img.attr("src") }
+            res.select("div.video-grid.related-grid article.video-card")
+                .mapNotNull { it.mainPageResults() }
+                .distinctBy { it.name } // related grid repeats censored/reducing-mosaic variants
 
-                    newMovieSearchResponse(rectitle, rechref, TvType.NSFW) {
-                        this.posterUrl = fixUrlNull(recposter)
-                    }
-                }.distinctBy { it.name } // related grid repeats censored/reducing-mosaic variants
-
-        val actorslist = res.select("a.front-watch-actor-card").map {
+        val actorslist = res.select("a.watch-actor-card").map {
             val name = it.selectFirst("span")?.text()?.trim() ?: ""
             val image = it.selectFirst("img")?.attr("src")?.takeIf { img ->
                 img.isNotEmpty() && !img.contains("profile-placeholder.png")
@@ -128,9 +152,7 @@ class Javtiful : MainAPI() {
             Actor(name, fixUrlNull(image))
         }
 
-        val datetext =
-            res.selectFirst("div.front-watch-detail:contains(Added on) time")?.attr("datetime")
-        val year = datetext?.split("-")?.firstOrNull()?.toIntOrNull()
+        val year = addedOnYear(res)
         val duration = JsonLdParse.minutes(res.html())
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.duration = duration
@@ -138,9 +160,7 @@ class Javtiful : MainAPI() {
             this.plot =
                 res.selectFirst("meta[property=\"og:description\"]")?.attr("content")?.trim()
             this.year = year
-            this.tags =
-                res.select("div.front-watch-detail:contains(Categories) a, div.front-watch-detail:contains(Tags) a")
-                    .map { it.text().trim() }
+            this.tags = watchTags(res)
             this.recommendations = recommendations
             addActors(actorslist)
         }
@@ -152,12 +172,10 @@ class Javtiful : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val res = app.get(data).text
-        val configraw = res.substringAfter("id=\"frontWatchConfig\" type=\"application/json\">")
-            .substringBefore("</script>")
-
+        val res = app.get(data).document
+        val configraw = res.selectFirst("script#watch-config")?.data()
         val configdata = try {
-            mapper.readValue<WatchConfig>(configraw)
+            configraw?.let { raw -> mapper.readValue<WatchConfig>(raw) }
         } catch (e: Exception) {
             null
         }

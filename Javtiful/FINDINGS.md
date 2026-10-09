@@ -1,72 +1,61 @@
-# FINDINGS — javtiful.com (2026-09 audit; updated for issue #128; updated for issue #240)
+# FINDINGS — javtiful.com (2026-10-09 redesign probe, issue #534; prior state in FINDINGS-534.md and issue #128/#240 history)
 
-## Verdict: OK
+## Verdict: OK after the #534 selector refresh (site redesign 2026-10; `front-*` vocabulary dropped site-wide)
+
+Live saves referenced here (same run): `src/test/resources/javtiful-{home,home-page2,search,watch}.html`.
 
 ## Search
-- `https://javtiful.com/search?q=red` → 200; `article.front-video-card:not(.front-partner-card)` matches; `/video/112318/mngs-075`.
-- The card's title link is `a.front-video-title href="/video/…"` (href precedes class). Partner
-  ad cards (`article.front-video-card.front-partner-card`, one per listing page) carry an
-  external tracking href (`t.fluxtrck.site/c1/…`) — excluded in code via `:not(.front-partner-card)`,
-  excluded in verify.sh raw check via `a.front-video-title[href^="/video/"]`.
+- `https://javtiful.com/search?q=kana` → 200; `article.video-card:not(.video-card--partner)` matches.
+- Card title link: `a.video-card__title href="/video/..."`. Partner ad cards
+  (`article.video-card.video-card--partner`, one per listing page) carry an external
+  tracking href (`t.fluxtrck.site/c1/…`) — excluded in code via `:not(.video-card--partner)`,
+  excluded in verify.sh raw check via `a.video-card__title[href^="/video/"]`.
 
 ## Quick search
 - No distinct quick-search endpoint (hasQuickSearch = false).
 
 ## Homepage
 - Rows = `/videos` (Newest), `?sort=most_viewed`, `?sort=top_rated`, `/uncensored`, category rows.
-- Card selector: same as search; page 2 via `pagedUrl()` (`&page=N` on query rows) — verified
-  2026-09 (issue #207) and re-verified for #240: `/videos?page=2` → 200, 23 new cards.
-- Site quirk: listings contain the censored and reducing-mosaic releases of the same JAV code
-  under one identical title (e.g. `/video/107163/fit-007-reducing-mosaic` and `/video/107052/fit-007`);
-  provider dedupes by title (`distinctBy { it.name }`). verify.sh's raw duplicate-title check
-  flags these pairs although hrefs/posters/streams are distinct — known quirk, mitigated in code.
-- Partner ad card repeats across page 1 and page 2 in the raw HTML; the provider's
-  `:not(.front-partner-card)` filter removes it (verify.sh check passes with the href-prefix selector).
+- Card selector: same as search; page 2 via `pagedUrl()` (`&page=N` on query rows).
+  `/videos?sort=most_viewed&page=2` → 200, disjoint from page 1 (0 href overlap).
+- Pagination control: `a.pagination__link` (Next label; `is-disabled` = no more pages).
+- Site quirk (kept): listings contain censored and reducing-mosaic releases of one JAV code
+  under one identical title; provider dedupes by title (`distinctBy { it.name }`).
 
 ## Video pages
-- Watch page carries JSON-LD block with ISO-8601 duration: `"duration":"PT1H58M21S"`.
-  Player config `#frontWatchConfig` has no duration field; JSON-LD is the only per-video source.
-- Title: `div.front-watch-title h1` (no suffix; og:title carries a `| javtiful` suffix and is
-  truncated with `Destro...` — verify.sh agreement check uses `meta[property=og:image:alt]`,
-  which holds the full title without suffix; 2026-09-10 run).
+- Title: `div.watch-title h1` (no suffix; og:title carries a `| javtiful` suffix — verify.sh
+  agreement check uses the h1 selector, not og:title).
 - Poster: `meta[property=og:image]`. Plot: `meta[property=og:description]`.
-- Actors: `a.front-watch-actor-card` (site renders "Unknown" when there is none, then no card).
-- Tags/Categories: `a.front-watch-link-chip` blocks under `<strong>Tags:</strong>` /
-  `<strong>Categories:</strong>` in `div.front-watch-detail`.
-- Year: from "Added on:" `<time datetime>`; duration from the JSON-LD `PT…H…M…S` regex.
-  (verify.sh cannot extract attr/regex fields, so year/duration selectors are NOTEs; exposure
-  is asserted here in FINDINGS — the site exposes both.)
+- Actors: `a.watch-actor-card` (name in `span`, poster img; no placeholder case live now,
+  the placeholder filter in code is inert/harmless).
+- Categories: `div.watch-detail:contains(Categories) a.watch-link-chip.is-category`
+  (e.g. Married Woman). Tags: `div.watch-detail:contains(Tags) a.watch-link-chip` plain chips.
+- Year: `div.watch-detail:contains(Added on) time[datetime]` → ISO `2025-04-18T…`; split year.
+- Duration: JSON-LD VideoObject `duration` PT regex — still the only per-video source;
+  `#watch-config` has no duration. (verify.sh cannot extract attr/regex fields — year/duration
+  exposure asserted here.)
 
 ## Related videos
-- `div.front-video-grid-related article.front-video-card a.front-video-title` (12–21 cards).
-- Site quirk: some grids repeat the same card verbatim (same href+title, e.g. `rctd-701` twice
-  in avsa-457's grid); provider dedupes via `distinctBy { it.name }` — code covers it, raw
-  verify.sh check can express neither `:not` nor dedupe.
-- Some grids pair the censored + mosaic releases of one code under one title — provider dedupes.
+- `div.video-grid.related-grid article.video-card` (12–21 cards, same card shape as listings,
+  parsed by the same card helper). Provider dedupes by title (variants quirk above).
 
 ## Stream sources (per video page)
-- `id="frontWatchConfig" type="application/json">` JSON `playerSources[0].src=https://fast-stream.jav.si/p/<hex>`
-  with `"type":"video/mp4"`, `"size":720` → **206 video/mp4** (verified 2026-09-10 on 5 fresh videos).
-- Stream URLs are **extensionless** (/p/<hex>, no `.mp4` suffix).
-
-## Issue #240 root cause (fixed)
-- The stream is a plain MP4 at an extensionless URL. `loadLinks` chose the link type via
-  `source.src.contains(".mp4")` — always false → link flagged `ExtractorLinkType.M3U8` → ExoPlayer
-  parsed MP4 bytes as an HLS manifest → `parsing_manifest_malformed` (3002) / encoding error.
-- Fix: `isHls(src, mimeType)` (new pure helper, unit-tested red → green in `JavtifulLinkTypeTest`)
-  prefers the config's own MIME (`"video/mp4"` ⇒ VIDEO) and only reports HLS for an
-  `mpegurl` MIME or a `.m3u8` path. The config carries `type:"video/mp4"`; stream observed
-  206 video/mp4 with and without Referer/UA variations — headers are not required.
-- No site-side change vs the #128/#207 audit: search, listing, video pages, player config,
-  and stream all serve normally from the runner.
+- **`id="frontWatchConfig"` is gone** (renamed). Now `<script id="watch-config"
+  type="application/json">` with the same JSON schema: `playerSources[].src =
+  https://fast-stream.jav.si/p/<hex>`, `"type":"video/mp4"`, `"size":720` → MP4.
+  Provider extracts via jsoup `script#watch-config` + `.data()` (attribute-order-proof).
+- Stream URLs are **extensionless** (/p/<hex>, no `.mp4` suffix); type comes from the config
+  MIME — `isHls()` (issue #240 fix) unchanged and still correct.
 
 ## Headers / referer
-- Stream request verified 200/206 video/mp4 without headers, with default UA, with
-  `Referer: https://javtiful.com/`, and with `Referer: https://fast-stream.jav.si/` — none required.
-  Provider still sets `referer = "$mainUrl/"`, harmless.
+- Stream verified 206 video/mp4 from the runner without special headers (issue #240 record).
+  Provider sets `referer = "$mainUrl/"`, harmless.
 
 ## Pagination
-- Search: `?page=N&q=…` (provider form `/search?page=2&q=…` → 200, different cards).
-- Homepage: `?page=N` / `&page=N` (issue #207 fix). Related: fixed list per video, no pagination.
-- Malformed-URL curl transcript (site quirk, kept for the record): `?page=2` on a sorted URL
-  returns 200 with the default Newest listing — silent drift, no 4xx.
+- Search: `/search?page=N&q=…` (provider form). Homepage: `?page=N` / `&page=N`.
+  Related: fixed list per video, no pagination.
+
+## Fix record
+- Issues #534 (this run): selectors + `watch-config` id refresh in `Javtiful.kt`; pure Parse
+  helpers (`videoCards`, `videoCard`, `hasNextPage`, `addedOnYear`, `watchTags`) unit-tested
+  red→green in `JavtifulParseTest` against the live-save fixtures. Version bumped to 13.
