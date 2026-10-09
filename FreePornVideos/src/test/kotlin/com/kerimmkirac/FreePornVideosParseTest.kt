@@ -18,7 +18,8 @@ class FreePornVideosParseTest {
         Jsoup.parse(javaClass.classLoader.getResource("freepornvideos_video_93820265.html")!!.readText())
     }
 
-    private val bareDoc by lazy { doc.clone() } // mutable copies for stripping tests
+    /** Fresh clone per stripping test — a shared lazy clone makes strip-tests order-dependent. */
+    private fun bareDoc() = doc.clone()
 
     @Test fun `categories parse from the renamed hidden_tags cell`() {
         assertEquals(
@@ -47,12 +48,12 @@ class FreePornVideosParseTest {
     }
 
     @Test fun `duration falls back to json-ld PT duration when meta missing`() {
-        val d = bareDoc.apply { selectFirst("meta[property=video:duration]")?.remove() }
+        val d = bareDoc().apply { selectFirst("meta[property=video:duration]")?.remove() }
         assertEquals(31, FreePornVideosParse.duration(d)) // JSON-LD PT0H31M34S
     }
 
     @Test fun `duration absent everywhere yields null (never sentinel 0)`() {
-        val d = bareDoc.apply {
+        val d = bareDoc().apply {
             selectFirst("meta[property=video:duration]")?.remove()
             select("script[type=application/ld+json]").remove()
         }
@@ -64,7 +65,7 @@ class FreePornVideosParseTest {
     }
 
     @Test fun `year falls back to the title-tail date`() {
-        val d = bareDoc.apply { select("script[type=application/ld+json]").remove() }
+        val d = bareDoc().apply { select("script[type=application/ld+json]").remove() }
         assertEquals(2026, FreePornVideosParse.year(d, "Deprived And Horny / 09.10.2026"))
         assertNull(FreePornVideosParse.year(d, "Some Title Without A Date Suffix"))
     }
@@ -74,10 +75,13 @@ class FreePornVideosParseTest {
         assertEquals(0, doc.selectXpath("//div[contains(text(), 'Description:')]/em").size)
         assertEquals(0, doc.selectXpath("//div[contains(text(), 'Models:')]/a").size)
         assertEquals(0, doc.selectXpath("//span[contains(text(), 'Duration')]/em").size)
+        // Categories label lives inside a <span> now (fixture line ~1257) — the old
+        // div-text() xpath is dead on current markup too (spec-issue premise was stale)
+        assertEquals(0, doc.selectXpath("//div[contains(text(), 'Categories:')]/a").size)
     }
 
     @Test fun `cells with empty markup yield empty lists not throw`() {
-        val d = bareDoc.apply {
+        val d = bareDoc().apply {
             selectFirst("div.block-details")?.remove()
             selectFirst("meta[property=video:duration]")?.remove()
             select("script[type=application/ld+json]").remove()
@@ -89,7 +93,7 @@ class FreePornVideosParseTest {
     }
 
     @Test fun `bare title tail too short to be a year yields null`() {
-        val d = bareDoc.apply { select("script[type=application/ld+json]").remove() }
+        val d = bareDoc().apply { select("script[type=application/ld+json]").remove() }
         assertNull(FreePornVideosParse.year(d, "abc"))
     }
 }

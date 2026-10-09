@@ -43,7 +43,11 @@ og:description = "Full Length 😎 Starring Jovan Jordan and Mckenzie Mae. Resol
 
 Also found dead while probing (not in the issue, same rebuild): `div.rating span` →
 `<div class="rating positive "> 100% </div>` has no inner span; provider's rating read
-returned null on every page. Fixed in the same patch (one selector change, block text).
+returned null on every page. **Not fixed after review:** every `div.rating` block belongs
+to a related-video card, and the loaded video itself has no percentage rating — only a
+like/dislike vote widget (`rate-like`/`rate-dislike` spans, counts 2/0 on 93820265).
+Widening the selector read other videos' ratings on every load, so the rating read was
+dropped: `score` is now an honest null (vote-count parsing left as an upgrade path).
 
 Cross-video input values (5 pages, verify Distinct bar):
 
@@ -80,8 +84,10 @@ Cross-video input values (5 pages, verify Distinct bar):
   `DurationParse.fromSeconds`) with JSON-LD fallback (shared `JsonLdParse.minutes`), year
   from JSON-LD `uploadDate` with title-tail fallback, plus regression pins that the old
   xpaths match nothing on current markup.
-- `load()` swaps the four dead selects for the Parse calls; rating selector read from block
-  text. `this.duration` is now null-when-absent (never sentinel 0).
+- `load()` swaps the four dead selects for the Parse calls (all four xpaths pinned dead in the
+  test, including Categories). The rating read is dropped — no percentage rating exists for the
+  video itself, so `score` is an honest null. `this.duration` is now null-when-absent (never
+  sentinel 0).
 - Shared code untouched. `build.gradle.kts` version 11 → 12.
 
 ## verify.sh run (verify-provider skill) — see transcript notes
@@ -120,6 +126,15 @@ Run (2026-10-09, 5 video URLs from 3 listings):
 
 verify.sh exit code is 1 (the ad-tile FAIL line above); every other check passes. Recorded
 here as the tool-false-positive precedent, not hidden.
+
+Re-run after the review fixes (2026-10-09, same 5 video URLs + search/home p1/p2, fresh
+TLS-impersonated cookie jar): search 25 cards/page no dups, homepage 25 cards/page with
+only the ad-tile raw-dup FAIL line, video pages 5/5 with `source[src]`, related 16/page,
+all-or-none exposure (tags/actors/duration), **streams 14/14 → HTTP 206 video/mp4** (the
+shim's `-sL` cluster-arg and per-cookie-domain jar handling had to be fixed first — the
+get_file links redirect 302→signed fpvcdn URL and need the page session's cookies),
+search↔load agreement PASS (93404552 from the search page), LoadResponse completeness all
+fields populated. Same single false-positive FAIL, exit 1 — ad tile only.
 
 ## Status
 

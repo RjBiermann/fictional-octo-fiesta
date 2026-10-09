@@ -100,9 +100,10 @@ class FreePornVideos : MainAPI() {
         val recommendations = document.select("div#list_videos_related_videos_items div.item").mapNotNull { it.toSearchResult() }
 
         val year            = FreePornVideosParse.year(document, full_title)
-        // rating markup has no inner span on current markup (same rebuild) — read the block text
-        val rating          = document.selectFirst("div.rating")?.text()?.substringBefore("%")?.trim()?.toFloatOrNull()?.div(10)?.toString()
-
+        // No percentage rating on current markup: every div.rating block belongs to a
+        // related-video card and the video itself only has a like/disvote vote widget
+        // (#536 review, fixture 93820265) — honest null instead of a wrong cross-video score.
+        // ponytail: vote counts (rate-like/rate-dislike spans) could seed a score if wanted.
         val duration        = FreePornVideosParse.duration(document)
 
         return newMovieLoadResponse(title.removePrefix("- ").removeSuffix("-").trim(), url, TvType.NSFW, url) {
@@ -111,7 +112,6 @@ class FreePornVideos : MainAPI() {
             this.plot            = description
             this.tags            = tags
             this.recommendations = recommendations
-            this.score           = Score.from10(rating)
             this.duration        = duration
             addActors(actors)
         }
