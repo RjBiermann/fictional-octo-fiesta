@@ -77,7 +77,7 @@ class FreePornVideos : MainAPI() {
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
         val searchquery= query.createSlug() ?:""
-        val document = app.get("${mainUrl}/search/$searchquery/1/").document
+        val document = app.get("${mainUrl}/search/$searchquery/$page/").document // #533: paginate via the page field
         val aramaCevap = document.select("#custom_list_videos_videos_list_search_result_items > div.item").mapNotNull { it.toSearchResult() }
 
         return newSearchResponseList(aramaCevap, hasNext = true)

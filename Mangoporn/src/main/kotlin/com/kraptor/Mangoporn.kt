@@ -64,26 +64,14 @@ class Mangoporn : MainAPI() {
         )
     }
 
-    override suspend fun search(query: String): List<SearchResponse> {
-        val searchResponse = mutableListOf<SearchResponse>()
+    override suspend fun search(query: String, page: Int): SearchResponseList {
+        val document = app.get("$mainUrl/page/$page/?s=$query").document
 
-        for (i in 1..8) {
-            val document = app.get("$mainUrl/page/$i/?s=$query").document
+        // Same div.video-block card grammar as home (shared SearchCard)
+        val results = document.select("div.video-block")
+            .mapNotNull { searchCard(it, "a.infos", posterSel = "a.thumb img", titleAttr = "title") }
 
-            // Same div.video-block card grammar as home (shared SearchCard)
-            val results = document.select("div.video-block")
-                .mapNotNull { searchCard(it, "a.infos", posterSel = "a.thumb img", titleAttr = "title") }
-
-            if (!searchResponse.containsAll(results)) {
-                searchResponse.addAll(results)
-            } else {
-                break
-            }
-
-            if (results.isEmpty()) break
-        }
-
-        return searchResponse
+        return newSearchResponseList(results, hasNext = results.isNotEmpty())
     }
 
     override suspend fun load(url: String): LoadResponse {
