@@ -1,6 +1,7 @@
 package com.byayzen
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class JavseenParseTest {
@@ -53,5 +54,26 @@ class JavseenParseTest {
 
     @Test fun `null description yields empty`() {
         assertEquals(emptyList<String>(), JavseenParse.extractActors(null))
+    }
+
+    @Test fun `real duration meta converts seconds to minutes`() {
+        // live og:video:duration values probed 2026-10-09: /287521/ = 6840, /287520/ = 11400
+        assertEquals(114, JavseenParse.parseDuration("6840"))
+        assertEquals(190, JavseenParse.parseDuration("11400"))
+    }
+
+    @Test fun `sentinel-zero duration meta yields null`() {
+        // issue #539: /287527/ ships og:video:duration content="0"; the row
+        // must hide, not render as bogus "0 min"
+        assertNull(JavseenParse.parseDuration("0"))
+    }
+
+    @Test fun `sub-minute duration floors to null`() {
+        assertNull(JavseenParse.parseDuration("59"))
+    }
+
+    @Test fun `junk and absent duration yield null`() {
+        assertNull(JavseenParse.parseDuration("abc"))
+        assertNull(JavseenParse.parseDuration(null))
     }
 }

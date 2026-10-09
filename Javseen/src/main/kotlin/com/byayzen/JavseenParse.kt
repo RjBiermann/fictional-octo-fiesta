@@ -1,5 +1,7 @@
 package com.byayzen
 
+import com.kraptor.DurationParse
+
 /** Pure parse helpers for unit tests (ADR-0005). */
 object JavseenParse {
     /**
@@ -38,4 +40,10 @@ object JavseenParse {
             .distinct()
             .toList()
     }
+
+    /** og:video:duration is seconds; CloudStream duration is minutes. Sentinel-zero is
+     *  real on this site (issue #539: /287527/ ships content="0" — most pages carry true
+     *  values), so 0/junk must yield null and hide the row, not "0 min". The grammar
+     *  itself lives in the shared fixture-tested DurationParse module. */
+    fun parseDuration(seconds: String?): Int? = DurationParse.fromSeconds(seconds)
 }
