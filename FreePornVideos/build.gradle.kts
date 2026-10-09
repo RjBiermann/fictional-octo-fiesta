@@ -1,4 +1,4 @@
-version = 11 // FINDINGS-515: Vintage category row
+version = 12 // FINDINGS-515: Vintage category row
 
 cloudstream {
     authors     = listOf("kerimmkirac")

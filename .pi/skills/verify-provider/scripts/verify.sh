@@ -207,8 +207,14 @@ def url_path(u):
     return '' if p == '-' else p  # '-' placeholder = absent column value
 
 def cards_html(html, selector, title_sel, poster_sel):
-    """TSV href/title/poster per card. Default title = card text; default poster = first img."""
+    """TSV href/title/poster per card. Default title = card text; default poster = first img.
+    Iframe-bearing cards are native ad slots rendered inside content containers
+    (FreePornVideos 'item ourdreamai-native'); providers gate them
+    (toSearchResult drops iframe/title-less cards) — skip them so the ad's
+    same-href-every-page render can't fake-fail cross-page duplicate checks."""
     for attrs, inner in blocks(html, selector):
+        if '<iframe' in inner:  # KLUDGE (issue #536): narrow to an explicit gating selector if a site ships legitimate iframe cards
+            continue
         m = re.search(r'href\s*=\s*["\']([^"\']*)', attrs)
         href = m.group(1) if m else ''
         if not href:  # card root wraps the link (article.loop-post > a): take the inner a href
