@@ -11,7 +11,18 @@ import com.lagradost.cloudstream3.utils.*
 class Eroticmv : MainAPI() {
     companion object {
         // Stars block: .actor-element.single-element with <a href=".../actor/slug/" title="Name">
-        fun parseActors(document: Element): List<String> =
+/**
+ * Tags = the video's own category anchors (issue #538, FINDINGS-538.md 2026-10-09): the
+ * standalone VideoObject JSON-LD dropped articleSection; the static `.categories-elm`
+ * block mirrors the old values, exactly. Scoped to `.categories-elm`, not the nav palette.
+ */
+fun parseTags(document: Element): List<String>? {
+    val tags = document.select(".categories-elm a.category-item")
+        .map { it.text().trim() }.filter { it.isNotEmpty() }.distinct()
+    return tags.takeIf { it.isNotEmpty() }
+}
+
+fun parseActors(document: Element): List<String> =
             document.select(".actor-element.single-element a[href*='/actor/']")
                 .mapNotNull { it.attr("title").trim().takeIf { t -> t.isNotEmpty() } }
                 .distinct()
@@ -156,11 +167,10 @@ class Eroticmv : MainAPI() {
             .select(".single-related-posts article.post-item")
             .mapNotNull { it.toSearchResult() }
 
-        // JSON-LD articleSection = genres; release year from og:title "(1987)"
+        // tags: `.categories-elm` category anchors (issue #538 — VideoObject articleSection
+        // is gone from watch pages); release year from og:title "(1987)"
         // (datePublished is the WP posting date, not the release year — FINDINGS)
-        val jsonLd = document.selectFirst("script[type='application/ld+json']")?.data().orEmpty()
-        val raw = jsonLd.substringAfter("articleSection", "").substringAfter("[", "").substringBefore("]")
-        val tags = raw.split(",").map { it.trim('"', ' ') }.filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }
+        val tags = parseTags(document)
         val year = Regex("\\((\\d{4})\\)").find(title)?.groupValues?.get(1)?.toIntOrNull()
         val actors = parseActors(document)
 

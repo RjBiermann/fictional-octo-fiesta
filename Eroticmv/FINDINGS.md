@@ -14,7 +14,7 @@
 - home `/` + `/page/2/` → 24 cards each PASS
 - Shape A stream 206 m3u8 PASS; Shape B stream 200 m3u8 PASS (after fix)
 - related `.single-related-posts article.post-item` → 3 distinct recs PASS
-- fields: tags (JSON-LD articleSection), actors (`.actor-element.single-element`), plot (og:description), year (og:title "(YYYY)") all populated
+- fields: tags (`.categories-elm a.category-item` — VideoObject articleSection has left watch pages, see FINDINGS-538.md), actors (`.actor-element.single-element`), plot (og:description), year (og:title "(YYYY)") all populated
 - Note: search for `?s=milf` returns 1 post (was 2 in a prior run) — >0, no pagination, not a defect.
 
 ## verify.sh run 2026-09-11 (final config) — RESULT: PASS
