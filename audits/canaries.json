@@ -11,7 +11,7 @@
         "tls-impersonated": 200
       },
       "on_mismatch": "environment-degraded",
-      "last_verified": "2026-09-29"
+      "last_verified": "2026-10-09"
     },
     {
       "name": "eporner-healthy",
@@ -21,7 +21,7 @@
         "plain-curl": 200
       },
       "on_mismatch": "environment-degraded",
-      "last_verified": "2026-09-29"
+      "last_verified": "2026-10-09"
     },
     {
       "name": "pandamovies-redirect-origin",
@@ -32,7 +32,7 @@
         "tls-impersonated": 200
       },
       "on_mismatch": "expectation-stale",
-      "last_verified": "2026-09-29"
+      "last_verified": "2026-10-09"
     }
   ]
 }
