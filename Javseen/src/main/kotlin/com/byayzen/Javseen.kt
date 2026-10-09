@@ -153,9 +153,12 @@ class Javseen : MainAPI() {
         // "... and pornstar Hatano Yui and ..." / "type mosaic pornstar Momono Yume and ...".
         val actors = JavseenParse.extractActors(description).map { Actor(it) }
 
+        // Sentinel-zero pages exist live (issue #539): a zero/junk og:video:duration
+        // must yield null so the row hides — shared DurationParse gates it.
         val duration =
-            document.selectFirst("meta[property=og:video:duration]")?.attr("content")?.toIntOrNull()
-                ?.let { it / 60 }
+            JavseenParse.parseDuration(
+                document.selectFirst("meta[property=og:video:duration]")?.attr("content")
+            )
 
         val episodes = document.select("button.button_choice_server").mapNotNull { btn ->
             decodeBase64(btn.attr("data-embed"))
