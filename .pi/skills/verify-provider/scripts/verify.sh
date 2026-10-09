@@ -419,6 +419,7 @@ for i in "${!VIDEO_URLS[@]}"; do
   [[ -z "$vtitle" ]] && vtitle=$(py field "$VIDEO_TITLE_SEL" text "$F")  # h1.title-style page titles
   vposter=$(py field "$VIDEO_POSTER_SEL" content "$F")
   vplot=$(py field "$VIDEO_PLOT_SEL" content "$F")
+  [[ -z "$vplot" ]] && vplot=$(py field "$VIDEO_PLOT_SEL" text "$F")  # div-shaped plots (xmoviesforyou div.prose p, issue #535)
   vpath=$(py path "$VU")
   if [[ -z "$vtitle" ]]; then echo "FAIL video title missing ($VU)"; fail=1; fi
   # '-' placeholder: IFS=$'\t' read below collapses EMPTY fields, sliding plot text into
