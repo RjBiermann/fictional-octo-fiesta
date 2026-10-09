@@ -7,6 +7,7 @@ import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
+import org.jsoup.nodes.Document
 
 class HQPorner : MainAPI() {
     override var mainUrl              = "https://hqporner.com"
@@ -123,7 +124,7 @@ class HQPorner : MainAPI() {
         // og:image), so a library reload gets a null poster rather than a related card's cover.
         val parts = url.split("kraptor")
         val currentUrl = parts[0].trim()
-        val poster = parts.getOrNull(1)?.trim()
+        val feedPoster = parts.getOrNull(1)?.trim()
         val document = app.get(currentUrl, referer = "$mainUrl/", headers = mapOf("User-Agent" to desktopUa)).document
 
         val title           = document.selectFirst("h1")?.text()?.trim() ?: return null
@@ -138,7 +139,7 @@ class HQPorner : MainAPI() {
         val actors          = document.select("li.icon.fa-star-o a").map { Actor(it.text()) }
 
         return newMovieLoadResponse(title, currentUrl, TvType.NSFW, currentUrl) {
-            this.posterUrl       = poster
+            this.posterUrl       = feedPoster ?: playerPoster(document, currentUrl)
             this.posterHeaders   = mapOf(
                 "Referer" to "$mainUrl/",
                 "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
@@ -151,6 +152,19 @@ class HQPorner : MainAPI() {
             this.recommendations = recommendations
             addActors(actors)
         }
+    }
+
+    // ponytail: black details-page poster on plain/library loads (issue #518) — the video page
+    // embeds no image of the current video (no og:image, only other cards' covers). The player
+    // embed carries the video's own cover: hqwo iframe src has img=<b64 cover> (no extra fetch),
+    // mydaddy embed body has poster="//s62.bigcdn.cc/pubs/<key>/main.jpg". Null on any failure —
+    // feed loads keep the kraptor-embedded poster and pay no extra request.
+    private suspend fun playerPoster(document: Document, pageUrl: String): String? {
+        val iframe = fixUrlNull(document.selectFirst("iframe[src*=mydaddy], iframe[src*=hqwo]")?.attr("src")) ?: return null
+        val cover = PlayerPosterParse.fromSrc(iframe)
+        if (cover != null) return cover
+        val body = app.get(iframe, referer = pageUrl + "/", headers = mapOf("User-Agent" to FIREFOX_UA)).text
+        return PlayerPosterParse.fromBody(body)
     }
 
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
@@ -173,6 +187,25 @@ class HQPorner : MainAPI() {
         return true
     }
 }
+// Pure Parse (issue #518): resolve the current video's own cover from its player embed.
+// hqwo iframe src: ?img=<URL-encoded base64 of the cover url>; mydaddy embed body:
+// poster="//s62.bigcdn.cc/pubs/<key>/main.jpg" (the same CDN path shape the videos use).
+object PlayerPosterParse {
+    fun fromSrc(iframeSrc: String?): String? {
+        val b64 = Regex("[?&]img=([A-Za-z0-9+/=%]+)").find(iframeSrc.orEmpty())?.groupValues?.get(1)
+            ?.let { runCatching { java.net.URLDecoder.decode(it, "UTF-8") }.getOrNull() }
+            ?: return null
+        val cover = decodeBase64(b64) ?: return null
+        return if (cover.startsWith("//")) "https:$cover" else cover
+    }
+
+    fun fromBody(playerBody: String): String? {
+        val poster = Regex("poster=\\\\?\"([^\"\\\\]+)").find(playerBody)?.groupValues?.get(1)
+            ?: return null
+        return if (poster.startsWith("//")) "https:$poster" else poster
+    }
+}
+
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 class HQPornerPlugin: com.lagradost.cloudstream3.plugins.BasePlugin() {
     override fun load() {
