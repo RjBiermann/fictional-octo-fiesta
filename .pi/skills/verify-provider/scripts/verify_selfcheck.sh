@@ -37,4 +37,22 @@ grep -q '/sidebar/' <<<"$out" && { echo "FAIL: cards leaked outside the ancestor
 # 3. count of a tag-less selector → -1 (the graceful-dispatch shape blocks() must mirror)
 [[ "$(python3 "$PYDOM" count '.single-related-posts article.post-item' "$FIX")" == "-1" ]]
 
+# 4. mangoporn shape: card div nested inside a wrapper div whose first close comes after
+#    the card opens — old blocks() swallowed the card's opening tag entirely (0 rows).
+FIX2=$(mktemp /tmp/verify_selfcheck2_XXXX.html)
+cat > "$FIX2" <<'HTML'
+<div class="row">
+  <div class="col">
+    <div class="card"><a class="title" href="/one/">One</a><div class="bar"></div></div>
+  </div>
+  <div class="col">
+    <div class="card"><a class="title" href="/two/">Two</a><div class="bar"></div></div>
+  </div>
+</div>
+HTML
+trap 'rm -f "$FIX" "$FIX2"' EXIT
+out=$(python3 "$PYDOM" cards 'div.card' 'a.title' - "$FIX2")
+grep -q '/one/' <<<"$out" || { echo "FAIL: nested wrapper card /one/ not found"; exit 1; }
+grep -q '/two/' <<<"$out" || { echo "FAIL: nested wrapper card /two/ not found"; exit 1; }
+
 echo "RESULT: PASS"
