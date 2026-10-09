@@ -1,4 +1,4 @@
-version = 12 // #536: details-block rebuild — Pornstars/plot/duration behind tested Parse seam
+version = 13 // #533: search paginates via the page field (was hardcoded /1/)
 
 cloudstream {
     authors     = listOf("kerimmkirac")

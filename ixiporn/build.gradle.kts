@@ -1,4 +1,4 @@
-version = 25
+version = 26 // #533: search is page-field paginated (was legacy self-looping 1..10)
 
 cloudstream {
     authors     = listOf("Phisher98")

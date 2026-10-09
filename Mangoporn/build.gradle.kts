@@ -1,4 +1,4 @@
-version = 3
+version = 4 // #533: search is page-field paginated (was legacy self-looping 1..8)
 
 cloudstream {
     authors     = listOf("kraptor", "ByAyzen", "HindiProvider")

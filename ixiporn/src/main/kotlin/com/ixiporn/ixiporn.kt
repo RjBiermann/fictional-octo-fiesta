@@ -49,25 +49,13 @@ class ixiporn : MainAPI() {
     // Card grammar lives in the shared SearchCard Parse function (title from a.infos[title],
     // poster a.thumb>img lazyload); emission (fixUrl + newMovieSearchResponse) via searchCard.
 
-    override suspend fun search(query: String): List<SearchResponse> {
-        val searchResponse = mutableListOf<SearchResponse>()
+    override suspend fun search(query: String, page: Int): SearchResponseList {
+        val document = app.get("${mainUrl}/page/$page?s=$query").document
 
-        for (i in 1..10) {
-            val document = app.get("${mainUrl}/page/$i?s=$query").document
+        val results = document.select("div.col-12.col-md-4.col-lg-3.col-xl-3 > div.video-block")
+            .mapNotNull { searchCard(it, "a.infos", titleAttr = "title", posterSel = "a.thumb > img") }
 
-            val results = document.select("div.col-12.col-md-4.col-lg-3.col-xl-3 > div.video-block")
-                .mapNotNull { searchCard(it, "a.infos", titleAttr = "title", posterSel = "a.thumb > img") }
-
-            if (!searchResponse.containsAll(results)) {
-                searchResponse.addAll(results)
-            } else {
-                break
-            }
-
-            if (results.isEmpty()) break
-        }
-
-        return searchResponse
+        return newSearchResponseList(results, hasNext = results.isNotEmpty())
     }
 
     override suspend fun load(url: String): LoadResponse {
