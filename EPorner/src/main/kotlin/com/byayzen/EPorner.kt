@@ -13,12 +13,17 @@ import org.jsoup.nodes.Element
 import java.math.BigInteger
 
 /**
- * Pure Parse function for page-URL construction (TDD seam, issue #293).
+ * Pure Parse function for page-URL construction (TDD seams, issues #293 and #537).
  *
- * Segment-style list rows (`/most-viewed/`, `/longest/`) 301-redirect their
- * suffix-paginated form (`/most-viewed/2/` → `/most-viewed/`, i.e. page 1 again);
- * the site paginates them as `/2/<list>/`. Other rows (root, top-rated, tags,
- * cats) paginate as `<path>/<n>/`. Both forms verified live 2026-09-11.
+ * #293 (probe 2026-09-11): segment-style list rows (`/most-viewed/`, `/longest/`)
+ * 301-redirect their suffix-paginated form (`/most-viewed/2/` → `/most-viewed/`, page 1
+ * again); the site paginates them as `/2/<list>/`. Other rows (root, top-rated, tags, cats)
+ * paginate as `<path>/<n>/`.
+ *
+ * #537 (probe 2026-10-10): `/search/<q>/<n>/` 301s in two legs to the tag base
+ * (`/search/<q>/` → `/search/<q>-<hash>/` → `/tag/<q>/`) — the page number never survives,
+ * so every in-app search page rendered page-1 duplicates. `/tag/<q>/<n>/` paginates
+ * correctly (p1∩p2: 0 of 65 card ids), so search routes pages ≥ 2 through `/tag/<q>/<n>/`.
  */
 object EPornerParse {
     private val swapSegments = setOf("most-viewed", "longest")
@@ -27,9 +32,15 @@ object EPornerParse {
         if (page <= 1) return baseUrl
         val trimmed = baseUrl.trimEnd('/')
         val first = trimmed.substringAfterLast('/')
-        return if (baseUrl.count { it == '/' } >= 4 && first in swapSegments)
-            "https://www.eporner.com/$page/$first/"
-        else "$trimmed/$page/"
+        // Search branch must precede the swap branch: a query slug like "most-viewed"
+        // satisfies the swap guard but must route to /tag/<q>/<page>/, not the home list.
+        return when {
+            trimmed.startsWith("https://www.eporner.com/search/", ignoreCase = true) ->
+                "https://www.eporner.com/tag/$first/$page/"
+            baseUrl.count { it == '/' } >= 4 && first in swapSegments ->
+                "https://www.eporner.com/$page/$first/"
+            else -> "$trimmed/$page/"
+        }
     }
 }
 
@@ -61,7 +72,7 @@ class EPorner : MainAPI() {
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
         val formattedQuery = query.replace(" ", "-")
-        val url = if (page <= 1) "$mainUrl/search/$formattedQuery/" else "$mainUrl/search/$formattedQuery/$page/"
+        val url = EPornerParse.pageUrl("$mainUrl/search/$formattedQuery/", page)
         val results = app.get(url).document.select("div#vidresults div.mb").mapNotNull { searchCard(it, "p.mbtit a", posterSel = "div.mbimg img") }
         return newSearchResponseList(results, true)
     }

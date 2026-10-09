@@ -1,5 +1,5 @@
 // ! Bu araç @ByAyzen tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 17 // FINDINGS-515: Vintage category row
+version = 18 // FINDINGS-537: search pages 2+ route through the tag pagination surface
 
 cloudstream {
     authors     = listOf("ByAyzen")

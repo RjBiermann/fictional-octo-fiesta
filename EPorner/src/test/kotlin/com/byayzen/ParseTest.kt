@@ -34,6 +34,15 @@ class ParseTest {
     @Test fun `page one is the request url untouched`() =
         assertEquals("https://www.eporner.com/most-viewed/", EPornerParse.pageUrl("https://www.eporner.com/most-viewed/", 1))
 
-    @Test fun `unknown top-level segments do not swap`() =
-        assertEquals("https://www.eporner.com/search/foo/2/", EPornerParse.pageUrl("https://www.eporner.com/search/foo/", 2))
+    @Test fun `search page one is the request url untouched`() =
+        assertEquals("https://www.eporner.com/search/sex/", EPornerParse.pageUrl("https://www.eporner.com/search/sex/", 1))
+
+    // --- search pagination (issue #537): /search/<q>/<n>/ 301s to /tag/<q>/ (base, page 1),
+    // --- while /tag/<q>/<n>/ paginates correctly — route search through the tag path.
+    @Test fun `search pages 2+ route through the tag path`() {
+        assertEquals("https://www.eporner.com/tag/sex/2/", EPornerParse.pageUrl("https://www.eporner.com/search/sex/", 2))
+        assertEquals("https://www.eporner.com/tag/sex/3/", EPornerParse.pageUrl("https://www.eporner.com/search/sex/", 3))
+        // search branch outranks the #293 swap branch even for swap-named query slugs
+        assertEquals("https://www.eporner.com/tag/most-viewed/2/", EPornerParse.pageUrl("https://www.eporner.com/search/most-viewed/", 2))
+    }
 }
