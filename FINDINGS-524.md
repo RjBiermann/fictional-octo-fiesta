@@ -162,3 +162,93 @@ Javtiful, XMoviesForYou, FreePornVideos, EPorner, Eroticmv, Javmost, Neporn, Wat
 - FreePornVideos: `ok-suspected` → `ok` (site healthy TLS-wide, KVS anti-leech class retired à la FullPorner); #536 linked.
 - Eroticmv: `ok` stays; #538 linked. Javseen: `ok` stays; #539 linked. Mangoporn/ixiporn/Film1k/Javbangers/PandaMovies: unchanged drift states re-confirmed.
 - `last_deep`: no stamps moved this run — deep-tier **stream resolution** was not executed (field/selector deepening only); rotating deep remains due from the next run.
+
+---
+
+## Run 9 — rotating deep tier (2026-10-09, branch `devloop/issue-524`, PR #551)
+
+**Artifacts only, no provider code changes.** Probe IP: US datacenter (CI runner).
+Instrument tiers: plain curl (`audits/sweep524.sh`) + one-off probes; TLS = curl_cffi
+chrome impersonation. Raw probe dumps were captured during probing and deliberately
+**deleted before delivery** — evidence enters the tree only as excerpts in this file
+(no raw scraped HTML in the repo; each dump carries untrusted ad/tracker scaffolding).
+
+### Phase 0 — canary calibration
+
+All 3 canaries **MATCH** (re-probed 2026-10-09 this run): film1k pair plain 403 / TLS 200,
+eporner plain 200, pandamovies.pw plain 302→pandamovies.org 200. Instrument healthy — no
+degradation, no Blocked downgrades.
+
+### Phase 1 — full fleet sweep re-run
+
+`audits/sweep524.sh` re-executed live 2026-10-09: all 26 providers home+search probed.
+**24/26 clean 200s including search.** Only sweep-URL artifacts (not provider paths):
+`javbangers.com/search/sex/1/` → 404 and `/search/sex/2/` → 404, while the provider's
+actual p1 URL `/search/sex/` → 200 (sweep script paginated — provider does not; standing
+#475 unchanged); `javmost.ws/showlist2/all/1/` (no trailing bucket) → 301→404 while
+`/showlist2/{group}/1/{type}/` → 200 (run-8 URLs already correct for the provider). No new
+drift surfaced fleet-wide; run-8 verdicts stand for every provider not deep-covered below.
+
+### Phase 2 — rotating deep tier (oldest unstamped per registry)
+
+Sites deep-covered this run (full surfaces: home rows, search pagination p1 vs p2, ≥3
+video pages where applicable, stream resolution). Evidence via excerpts below; the four
+raw dump references (`emv*`, `ixi`, `mng*`) map to the URLs cited.
+
+**Eroticmv — healthy end-to-end, post-#538/#538-fix state re-verified:**
+- Home 200: 24 `article.post-item` cards + 44 `a class="blog-img"` links + `img[data-src]`
+  posters (`https://eroticmv.com/wp-content/uploads/2026/10/high_school_fantasies-165x248.jpg`).
+- Search 200 (`/?s=sex`, same card grammar).
+- 3 watch pages 200: `/tokyo-nights-2025/`, `/cheaters-2024/`, `/babyface-1977/` — each has
+  `.categories-elm` (tags source, per the merged #538 fix), `/actor/` anchors
+  (`alessandra-cruz`, `aerol-carmelo`, `rudy-graham` → actors alive), og:title/og:image/og:description.
+- **JSON-LD `articleSection` is BACK on all 3 sampled watch pages** (
+  `"articleSection":["2020s","Asian Erotica","Philippines","Swinging","Threesome"]` on
+  tokyo-nights-2025) — #538's absent condition is intermittent/healed site-side; the
+  provider's `.categories-elm` path covers tags either way. #538 stays open for maintainer.
+- **Stream resolved and serves video**: watch pages carry base64 `og:video:url`
+  (`content="http://aHR0cHM6...ubTN1OA==.m3u8"` → decode `https://vidcdn2.eroticmv.com/dat1/cheaters2024/cheaters2024.m3u8`)
+  → GET = 200, `application/octet-stream`, 27,802 bytes starting `#EXTM3U` (tokyo-nights m3u8
+  also 200, 41,249 bytes).
+
+**ixiporn — healthy, standing #468 unchanged:**
+- `.org` → `.live` double redirect still live (home 200 after 2 hops).
+- Search page 2 200: `https://ixiporn.live/search/sex?page=2` — 30 `div.video-block` cards
+  in `div.col-12.col-md-4…` wrappers with `a class="infos" href="https://ixiporn.live/…" title="…"`
+  matching the provider's `searchCard` grammar exactly; provider URL `/page/2?s=sex` also 200.
+- Watch page `/big-boobs-mom-hard-sex-2026-niksindian-uncut-porn-video` 200:
+  `meta itemprop="duration" content="P0DT1H10M3S"`, `meta itemprop="uploadDate"
+  content="2026-10-08T21:14:01+05:30"` — provider duration/year grammar matches live.
+
+**Mangoporn — PRE-#525-fix parse-dead condition is HEALED (merged fix verified live):**
+- Home 200: 83 `video-block` hits, card anchor `<a class="infos" href="https://mangoporn.net/movies/…">`
+  — matches the merged `searchCard(a.infos, a.thumb img)` grammar (was 0-card on run 7).
+- Search p1 (`/?s=sex`, 85 cards) + p2 (`/page/2/?s=sex`, 85 cards), disjoint listings
+  ("Page 1 of 883" → "Page 2 of 883"), pagination working.
+- 3 watch pages 200: `/movies/major-creampie/`, `/movies/an-insatiable-sex-goddess/`,
+  `/movies/bi-sex-is-best/` — `div.video-title h1`, JSON-LD `"duration": "PT00H18M"` /
+  `PT00H55M` / `PT2H3M`, `"uploadDate": "2026-06-28T…"`, `div#video-actors` with
+  `/genre/` (13) `/pornstar/` (13) `/year/` (15) anchors, `div.video-description`, and
+  `#pettabs` embed targets (doply.net, luluvid.com, mixdrop.my — extractor path). All
+  provider load() selectors match live markup.
+
+### Phase 3 — findings lifecycle
+
+1. **No genuinely new conditions found** — no new issues filed this run (0 findings).
+2. **Standing issues updated (evidence comments, no duplicates):**
+   - **#468 ixiporn** — double-redirect re-confirmed (fresh transcript), search p1/p2 + cards alive.
+   - **#525 Mangoporn** — post-fix verification comment: merged card grammar parses live home/search p1/p2; load fields + pettabs embeds intact.
+   - **#538 Eroticmv** — site-side heal evidence posted (articleSection back on 3/3 sampled pages).
+3. Javbangers #475: provider URL behavior unchanged (p1 `/search/sex/` only); the 404s in the
+   sweep grid are script artifact, no drift recurrence.
+4. False positives this run: **0**.
+
+### Registry deltas (run 8 → run 9)
+
+- Mangoporn: `ok-drift` → `ok` (post-#525-fix verified against live markup); `issue` link kept as #525 for history.
+- Eroticmv / ixiporn / Mangoporn: `last_deep` = 2026-10-09. Remaining oldest unstamped
+  rotation (next run): PandaMovies, XMoviesForYou, Film1k, FreePornVideos, FullPorner, EPorner.
+
+### Artifacts
+- `FINDINGS-524.md` (this run-9 section), `audits/findings.json` (run9 entry + provider deltas), `audits/canaries.json` (`last_verified` = 2026-10-09), live sweep transcript via `audits/sweep524.sh`.
+- `audits/check-findings` gate: PASS (run before commit).
