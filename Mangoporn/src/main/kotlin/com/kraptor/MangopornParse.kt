@@ -2,7 +2,8 @@
 // Pure logic only — HTTP flows stay covered by pipeline Verification.
 // Title filter: Mangoporn's dirty-word blocklist + the "Home menu boars"
 // extra words, one regex built once. Duration: "2 hrs 5 mins" clock grammar.
-// Pettab extraction: the div#pettabs > ul a embed links from a load page.
+// Pettab extraction: the div#pettabs anchor links (Rtable watch/download tabs) from a
+// load page, file lockers filtered out.
 package com.kraptor
 
 object MangopornParse {
@@ -27,9 +28,17 @@ object MangopornParse {
     /** File-locker hosts loadLinks skips (rapidgator/nitroflare-style download links). */
     private val blockedHosts = listOf("rapidgator.net", "nitroflare.com", "uploaded.net", "filefactory.com")
 
-    /** Embed links from the stream tabs (`div#pettabs > ul a[href]`), file lockers filtered out. */
+    /** Embed links from the watch tabs (`div#pettabs a[href]`), file lockers filtered out. */
     fun embedLinks(document: org.jsoup.nodes.Document): List<String> =
-        document.select("div#pettabs > ul a").map { it.attr("href") }
+        document.select("div#pettabs a").map { it.attr("href") }
             .filter { it.isNotEmpty() }
             .filterNot { link -> blockedHosts.any { link.contains(it) } }
+
+    /** The page's JSON-LD VideoObject script text (schema.org metadata: duration, thumbnailUrl). */
+    fun videoLdJson(document: org.jsoup.nodes.Document): String? =
+        document.selectFirst("script[type=application/ld+json]:containsData(VideoObject)")?.data()
+
+    /** JSON-LD `thumbnailUrl` when the site serves a real URL — absent/blank on some video pages. */
+    fun thumbnail(jsonLd: String?): String? = jsonLd
+        ?.let { Regex("\"thumbnailUrl\"\\s*:\\s*\"([^\"]+)\"").find(it)?.groupValues?.get(1) }
 }

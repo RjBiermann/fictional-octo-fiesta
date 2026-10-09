@@ -63,6 +63,8 @@ while [[ $# -gt 0 ]]; do
     --stream-quality-attr) QUALITY_ATTR="$2"; shift 2;;
     --related-selector) RELATED_SELECTOR="$2"; shift 2;;
     --provider-src) PROVIDER_SRC="$2"; shift 2;;
+    --user-agent) HEADERS=(-A "$2"); shift 2;;  # mirror the provider/extractor runtime UA
+                          # (verification must match the app's plain-HTTP runtime, ADR-0008)
     --load-response) LOAD_RESPONSE="$2"; shift 2;;
     --header) HEADERS+=(-H "$2"); shift 2;;
     *) usage;;
@@ -99,7 +101,8 @@ def compile_simple(s):
     def match(attrs):
         ok = True
         for cls in re.findall(r'\.([\w-]+)', rest):
-            if not re.search(rf'class="[^"]*\b{re.escape(cls)}\b', attrs): ok = False
+            # jsoup-faithful class token: video-block must not match video-block-happy
+            if not re.search(rf'class="[^"]*(?<![\w-]){re.escape(cls)}(?![\w-])', attrs): ok = False
         for i in re.findall(r'#([\w-]+)', rest):
             if not re.search(rf'\bid\s*=\s*["\'][^"\']*\b{re.escape(i)}\b', attrs): ok = False
         for attr in re.findall(r'\[([^\]]+)\]', rest):
@@ -125,9 +128,28 @@ def count_simple(tag, match, html):
         if match(blk.group(1)): n += 1
     return n
 
+def _true_block(html, start, end_open):
+    """Inner HTML of the element whose opening tag ends at end_open, honoring same-tag
+    nesting (depth starts at 1: the first <div> ... </div> pair inside the element
+    must not end it) — mangoporn-style cards sit inside wrapper divs."""
+    tag = html[start:end_open].lstrip("<").split()[0].lower()
+    depth = 1
+    p = end_open
+    pair = re.compile(rf'<(/?){tag}\b[^>]*>', re.I | re.S)
+    m = pair.search(html, p)
+    while m:
+        depth += -1 if m.group(1) else 1
+        if depth == 0:
+            return html[end_open:m.start()]
+        p = m.end()
+        m = pair.search(html, p)
+    return html[end_open:]
+
 def blocks(html, sel):
     """(attrs, inner) per element matching the LAST part of a (possibly chained) selector,
-    scoped to the ancestors when the selector is chained."""
+    scoped to the ancestors when the selector is chained. Same-tag-nested aware: a card
+    div nested inside a wrapper div is found even though the wrapper's first close comes
+    after the card's opening tag."""
     parts = sel.split()
     part = compile_simple(parts[0])
     if part is None:  # tag-less first part (.cls/#id) — degrade to empty, like `count` → -1
@@ -135,14 +157,26 @@ def blocks(html, sel):
     tag, match = part
     if len(parts) > 1:
         # scoped sweep: only consider subtrees that carry the ancestor part
-        for blk in re.finditer(rf'<{tag}\b([^>]*)>(.*?)</{tag}\s*>', html, re.S):
-            if match(blk.group(1)):
-                for a, inner in blocks(blk.group(2), ' '.join(parts[1:])):
-                    yield a, inner
+        for a, inner in blocks(html, parts[0]):
+            if match(a):
+                for x, sub in blocks(inner, ' '.join(parts[1:])):
+                    yield x, sub
         return
-    for blk in re.finditer(rf'<{tag}\b([^>]*)>(.*?)</{tag}\s*>', html, re.S):
-        if match(blk.group(1)):
-            yield blk.group(1), blk.group(2)
+    pos = 0
+    while True:
+        i = html.find("<" + tag, pos)
+        if i < 0:
+            return
+        j = html.find('>', i)
+        if j < 0:
+            return
+        j += 1
+        if not re.match(rf'<{tag}\b', html[i:j], re.I):  # e.g. <divscan> when tag=div
+            pos = i + 2
+            continue
+        if match(html[i + len("<" + tag):j - 1]):
+            yield html[i + len("<" + tag):j - 1], _true_block(html, i, j)
+        pos = i + 2
 
 def inner_text(s):
     s = re.sub(r'<[^>]+>', ' ', s)
@@ -169,7 +203,8 @@ def url_path(u):
     u = htmlmod.unescape((u or '').strip().replace('\\/', '/'))
     if u.startswith('//'):
         u = 'https:' + u
-    return urlsplit(u).path.rstrip('/') or u
+    p = urlsplit(u).path.rstrip('/') or u
+    return '' if p == '-' else p  # '-' placeholder = absent column value
 
 def cards_html(html, selector, title_sel, poster_sel):
     """TSV href/title/poster per card. Default title = card text; default poster = first img."""
@@ -285,6 +320,11 @@ check_listing() {  # $1=urls-array-name $2=prefix $3=selector $4=title_sel $5=po
   for i in "${!_urls[@]}"; do
     SU="${_urls[$i]}"; F="/tmp/verify_${prefix}_$i.html"
     code=$(curl -sL "${HEADERS[@]}" -o "$F" -w '%{http_code}' --max-time 30 "$SU") || code="ERR"
+    # site emits transient 502s/ERRs (FINDINGS notes re-fetch resolves); retry once
+    if [[ "$code" == ERR || "$code" == 5* ]]; then
+      sleep 3
+      code=$(curl -sL "${HEADERS[@]}" -o "$F" -w '%{http_code}' --max-time 30 "$SU") || code="ERR"
+    fi
     n=$(py count "$sel" "$F")
     echo "GET $SU → $code; '$sel' matches: $n"
     if [[ "$code" == ERR ]] || ! [[ "$code" =~ ^2 && $n -ge 1 ]]; then
@@ -366,6 +406,10 @@ V_TSV=/tmp/verify_videos.tsv   # id \t urlpath \t title \t poster \t plot
 for i in "${!VIDEO_URLS[@]}"; do
   VU="${VIDEO_URLS[$i]}"; F="/tmp/verify_video_$i.html"
   code=$(curl -sL "${HEADERS[@]}" -o "$F" -w '%{http_code}' --max-time 30 "$VU") || code="ERR"
+  if [[ "$code" == ERR || "$code" == 5* ]]; then  # transient 502 wall: one retry
+    sleep 3
+    code=$(curl -sL "${HEADERS[@]}" -o "$F" -w '%{http_code}' --max-time 30 "$VU") || code="ERR"
+  fi
   n=$(py count "$STREAM_SELECTOR" "$F")
   echo "GET $VU → $code; '$STREAM_SELECTOR' matches: $n"
   if [[ "$code" == ERR ]]; then echo "FAIL video page ($VU)"; fail=1
@@ -377,7 +421,9 @@ for i in "${!VIDEO_URLS[@]}"; do
   vplot=$(py field "$VIDEO_PLOT_SEL" content "$F")
   vpath=$(py path "$VU")
   if [[ -z "$vtitle" ]]; then echo "FAIL video title missing ($VU)"; fail=1; fi
-  printf '%s\t%s\t%s\t%s\t%s\n' "video$i" "$vpath" "$vtitle" "$vposter" "$vplot" >> "$V_TSV"
+  # '-' placeholder: IFS=$'\t' read below collapses EMPTY fields, sliding plot text into
+  # the poster slot and fake-failing check 5; '-' keeps the column count stable
+  printf '%s\t%s\t%s\t%s\t%s\n' "video$i" "$vpath" "$vtitle" "${vposter:--}" "${vplot:--}" >> "$V_TSV"
 
   # ── streams: every extracted URL (≤5) must serve video ──
   # --stream-url override (position-matched): for sites whose streams are JS-built at play
@@ -507,7 +553,8 @@ while IFS=$'\t' read -r vid vpath vtitle vposter vplot; do
   if [[ "$ctitle" != "$vtitle" ]]; then
     echo "FAIL title mismatch for $vpath: search='$ctitle' load='$vtitle'"; fail=1
   fi
-  if [[ -n "$cposter" && -n "$vposter" && "$(py path "$cposter")" != "$(py path "$vposter")" ]]; then
+  # '-' = absent column value (placeholder written at line 414 so empty columns survive read)
+  if [[ -n "$cposter" && "$vposter" != '-' && -n "$vposter" && "$(py path "$cposter")" != "$(py path "$vposter")" ]]; then
     echo "FAIL poster mismatch for $vpath: search='$cposter' load='$vposter'"; fail=1
   fi
 done < "$V_TSV"
