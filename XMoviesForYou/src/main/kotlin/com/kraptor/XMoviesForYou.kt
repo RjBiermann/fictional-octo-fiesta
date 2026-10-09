@@ -5,7 +5,6 @@ package com.kraptor
 import com.kraptor.registerHostExtractors
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.lagradost.api.Log
-import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
@@ -64,29 +63,23 @@ class XMoviesForYou : MainAPI() {
         }
 
         val sayfa = app.get(link).document
-        val icerik = sayfa.select("a.group.flex.flex-col").mapNotNull { it.toMainPageResult() }
-
+        // Card grammar per FINDINGS-535: home carousel + home/category grid + /new-search cards
+        // — Parse.cards dedupes cross-carousel repeats by href
+        val veri = XMoviesForYouParse.cards(sayfa)
         return newHomePageResponse(
             list = HomePageList(
                 name = request.name,
-                list = icerik,
+                list = veri.map { it.toSearchResponse() },
                 isHorizontalImages = true
             ),
             hasNext = true
         )
     }
 
-    private fun Element.toMainPageResult(): SearchResponse? {
-        val baslikelementi = this.selectFirst("h3")
-        val asilbaslik = baslikelementi?.text()?.trim() ?: return null
-        val baslik = asilbaslik.replace(Regex("""\[.*?\]"""), "").trim()
-        val adres = fixUrlNull(this.attr("href")) ?: return null
-        val afis = fixUrlNull(this.selectFirst("img")?.attr("src"))
-
-        return newMovieSearchResponse(baslik, adres, TvType.NSFW) {
-            this.posterUrl = afis
+    private fun XmfyCard.toSearchResponse(): SearchResponse =
+        newMovieSearchResponse(title, fixUrl(href), TvType.NSFW) {
+            posterUrl = fixUrlNull(poster)
         }
-    }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
         val link = if (page == 1) {
@@ -96,7 +89,7 @@ class XMoviesForYou : MainAPI() {
         }
 
         val sayfa = app.get(link).document
-        val sonuclar = sayfa.select("a.group.flex.flex-col").mapNotNull { it.toMainPageResult() }
+        val sonuclar = XMoviesForYouParse.cards(sayfa).map { it.toSearchResponse() }
 
         return newSearchResponseList(sonuclar, hasNext = true)
     }
