@@ -42,5 +42,7 @@ class ParseTest {
     @Test fun `search pages 2+ route through the tag path`() {
         assertEquals("https://www.eporner.com/tag/sex/2/", EPornerParse.pageUrl("https://www.eporner.com/search/sex/", 2))
         assertEquals("https://www.eporner.com/tag/sex/3/", EPornerParse.pageUrl("https://www.eporner.com/search/sex/", 3))
+        // search branch outranks the #293 swap branch even for swap-named query slugs
+        assertEquals("https://www.eporner.com/tag/most-viewed/2/", EPornerParse.pageUrl("https://www.eporner.com/search/most-viewed/", 2))
     }
 }

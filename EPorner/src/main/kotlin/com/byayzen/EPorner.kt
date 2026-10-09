@@ -32,11 +32,13 @@ object EPornerParse {
         if (page <= 1) return baseUrl
         val trimmed = baseUrl.trimEnd('/')
         val first = trimmed.substringAfterLast('/')
+        // Search branch must precede the swap branch: a query slug like "most-viewed"
+        // satisfies the swap guard but must route to /tag/<q>/<page>/, not the home list.
         return when {
-            baseUrl.count { it == '/' } >= 4 && first in swapSegments ->
-                "https://www.eporner.com/$page/$first/"
             trimmed.startsWith("https://www.eporner.com/search/", ignoreCase = true) ->
                 "https://www.eporner.com/tag/$first/$page/"
+            baseUrl.count { it == '/' } >= 4 && first in swapSegments ->
+                "https://www.eporner.com/$page/$first/"
             else -> "$trimmed/$page/"
         }
     }

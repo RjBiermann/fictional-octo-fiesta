@@ -61,8 +61,15 @@ pagination surface.
 
 - `li.vit-pornstar.starw a` and `span.valor a` are gone from watch pages; JSON-LD `VideoObject.actor` is absent — `actors` is empty site-side (provider already falls back to og:description; no data to add).
 - `og:description` on watch pages no longer carries the "Starring:"/"X. Duration" comma variant either; more data is simply not exposed.
-- No `&amp` HTML-entity breakdown observed (issue #536/#534's real pattern — `&asin=` became `&asin=` — does not reproduce under the new `/search/<q>-<hash>/` → `/tag/<q>/` scheme).
-- `It` was not a bot (no user-agent flag); reported quotes existed but not for provider actions.
+- No `&amp` HTML-entity breakdown observed on the probed surfaces; this run surfaced no entity-encoding issue.
+
+## Evidence sufficiency (probe classes beyond the spec's `sex` query)
+
+The generalization `/search/<q>/<n>/` → `/tag/<q>/<n>/` was additionally probed per query class
+(2026-10-10):
+
+- Known multi-word tag: `/search/big-tits/` → 301 → `/search/big-tits-J7dYfwwv/`; `/tag/big-tits/2/` → 200 with 65 cards — the tag path paginates for hyphenated queries.
+- No-matching-tag query: `/search/zzxqno123/` → 301 → `/tag/zzxqno123/` (HTTP 404, empty "0 videos" body); `/tag/zzxqno123/2/` → 404. The site itself has no such tag, and the previous route (`/search/<q>/<page>/` redirect-followed) landed on the same empty `/tag/<q>/` body — so no regression: an empty search still yields an empty (404-status) page either way.
 
 ## Side note (not from this issue's audit run, but observed while probing)
 
@@ -73,12 +80,12 @@ variant does not tilt this bug; unrelated).
 
 - #293 — segment-swap pagination (`/2/<list>/` for most-viewed / longest).
 - #533 — page-field request for tag pages (see issue). Closed as already working at that time; this issue is adjacent but about the tag-vs-search ranking, not the page field.
-- #536 — category rows: `&amp` entity encoding (see repo finding; field audit only).
+- #536 — FreePornVideos details-block rebuild (registry: audits/findings.json); unrelated to EPorner, listed here only for adjacency review.
 
 ## Chosen fix
 
-`EPornerParse.pageUrl` maps `/search/<q>/` → (`/tag/<q>/` for page 1, `/tag/<q>/<page>/` for
-pages ≥ 2). Page 1 stays as the natural URL the site itself redirects to. All other rows keep
+`EPornerParse.pageUrl` maps pages ≥ 2 of `/search/<q>/` → `/tag/<q>/<page>/`; page 1 stays as
+the request URL (`/search/<q>/`, which the site itself redirect-follows to the tag view). All other rows keep
 their existing behavior (root as-is; segment-swap rows per #293; other lists path-suffix per
 site as probed above, including `/tag/sex/<page>/` and `/cat/<x>/<page>/`).
 
