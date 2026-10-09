@@ -247,7 +247,7 @@
     "Cat3Movie": {
       "site": "cat3movie.org",
       "verdict": "ok",
-      "reason": "search 200 with /movie links (2026-09-29)",
+      "reason": "search 200 with /movie links (2026-10-09); deep 2026-10-09 video-page rollout: og fields present, no JSON-LD/duration on site, provider covers all exposed fields",
       "tier": "plain-curl",
       "surfaces": {
         "home": "200",
@@ -257,7 +257,8 @@
       "issue": null,
       "standing_issue": null,
       "drift_confirmed": 0,
-      "chronic": false
+      "chronic": false,
+      "last_deep": "2026-10-09"
     },
     "Eroticmv": {
       "site": "eroticmv.com",
@@ -296,7 +297,7 @@
     "JavGuru": {
       "site": "jav.guru",
       "verdict": "ok",
-      "reason": "home/search/video 200; stream via javmiku base64 iframe (extractor path) (2026-09-29)",
+      "reason": "home/search/video 200; stream via javmiku base64 iframe (extractor path); deep 2026-10-09: 3 video pages 200, site exposes Release Date + tags, no og: meta, provider markup-parse consistent",
       "tier": "plain-curl",
       "surfaces": {
         "home": "200",
@@ -306,7 +307,8 @@
       "issue": null,
       "standing_issue": null,
       "drift_confirmed": 0,
-      "chronic": false
+      "chronic": false,
+      "last_deep": "2026-10-09"
     },
     "Javbangers": {
       "site": "www.javbangers.com",
@@ -389,17 +391,18 @@
     "Neporn": {
       "site": "neporn.com",
       "verdict": "ok",
-      "reason": "search/video 200; get_file 403 bare (session-bound cookie flow, known) (2026-09-29)",
+      "reason": "search/video 200; get_file 403 bare (session-bound cookie flow, known); deep 2026-10-09: async search 24 items, video page 200 with Duration/tags/models exposure — provider covers all exposed fields",
       "tier": "plain-curl",
       "surfaces": {
         "home": "200",
-        "search": "200",
+        "search": "200 (24 async items)",
         "video": "200"
       },
       "issue": null,
       "standing_issue": null,
       "drift_confirmed": 0,
-      "chronic": false
+      "chronic": false,
+      "last_deep": "2026-10-09"
     },
     "PerverZija": {
       "site": "tube.perverzija.com",
@@ -466,7 +469,7 @@
     "WatchPorn": {
       "site": "watchporn.to",
       "verdict": "ok",
-      "reason": "search 200 (/video/<id>/ cards); get_file returns 37-byte anti-leech gif for non-session replay — session-bound flow as run 3 (2026-09-29)",
+      "reason": "search 200 (/video/<id>/ cards); get_file 37-byte anti-leech gif for non-session replay (session-bound flow); deep 2026-10-09: 3 video pages 200, KVS kt_player + JSON-LD — provider covers all exposed fields",
       "tier": "plain-curl",
       "surfaces": {
         "home": "200",
@@ -476,7 +479,8 @@
       "issue": null,
       "standing_issue": null,
       "drift_confirmed": 0,
-      "chronic": false
+      "chronic": false,
+      "last_deep": "2026-10-09"
     },
     "Xhamster": {
       "site": "xhamster.com",
