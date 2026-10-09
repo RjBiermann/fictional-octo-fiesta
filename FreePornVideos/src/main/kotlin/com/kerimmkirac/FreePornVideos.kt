@@ -92,27 +92,19 @@ class FreePornVideos : MainAPI() {
         val title           = raw_title.removePrefix("- ").trim().removeSuffix("-").trim()
 
         val poster          = fixUrlNull(document.selectFirst("[property='og:image']")?.attr("content"))
-        val tags            = document.selectXpath("//div[contains(text(), 'Categories:')]/a").map { it.text() }
-        val description     = document.selectXpath("//div[contains(text(), 'Description:')]/em").text().trim()
-        val actors          = document.selectXpath("//div[contains(text(), 'Models:')]/a").map { it.text() }
+        // #536: details block rebuilt (Description:/Models: cells gone; Pornstars rename; duration
+        // meta/JSON-LD only) — all parsing now behind the ADR-0005-tested FreePornVideosParse seam.
+        val tags            = FreePornVideosParse.tags(document)
+        val description     = FreePornVideosParse.plot(document).orEmpty()
+        val actors          = FreePornVideosParse.actors(document)
         val recommendations = document.select("div#list_videos_related_videos_items div.item").mapNotNull { it.toSearchResult() }
 
-        val year            = full_title.substring(full_title.length - 4).toIntOrNull()
-        val rating          = document.selectFirst("div.rating span")?.text()?.substringBefore("%")?.trim()?.toFloatOrNull()?.div(10)?.toString()
-
-        val raw_duration    = document.selectXpath("//span[contains(text(), 'Duration')]/em").text().trim()
-        val duration_parts  = raw_duration.split(":")
-        val duration        = when (duration_parts.size) {
-            3 -> {
-                val hours   = duration_parts[0].toIntOrNull() ?: 0
-                val minutes = duration_parts[1].toIntOrNull() ?: 0
-
-                hours * 60 + minutes
-            }
-            else -> {
-                duration_parts[0].toIntOrNull() ?: 0
-            }
-        }
+        val year            = FreePornVideosParse.year(document, full_title)
+        // No percentage rating on current markup: every div.rating block belongs to a
+        // related-video card and the video itself only has a like/disvote vote widget
+        // (#536 review, fixture 93820265) — honest null instead of a wrong cross-video score.
+        // ponytail: vote counts (rate-like/rate-dislike spans) could seed a score if wanted.
+        val duration        = FreePornVideosParse.duration(document)
 
         return newMovieLoadResponse(title.removePrefix("- ").removeSuffix("-").trim(), url, TvType.NSFW, url) {
             this.posterUrl       = poster
@@ -120,7 +112,6 @@ class FreePornVideos : MainAPI() {
             this.plot            = description
             this.tags            = tags
             this.recommendations = recommendations
-            this.score           = Score.from10(rating)
             this.duration        = duration
             addActors(actors)
         }
