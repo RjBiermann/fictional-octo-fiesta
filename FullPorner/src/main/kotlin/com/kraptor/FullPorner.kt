@@ -52,6 +52,27 @@ class FullPorner(private val context: Context) : MainAPI() {
     // as the CloudflareInterceptor inner class it replaces.
     private val interceptor      by lazy { cfChallenge(cloudflareKiller) }
 
+    companion object {
+        /** ISSUE #530 defect 1: plot comes from meta[name=description], with the site's
+            fixed " on fullporner.com, the best full length porn site." suffix stripped
+            (evidence: FINDINGS-530.md — every probed page carries only this summary).
+            Originally read the same `h2` as title, so plot duplicated the title. */
+        private const val DESC_SUFFIX = " on fullporner.com, the best full length porn site."
+
+        fun parsePlot(document: org.jsoup.nodes.Document): String? {
+            val raw = document.selectFirst("meta[name=description]")?.attr("content")?.trim()
+                ?: return null
+            return if (raw.endsWith(DESC_SUFFIX)) raw.removeSuffix(DESC_SUFFIX) else raw
+        }
+
+        /** ISSUE #530 defect 2: the "Pornstar:" cell is present-but-empty on pornstar-less
+            pages — blank anchor texts must not ship as empty-string actors (FINDINGS-530.md). */
+        fun parseActors(document: org.jsoup.nodes.Document): List<String> =
+            document.select("div.video-block div.single-video-left div.single-video-info-content p a")
+                .map { it.text().trim() }
+                .filter { it.isNotBlank() }
+    }
+
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get("${request.data}${page}", interceptor = interceptor).document
         val home     = document.select("div.video-block div.video-card").mapNotNull { searchCard(it, "div.video-card-body div.video-title a", posterSel = "div.video-card-image a img") }
@@ -242,17 +263,14 @@ class FullPorner(private val context: Context) : MainAPI() {
         val posterAl         = app.get(poster, referer = "https://xiaoshenke.net/", allowRedirects = true).url
 
         val tags            = document.select("div.video-block div.single-video-left div.single-video-title p.tag-link span a").map { it.text() }
-        val description     = document.selectFirst("div.video-block div.single-video-left div.single-video-title h2")?.text()?.trim().toString()
-        val actors          = document.select("div.video-block div.single-video-left div.single-video-info-content p a").map { it.text() }
         val recommendations = document.select("div.video-block div.video-recommendation div.video-card").mapNotNull { searchCard(it, "div.video-card-body div.video-title a", posterSel = "div.video-card-image a img") }
-
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl       = posterAl
             this.posterHeaders   = mapOf("Referer" to "https://xiaoshenke.net/")
-            this.plot            = description
+            this.plot            = parsePlot(document)
             this.tags            = tags
             this.recommendations = recommendations
-            addActors(actors)
+            addActors(parseActors(document))
         }
     }
 
