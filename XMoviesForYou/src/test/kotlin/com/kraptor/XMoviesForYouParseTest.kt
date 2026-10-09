@@ -92,5 +92,6 @@ class XMoviesForYouParseTest {
         )
         val c = XMoviesForYouParse.parse(doc.selectFirst("a")!!)!!
         assertNull(c.poster)
+        assertEquals("Kai Yonder (2026)", c.title) // no studio bracket -> pass-through, regex strips nothing
     }
 }
