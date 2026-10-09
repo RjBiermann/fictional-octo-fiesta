@@ -99,6 +99,14 @@
       ],
       "false_positives": [],
       "note": "run 8 (issue 524 re-fire, same day as run 7): targeted field-exposure deepening, listing/watch markup re-mapped live. Canaries 3/3 match (re-checked same day). Findings: #534 Javtiful full redesign (all front-* selectors dead), #535 XMoviesForYou listing selectors dead (watch page OK), #536 FreePornVideos details-block rename kills Description/Models/Duration parsing, #537 EPorner /search/<q>/<N>/ redirects collapse pages 2+ to /tag/<q>/ p1, #538 Eroticmv JSON-LD articleSection gone (tags empty), #539 Javseen og:video:duration content=\"0\" sentinel. Standing #525 re-confirmed (fresh transcript posted). Xhamster year Lead re-proven, still unfiled. No last_deep stamps moved (deep-tier stream resolution not run this run). 0 false positives."
+    },
+    {
+      "id": "run9",
+      "date": "2026-10-09",
+      "pr": 551,
+      "findings": [],
+      "false_positives": [],
+      "note": "run 9 (issue 524 re-fire, PR #551): full fleet sweep re-run (26/26, all ok vs run-8 verdicts; sweep-script URL artifacts only: javbangers /search/sex/<N> 404 on script prefix, provider p1 URL fine; javmost script URL missing bucket piece, provider paths 200). Rotating deep tier completed for Eroticmv, ixiporn, Mangoporn (home+search pagination+3 video pages+stream resolution where applicable). No genuinely new conditions \u2014 0 new issues; standing #468/#525/#538 updated with live evidence comments. No new drift; canaries 3/3 match. Raw probe HTML deletes from repo per FINDINGS-only ground-truth rule."
     }
   ],
   "providers": {
@@ -119,32 +127,36 @@
     },
     "Mangoporn": {
       "site": "mangoporn.net",
-      "verdict": "ok-drift",
-      "reason": "origin healed: home/search 200 incl. /page/2 (plain curl) \u2014 but provider parser matches 0 cards against live markup; embed targets enumerate (doply/lulustream/mixdrop, extractor path); new condition #525 filed 2026-10-09 (standing #464 closed/healed)",
+      "verdict": "ok",
+      "reason": "post-#525 fix verified live 2026-10-09: home 83 video-block a.infos cards, search p1+p2 85/85 disjoint (/page/2/?s), 3 watch pages 200 with JSON-LD duration (PT00H18M/PT00H55M/PT2H3M), div#video-actors /genre//pornstar//year/ anchors, div.video-description, #pettabs doply/luluvid/mixdrop embeds \u2014 all provider selectors match",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200",
-        "search": "200 (0 cards parsed)",
-        "video": "embed targets enumerated, not playback-verified"
+        "home": "200 (24+ cards)",
+        "search": "200 p1+p2 disjoint",
+        "video": "200 x3",
+        "stream": "embeds enumerated (extractor path)"
       },
       "issue": 525,
       "standing_issue": 525,
       "drift_confirmed": 1,
-      "chronic": false
+      "chronic": false,
+      "last_deep": "2026-10-09"
     },
     "ixiporn": {
       "site": "ixiporn.org",
       "verdict": "ok-drift",
-      "reason": "search 200 after .org->.live double-redirect (standing #468 re-confirmed 2026-09-29); 30 video-block cards",
+      "reason": "standing #468 (.org->.live double redirect) re-confirmed 2026-10-09; search /search/sex?page=2 200 with 30 video-block cards on provider grammar (a.infos title attr), provider /page/2?s=sex URL also 200; watch page 200 with meta itemprop duration P0DT1H10M3S + uploadDate 2026-10-08",
       "tier": "plain-curl",
       "surfaces": {
         "home": "200 (double redirect)",
-        "search": "200 (30 cards)"
+        "search": "200 p1+p2 (30 cards)",
+        "video": "200"
       },
       "issue": 468,
       "standing_issue": 468,
       "drift_confirmed": 0,
-      "chronic": false
+      "chronic": false,
+      "last_deep": "2026-10-09"
     },
     "XMoviesForYou": {
       "site": "xmoviesforyou.com",
@@ -293,19 +305,19 @@
     "Eroticmv": {
       "site": "eroticmv.com",
       "verdict": "ok",
-      "reason": "deep re-run 2026-09-29: rows clean, og:video:b64 -> vidcdn2 m3u8 200; open gap #497 (homepage facets); NEW 2026-10-09: JSON-LD articleSection absent 3/3 watch pages -> provider tags empty (#538 filed); actor-element /actor/ anchors + og:title year still healthy",
+      "reason": "run-9 deep 2026-10-09 post-#538-fix: home/search 24 article.post-item + a.blog-img cards, 3 watch pages 200 with .categories-elm tags + /actor/ anchors + og metas alive; JSON-LD articleSection BACK on 3/3 sampled pages (intermittent/healed site-side, #538 stays open); stream RESOLVED: b64 og:video:url -> vidcdn2 m3u8 GET 200 #EXTM3U 27.8KB/41.2KB",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200",
+        "home": "200 (24 cards)",
         "search": "200",
-        "video": "200",
-        "stream": "200 m3u8"
+        "video": "200 x3",
+        "stream": "200 m3u8 #EXTM3U"
       },
       "issue": 538,
       "standing_issue": 497,
       "drift_confirmed": 0,
       "chronic": false,
-      "last_deep": "2026-09-29"
+      "last_deep": "2026-10-09"
     },
     "HQPorner": {
       "site": "hqporner.com",
