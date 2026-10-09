@@ -113,5 +113,52 @@ Source-level inventory (`grep` field population vs live exposure) — gaps verif
 - Cat3Movie, JavGuru, Neporn, WatchPorn: `last_deep` = 2026-10-09
 
 ## Artifacts
-- `FINDINGS-524.md` (this file), `audits/findings.json` (run7 entry + provider deltas), `audits/canaries.json` (Phase 0 `last_verified` = 2026-10-09), `audits/sweep524.sh` (sweep transcript script, incl. Mangoporn search + /page/2 and Javbangers p1/p2 probes)
+- `FINDINGS-524.md` (this file), `audits/findings.json` (run7 + run8 entries + provider deltas), `audits/canaries.json` (Phase 0 `last_verified` = 2026-10-09), `audits/sweep524.sh` (sweep transcript script, incl. Mangoporn search + /page/2 and Javbangers p1/p2 probes)
 - `audits/check-findings` gate: PASS (run before commit)
+
+---
+
+## Run 8 — same-day re-fire (2026-10-09, branch `devloop/issue-524`, after PR #528 merge)
+
+Run 7 had already landed and merged; this pass widened the details-field audit. **No provider code changed on this run — artifacts only.** Probe IP: US datacenter (CI runner), same as run 7. Canaries re-checked same day: 3/3 match (film1k pair 403/200, eporner 200, pandamovies 302→.org 200) — instrument healthy.
+
+Live-probed this run (plain curl unless noted; TLS = curl_cffi chrome impersonation, `impersonate.sh` + curl_cffi installed):
+Javtiful, XMoviesForYou, FreePornVideos, EPorner, Eroticmv, Javmost, Neporn, WatchPorn, Sexfilm, Mangoporn, Javbangers, ixiporn, FullPorner, Cat3Film, Cat3Movie, Javseen, Xhamster, PerverZija, PornXP, Porntrex spot-checks.
+
+### Findings filed (all unlabeled — humans apply trigger labels)
+
+| # | Provider | Condition (live-verified) |
+|---|---|---|
+| #534 | **Javtiful** | Full site redesign: every `front-*` selector (`article.front-video-card`, `a.front-video-title`, `div.front-watch-title h1`, `div.front-watch-detail`, `a.front-watch-actor-card`, `a.front-pagination-link`) dead. Live: `article.video-card` / `a.video-card__title` / `div.watch-title h1` / `div.watch-detail` («Added on» `<time datetime>`) / `a.watch-actor-card` / `a.pagination__link`. JSON-LD VideoObject (duration, uploadDate) + og metas still healthy; stream path unchanged. Home/search/related return 0 cards; `load()` nulls at title gate. |
+| #535 | **XMoviesForYou** | `a.group.flex.flex-col` dead on home (33 new cards: `a[data-video-card].flex-none.w-64…`) and search (24: `a.card`, title `h3.title`); watch-page selectors all alive (h1, calendar chip date, `/category/`, `/pornstar/`, `div.prose p`). Plain curl still 403 CF (canary-consistent); TLS 200. |
+| #536 | **FreePornVideos** | Details block rebuilt: `Description:` / `Models:` / `Duration` xpaths dead; live now `Channel: / Network: / Categories: / Pornstars:` inside `div.hidden_tags`; duration only in `meta[property=video:duration]` (10995 s) + JSON-LD (PT3H3M, uploadDate 2015-07-17); title-tail date branch stale. Listings still healthy (24 `div.item`). Verdict stays `ok` (FullPorner pattern), issue linked. |
+| #537 | **EPorner** | `/search/sex/<N>/` (N=1..3) all 301/302 → base `/tag/sex/` — numbered search pages collapse to **page-1 results** while provider reports `hasNext`. `/tag/sex/<N>/` paginates correctly (≈59/58/59 cards, 0 p1/p2 overlap) and carries the provider's expected card markup (`div#vidresults div.mb`, `p.mbtit a`). Runtime probe found no age-wall from this runner IP (200s across home/tag/watch). Site-side note: no actor exposure anywhere on watch pages (`li.vit-pornstar`, `span.valor`, JSON-LD `actor`, og:description comma-variant all gone) — empty `actors` is not provider-parseable. |
+| #538 | **Eroticmv** | JSON-LD `articleSection` absent on 3/3 sampled watch pages (`tokyo-nights-2025`, `any-and-every-which-way-2010`, `a-road-to-viabra-s1-ep-1-2020`) → provider `tags` = empty. Watch pages still expose 156 `/category/` anchors, `/actor/` stars anchors (8/page, `parseActors` alive), og:title year regex alive. Distinct from standing open #497 (homepage facet breadth). |
+| #539 | **Javseen** | Watch-page `meta[property=og:video:duration] content="0"` (sampled `/287527/…` 200) → `duration = 0` sentinel populates a bogus "0 min". One-guard fix; `Release Day: 2019-10-12`, AJAX search, listing cards all fine. |
+
+### Standing issues updated (evidence comments, no duplicates)
+
+- **#525 Mangoporn** — fresh transcript posted: home/`?s=sex`/`/page/2/?s=sex` all 200 with 48 `div.video-block thumbs-rotation` cards (`a.thumb`/`a.infos`); provider's `article`-based search and `div.items > article` getMainPage match 0; load-page `div.data`/`span.textco`/`div.persons`/`og:image`-class markup replaced by `video-content-row` (`video-about`, `video-actors`, `/pornstar/`, `/year/2015`, JSON-LD duration/uploadDate, `#pettabs` doodstream/doodapi/lulustream embed tables). Drift-recurrence note (closed #464 ≙1, #456/#33 drift-class, now #525) re-flagged — edge of Chronic per AGENTS.md.
+- **#475 Javbangers** — drills re-read this run: search pages carry 75 `video-item` cards (earlier 400 report superseded); watch-page details showed **Duration `<em class="badge"></em>` empty site-side** (Views and Submitted badges filled; no absolute date, only "5 years ago"), `div.videodesc` description present, Categories links present, href-less tag anchors. Provider sets tags/year/plot; site exposes no duration/actor data → not provider-parseable. #475 (p2+ 404) stays standing, untouched.
+- **#496 Film1k** — not re-tested at stream level this run; sweep rows already healthy.
+
+### Re-verified healthy (no findings, no drift)
+
+- **Javmost** — `/showlist2/search/1/sex/` JSON fine (full metadata case `length/genre/release/maker`, `star:null`); watch page `div.card-block` present, `card-text` carries Release date / Time minutes / Genre `/category/` links — `Parse.cardBlock` fields (year/duration/tags) all match live. No `/star/` links exist on the watch page (nav-only pornstar links) → `actors` empty is site-side, not a gap.
+- **Neporn** — home 200 3 video links sane; async search 24 items; watch `/video/40231/…` 200: JSON-LD VideoObject uploadDate 2026-05-29 + `duration PT0H25M12S`, `div.added`/`div.views (2.0K)`. Provider covers year/actors/tags.
+- **WatchPorn** — `/video/111410/…` 200: JSON-LD VideoObject uploadDate 2024-11-06 + duration PT1H14M11S; `single__info-row` cells Studio/Categories/Models/Tags all alive; provider covers categories/models/plot/duration/year (=JSON-LD uploadDate year). Observation (not filed): a live `Tags:` row sits unharvested alongside Categories — cosmetic dup field at most.
+- **Sexfilm** — home 200; `/movies/` 200 with 24 `div.short nl nl2` cards (`a.short-poster`, `a.th-title`, `img[data-src]`); watch `11755-sexual-healing.html` 200: `h1#s-title`, `div#s-desc`, `meta[itemprop=duration]` PT4279S, `span.gv a[href*=/watch/year/1994/]` (year alive), Casting `watch/name/` (9 links), `meta[itemprop=genre]` "HD porn movies , Vintage", 25 `div.short` cards incl. `div.sect-c` recommendations — every provider field parses live. Deep-checked, clean.
+- **ixiporn** — `.org` → `.live` double redirect still live (standing #468); watch page 200: `#video-tags` present, `meta[itemprop=duration]` P0DT0H19M48S, `meta[itemprop=uploadDate]` 2026-10-09T08:41:13+05:30 — provider fields (tags by id, JSON-ld grammar minutes, year from uploadDate) all match live.
+- **FullPorner** — TLS 200; `/search?q=sex` 24 cards; watch page `tag-link` + `single-video-info-content` (empty `Pornstar:` cell as documented in open #530).
+- **Cat3Film** — `/_ajax/search?q=sex` JSON fine (`results` with year 1998/1997 — no actor keys, site-side). **Cat3Movie** — `/search/erotic` 200 real `/movie` links; watch page `a-thousand-and-one-erotic-nights-1982` 200: JSON-LD `@type Movie` (name carries title-year, datePublished = WP posting date), no duration/og:video:duration/live key — provider covers all exposed fields, consistent with run-7 stamp.
+- **Xhamster** — watch page 200; `window.initials` `videoModel` (id/duration/title, no year) + `videoEntity` (title/desc/duration/dateAgo), `pornstarModels` present. `year` Lead re-proven — still unfiled (needs field-shape proof before it's a finding).
+- **PerverZija / PornXP / Porntrex / Eroticmv listings** — 200 with expected card markup (spot-check).
+
+### Verdict deltas vs run-7 registry
+
+- Javtiful: `ok` → `ok-drift` (full redesign — #534; drift_confirmed 1). Listing-level parse is dead → drift-class, not a field-polish gap.
+- XMoviesForYou: `ok-suspected` → `ok-drift` (listing selectors dead home+search — #535; drift_confirmed 1; watch page fields live).
+- EPorner: `ok-suspected` → `ok-drift` (search pagination redirect collapse — #537; drift_confirmed 1; no age-wall this run, Geo suspected class narrowed).
+- FreePornVideos: `ok-suspected` → `ok` (site healthy TLS-wide, KVS anti-leech class retired à la FullPorner); #536 linked.
+- Eroticmv: `ok` stays; #538 linked. Javseen: `ok` stays; #539 linked. Mangoporn/ixiporn/Film1k/Javbangers/PandaMovies: unchanged drift states re-confirmed.
+- `last_deep`: no stamps moved this run — deep-tier **stream resolution** was not executed (field/selector deepening only); rotating deep remains due from the next run.
