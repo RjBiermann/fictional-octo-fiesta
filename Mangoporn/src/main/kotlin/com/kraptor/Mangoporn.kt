@@ -10,7 +10,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 
-
 class Mangoporn : MainAPI() {
     override var mainUrl = "https://mangoporn.net"
     override var name = "Mangoporn"
@@ -37,6 +36,9 @@ class Mangoporn : MainAPI() {
         val url = if (cleanData.endsWith("random", ignoreCase = true)) {
             val randomPageNumber = Random.nextInt(1, MAX_PAGE + 1)
             "$mainUrl/movies/page/$randomPageNumber/"
+        } else if (cleanData.isEmpty() || cleanData == "movies") {
+            // healed home root: the old /movies/ archive is 404; the root paginates /page/N/ (FINDINGS-525)
+            if (page <= 1) "$mainUrl/" else "$mainUrl/page/$page/"
         } else if (page <= 1) {
             "$mainUrl/$cleanData/"
         } else {
@@ -45,8 +47,9 @@ class Mangoporn : MainAPI() {
 
         val home = try {
             val document = app.get(url).document
-            document.select("div.items > article")
-                .mapNotNull { it.toSearchResult() }
+            // Card grammar: div.video-block (a.infos[title] + a.thumb img poster), shared SearchCard
+            document.select("div.video-block")
+                .mapNotNull { searchCard(it, "a.infos", posterSel = "a.thumb img", titleAttr = "title") }
         } catch (_: Exception) {
             emptyList()
         }
@@ -61,49 +64,15 @@ class Mangoporn : MainAPI() {
         )
     }
 
-    private fun Element.toSearchResult(): SearchResponse? {
-        val title = this.select("div h3").text()
-        if (title.contains(kirliKelimeRegex)) return null
-
-        val href = fixUrl(this.select("div h3 a").attr("href"))
-        val img = this.select("div.poster > img")
-        val posterUrl = img.attr("data-wpfc-original-src").ifEmpty { img.attr("src") }
-
-        return newMovieSearchResponse(title, href, TvType.NSFW) {
-            this.posterUrl = posterUrl
-            this.posterHeaders = mapOf("Accept" to "image/avif,image/webp,image/png,image/svg+xml,image/*;q=0.8,*/*;q=0.5")
-        }
-    }
-
-    private fun Element.toSearchingResult(): SearchResponse? {
-        val title = this.select("div.details a").text()
-        if (title.contains(kirliKelimeRegex)) return null
-
-        val href = fixUrl(this.select("div.image a").attr("href"))
-        val img = this.select("div.image img")
-        val posterUrl = img.attr("data-wpfc-original-src")
-            .ifEmpty { img.attr("src") }
-            .ifEmpty { img.attr("data-src") }
-
-        return newMovieSearchResponse(title, href, TvType.NSFW) {
-            this.posterUrl = posterUrl
-            this.posterHeaders = mapOf("Accept" to "image/avif,image/webp,image/png,image/svg+xml,image/*;q=0.8,*/*;q=0.5")
-        }
-    }
-
     override suspend fun search(query: String): List<SearchResponse> {
         val searchResponse = mutableListOf<SearchResponse>()
 
-        for (i in 1..2) {
-            val searchUrl = if (i <= 1) {
-                "${mainUrl}/?s=$query"
-            } else {
-                "${mainUrl}/page/$i/?s=$query"
-            }
-            val document = app.get(searchUrl).document
+        for (i in 1..8) {
+            val document = app.get("$mainUrl/page/$i/?s=$query").document
 
-            val results = document.select("article")
-                .mapNotNull { it.toSearchingResult() }
+            // Same div.video-block card grammar as home (shared SearchCard)
+            val results = document.select("div.video-block")
+                .mapNotNull { searchCard(it, "a.infos", posterSel = "a.thumb img", titleAttr = "title") }
 
             if (!searchResponse.containsAll(results)) {
                 searchResponse.addAll(results)
@@ -120,29 +89,19 @@ class Mangoporn : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url).document
 
-        val title = document.selectFirst("div.data > h1")?.text().toString()
-        val poster = document.selectFirst("div.poster > img")?.attr("data-wpfc-original-src")
-            ?.ifEmpty { document.selectFirst("div.poster > img")?.attr("src") }
-            ?.trim()
-            .toString()
+        val title = document.selectFirst("div.video-title > h1")?.text().toString()
+        // Character-video pages expose no og:image; thumbnailUrl is JSON-LD and blank on some pages.
+        val poster = MangopornParse.thumbnail(MangopornParse.videoLdJson(document))
 
-        val year = document.selectFirst("span.textco a[rel=tag]")?.text()?.trim()?.toIntOrNull()
-        val duration = document.selectFirst("span.duration")?.text()?.let { MangopornParse.durationMinutes(it) }
-        val description = document.selectFirst("div.wp-content > p")?.text()
-        val actors = document.select("div.persons a[href*=/pornstar/]").map { Actor(it.text()) }
+        val year = document.select("div#video-actors a[href*=/year/]").text().trim().toIntOrNull()
+        val duration = MangopornParse.videoLdJson(document)?.let { JsonLdParse.minutes(it) }
+        val description = document.selectFirst("div.video-description .desc p")?.text()
+        val actors = document.select("div#video-actors a[href*=/pornstar/]").map { Actor(it.text()) }
 
-        val tags = document.select("span.valors a[href*=/genre/]").map { it.text() }
+        val tags = document.select("div#video-actors a[href*=/genre/]").map { it.text() }
 
-        val recommendations = document.select("div.sbox.srelacionados article").map {
-            newMovieSearchResponse(
-                it.select("img").attr("alt").replace("Watch ", "").replace(" Porn Online Free", ""),
-                it.select("a").attr("href"),
-                TvType.NSFW
-            ) {
-                this.posterUrl = it.select("img").attr("data-wpfc-original-src")
-            }
-        }
-
+        val recommendations = document.select("div.related-videos div.video-block")
+            .mapNotNull { searchCard(it, "a.infos", posterSel = "a.thumb img", titleAttr = "title") }
         val imageHeaders = mapOf("Accept" to "image/avif,image/webp,image/png,image/svg+xml,image/*;q=0.8,*/*;q=0.5")
 
         if (tags.any { it.contains(kirliKelimeRegex) }) {
@@ -278,6 +237,4 @@ class Mangoporn : MainAPI() {
     )
 
     private val kirliKelimeRegex = MangopornParse.dirtyWordRegex(igrencKelimeler)
-
-    private val Anamenudekiboklar = listOf("TS", "Trans", "TGirl", "gay", "pegging", "bi", "femboy", "T-Boy", "Bisexual", "Transsexual", "Trans")
 }
