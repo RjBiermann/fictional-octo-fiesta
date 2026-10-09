@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "note": "Machine source of truth for the provider fleet audit. drift_confirmed counts only closed issues CONFIRMED as drift/broken (Suspected findings closed as false positives are exclusions, never occurrences). Audits update this file; the lint (scripts/check-findings.sh) must pass before delivery.",
-  "updated": "2026-09-29",
+  "updated": "2026-10-09",
   "last_runs": [
     {
       "id": "run1",
@@ -72,6 +72,18 @@
       ],
       "false_positives": [],
       "note": "run 5 (issue 494): full 26-provider sweep + deep tier (Eroticmv, MissAV, Javtiful, HQPorner). Canaries: film1k pair match, eporner match, pandamovies-dead-origin MISMATCH expectation-stale — origin healed at .org, expectation update proposed. Standing conditions: Javmost #480 CLEARED, PandaMovies #463/#471 healed (verdict ok-drift), Mangoporn #464 re-confirmed 522, Javbangers #475 re-confirmed, ixiporn #468 re-confirmed. Findings: #496 Film1k turbovid CDN DNS-dead, #497 Eroticmv single-row vs 75 facets. EPorner full-page age-wall = suspected probe-IP geo artifact (CA), differential HITL decides."
+    },
+    {
+      "id": "run7",
+      "date": "2026-10-09",
+      "pr": 528,
+      "findings": [
+        525,
+        526,
+        527
+      ],
+      "false_positives": [],
+      "note": "run 7 (issue 524): full 26-provider sweep + details-field gap audit. Canaries: 3/3 match (film1k pair, eporner, pandamovies-redirect). Deep tier Cat3Movie/JavGuru/Neporn/WatchPorn (last_deep 2026-10-09, no gaps). Findings: #525 Mangoporn origin healed but provider parser matches 0 cards, #526 FullPorner tags gap, #527 HQPorner tags gap. Standing Javbangers #475 re-confirmed (p1 200 / p2 404). Run 6 (issue 511) closed unmerged — its registried facts re-verified live and folded in here. 0 false positives."
     }
   ],
   "providers": {
@@ -92,14 +104,16 @@
     },
     "Mangoporn": {
       "site": "mangoporn.net",
-      "verdict": "blocked",
-      "reason": "origin still down, CF 522 re-confirmed on all surfaces (standing #464; 2026-09-29)",
-      "tier": "residential-differential",
+      "verdict": "ok-drift",
+      "reason": "origin healed: home/search 200 incl. /page/2 (plain curl) — but provider parser matches 0 cards against live markup; embed targets enumerate (doply/lulustream/mixdrop, extractor path); new condition #525 filed 2026-10-09 (standing #464 closed/healed)",
+      "tier": "plain-curl",
       "surfaces": {
-        "home": "522"
+        "home": "200",
+        "search": "200 (0 cards parsed)",
+        "video": "embed targets enumerated, not playback-verified"
       },
-      "issue": 464,
-      "standing_issue": 464,
+      "issue": 525,
+      "standing_issue": 525,
       "drift_confirmed": 1,
       "chronic": false
     },
@@ -178,15 +192,15 @@
     },
     "FullPorner": {
       "site": "fullporner.com",
-      "verdict": "ok-suspected",
-      "reason": "TLS 200 search (24 video-card) + video; embed xiaoshenke JS quality map (extractor path) (2026-09-29)",
+      "verdict": "ok",
+      "reason": "TLS 200 search (24 video-card) + video; embed xiaoshenke JS quality map (extractor path); fresh site healthy 2026-10-09, challenge-artifact tier history retired; tags gap #526 filed 2026-10-09 (live /watch/<hash> exposes /category/* tags)",
       "tier": "tls-impersonated",
       "surfaces": {
         "home": "200 TLS",
         "search": "200 TLS",
         "video": "200 TLS"
       },
-      "issue": null,
+      "issue": 526,
       "standing_issue": null,
       "drift_confirmed": 0,
       "suspected_excluded": [
@@ -280,7 +294,15 @@
     "HQPorner": {
       "site": "hqporner.com",
       "verdict": "ok",
-      "reason": "deep 2026-09-29: 67 rows, 55 p1/p2 fully disjoint, 12 with <=3 rotating featured repeats (benign); search p1/p2 disjoint; stream 206 via mydaddy embed (referer required)",
+      "reason": "deep 2026-09-29: 67 rows, 55 p1/p2 fully disjoint, 12 with <=3 rotating featured repeats (benign); search p1/p2 disjoint; stream 206 via mydaddy embed (referer required); tags gap #527 filed 2026-10-09 (live /hdporn/<id> exposes tag set)",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200",
+        "video": "200",
+        "stream": "206 video/mp4"
+      },
+      "issue": 527,
       "tier": "plain-curl",
       "surfaces": {
         "home": "200",

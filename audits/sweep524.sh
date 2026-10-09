@@ -39,6 +39,7 @@ probe JavGuru plain https://jav.guru/ &
 probe JavGuruS plain "https://jav.guru/?s=sex" &
 probe Javbangers plain https://www.javbangers.com/ &
 probe JavbangersS plain "https://www.javbangers.com/search/sex/1/" &
+probe JavbangersP2 plain "https://www.javbangers.com/search/sex/2/" &
 probe Javmost plain https://www.javmost.ws/ &
 probe JavmostS plain "https://www.javmost.ws/showlist2/all/1/" &
 probe Javseen plain https://javseen.tv/ &
@@ -46,6 +47,8 @@ probe JavseenS plain "https://javseen.tv/search/video/?ajax=search_results&s=sex
 probe Javtiful plain https://javtiful.com/ &
 probe JavtifulS plain "https://javtiful.com/search?q=sex" &
 probe Mangoporn plain https://mangoporn.net/ &
+probe MangopornS plain "https://mangoporn.net/?s=sex" &
+probe MangopornP2 plain "https://mangoporn.net/page/2/?s=sex" &
 probe MissAV plain https://missav.live/ &
 probe MissAVS plain "https://missav.live/en/search/sex" &
 probe Neporn plain https://neporn.com/ &

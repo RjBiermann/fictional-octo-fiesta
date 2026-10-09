@@ -108,9 +108,10 @@ Source-level inventory (`grep` field population vs live exposure) — gaps verif
 ## Verdict deltas vs committed registry (run 5 state)
 
 - Mangoporn: `blocked` → `ok-drift` (origin healed; provider parse dead — #525)
-- FullPorner, HQPorner: `ok-suspected` → `ok` (challenge-artifact tier history; fresh sites healthy), issue 526/527 linked
+- FullPorner: `ok-suspected` → `ok` (challenge-artifact tier history; fresh site healthy), #526 linked
+- HQPorner: verdict was already `ok` in the committed registry (deep 2026-09-29) — no verdict change; tags gap #527 linked
 - Cat3Movie, JavGuru, Neporn, WatchPorn: `last_deep` = 2026-10-09
 
 ## Artifacts
-- `FINDINGS-524.md` (this file), `audits/findings.json` (run7 entry + provider deltas), `audits/sweep524.sh` (sweep transcript script)
+- `FINDINGS-524.md` (this file), `audits/findings.json` (run7 entry + provider deltas), `audits/canaries.json` (Phase 0 `last_verified` = 2026-10-09), `audits/sweep524.sh` (sweep transcript script, incl. Mangoporn search + /page/2 and Javbangers p1/p2 probes)
 - `audits/check-findings` gate: PASS (run before commit)
