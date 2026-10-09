@@ -44,6 +44,16 @@ class Eroticmv : MainAPI() {
             "decades/2000s", "decades/2010s", "decades/2020s",
         )
 
+        /**
+         * Issue #538 (FINDINGS-538): JSON-LD articleSection is gone from VideoObject —
+         * tags now parse from the watch-page categories block in the post header
+         * (.categories-wrap a.category-item). Scoped to the block, not the nav.
+         */
+        fun parseTags(document: Element): List<String> =
+            document.select(".categories-wrap a.category-item")
+                .mapNotNull { it.ownText().trim().takeIf { t -> t.isNotEmpty() } }
+                .distinct()
+
         fun facetUrl(key: String): String = "https://eroticmv.com/category/$key/"
 
         fun facetTitle(key: String): String =
@@ -156,11 +166,9 @@ class Eroticmv : MainAPI() {
             .select(".single-related-posts article.post-item")
             .mapNotNull { it.toSearchResult() }
 
-        // JSON-LD articleSection = genres; release year from og:title "(1987)"
-        // (datePublished is the WP posting date, not the release year — FINDINGS)
-        val jsonLd = document.selectFirst("script[type='application/ld+json']")?.data().orEmpty()
-        val raw = jsonLd.substringAfter("articleSection", "").substringAfter("[", "").substringBefore("]")
-        val tags = raw.split(",").map { it.trim('"', ' ') }.filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }
+        // tags from the watch-page categories block (FINDINGS-538); release year
+        // from og:title "(1987)" (datePublished is the WP posting date, not the release year)
+        val tags = parseTags(document).takeIf { it.isNotEmpty() }
         val year = Regex("\\((\\d{4})\\)").find(title)?.groupValues?.get(1)?.toIntOrNull()
         val actors = parseActors(document)
 
