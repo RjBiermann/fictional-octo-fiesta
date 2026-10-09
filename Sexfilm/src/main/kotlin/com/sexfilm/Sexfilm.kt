@@ -50,6 +50,17 @@ object Parse {
         doc.selectFirst("meta[property=og:image]")?.attr("content")
             ?.takeIf { it.isNotBlank() }
             ?: doc.selectFirst("div#s-desc a.highslide[href]")?.attr("href")
+
+    // issue #521 (#493 recurrence): posters are third-party hosted on sex-empire.org
+    // (Cloudflare zone) and serve fine in curl; the suspect is the app's default
+    // image-request headers tripping bot-filtering on the reporter's network.
+    // Deterministic browser-shaped headers on every poster surface — same pattern as
+    // Mangoporn/JavGuru in this repo.
+    val posterHeaders = mapOf(
+        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
+        "Accept" to "image/avif,image/webp,image/png,image/svg+xml,image/*;q=0.8,*/*;q=0.5",
+        "Referer" to "https://en.sex-film.biz/"
+    )
 }
 
 class Sexfilm : MainAPI() {
@@ -85,7 +96,10 @@ class Sexfilm : MainAPI() {
             ?: return null
         val poster = fixUrlNull(a.selectFirst("img")?.attr("data-src")
             ?: a.selectFirst("img")?.attr("src"))
-        return newMovieSearchResponse(title, href, TvType.NSFW) { this.posterUrl = poster }
+        return newMovieSearchResponse(title, href, TvType.NSFW) {
+            this.posterUrl = poster
+            this.posterHeaders = Parse.posterHeaders
+        }
     }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
@@ -107,6 +121,7 @@ class Sexfilm : MainAPI() {
         val duration = JsonLdParse.minutes(doc.selectFirst("meta[itemprop=duration]")?.attr("content"))
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = poster
+            this.posterHeaders = Parse.posterHeaders
             this.plot = desc
             this.tags = Parse.tags(doc)
             this.actors = Parse.actors(doc).map { ActorData(Actor(it)) }

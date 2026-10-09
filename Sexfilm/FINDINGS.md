@@ -164,3 +164,13 @@ has no code-level fix here and needs in-app verification to confirm.
 Standing risk: poster URLs stay third-party-hosted on `sex-empire.org` — a future zone-wide
 auth there takes out search, home, and load posters at once. Single point of image failure
 for this provider.
+
+## Poster recurrence hardening (issue #521, 2026-09-30)
+Blank posters reported again 6 days after #493. Re-probe (full transcript in
+FINDINGS-521.md at repo root): site side unchanged and healthy — same single host
+sex-empire.org, thumb + og:image paths all 200 webp, complete TLS chains, no mirror
+hosts. NOT-REPRO ×2 ⇒ probable cause is the app's default image-request headers
+tripping Cloudflare bot-filtering on the reporter's network. Fix: `Parse.posterHeaders`
+(Chrome UA + image Accept chain + site referer) set on every poster surface — cards
+(newMovieSearchResponse) and load page, the Mangoporn/JavGuru in-repo pattern. Parse
+untouched, version → 12.
