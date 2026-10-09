@@ -1,4 +1,4 @@
-version = 11 // FINDINGS-515: Vintage category row
+version = 12 // #536: details-block rebuild — Pornstars/plot/duration behind tested Parse seam
 
 cloudstream {
     authors     = listOf("kerimmkirac")
