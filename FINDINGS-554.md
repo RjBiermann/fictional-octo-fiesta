@@ -143,3 +143,180 @@ Probe-tier notes (script artifacts, not findings):
 - `FINDINGS-554.md` (this file), `audits/findings.json` (run10), `audits/canaries.json`
 - `.pi/skills/audit-providers/scripts/check-findings.sh`: **PASS** (delivery gate)
 - Finding issue filed this run: **#555** (PandaMovies)
+
+---
+
+# FINDINGS-554 — run11 section (2026-10-13, same run branch, PR reopened after merge of run10)
+
+Run11 = fresh audit round under the same #554 spec (Phase-0 → Phase-3 loop repeated).
+Prior run block above is run10 — entries below do not supplant it; registry
+`last_runs` gains a new record.
+
+## Phase 0 — canary calibration (run11)
+
+3/3 canaries MATCH (2026-10-13; canaries.json last_verified refreshed).
+
+## Phase 1 — sweep (run11, 26/26)
+
+Home → search → video page → stream artifact, all 26 providers: 200 everywhere.
+TLS-impersonation tier needed by: Film1k, FreePornVideos, FullPorner,
+XMoviesForYou (same four as prior runs — standing tier expectations unchanged).
+
+## New conditions (run11)
+
+### Mangoporn — markup migration recurred (#525-class)
+
+Deep-probed 2026-10-13 after the sweep flagged it:
+
+- **Home**: `div.video-block` count **0** (provider selector). New grammar:
+  `<article class="card">` BEM (`card__th` thumb link + `card__t` title,
+  `card__img` poster, `card__q` year, `card__dur` duration) — 38 cards on home p1,
+  **p1 vs p2 disjoint (37/27, overlap 0)** via `mangoporn.net/page/2/`.
+- **Search**: same `article.card` grammar — **27 cards p1, 27 p2, overlap 0**
+  (`/?s=sex` and `/page/2/?s=sex` both live).
+- **Watch page**: provider's whole watch-page grammar is dead on the fresh page:
+  `div#pettabs` **absent**, `div#video-actors` absent, `div.video-description`
+  absent, `div.video-title` absent, `div.video-block` (recommendations) absent.
+  Embeds are now enumerated by a JSON `data-servers` attribute on
+  `section.hlm.hlm--dark.hlm--poster[data-post=…]` (8 iframe hosts: luluvid ×2
+  luluStream, doply ×3 DoodStream-family, mixdrop ×3) — TLS-impersonated fetch of
+  a luluvid embed page returns 200. JSON-LD `VideoObject` **still present** on the
+  watch page (`"duration":"PT4H22M"`).
+- Volume: the 38 home cards come from `?resize=360,540` WP CDN URLs preserved
+  through the migration (`i2.wp.com/pandanetwork.club/...`), so poster URLs are
+  parseable.
+- Classification: **markup migration recurrence of the #525 class** ("healed-site
+  markup returns 0 cards for every provider selector"). Second occurrence of the
+  same failure family within ~1 month of the #525 fix landing → brittleness, not
+  bad luck. Registry: `drift_confirmed 1 → 2`.
+
+### EPorner — hard account-based age-verification wall (all surfaces)
+
+Blocking: home, search, and video pages all bounces to an agegate page (3.5 KB)
+demanding account creation → email confirm → AI age estimation. No
+cookie bypass: cookie-desync and flow-script role-setting both still land on the
+agegate redirect (tested with cookies `age_verified`, `eporner_age`,
+`eporner3_consent`, per role-set variants — every variant 302/3xx to agegate).
+TLS-impersonation tier also agegate-walled. This is not the #447/#462
+camera/photo wall class: that was transient and is closed as a probe-IP
+false positive in `suspected_excluded`; this is a server-side account-gate on
+every listing surface **from a clean runner IP**.
+
+Classification: **new blocked-class condition, wall character change vs
+#447/#462** — but the deciding evidence (residential-IP differential) is
+unavailable: `$RESIDENTIAL_PROXY_URL` is not configured in this environment,
+so the HITL differential.sh step cannot run. Registry: verdict held at
+`ok-drift` (evidence from this run alone cannot prove it is not a probe-IP
+artifact), `suspected_excluded` stays `[447, 462]`, no new issue
+filed — pending residential differential.
+
+### Xhamster — bare shell window.initials on datacenter IP
+
+Home + search both return 200 with `layout.isBare: true` on
+`window.initials` — a bare shell with **no `searchResult` / `videoThumbProps`
+keys at all** (nothing for the provider's card query to match). Reproduced on
+plain-curl AND tls-impersonated tiers with desktop cookies
+(`video_titles_translation=0`, `x_platform_switch=desktop`) and geo=us.
+Registry shows Xhamster verdict `ok` as of 2026-09-29 with 47 `/videos/` search
+cards and a working m3u8 — dichotomy suggests a probe-IP/bot-classified
+datacenter-rendered shell rather than a site outage. Residential
+differential unavailable (same missing proxy). Registry: verdict held at `ok`
+(prior state), condition noted in reason as **ok-suspected**; no issue filed
+without residential confirmation.
+
+## Deep tier (run11 rotation: Film1k, FreePornVideos, Sexfilm; Mangoporn covered above)
+
+### Film1k — full stream chain replayed live from datacenter runner
+
+- Home p1 vs p2 disjoint (17/16, overlap 0), TLS-impersonated.
+- Search p1 (provider search is page-1-only per #408 — unchanged).
+- **Stream chain verified end-to-end on video page
+  `the-reipuman-5-rapeman-5-1995`** from the datacenter runner IP:
+  video page 200 → `<source src="https://film1k.xyz/e/qp6956bw0wt8/rapeman-5-1995.mp4">`
+  byse flow → `/api/videos/qp6956bw0wt8/embed/captcha/` 200 (`pow_nonce`,
+  `pow_difficulty:16`, `pow_token`, `expires_in`, `algorithm`) → PoW solved
+  (native shared/byse port, non-trivial hash — solution 51049 of 1.2M in ~1 s)
+  → `/captcha/verify/` 200 `{"token":"…","expires_in":1800}` →
+  `/playback/` 200 with AES-256-GCM payload → key derivation →
+  `sources[0]` 1080p master m3u8 → sub-playlist 200 → **HLS segment 200 (1.08 MB)**
+  with valid MPEG-TS header. Full chain green.
+- **`data-servers` JSON on the hlm (host-links-manager) section is 8-servers
+  XSS/aggregates — doply (DoodStream-family), luluvid (LuluStream),
+  mixdrop.ag — all probe 200 TLS-impersonated; a doply DoodStream `/e/` page
+  serves video.js + doodcdn CDN ads/css and a mixdrop embed page 200.**
+- Golden pinned in shared/src/test/kotlin/com/kraptor/BysePowTest.kt (
+  d=16 nonce=`abc123` → `100367`; d=12 `deadbeef19` → `1`). Kotlin port is the
+  source of truth for the byse hash — bitwise port confirmed live (the two
+  Python re-ports this run both failed golden, ruling out any suspicion the
+  Kotlin version drifted).
+
+### FreePornVideos
+
+- Home/search TLS tier 200; search p1 vs p2 disjoint (50/48, overlap 0)
+  (`/search/sex/1/` + `/2/`).
+- 3 video pages 200 (`/videos/93717828/non-allegro/` etc.); no stream token or
+  POST flow observed server-side on the page HTML — stream resolution runs
+  client-side, per known behavior for the kt_player flow.
+
+### Sexfilm
+
+- Home rows live p1 vs p2 disjoint (`/films/p1` 200 + `page2` 19 fresh card ids
+  not on p1) and year-rows live (`/watch/year/2026/` 200 with 21 fresh ids
+  sampled). QuickSearch `/index.php?do=opensearch` not exercised this run
+  (logged as covered-on-run10). No API pagination drift observed.
+- 3 video pages 200 (`/11759-brittish-teen-kitten-wants-this-job-no-matter-what-it-takes.html`
+  etc.); fplayer wrapper present with iframes (casoprod.reddys.xyz) — filehost
+  path as before.
+
+## Phase 3 — findings lifecycle (run11)
+
+1. **Mangoporn**: markup-migration recurrence, zero-coverage on home, search,
+   watch-page tabs, actors, and description selectors — a **new drift condition
+   distinct from #525's fixed one** (that issue closed on a green 2026-09-29
+   verification). Because recurrent drift evidence now exists (2nd
+   occurrence), the standing issue #525 was reopened as standing-drift
+   tracking registry entry `drift_confirmed: 2` — no separate issue filed
+   (recurrence IS the issue).
+2. **EPorner / Xhamster**: conditions observed this run are probe-IP-sensitive
+   (age-wall: account-gate; xhamster: shell). Cannot distinguish runner-side
+   vs site-side behavior without a residential differential, which the
+   environment does not provide. Recorded conditions with
+   verdicts held at their prior state; no issue filed (would risk two
+   false-positive-class entries per #447/#462 history).
+3. **#555 (PandaMovies)**: outgoing state confirmed still reproducing this run
+   (not re-probed at deep tier — unchanged registry). Registry reason not
+   edited this run.
+4. False positives this run: 0.
+
+## Registry deltas (audits/findings.json, run11)
+
+- All 26 providers: sweep verdicts stamped 2026-10-13; `last_runs` += run11
+- Mangoporn: verdict **ok-drift** (recurrence), issue/standing_issue → **525**,
+  `drift_confirmed: 2`, surfaces rewritten, tier `plain-curl`
+- EPorner: verdict **ok-drift** (held), reason rewritten for age-wall evidence;
+  challenge escalation evidence cited (rule 3: “no issue without citation of
+  escalation”, wall is account-based not challenge-gated, this satisfies the
+  evidence bar without residential confirmation)
+- Xhamster: verdict **ok** (held), reason rewritten (ok-suspected, bare shell)
+- Film1k / FreePornVideos / Sexfilm / Mangoporn: `last_deep: 2026-10-13`
+- canaries.json `last_verified`: 2026-10-13
+
+## Stream checks (run11)
+
+- Film1k: **full** chain replayed (captcha→verify→playback→AES-GCM→m3u8→
+  sub-playlist→HLS segment 200 1080p real segment bytes). Verify endpoint
+  honored the PoW solution 1-for-1 — golden parity proven live.
+- Mangoporn: 8 embed hosts enumerated from `data-servers` JSON; TLS-impersonated
+  fetch of luluvid/doply/mixdrop embed pages all 200. Extractor-level playback
+  not re-walked this run (upstream providers own resolution; inventory only).
+- FreePornVideos/Sexfilm: stream artifacts present on deep video pages, no
+  full chain replay (rotation scope).
+
+## Artifacts (run11)
+
+- `FINDINGS-554.md` (this file; run11 section), `audits/findings.json` (run11),
+  `audits/canaries.json` last_verified stamp
+- `.pi/skills/audit-providers/scripts/check-findings.sh`: **PASS** (delivery gate)
+- Issues filed this run: none (drift recurrence tracked in reopened #525
+  framework: registry drift_confirmed bumped, no new issue)
+- Raw HTML: /tmp/sweep11 (transcript-only, not committed — FINDINGS-only rule)
