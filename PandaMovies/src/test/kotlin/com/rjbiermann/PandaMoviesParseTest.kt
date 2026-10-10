@@ -100,12 +100,16 @@ class PandaMoviesParseTest {
         assertTrue(!Parse.hasNextPage(videoDoc))   // video pages have no pager
     }
 
+    @Test fun `hasNextPage false on last page — cards present, no next anchor (WP end of list)`() {
+        // last page at every surface is a plain card listing with the pager anchor stripped
+        val last = Jsoup.parse(homeDoc.outerHtml().replace(Regex("<a[^>]*class=\"next[^\"]*\"[^>]*>[\\s\\S]*?</a>"), ""))
+        assertTrue(Parse.cards(last).isNotEmpty())
+        assertTrue(!Parse.hasNextPage(last))
+    }
+
     @Test fun `duration parsers`() {
-        assertEquals(222, Parse.minutes("3 hrs. 42 mins."))   // legacy prose (old fixture videos)
-        assertEquals(9, Parse.minutes("9 mins."))
-        assertEquals(null, Parse.minutes("N/A"))
         assertEquals(240, Parse.clockMinutes("4:00:00"))
-        assertEquals(1, Parse.clockMinutes("1:00"))
+        assertEquals(1, Parse.clockMinutes("1:00"))       // assumed H:MM — see clockMinutes KDoc
         assertEquals(null, Parse.clockMinutes("N/A"))
     }
 }

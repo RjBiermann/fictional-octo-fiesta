@@ -31,10 +31,6 @@ class PandaMovies : MainAPI() {
         val home = Parse.cards(document).mapNotNull { it.toSearchResult(this@PandaMovies) }
         return newHomePageResponse(
             list = HomePageList(name = request.name, list = home, isHorizontalImages = false),
-            // WP `posts_per_page=40`: a full 40-card page may continue, a shorter one is
-            // the real last page (continuing returns one extra empty card-less home/genre
-            // 200; search URLs 404 past the end). Exact-multiples (40/80/…) still fire
-            // one trailing request — the tail is shortened, not eliminated.
             hasNext = Parse.hasNextPage(document)
         )
     }
@@ -195,9 +191,8 @@ object Parse {
     /** Is there a next page? (#555): every listing surface (home / search / genre /
      *  category / `?s=` search) serves a `nav.pg` block with an explicit
      *  `a.next` anchor when more pages exist — anchor presence, not card count
-     *  (per-page counts vary: 49 home, 35 elsewhere).
-     *  Counts via [cards] — the same selector/related-exclusion/dedup as the actual
-     *  result list, so pager and list can't desynchronize. */
+     *  (per-page counts vary: 49 home, 35 elsewhere). A last page is a plain
+     *  page with cards but no `a.next` (WP serves 404 only past the end). */
     fun hasNextPage(document: org.jsoup.nodes.Document): Boolean =
         document.selectFirst("a.next.page-numbers") != null
 
@@ -221,7 +216,11 @@ object Parse {
         )
     }
 
-    /** #555 clock durations: "4:00:00" → hours 240; "1:00" → 1; else null. */
+    /** #555 clock durations: "4:00:00" → 240; "1:00" → 1; else null. Assumption:
+     *  a two-part clock is H:MM (hours), not MM:SS — FINDINGS-555 only sampled
+     *  three-part forms, so live evidence is thin either way; MM:SS misreads
+     *  minutes as hours, H:MM misreads at most 59 minutes. Re-check if live
+     *  two-part samples ever appear. */
     fun clockMinutes(text: String?): Int? {
         if (text == null) return null
         val parts = text.trim().split(':')
@@ -233,13 +232,6 @@ object Parse {
         }
     }
 
-    /** "3 hrs. 42 mins." / "9 mins." → minutes. */
-    fun minutes(text: String): Int? {
-        val hours = Regex("(\\d+)\\s*hrs?").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-        val mins = Regex("(\\d+)\\s*mins?").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-        return if (hours == 0 && mins == 0) null else hours * 60 + mins
-    }
-
     /**
      * Watch embeds: #555 player is `section.hlm[data-servers]` — a JSON array with the
      * stream hosts at key "u" (labels: DoodStream/MixDrop/…; download rows
@@ -249,10 +241,15 @@ object Parse {
         document.select("section.hlm[data-servers]")
             .map { it.attr("data-servers") }
             .flatMap { json ->
-                // attribute holds raw escaped JSON; regex the "u" values — Jackson
-                // round-trip is overkill for one flat key
-                Regex("\"u\":\"([^\"]+)\"").findAll(json)
-                    .map { m -> m.groupValues[1].replace("\\/", "/") }
+                // JSON via Jackson convention; parse failure → no embeds for this
+                // section, never a regex silently missing a formatting variance
+                try {
+                    com.fasterxml.jackson.databind.ObjectMapper().readTree(json)
+                        .let { it as com.fasterxml.jackson.databind.node.ArrayNode }
+                        .mapNotNull { n -> n.get("u")?.asText() }
+                } catch (e: Exception) {
+                    emptyList()
+                }
             }
             .map { url ->
                 url.replace("://luluvid.com/e/", "://lulustream.com/")
