@@ -149,3 +149,76 @@ non-playmate). Cat3Movie version 11 → 12. No Cat3Film change (chain verified h
 - hlsfast `/api/v1/video` now UA-gates non-Mozilla UAs (400) — healthy under the
   framework's Chrome/149 app UA today; next drift candidate if it tightens.
 
+## Re-verification on the follow-up run (post-merge #552, branch re-probe)
+
+Context: PR #552 (the playmate `/watch/<code>` fix) is already **merged to main**; the issue
+stayed open, so this run re-probed both chains live instead of assuming the earlier result.
+No new drift found; no further code change needed.
+
+### Cat3Movie — fresh sample, all sv1 legs resolve
+
+5 fresh posts (search `/search/watermelon`, category `/classic-porn/page/2`, related section
+of california-gigolo-1979) → post_id + body[data-nonce] intact → player.php 200 per sv →
+sv1 hlsfree token → `/api/hls/serve` **200 application/vnd.apple.mpegurl** each:
+
+```
+watermelon-man-1970                pid=34733 sv1=hlsfree/8fefac81a5c5 → 200 mpegurl
+a-climax-of-blue-power-1974        pid=30921 sv1=hlsfree/45154da19a2b → 200 mpegurl
+a-thousand-and-one-erotic-nights-1982 pid=30945 sv1=hlsfree/b29f99be1d01 → 200 mpegurl
+accidental-incest-2014             pid=20039 sv1=hlsfree/06150f9420a0 → 200 mpegurl
+bella-1980                         pid=34723 sv1=hlsfree/9483de5eb850 → 200 mpegurl
+```
+
+sv3 playmate `/api/s` → `sx` master re-proven on california-gigolo-1979
+(`c=PxQf7qRUGYQR` → master.txt 200 mpegurl → `index_avc_720p.txt` 200 mpegurl → segment
+`e2FOJvaZ_000.css` 200, 1.27 MB TS-camouflaged body, Referer `https://playmate.to/`).
+The merged `PlaymateParse` regex matches this `/watch/<code>` shape (unit tests green:
+`./gradlew Cat3Movie:test Cat3Film:test` — build green on this branch).
+
+### Cat3Film — fresh sample, chain healthy
+
+search `_ajax/search` 200 → watch `?sv=1&part=1` 200 (`data-ep` intact) →
+`/api/v1/episodes/{id}/sources` 200 → `abyssssss.top/<token>/index.m3u8`
+**200 application/vnd.apple.mpegurl** for all 5 sampled episodes: the-bed-hostesses (ep
+1137), hache S1E1 (ep 449, series), impregnation-nation (ep 886), jailhouse-wardress (ep
+1765), body-love (ep 1131, from the related grid of the-bed-hostesses). Segment
+`seg-1-v1-a1.jpg` 200, 1.09 MB, `Referer: https://cat3film.com/`. Search↔load agreement
+re-proven by curl: `_ajax/search?q=body+love` → `{"slug":"body-love","title":"Body
+Love","year":1977}` = load page `h1.info-title "Body Love"`; `?q=hache` → format `"TV"`
+(=#416 tie-breaker evidence, unchanged). NOTE: `/draft-1669` from the Sep-11 probe is now
+**404** — that one video was removed upstream; sample refreshed above. Both providers:
+no distinct quick-search endpoint (search page is the only URL surface;
+`hasQuickSearch` stays default-false).
+
+### verify.sh reruns (follow-up run)
+
+**Cat3Film — RESULT: PASS.** checks 1/1a: `/movies` + `?page=2` 200, 30 `a.card` each,
+page 2 fresh. check 2: 5 video pages 200, `h1.info-title` 5/5, `section#related a.card`
+4/4, streams 5/5 → **200 application/vnd.apple.mpegurl** (positional per-episode
+`--stream-url`). check 6: recommendations/tags/plot/year/actors ≥1 assignment. Tool NOTEs
+only: `.info-people a` tags count "matches nothing" (tool's part-split reads the last
+selector element; the genre anchors are real — provider assigns them); year/duration
+exposure asserted by curl + ld+json documentation instead of tool flags.
+
+**Cat3Movie — checks 1/2(streams)/4/6 pass; FAIL artifacts unchanged from the previous
+run's documentation.** check 1: `/search/watermelon` 200, ≥1 card. check 2: 5 video pages
+200, sv1 streams 5/5 → **200 application/vnd.apple.mpegurl**. Same documented tool
+artifacts as above: (a) home dup dump — raw site renders the newest strip twice (#203);
+provider dedupes, tool sees raw markup; (b) "stream path shared" — url_path() strips the
+token query, distinct hlsfree tokens collapse to `/api/hls/serve`; (c) check 5 title
+mismatch — card titles live in `title` attributes (popover markup), tool reads inner text;
+search↔load agreement re-proven manually (`/search/watermelon` → href
+`watermelon-man-1970`, title attr "Watermelon Man (1970)" = load `h1.entry-title`).
+search/homepage pagination unchanged from FINDINGS (search 404s on page 2; homepage rows
+do not paginate). Tool section markers: verify.sh requires `--stream-selector` even when
+streams are asserted via positional `--stream-url`; both sites serve no `<video>/<iframe>`
+in listing/detail HTML (documented since #180/#204), so `script` is passed as the page
+marker — the stream assertions are the positional URLs above.
+
+### Verdict
+
+The merged fix resolves the reproducible part of #522 (cat3movie sv3 `playmate.to/watch`
+silently dropped); both chains replay healthy end-to-end from this runner. No further code
+change shipped on this run — FINDINGS upkeep only. Remaining in-app risk stays the
+per-client CF-challenge family + hlsfast UA gate recorded above.
+
