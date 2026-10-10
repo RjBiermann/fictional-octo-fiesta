@@ -44,7 +44,8 @@ Open question for reviewers: the 1-page behavior was FINDINGS-497 evidence —
 the theme (or WP) changed since 2026-09-29. Live re-probe above is the ground
 truth now.
 
-## verify.sh runs (2026-10-14) — RESULT: PASS (exit 0, runs A and B)
+## Delivery
+Committed on `devloop/issue-559`, pushed, PR #560 open — not merged, human review only.
 
 Run A (facet rows = fixed surface + full data surface): search `/?s=classic`
 (22 cards, `article.post-item` + `h3.entry-title`), home = classic-porn page 1
