@@ -1196,6 +1196,18 @@ data class SvgObject(
 
 
 
+/** Pure Playmate code extraction (issue #522: cat3movie sv3 embeds moved to
+ *  playmate.to/watch/<code>; the old inline regex (?:embed|e)/ missed /watch/) —
+ *  framework-free so the unit-test classpath can load it (TDD-first, ADR-0005). */
+object PlaymateParse {
+    /** Code from a playmate.to embed URL: /embed/<code>, /e/<code> or /watch/<code>. */
+    fun code(url: String?): String? {
+        if (url == null || !url.startsWith("https://playmate.to")) return null
+        return Regex("""/(?:embed|e|watch)/([a-zA-Z0-9]+)""") // NOSONAR — code is a stream id, not a secret
+            .find(url)?.groupValues?.get(1)
+    }
+}
+
 class Playmate : ExtractorApi() {
     override val name            = "Playmate"
     override val mainUrl         = "https://playmate.to"
@@ -1208,7 +1220,7 @@ class Playmate : ExtractorApi() {
         callback: (ExtractorLink) -> Unit
     ) {
         Log.d("Playmate", "getUrl: $url")
-        val code = Regex("""(?:embed|e)/([a-zA-Z0-9]+)""").find(url)?.groupValues?.get(1) ?: return
+        val code = PlaymateParse.code(url) ?: return
         val requestBody = """{"c":"$code","d":"web"}""".toRequestBody("application/json".toMediaTypeOrNull())
         val apiResponse = app.post(
             "$mainUrl/api/s",

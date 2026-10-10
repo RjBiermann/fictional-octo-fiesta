@@ -1,4 +1,4 @@
-version = 4 // #533: search is page-field paginated (was legacy self-looping 1..8)
+version = 5 // #533 paginated search + shared Playmate /watch/<code> fix (issue #522)
 
 cloudstream {
     authors     = listOf("kraptor", "ByAyzen", "HindiProvider")

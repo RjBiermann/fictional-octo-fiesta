@@ -1,4 +1,4 @@
-version = 3
+version = 4 // shared Playmate /watch/<code> fix (issue #522)
 
 cloudstream {
     authors     = listOf("RjBiermann")

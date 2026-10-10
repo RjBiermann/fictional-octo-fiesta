@@ -1,4 +1,4 @@
-version = 11 // shared KvsFlashvars + CfChallengeInterceptor (audit applied)
+version = 12 // issue #522: sv3 embeds moved to playmate.to/watch/<code> — shared Playmate regex fixed
 
 cloudstream {
     authors     = listOf("RjBiermann")
