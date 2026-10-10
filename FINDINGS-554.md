@@ -69,7 +69,9 @@ Probe-tier notes (script artifacts, not findings):
   `/movies` → **404** ("Page not found – PandaMovies"). Video pages healthy
   (3 sampled 200; embeds doply/doodstream/mixdrop/lulustream present). Site-side
   pagination works — pure parser drift, not a block.
-- Drift history now 5 confirmed records → edge-of-Chronic, flagged for maintainer
+- Drift history: 4 closed confirmed-drift records (the counter counts closed
+  issues only — #555 is open and not yet counted) → already at the ≥4 Chronic
+  threshold, flagged for maintainer
   (hardening fix vs `ai-remove-site`) in #555.
 
 ### XMoviesForYou (tls)
@@ -109,7 +111,7 @@ Probe-tier notes (script artifacts, not findings):
 1. **PandaMovies** (#555): standing #463 (522 origin-down ×5, Chronic) is closed and
    cleared — today's condition (healed origin + markup migration + dead `/movies`
    row) is genuinely new. Searched open+closed (`PandaMovies`): no standing open
-   issue matches → filed **#555**, drift history 5 confirmed records noted.
+   issue matches → filed **#555**; `drift_confirmed` stays 4 until #555 closes.
 2. **Javseen #477**: clear — provider's ajax-always URL strategy verified at deep
    tier; condition "bare page is a shell" is the provider-independent site behavior,
    not a defect. Updated evidence via this FINDINGS + registry reason.
@@ -119,7 +121,7 @@ Probe-tier notes (script artifacts, not findings):
 
 ## Registry deltas (`audits/findings.json`)
 
-- PandaMovies: verdict `ok-drift` (kept), issue → **555**, reason rewritten, `last_deep` 2026-10-13, drift note 5→ per-confirmed-records
+- PandaMovies: verdict `ok-drift` (kept), issue → **555**, reason rewritten, `last_deep` 2026-10-13, reason states the counter stays 4 until #555 closes
 - XMoviesForYou / Javseen / PerverZija: `last_deep` 2026-10-13, reasons refreshed
 - Javseen: reason notes #539 sentinel healed (duration 0) — already reflected
 - `last_runs` += run10 (findings [555], false_positives [])
@@ -139,5 +141,5 @@ Probe-tier notes (script artifacts, not findings):
 ## Artifacts
 
 - `FINDINGS-554.md` (this file), `audits/findings.json` (run10), `audits/canaries.json`
-- `audits/check-findings.sh`: **PASS** (delivery gate)
+- `.pi/skills/audit-providers/scripts/check-findings.sh`: **PASS** (delivery gate)
 - Finding issue filed this run: **#555** (PandaMovies)
