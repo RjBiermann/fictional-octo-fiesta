@@ -1,41 +1,31 @@
 package com.rjbiermann
 
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * #425 follow-up: hasNext follows the WordPress search semantics observed live.
- * WP serves up to 40 results per page (`posts_per_page=40`, confirmed via the
- * site's own analytics pixel) and pages past the real end return a card-less
- * 200 body (or a 404 for search URLs). The site renders no usable pagination
- * block on /search/, /movies/ or /genre/ pages, so the only reliable signal
- * is the card count: a full 40-card page may have a next page, anything less
- * is the last page.
+ * hasNext follows the WordPress listing semantics observed live (#555): listings
+ * serve 35 cards per page and pages past the real end return a card-less 200
+ * (or a 404). No pagination block is rendered, so the only reliable signal is
+ * the card count. Fixtures: fresh card__-grammar search page.
  */
 class PandaMoviesPageTest {
-    /** Real search page fixture (5 cards), ADR-0005 convention. */
     private val fixture = org.jsoup.Jsoup.parse(
         javaClass.getResource("/panda-search.html")!!.readText()
     )
 
     /** One real card from the fixture, with a unique href per copy so `cards`'s
      *  distinctBy-href dedup doesn't collapse the synthetic full page. */
-    private val cardHtml = fixture.selectFirst("div.ml-item")!!.outerHtml()
+    private val cardHtml = fixture.selectFirst("article.card")!!.outerHtml()
 
     private fun page(n: Int) = org.jsoup.Jsoup.parse(
-        (1..n).joinToString("") { cardHtml.replace("watch-we-live-together-32", "watch-test-fixture-$it") }
+        (1..n).joinToString("") { cardHtml.replace("watch-sex-romance-4", "watch-test-fixture-$it") }
     )
 
     @Test
-    fun `real short search page is the last`() {
-        assertFalse(Parse.hasNextPage(fixture))
-    }
-
-    @Test
     fun `full pages carry next, short pages are the last`() {
-        assertTrue(Parse.hasNextPage(page(40)))
-        assertFalse(Parse.hasNextPage(page(39)))
-        assertFalse(Parse.hasNextPage(page(0)))
+        assertTrue(Parse.hasNextPage(page(35)))
+        assertTrue(!Parse.hasNextPage(page(34)))
+        assertTrue(!Parse.hasNextPage(page(0)))
     }
 }

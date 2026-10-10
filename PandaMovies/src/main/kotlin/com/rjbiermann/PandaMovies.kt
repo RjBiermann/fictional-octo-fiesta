@@ -18,8 +18,10 @@ class PandaMovies : MainAPI() {
     override var lang = "en"
     override val supportedTypes = setOf(TvType.NSFW)
 
+    // #555: /movies 404s since the theme migration; the homepage itself is the live
+    // Latest listing ("Latest Porn Movies" grid) and paginates via /page/N.
     override val mainPage = mainPageOf(
-        "$mainUrl/movies" to "Latest",
+        "$mainUrl" to "Latest",
         "$mainUrl/genre/18-teens" to "18+ Teens",
         "$mainUrl/genre/lesbian" to "Lesbian",
         "$mainUrl/genre/anal" to "Anal",
@@ -136,21 +138,17 @@ object Parse {
         val actors: List<String>,
     )
 
-    /** Listing cards (search / home / genre / related share one shape): `div.ml-item`.
-     *  PsyPlay renders lists twice on some pages (related strip + grid, preamble issue Cat3Movie
-     *  homeCards dedup); dedupe by href. */
     fun cards(document: org.jsoup.nodes.Document, fromRelated: Boolean = false): List<Card> =
-        document.select(if (fromRelated) "div.mlw-related div.ml-item" else "div.ml-item")
-            .filter { if (fromRelated) true else it.closest("div.mlw-related") == null }
+        document.select(if (fromRelated) "div.grid--blk article.card" else "article.card")
             .mapNotNull { el ->
                 try {
-                    val anchor = el.selectFirst("a.ml-mask") ?: return@mapNotNull null
-                    val title = anchor.attr("oldtitle").ifBlank {
-                        anchor.selectFirst("h2")?.text()
-                    }?.trim().takeIf { !it.isNullOrBlank() } ?: return@mapNotNull null
-                    val href = anchor.absUrl("href").ifBlank { anchor.attr("href") } ?: return@mapNotNull null
+                    val anchor = el.selectFirst("a.card__th") ?: return@mapNotNull null
+                    val title = (el.selectFirst(".card__t")?.text() ?: "").trim()
+                    if (title.isBlank()) return@mapNotNull null
+                    val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }
                     if (href.isBlank()) return@mapNotNull null
-                    val poster = el.selectFirst("img")?.attr("src")
+                    if (href.isBlank()) return@mapNotNull null
+                    val poster = el.selectFirst("img.card__img")?.attr("src")
                         ?.takeIf { it.startsWith("http") && !it.startsWith("data:") }
                     Card(title, href, poster)
                 } catch (e: Exception) {
@@ -192,54 +190,60 @@ object Parse {
     private fun wordBoundaryContains(title: String, token: String): Boolean =
         token in title.split(Regex("[^a-z0-9]+"))
 
-    /** Is there a next page? (live, #425): WP `posts_per_page=40` — search and archive
-     *  listings serve up to 40 cards per page. A page with fewer cards is the last
-     *  real page; continuing yields an empty card-less 200 (or a search 404). No
-     *  pagination block is rendered on these pages, so card count is the signal.
-     *  Counts via [cards] — the same selector/related-exclusion/dedup as the actual
-     *  result list, so pager and list can't desynchronize. */
+    /** Is there a next page? (re-cut #555): listings serve 35 cards per page
+     *  (was WP` posts_per_page=40`). A page with fewer cards is the last real page;
+     *  continuing yields an empty card-less 200 (or a 404). No pagination block is
+     *  rendered, so card count is the signal. Counts via [cards] — the same
+     *  selector/dedup as the actual result list, so pager and list can't desynchronize. */
     fun hasNextPage(document: org.jsoup.nodes.Document): Boolean =
-        cards(document).size >= 40
+        cards(document).size >= 35
 
-    /** One video page's LoadResponse fields (`.mvic-thumb` / `h3[itemprop=name]` / `.mvic-info`). */
+    /** One video page's LoadResponse fields (vid__ grammar, #555 — the `.mvic-thumb`/
+     *  `.mvic-info` markup is gone). Title = breadcrumb `span.bc__c`, which matches
+     *  the search-card title (the `h1.vid__t` is SEO-mangled). */
     fun videoPage(document: org.jsoup.nodes.Document): VideoPage {
         val doc = document
-        val poster = doc.selectFirst("div.mvic-thumb img[src]")?.attr("src")
+        val poster = doc.selectFirst("img.vid__poster[src]")?.attr("src")
             ?.takeIf { it.startsWith("http") && !it.startsWith("data:") }
-        val plot = doc.select("[itemprop=description].desc").text()
-        val durationText = doc.select("div.mvic-info p").firstOrNull {
-            it.text().startsWith("Duration")
-        }?.text() ?: ""  // "Duration: 3 hrs. 42 mins."
         return VideoPage(
-            title = doc.selectFirst("h3[itemprop=name]")?.text()?.trim() ?: "",
+            title = doc.selectFirst("span.bc__c")?.text()?.trim() ?: "",
             poster = poster,
-            plot = plot.ifBlank { null },
-            durationMin = minutes(durationText.substringAfter(':')),
-            year = doc.select("div.mvic-info a[href*=/release-year/]").first()?.text()
-                ?.trim()?.toIntOrNull(),
-            tags = doc.select("div.mvic-info p:contains(Genres) a[href*=/genre/]").map { it.text() },
-            actors = doc.select("div.mvic-info a[href*=/actors/]").map { it.text() },
+            plot = doc.selectFirst("div.entry.vid__txt")?.text()
+                ?.takeIf { it.isNotBlank() },
+            durationMin = minutes(doc.selectFirst("span.st--duration")?.text() ?: ""),
+            year = doc.selectFirst("span.st--year")?.text()?.trim()?.toIntOrNull(),
+            tags = doc.select("a.chip[href*=/genre/]").map { it.text() },
+            actors = doc.select("a.chip--star[href*=/actor/]").map { it.text() },
         )
     }
 
-    /** "3 hrs. 42 mins." / "9 mins." → minutes. */
+    /** "5:05:00" / "25:00" → minutes; null when not a clock. */
     fun minutes(text: String): Int? {
-        val hours = Regex("(\\d+)\\s*hrs?").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-        val mins = Regex("(\\d+)\\s*mins?").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-        return if (hours == 0 && mins == 0) null else hours * 60 + mins
+        val parts = text.trim().split(':').map { it.toIntOrNull() ?: return null }
+        return when (parts.size) {
+            3 -> parts[0] * 60 + parts[1]                 // seconds dropped
+            2 -> parts[0]
+            else -> null
+        }
     }
 
     /**
-     * Watch embeds from the #pettabs "Watch Online" table (anchors `id="#iframe"`; the
-     * Download table uses id="newtabforced"). Anchor hrefs point at mirror domains; the
-     * LuluStream and Voe registry rows are keyed to the canonical hosts (data-fl-url), so
-     * those two get normalized. Evidence: FINDINGS Stream sources.
+     * Watch embeds (#555): no more #pettabs anchors — the player's `section.hlm` holds a
+     * JSON array in its `data-servers` attribute: [{"u":url,"t":"iframe","l":label,"h":hash}].
+     * The LuluStream(/luluvid) and VOE registry rows are keyed to canonical hosts, so those
+     * two get normalized like before. Evidence: FINDINGS-555.md.
      */
-    fun embeds(document: org.jsoup.nodes.Document): List<String> =
-        document.select("a[id=#iframe]").map { it.absUrl("href").ifBlank { it.attr("href") } }
-            .map { url ->
-                url.replace("://luluvid.com/e/", "://lulustream.com/")
-                    .replace("://voe.sx/e/", "://voe.sx/")
-            }
-            .distinct()
+    fun embeds(document: org.jsoup.nodes.Document): List<String> {
+        val raw = document.selectFirst("section.hlm[data-servers]")?.attr("data-servers") ?: ""
+        val urls = try {
+            val arr = com.fasterxml.jackson.databind.ObjectMapper().readTree(raw)
+            (0 until arr.size()).mapNotNull { arr[it].findPath("u").textValue() }
+        } catch (e: Exception) {
+            emptyList()
+        }
+        return urls.map { url ->
+            url.replace("://luluvid.com/e/", "://lulustream.com/")
+                .replace("://voe.sx/e/", "://voe.sx/")
+        }.distinct()
+    }
 }

@@ -1,4 +1,4 @@
-version = 4 // shared Playmate /watch/<code> fix (issue #522)
+version = 5 // #555: card/vid grammar migration + Latest row repoint
 
 cloudstream {
     authors     = listOf("RjBiermann")
