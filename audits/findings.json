@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "note": "Machine source of truth for the provider fleet audit. drift_confirmed counts only closed issues CONFIRMED as drift/broken (Suspected findings closed as false positives are exclusions, never occurrences). Audits update this file; the lint (scripts/check-findings.sh) must pass before delivery.",
-  "updated": "2026-10-13",
+  "updated": "2026-10-10",
   "last_runs": [
     {
       "id": "run1",
@@ -117,13 +117,23 @@
       ],
       "false_positives": [],
       "note": "run 10 (issue 554): full fleet sweep 26/26 home\u2192search\u2192video\u2192stream-artifact; canaries 3/3 match; rotating deep tier: PandaMovies, XMoviesForYou, Javseen, PerverZija. 1 new condition: PandaMovies theme markup migration \u2192 #555. #539 sentinel observed healed (og:video:duration 6540). FreePornVideos video pages need TLS tier (known session/leech class, standing #449/#466 ok-suspected excluded). Probe-IP CF challenge not observed anywhere this run."
+    },
+    {
+      "id": "run13",
+      "date": "2026-10-10",
+      "pr": null,
+      "findings": [
+        564
+      ],
+      "false_positives": [],
+      "note": "run13 (issue 554, round 4): full 26-provider sweep (home/search/video/stream-artifact), canaries 3/3, EPorner agegate (deep replaced by Javbangers), deep tier Film1k/FreePornVideos/FullPorner/Javbangers; new condition #564 Mangoporn BEM migration; #555 re-confirmed; EPorner age-wall suspected held; run11 (round 2) and run12 (round 3, no changes) artifacts never merged \u2014 their evidence superseded by this run"
     }
   ],
   "providers": {
     "PandaMovies": {
       "site": "pandamovies.pw",
       "verdict": "ok-drift",
-      "reason": "2026-10-13 deep audit: theme markup migrated off div.ml-item (PsyPlay) to div.card BEM grammar \u2014 Parse.cards matches 0 on home/search/genre (plain AND tls tiers agree); Latest row /movies 404s; video pages + embed hosts healthy (#555 filed). Standing 522 origin-down condition (#463) remains cleared (.pw\u2192.org). drift_confirmed stays 4 (closed-confirmed-drift counter; #555 open, not yet counted) \u2014 already at the \u22654 Chronic threshold, flag renewed.",
+      "reason": "2026-10-13 deep audit: theme markup migrated off div.ml-item (PsyPlay) to div.card BEM grammar \u2014 Parse.cards matches 0 on home/search/genre (plain AND tls tiers agree); Latest row /movies 404s; video pages + embed hosts healthy (#555 filed). 2026-10-10 run13 re-confirmation: condition unchanged on the org origin (provider grammar 0; BEM card__th 49 home / 27 search; watch = section.hlm[data-servers] doply/luluvid/mixdrop/dood); fix PR #563 still open. Standing 522 origin-down condition (#463) remains cleared. drift_confirmed stays 4 (closed-confirmed-drift counter; #555 open, not yet counted) \u2014 at the >=4 Chronic threshold, removal-candidate decision stays with maintainers.",
       "tier": "plain-curl",
       "surfaces": {
         "home": "200 (via .pw 302)",
@@ -138,8 +148,8 @@
     },
     "Mangoporn": {
       "site": "mangoporn.net",
-      "verdict": "ok",
-      "reason": "post-#525 fix verified live 2026-10-09: home 83 video-block a.infos cards, search p1+p2 85/85 disjoint (/page/2/?s), 3 watch pages 200 with JSON-LD duration (PT00H18M/PT00H55M/PT2H3M), div#video-actors /genre//pornstar//year/ anchors, div.video-description, #pettabs doply/luluvid/mixdrop embeds \u2014 all provider selectors match",
+      "verdict": "ok-drift",
+      "reason": "2026-10-10 run13 sweep: theme migrated AGAIN, this time to the PandaMovies BEM grammar \u2014 div.video-block 0 on home p1 and search p1 (was 83/85 post-#525); new <article class=\"card\"> grammar card__th 38 home / 27 search; watch pages now section.hlm[data-servers] JSON embeds (doply/luluvid/mixdrop/dood), old watch fields (#pettabs/#video-actors/.video-description) absent. Filed #564; drift_confirmed 1->2 (2nd confirmed drift occurrence; 3rd triggers hardening per repo policy). Issue/standing_issue = #525/#564.",
       "tier": "plain-curl",
       "surfaces": {
         "home": "200 (24+ cards)",
@@ -147,9 +157,9 @@
         "video": "200 x3",
         "stream": "embeds enumerated (extractor path)"
       },
-      "issue": 525,
+      "issue": 564,
       "standing_issue": 525,
-      "drift_confirmed": 1,
+      "drift_confirmed": 2,
       "chronic": false,
       "last_deep": "2026-10-09"
     },
@@ -193,7 +203,7 @@
     "Film1k": {
       "site": "www.film1k.com",
       "verdict": "ok-drift",
-      "reason": "main site healthy (TLS 200 home/search/video; byse embed alive) but turbovid embed CDN family DNS-dead (turbovidhls.com, *.turboviplay.com, turbosplayer.com: no A record, 3 resolvers agree) -> zero streams for turbovid-only videos + uncaught DNS exception in loadLinks turbovid branch (2026-09-29, #496)",
+      "reason": "main site healthy (TLS 200 home/search/video; byse embed alive) but turbovid embed CDN family DNS-dead (turbovidhls.com, *.turboviplay.com, turbosplayer.com: no A record, 3 resolvers agree) -> zero streams for turbovid-only videos + uncaught DNS exception in loadLinks turbovid branch (2026-09-29, #496) | deep 2026-10-10 (run13): listing rows p1/p2 disjoint on provider grammar, 3 video pages 200, stream artifacts on extractor path (film1k.xyz byse embed 200; FullPorner xiaoshenke iframe; FreePornVideos/Javbangers kt_player/get_file).",
       "tier": "tls-impersonated",
       "surfaces": {
         "home": "200 TLS",
@@ -208,12 +218,13 @@
         448,
         465
       ],
-      "chronic": false
+      "chronic": false,
+      "last_deep": "2026-10-10"
     },
     "FreePornVideos": {
       "site": "www.freepornvideos.xxx",
       "verdict": "ok",
-      "reason": "TLS 200 home/search(24 div.item cards)/video 2026-10-09; get_file 403 bare class retired like FullPorner; details-block rebuild kills Description:/Models:/Duration parsing (now Channel/Network/Categories/Pornstars; duration in meta video:duration + JSON-LD) \u2014 #536 filed 2026-10-09; Categories xpath still matches",
+      "reason": "TLS 200 home/search(24 div.item cards)/video 2026-10-09; get_file 403 bare class retired like FullPorner; details-block rebuild kills Description:/Models:/Duration parsing (now Channel/Network/Categories/Pornstars; duration in meta video:duration + JSON-LD) \u2014 #536 filed 2026-10-09; Categories xpath still matches | deep 2026-10-10 (run13): listing rows p1/p2 disjoint on provider grammar, 3 video pages 200, stream artifacts on extractor path (film1k.xyz byse embed 200; FullPorner xiaoshenke iframe; FreePornVideos/Javbangers kt_player/get_file).",
       "tier": "tls-impersonated",
       "surfaces": {
         "home": "200 TLS",
@@ -227,12 +238,13 @@
         449,
         466
       ],
-      "chronic": false
+      "chronic": false,
+      "last_deep": "2026-10-10"
     },
     "FullPorner": {
       "site": "fullporner.com",
       "verdict": "ok",
-      "reason": "TLS 200 search (24 video-card) + video; embed xiaoshenke JS quality map (extractor path); fresh site healthy 2026-10-09, challenge-artifact tier history retired; tags gap #526 filed 2026-10-09 (live /watch/<hash> exposes /category/* tags)",
+      "reason": "TLS 200 search (24 video-card) + video; embed xiaoshenke JS quality map (extractor path); fresh site healthy 2026-10-09, challenge-artifact tier history retired; tags gap #526 filed 2026-10-09 (live /watch/<hash> exposes /category/* tags) | deep 2026-10-10 (run13): listing rows p1/p2 disjoint on provider grammar, 3 video pages 200, stream artifacts on extractor path (film1k.xyz byse embed 200; FullPorner xiaoshenke iframe; FreePornVideos/Javbangers kt_player/get_file).",
       "tier": "tls-impersonated",
       "surfaces": {
         "home": "200 TLS",
@@ -245,12 +257,13 @@
       "suspected_excluded": [
         461
       ],
-      "chronic": false
+      "chronic": false,
+      "last_deep": "2026-10-10"
     },
     "EPorner": {
       "site": "www.eporner.com",
       "verdict": "ok-drift",
-      "reason": "plain 200 home/tag/watch this run (no age-wall from runner IP); /search/<q>/<N>/ redirects collapse every page to /tag/<q>/ p1 \u2014 pages 2+ duplicate p1 while hasNext=true (#537 filed 2026-10-09); site-side note: no actor exposure on watch pages (vit-pornstar/valor/JSON-LD actor/desc variant all gone), actors empty is not provider-parseable",
+      "reason": "#537 search pagination collapse closed 2026-10-13; plain home/tag/watch verified 200 in earlier runs. 2026-10-10 run13: every surface (home, /search/anal/, video) serves a 200 Age-verification sheet instead of content on the datacenter runner (plain AND tls-impersonated tiers, ~3.4KB 'Age verification - Eporner' body). Held ok-drift: suspected account-based age-wall class from probe IP, NOT the excluded transient camera/photo class; residential differential unavailable ($RESIDENTIAL_PROXY_URL unset), so the wall is not replayed for verdict purposes. The eporner-healthy canary still matched on status code 200 \u2014 improvement candidate: the canary is body-blind to the agegate.",
       "tier": "plain-curl",
       "surfaces": {
         "home": "200",
@@ -367,7 +380,7 @@
     "Javbangers": {
       "site": "www.javbangers.com",
       "verdict": "ok-drift",
-      "reason": "search 200 (150 /video/ links); KVS kt_player extractor path; standing 475 re-confirmed: /search/<q>/1/ and /2/ still 404 (2026-09-29)",
+      "reason": "search 200 (150 /video/ links); KVS kt_player extractor path; standing 475 re-confirmed: /search/<q>/1/ and /2/ still 404 (2026-09-29) | deep 2026-10-10 (run13): listing rows p1/p2 disjoint on provider grammar, 3 video pages 200, stream artifacts on extractor path (film1k.xyz byse embed 200; FullPorner xiaoshenke iframe; FreePornVideos/Javbangers kt_player/get_file).",
       "tier": "plain-curl",
       "surfaces": {
         "home": "200",
@@ -377,7 +390,8 @@
       "issue": 475,
       "standing_issue": 475,
       "drift_confirmed": 1,
-      "chronic": false
+      "chronic": false,
+      "last_deep": "2026-10-10"
     },
     "Javmost": {
       "site": "www.javmost.ws",
