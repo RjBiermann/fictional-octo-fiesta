@@ -47,6 +47,8 @@ truth now.
 ## Delivery
 Committed on `devloop/issue-559`, pushed, PR #560 open — not merged, human review only.
 
+## verify.sh runs (2026-10-14) — RESULT: PASS (exit 0, runs A and B)
+
 Run A (facet rows = fixed surface + full data surface): search `/?s=classic`
 (22 cards, `article.post-item` + `h3.entry-title`), home = classic-porn page 1
 + page 2 (24 cards each, zero dupes — the fix surface), 5 video URLs across
@@ -88,3 +90,6 @@ decode matches provider output).
   page element exists — not script-asserted. duration: site does not expose.
 - quick search: no distinct suggest endpoint (provider `hasQuickSearch = false`,
   issue #290 FINDINGS) — intentionally omitted.
+
+## Delivery
+Committed on `devloop/issue-559`, pushed, PR #560 open — not merged, human review only.
