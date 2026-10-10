@@ -1,4 +1,4 @@
-version = 10 // FINDINGS-515: Classic Porn category row
+version = 11 // #558: byse embed/order matches exactly-once now (P1—P4, JS exp audit)
 // fetches guarded (uncaught DNS exception), turbovid-only pages fall through cleanly
 
 cloudstream {

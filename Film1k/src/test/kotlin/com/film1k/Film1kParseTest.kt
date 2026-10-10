@@ -22,6 +22,11 @@ class Film1kParseTest {
         Jsoup.parse(javaClass.classLoader.getResource("film1k_video_related.html")!!.readText())
     }
 
+    /** issue #558: fresh tick-tock page — promo+sidebar ads shadow the player strip */
+    private val video558Doc by lazy {
+        javaClass.classLoader.getResource("film1k_video_558.html")!!.readText()
+    }
+
     @Test fun `related cards parse from main-scoped section`() {
         val related = Film1kParse.relatedOf(relatedDoc)
         assertEquals(11, related.size)
@@ -82,6 +87,22 @@ class Film1kParseTest {
         assertNull(Film1kParse.byseCode("<html>nothing here</html>"))
     }
 
+    // ---- issue #558: on-page promos must not shadow the byse player strip ----
+
+    @Test fun `no ads-page byse embed parses null first`() {
+        // tick-tock fixture: promo aside (byte ~20k of a large aside) carries the 'player.abyssplayer.com'
+        // video card token — with the /e/ regex, the promo is excluded; the true byse sources
+        // (source/iframe in #video-op-a) match exactly once.
+        assertEquals("4wsa1vlemk0e", Film1kParse.byseCode(video558Doc))
+    }
+
+    @Test fun `no abyssplayer embed yields null url`() {
+        // the tick-tock promo aside embeds 'player.abyssplayer.com/?v=SQSlSGTUy' — that promo must
+        // NOT fire the abyssplayer branch (its ?v= token is not a page player embed); and the
+        // fixture has NO real abyssplayer player embed. (Makes `loadLinks` fall through cleanly when no host matches.)
+        assertNull(Film1kParse.abyssUrl(video558Doc))
+    }
+
     // ---- issue #496: turbovid embed family DNS-dead (NODATA across resolvers) ----
 
     @Test fun `no live embed on a turbovid-only page parses nothing`() {
@@ -91,11 +112,29 @@ class Film1kParseTest {
         assertNull(Film1kParse.abyssUrl(turbovidDeadDoc))
     }
 
-    @Test fun `no abyssplayer embed yields null url`() {
+    @Test fun `abyss-host page parses the strip token`() {
+        // commuter-husbands fixture: the page's Option-1 player IS an abyss ?v= embed under
+        // <video><source> — the scoped overload keeps it (real page player, not a promo)
+        val abyssDoc = javaClass.classLoader.getResource("film1k_video_558_abyss.html")!!.readText()
+        assertEquals(
+            "abyssplayer.com/?v=m8Zgs7nAS",
+            Film1kParse.abyssUrl(Film1kParse.doc(abyssDoc))
+        )
+        // …and it writes NO byse match (no film1k.xyz source on the page)
+        assertNull(Film1kParse.byseCode(Film1kParse.doc(abyssDoc)))
+    }
+
+    @Test fun `raw-regex abyssplayer embeds still parse from plain html`() {
         assertNull(Film1kParse.abyssUrl("<html></html>"))
         assertEquals(
             "abyssplayer.com/?v=abc123XYZ",
             Film1kParse.abyssUrl("<iframe src=\"https://abyssplayer.com/?v=abc123XYZ\"></iframe>")
+        )
+        // apex domain — a player.-subdomain embed still matches (the regex keys on the
+        // domain, not the subdomain); the scoped overload keeps what does end here
+        assertEquals(
+            "abyssplayer.com/?v=LTjOBeDQK",
+            Film1kParse.abyssUrl("<iframe src=\"https://player.abyssplayer.com/?v=LTjOBeDQK\"></iframe>")
         )
     }
 

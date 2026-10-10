@@ -172,7 +172,11 @@ class Film1k : MainAPI() {
         // issue #408: markup drift probe 2026-09-13 — Byse source tags no longer carry a
         // trailing slash (`film1k.xyz/e/{code}` / `/e/{code}/{slug}.mp4`); the code capture
         // is a pure Parse function now (Unit-tested against fresh fixtures)
-        val byse = Film1kParse.byseCode(html)
+        // issue #558: one jsoup parse, both embed parsers scoped to the player strip —
+        // player.abyssplayer.com/... in the promo aside (or any other on-page mention of
+        // the mirror hosts) must never shadow the real player markup
+        val pageDoc = Film1kParse.doc(html)
+        val byse = Film1kParse.byseCode(pageDoc)
         if (byse != null) {
             val (streamUrl, quality) = bysePlayback(byse) ?: return false
             callback(
@@ -195,7 +199,7 @@ class Film1k : MainAPI() {
         // if the family ever returns, restore from git history (fixture kept for context).
 
         // issue #233 gap 2: abyssplayer embeds (SoTrym/enc-dec chain) — shared adapter
-        val abyssUrl = Film1kParse.abyssUrl(html) ?: return false
+        val abyssUrl = Film1kParse.abyssUrl(pageDoc) ?: return false
         return try {
             loadExtractor("https://$abyssUrl", mainUrl, subtitleCallback, callback)
         } catch (e: Exception) {
