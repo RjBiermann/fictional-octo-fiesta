@@ -30,7 +30,8 @@ fun parseActors(document: Element): List<String> =
         /**
          * Browse facets (issue #497, FINDINGS 2026-09-29): eroticmv.com exposes 75
          * browse facets whose pages reuse the homepage card markup (`article.post-item`).
-         * Facet pages are site-preloaded in one request; /page/2/ and ?paged=2 both 404.
+         * Facets paginate since late 2026 (issue #559, FINDINGS-559.md 2026-10-14):
+         * /category/<key>/page/N/ → 200; past the last page → 404 ⇒ empty list.
          */
         val facets = listOf(
             "country/australia", "country/austria", "country/brazil", "country/canada",
@@ -64,16 +65,18 @@ fun parseActors(document: Element): List<String> =
 
         /**
          * Issue #517 (FINDINGS-517): homepage "Latest" row paginates via /page/N/
-         * (live-verified). Facet rows are 1-page (FINDINGS-497): page > 1 ⇒ null.
+         * (live-verified). Issue #559 (FINDINGS-559.md 2026-10-14): facet pages
+         * paginate too now — /category/<key>/page/N/ → 200 with fresh cards,
+         * past the last page → 404 ⇒ empty list, hasNext=false.
          */
         fun homeUrlFor(data: String, page: Int): String? = when {
             page > 1 && homepageRow(data) -> "https://eroticmv.com/page/$page/"
-            page > 1 -> null
+            page > 1 -> data.removeSuffix("/") + "/page/$page/"
             else -> data
         }
 
         /** Single source of truth for the homepage "Latest" row (issue #517 review round 2):
-         *  homeUrlFor and isFacet both derive from this — never encode it twice. */
+         *  homeUrlFor derives from this — never encode it twice. */
         fun homepageRow(data: String): Boolean = data == "https://eroticmv.com/"
 
         /**
@@ -108,9 +111,6 @@ fun parseActors(document: Element): List<String> =
         *facets.map { key -> facetUrl(key) to facetTitle(key) }.toTypedArray()
     )
 
-    // Facet rows are 1-page: theme preloads the full facet; /page/2/ → 404 (FINDINGS-497).
-    // Derived from homepageRow — homeUrlFor is the one place the homepage URL literal lives.
-    private fun isFacet(request: MainPageRequest): Boolean = !homepageRow(request.data)
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = homeUrlFor(request.data, page)
@@ -118,7 +118,9 @@ fun parseActors(document: Element): List<String> =
         val document = app.get(url, referer = mainUrl).document
 
         val home = document.select("article.post-item").mapNotNull { it.toSearchResult() }
-        val hasNext = if (isFacet(request)) false else home.isNotEmpty()
+        // All rows (homepage + facets) terminate on card presence: a 404 past the
+        // last page yields no cards ⇒ hasNext=false (issue #559, FINDINGS-559.md).
+        val hasNext = home.isNotEmpty()
 
         return newHomePageResponse(
             HomePageList(request.name, home, isHorizontalImages = false),
