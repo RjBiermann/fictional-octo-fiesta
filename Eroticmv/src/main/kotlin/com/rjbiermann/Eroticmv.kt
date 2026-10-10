@@ -64,11 +64,13 @@ fun parseActors(document: Element): List<String> =
 
         /**
          * Issue #517 (FINDINGS-517): homepage "Latest" row paginates via /page/N/
-         * (live-verified). Facet rows are 1-page (FINDINGS-497): page > 1 ⇒ null.
+         * (live-verified). Issue #559 (FINDINGS-559.md 2026-10-14): facet pages
+         * paginate too now — /category/<key>/page/N/ → 200 with fresh cards,
+         * past the last page → 404 ⇒ empty list, hasNext=false.
          */
         fun homeUrlFor(data: String, page: Int): String? = when {
             page > 1 && homepageRow(data) -> "https://eroticmv.com/page/$page/"
-            page > 1 -> null
+            page > 1 -> data.removeSuffix("/") + "/page/$page/"
             else -> data
         }
 
@@ -108,8 +110,8 @@ fun parseActors(document: Element): List<String> =
         *facets.map { key -> facetUrl(key) to facetTitle(key) }.toTypedArray()
     )
 
-    // Facet rows are 1-page: theme preloads the full facet; /page/2/ → 404 (FINDINGS-497).
-    // Derived from homepageRow — homeUrlFor is the one place the homepage URL literal lives.
+    // Facet pages paginate now (issue #559, FINDINGS-559.md 2026-10-14);
+    // a 404 past the last page yields no cards ⇒ hasNext=false.
     private fun isFacet(request: MainPageRequest): Boolean = !homepageRow(request.data)
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
