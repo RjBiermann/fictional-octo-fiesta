@@ -8,8 +8,8 @@ import com.kraptor.registerHostExtractors
 
 /**
  * PandaMovies (pandamovies.pw) — issue #421. WordPress + PsyPlay movie theme; movies embed
- * filehost mirrors (LuluStream/Dood/MixDrop/VOE/Playmate), all already covered by the shared
- * host registry. See FINDINGS.md in this directory for every selector below.
+ * host registry. See FINDINGS-555.md (2026-10-13 rewrite, issue #555) and the
+ * run8 FINDINGS.md in this directory.
  */
 class PandaMovies : MainAPI() {
     override var mainUrl = "https://pandamovies.pw"
@@ -19,7 +19,7 @@ class PandaMovies : MainAPI() {
     override val supportedTypes = setOf(TvType.NSFW)
 
     override val mainPage = mainPageOf(
-        "$mainUrl/movies" to "Latest",
+        "$mainUrl" to "Latest",
         "$mainUrl/genre/18-teens" to "18+ Teens",
         "$mainUrl/genre/lesbian" to "Lesbian",
         "$mainUrl/genre/anal" to "Anal",
@@ -31,10 +31,6 @@ class PandaMovies : MainAPI() {
         val home = Parse.cards(document).mapNotNull { it.toSearchResult(this@PandaMovies) }
         return newHomePageResponse(
             list = HomePageList(name = request.name, list = home, isHorizontalImages = false),
-            // WP `posts_per_page=40`: a full 40-card page may continue, a shorter one is
-            // the real last page (continuing returns one extra empty card-less home/genre
-            // 200; search URLs 404 past the end). Exact-multiples (40/80/…) still fire
-            // one trailing request — the tail is shortened, not eliminated.
             hasNext = Parse.hasNextPage(document)
         )
     }
@@ -136,21 +132,21 @@ object Parse {
         val actors: List<String>,
     )
 
-    /** Listing cards (search / home / genre / related share one shape): `div.ml-item`.
-     *  PsyPlay renders lists twice on some pages (related strip + grid, preamble issue Cat3Movie
-     *  homeCards dedup); dedupe by href. */
+    /** Listing cards (search / home / genre / related share one shape): #555 BEM
+     *  `article.card` grammar (replaced PsyPlay `div.ml-item`). Related lives in the
+     *  "Similar titles" `section.sec`. Dedupe by href. */
     fun cards(document: org.jsoup.nodes.Document, fromRelated: Boolean = false): List<Card> =
-        document.select(if (fromRelated) "div.mlw-related div.ml-item" else "div.ml-item")
-            .filter { if (fromRelated) true else it.closest("div.mlw-related") == null }
+        document.select(if (fromRelated) "section.sec article.card" else "article.card")
+            .filter { if (fromRelated) true else it.closest("section.sec") == null }
             .mapNotNull { el ->
                 try {
-                    val anchor = el.selectFirst("a.ml-mask") ?: return@mapNotNull null
-                    val title = anchor.attr("oldtitle").ifBlank {
-                        anchor.selectFirst("h2")?.text()
-                    }?.trim().takeIf { !it.isNullOrBlank() } ?: return@mapNotNull null
-                    val href = anchor.absUrl("href").ifBlank { anchor.attr("href") } ?: return@mapNotNull null
-                    if (href.isBlank()) return@mapNotNull null
-                    val poster = el.selectFirst("img")?.attr("src")
+                    // theme mixes h2/h3 for card titles across surfaces — class only
+                    val titleEl = el.selectFirst(".card__t a") ?: return@mapNotNull null
+                    val title = titleEl.text()?.trim()
+                        ?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                    val href = (el.selectFirst("a.card__th") ?: titleEl)
+                        ?.absUrl("href")?.ifBlank { null } ?: return@mapNotNull null
+                    val poster = el.selectFirst("img.card__img")?.attr("src")
                         ?.takeIf { it.startsWith("http") && !it.startsWith("data:") }
                     Card(title, href, poster)
                 } catch (e: Exception) {
@@ -192,51 +188,69 @@ object Parse {
     private fun wordBoundaryContains(title: String, token: String): Boolean =
         token in title.split(Regex("[^a-z0-9]+"))
 
-    /** Is there a next page? (live, #425): WP `posts_per_page=40` — search and archive
-     *  listings serve up to 40 cards per page. A page with fewer cards is the last
-     *  real page; continuing yields an empty card-less 200 (or a search 404). No
-     *  pagination block is rendered on these pages, so card count is the signal.
-     *  Counts via [cards] — the same selector/related-exclusion/dedup as the actual
-     *  result list, so pager and list can't desynchronize. */
+    /** Is there a next page? (#555): every listing surface (home / search / genre /
+     *  category / `?s=` search) serves a `nav.pg` block with an explicit
+     *  `a.next` anchor when more pages exist — anchor presence, not card count
+     *  (per-page counts vary: 49 home, 35 elsewhere). A last page is a plain
+     *  page with cards but no `a.next` (WP serves 404 only past the end). */
     fun hasNextPage(document: org.jsoup.nodes.Document): Boolean =
-        cards(document).size >= 40
+        document.selectFirst("a.next.page-numbers") != null
 
-    /** One video page's LoadResponse fields (`.mvic-thumb` / `h3[itemprop=name]` / `.mvic-info`). */
+    /** One video page's LoadResponse fields (#555 `article.vid` grammar).
+     *  Title from the breadcrumb (`.bc__c` — clean name; `h1.vid__t` is noisy), the rest
+     *  from the info strip and details panel. */
     fun videoPage(document: org.jsoup.nodes.Document): VideoPage {
         val doc = document
-        val poster = doc.selectFirst("div.mvic-thumb img[src]")?.attr("src")
-            ?.takeIf { it.startsWith("http") && !it.startsWith("data:") }
-        val plot = doc.select("[itemprop=description].desc").text()
-        val durationText = doc.select("div.mvic-info p").firstOrNull {
-            it.text().startsWith("Duration")
-        }?.text() ?: ""  // "Duration: 3 hrs. 42 mins."
+        val details = doc.selectFirst("div.dp__panel[data-panel=details]")
         return VideoPage(
-            title = doc.selectFirst("h3[itemprop=name]")?.text()?.trim() ?: "",
-            poster = poster,
-            plot = plot.ifBlank { null },
-            durationMin = minutes(durationText.substringAfter(':')),
-            year = doc.select("div.mvic-info a[href*=/release-year/]").first()?.text()
-                ?.trim()?.toIntOrNull(),
-            tags = doc.select("div.mvic-info p:contains(Genres) a[href*=/genre/]").map { it.text() },
-            actors = doc.select("div.mvic-info a[href*=/actors/]").map { it.text() },
+            title = doc.selectFirst("span.bc__c")?.text()?.trim()
+                ?: doc.selectFirst("h1.vid__t")?.text()?.trim() ?: "",
+            poster = doc.selectFirst("img.hlm-screen__poster[src]")?.attr("src")
+                ?.takeIf { it.startsWith("http") && !it.startsWith("data:") },
+            plot = doc.selectFirst("div.vid__txt p")?.text()?.ifBlank { null },
+            durationMin = clockMinutes(doc.selectFirst("span.st--duration")?.text()),
+            year = details?.selectFirst("a[href*=/release-year/]")?.text()?.trim()?.toIntOrNull()
+                ?: doc.selectFirst("span.st--year")?.text()?.trim()?.toIntOrNull(),
+            tags = details?.select("a[href*=/genre/]")?.map { it.text() } ?: emptyList(),
+            actors = details?.select("a.chip--star")?.map { it.text() } ?: emptyList(),
         )
     }
 
-    /** "3 hrs. 42 mins." / "9 mins." → minutes. */
-    fun minutes(text: String): Int? {
-        val hours = Regex("(\\d+)\\s*hrs?").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-        val mins = Regex("(\\d+)\\s*mins?").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-        return if (hours == 0 && mins == 0) null else hours * 60 + mins
+    /** #555 clock durations: "4:00:00" → 240; "1:00" → 1; else null. Assumption:
+     *  a two-part clock is H:MM (hours), not MM:SS — FINDINGS-555 only sampled
+     *  three-part forms, so live evidence is thin either way; MM:SS misreads
+     *  minutes as hours, H:MM misreads at most 59 minutes. Re-check if live
+     *  two-part samples ever appear. */
+    fun clockMinutes(text: String?): Int? {
+        if (text == null) return null
+        val parts = text.trim().split(':')
+        val n = parts.map { it.toIntOrNull() }
+        return when {
+            n.size == 3 && n.all { it != null } -> n[0]!! * 60 + n[1]!!
+            n.size == 2 && n.all { it != null } -> n[0]!!
+            else -> null
+        }
     }
 
     /**
-     * Watch embeds from the #pettabs "Watch Online" table (anchors `id="#iframe"`; the
-     * Download table uses id="newtabforced"). Anchor hrefs point at mirror domains; the
-     * LuluStream and Voe registry rows are keyed to the canonical hosts (data-fl-url), so
-     * those two get normalized. Evidence: FINDINGS Stream sources.
+     * Watch embeds: #555 player is `section.hlm[data-servers]` — a JSON array with the
+     * stream hosts at key "u" (labels: DoodStream/MixDrop/…; download rows
+     * (Rapidgator/NitroFlare) are separate anchors and not eligible).
      */
     fun embeds(document: org.jsoup.nodes.Document): List<String> =
-        document.select("a[id=#iframe]").map { it.absUrl("href").ifBlank { it.attr("href") } }
+        document.select("section.hlm[data-servers]")
+            .map { it.attr("data-servers") }
+            .flatMap { json ->
+                // JSON via Jackson convention; parse failure → no embeds for this
+                // section, never a regex silently missing a formatting variance
+                try {
+                    com.fasterxml.jackson.databind.ObjectMapper().readTree(json)
+                        .let { it as com.fasterxml.jackson.databind.node.ArrayNode }
+                        .mapNotNull { n -> n.get("u")?.asText() }
+                } catch (e: Exception) {
+                    emptyList()
+                }
+            }
             .map { url ->
                 url.replace("://luluvid.com/e/", "://lulustream.com/")
                     .replace("://voe.sx/e/", "://voe.sx/")

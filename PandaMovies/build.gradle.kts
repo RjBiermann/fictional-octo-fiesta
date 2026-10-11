@@ -1,4 +1,4 @@
-version = 4 // shared Playmate /watch/<code> fix (issue #522)
+version = 5 // issue #555 markup migration: card__ grammar, pager pagination, hlm data-servers embeds, Latest row → home
 
 cloudstream {
     authors     = listOf("RjBiermann")

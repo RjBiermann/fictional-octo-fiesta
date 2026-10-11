@@ -6,13 +6,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Fixtures: real pandamovies.pw search/listing markup and a real video page (issue #421). */
+/** Fixtures: real pandamovies.org listing markup captured 2026-10-13 (#555 BEM "card" grammar). */
 class PandaMoviesParseTest {
 
-    private val base = "https://pandamovies.pw/"
+    private val base = "https://pandamovies.org/"
 
     private val searchDoc by lazy {
         Jsoup.parse(javaClass.getResourceAsStream("/panda-search.html")!!, "UTF-8", base)
+    }
+    private val homeDoc by lazy {
+        Jsoup.parse(javaClass.getResourceAsStream("/panda-home.html")!!, "UTF-8", base)
     }
     private val videoDoc by lazy {
         Jsoup.parse(javaClass.getResourceAsStream("/panda-video.html")!!, "UTF-8", base)
@@ -20,11 +23,18 @@ class PandaMoviesParseTest {
 
     @Test fun `listing cards parse title href poster`() {
         val cards = Parse.cards(searchDoc)
-        assertEquals(5, cards.size)
+        assertEquals(35, cards.size)
         val first = cards.first()
-        assertEquals("We Live Together 32", first.title)
-        assertEquals("https://pandamovies.pw/watch-we-live-together-32-movie-online-free", first.href)
-        assertTrue(first.poster?.contains("i3.wp.com") == true)
+        assertEquals("Sex & Romance 4", first.title)
+        assertEquals("https://pandamovies.org/watch-sex-romance-4-movie-online-free", first.href)
+        assertTrue(first.poster?.contains("2639538.jpg") == true)
+    }
+
+    @Test fun `home cards parse — Featured strip excluded, Latest grid kept (#555)`() {
+        val cards = Parse.cards(homeDoc)
+        assertEquals(35, cards.size)   // 49 raw − 14 Featured `section.sec` cards
+        assertEquals("Lust Pur – Conny Costa Brava", cards.first().title)
+        assertTrue(cards.first().href.endsWith("-movie-online-free"))
     }
 
     @Test fun `card identities are distinct (Distinct bar, fixture level)`() {
@@ -34,32 +44,12 @@ class PandaMoviesParseTest {
         )
     }
 
-    @Test fun `cited #439 query parses 8 cards from live capture (oldtitle→h2 fallback)`() {
-        val doc = Jsoup.parse(
-            javaClass.getResourceAsStream("/panda-search-roccos-intimacy.html")!!,
-            "UTF-8", base
-        )
-        val cards = Parse.cards(doc)
-        assertEquals(8, cards.size)
-        assertEquals("Rocco’s Intimacy", cards.first().title)
-        assertEquals(
-            "https://pandamovies.pw/watch-roccos-intimacy-movie-online-free",
-            cards.first().href
-        )
-        assertTrue(cards.first().poster?.contains("1376910h.jpg") == true)
-    }
-
     @Test fun `queryMismatch is false for healthy results (#444)`() {
-        val doc = Jsoup.parse(
-            javaClass.getResourceAsStream("/panda-search-roccos-intimacy.html")!!,
-            "UTF-8", base
-        )
-        assertTrue(!Parse.queryMismatch(Parse.cards(doc), "Rocco's intimacy"))
-        assertTrue(!Parse.queryMismatch(Parse.cards(doc), "rocco’s intimacy"))
+        assertTrue(!Parse.queryMismatch(Parse.cards(homeDoc), "bangbros"))
+        assertTrue(!Parse.queryMismatch(Parse.cards(homeDoc), "world of bangbros"))
     }
 
     @Test fun `queryMismatch flags zero-overlap garbage results (#444)`() {
-        // titles reproduced live from pandamovies.pw for near-miss query encodings
         val garbage = listOf(
             Parse.Card("The Best of Taylor Sands", "x", null),
             Parse.Card("AT-22", "x", null),
@@ -77,39 +67,49 @@ class PandaMoviesParseTest {
         assertEquals("Rocco's intimacy", Parse.normalizeQuery("Rocco's intimacy"))
     }
 
-    @Test fun `video page fields parse`() {
+    @Test fun `video page fields parse (#555 grammar)`() {
         val page = Parse.videoPage(videoDoc)
-        assertEquals("We Live Together 31", page.title)
-        assertTrue(page.poster?.contains("1685035h.jpg") == true)
-        assertTrue(page.plot!!.startsWith("We Live Together Vol. 31"))
-        assertEquals(222, page.durationMin)      // 3 hrs. 42 mins.
-        assertEquals(2014, page.year)
-        assertTrue(page.tags.contains("Cunnilingus"))
-        assertTrue(page.actors.contains("Malena Morgan"))
+        assertEquals("Sex At First Sight", page.title)
+        assertTrue(page.poster?.contains("1543778.jpg") == true)
+        assertTrue(page.plot!!.startsWith("Sex At First Sight."))
+        assertEquals(240, page.durationMin)      // st--duration "4:00:00"
+        assertEquals(2010, page.year)
+        assertTrue(page.tags.contains("Compilation"))
+        assertTrue(page.actors.contains("Angelina Crow"))
     }
 
-    @Test fun `related cards parsed`() {
+    @Test fun `related cards parsed from Similar titles section (#555)`() {
         val recs = Parse.cards(videoDoc, fromRelated = true)
         assertTrue(recs.size >= 2)
-        assertTrue(recs.none { it.title == "We Live Together 31" })
+        assertTrue(recs.none { it.title == "Sex At First Sight" })
         DistinctBar.assertDistinctVideos(recs.map { DistinctBar.VideoIdentity(it.title, it.poster, it.href) })
     }
 
-    @Test fun `watch embeds parsed and lulu normalize to registry canonical`() {
-        val embeds = Parse.embeds(videoDoc)
+    @Test fun `watch embeds parsed from hlm data-servers (#555)`() {
         assertEquals(
             listOf(
-                "https://lulustream.com/kv92aveomh88",
-                "https://playmogo.com/e/cz4kqifd60hh",
-                "https://mixdrop.my/e/z1znljvdcgv0mr0",
-                "https://voe.sx/4npykjbbbl4p",
-            ), embeds
+                "https://doply.net/e/jmffsu8tekc1",
+                "https://doply.net/e/3ljwfk2ex0db",
+                "https://mixdrop.ag/e/8ljw8z16c664erp",
+            ), Parse.embeds(videoDoc)
         )
     }
 
-    @Test fun `duration parser`() {
-        assertEquals(222, Parse.minutes("3 hrs. 42 mins."))
-        assertEquals(9, Parse.minutes("9 mins."))
-        assertEquals(null, Parse.minutes("N/A"))
+    @Test fun `hasNextPage follows the pager anchor (#555)`() {
+        assertTrue(Parse.hasNextPage(homeDoc))     // a.next present (page 1)
+        assertTrue(!Parse.hasNextPage(videoDoc))   // video pages have no pager
+    }
+
+    @Test fun `hasNextPage false on last page — cards present, no next anchor (WP end of list)`() {
+        // last page at every surface is a plain card listing with the pager anchor stripped
+        val last = Jsoup.parse(homeDoc.outerHtml().replace(Regex("<a[^>]*class=\"next[^\"]*\"[^>]*>[\\s\\S]*?</a>"), ""))
+        assertTrue(Parse.cards(last).isNotEmpty())
+        assertTrue(!Parse.hasNextPage(last))
+    }
+
+    @Test fun `duration parsers`() {
+        assertEquals(240, Parse.clockMinutes("4:00:00"))
+        assertEquals(1, Parse.clockMinutes("1:00"))       // assumed H:MM — see clockMinutes KDoc
+        assertEquals(null, Parse.clockMinutes("N/A"))
     }
 }
