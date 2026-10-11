@@ -112,6 +112,7 @@ internal fun sharedHostRegistry(): List<ExtractorApi> = listOf(
         lulu("https://luluvdo.com"),
         lulu("https://luluvdoo.com"),
         lulu("https://lulupvp.com"),
+        lulu("https://luluvido.com", "LuluStream"),   // mangoporn.net data-servers serves luluvido.com/e/<id> after the #564 BEM migration (FINDINGS-564)
         lulu("https://lulu.dlc.ovh/"),
         lulu("https://lulu0.ovh/"),
         lulu("https://x08.ovh/"),

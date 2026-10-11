@@ -147,7 +147,7 @@ class HostRegistryTest {
             "EarnVids" to 5,         // vidHidePro mirrors
             "Filemoon" to 7,         // filemoon factory default
             "HlsFree" to 2,          // HlsFree class + HlsFreeWww www. variant
-            "LuluStream" to 2,       // lulu(…, "LuluStream")
+            "LuluStream" to 3,       // lulu(…, "LuluStream") + luluvido.com (mangoporn #564 grammar, FINDINGS-564)
             "Lulustream" to 6,       // lulu factory default
             "MixDrop" to 3,          // MixDropAg + MixDropMy + mixdrop.is mirror
             "Player4Me" to 8,        // Player4Me class + player4me mirrors
