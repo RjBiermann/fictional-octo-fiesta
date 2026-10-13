@@ -20,6 +20,7 @@ class Mangoporn : MainAPI() {
     override val vpnStatus = VPNStatus.MightBeNeeded
 
     private val MAX_PAGE = 2000
+    override val hasQuickSearch = true
     override val mainPage
         get() = mainPageOf(
             *(try {
@@ -34,8 +35,9 @@ class Mangoporn : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val cleanData = request.data.trim().removePrefix("/").removeSuffix("/")
         val url = if (cleanData.endsWith("random", ignoreCase = true)) {
+            // random row: the /movies/ archive is 404 (issue #564); the root paginates /page/N/
             val randomPageNumber = Random.nextInt(1, MAX_PAGE + 1)
-            "$mainUrl/movies/page/$randomPageNumber/"
+            "$mainUrl/page/$randomPageNumber/"
         } else if (cleanData.isEmpty() || cleanData == "movies") {
             // healed home root: the old /movies/ archive is 404; the root paginates /page/N/ (FINDINGS-525)
             if (page <= 1) "$mainUrl/" else "$mainUrl/page/$page/"
@@ -45,14 +47,16 @@ class Mangoporn : MainAPI() {
             "$mainUrl/$cleanData/page/$page/"
         }
 
-        val home = try {
-            val document = app.get(url).document
-            // Card grammar: div.video-block (a.infos[title] + a.thumb img poster), shared SearchCard
-            document.select("div.video-block")
-                .mapNotNull { searchCard(it, "a.infos", posterSel = "a.thumb img", titleAttr = "title") }
+        val document = try {
+            app.get(url).document
         } catch (_: Exception) {
-            emptyList()
+            null
         }
+        // Card grammar (issue #564): article.card BEM cards (a.card__th link +
+        // .card__t a title + img.card__img poster) shared by every listing surface
+        val home = document?.select("article.card")?.mapNotNull {
+            searchCard(it, ".card__t a", hrefSel = "a.card__th", posterSel = "img.card__img")
+        } ?: emptyList()
 
         return newHomePageResponse(
             list = HomePageList(
@@ -60,36 +64,57 @@ class Mangoporn : MainAPI() {
                 list = home,
                 isHorizontalImages = false
             ),
-            hasNext = home.isNotEmpty()
+            // per-page counts vary per theme — the a.next anchor is the signal
+            hasNext = MangopornParse.hasNextPage(document)
         )
     }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
+        // Same article.card card grammar as home (shared SearchCard)
         val document = app.get("$mainUrl/page/$page/?s=$query").document
+        val results = document.select("article.card").mapNotNull {
+            searchCard(it, ".card__t a", hrefSel = "a.card__th", posterSel = "img.card__img")
+        }
 
-        // Same div.video-block card grammar as home (shared SearchCard)
-        val results = document.select("div.video-block")
-            .mapNotNull { searchCard(it, "a.infos", posterSel = "a.thumb img", titleAttr = "title") }
+        return newSearchResponseList(results, hasNext = MangopornParse.hasNextPage(document))
+    }
 
-        return newSearchResponseList(results, hasNext = results.isNotEmpty())
+    override suspend fun quickSearch(query: String): List<SearchResponse> = try {
+        val res = app.get("$mainUrl/wp-json/turbosearch/v1/suggest?q=${
+            java.net.URLEncoder.encode(query.trim(), "UTF-8")
+        }")
+        MangopornParse.suggestPosts(res.text).map {
+            newMovieSearchResponse(it.title, fixUrl(it.href), TvType.NSFW) {
+                this.posterUrl = it.poster
+            }
+        }
+    } catch (e: Exception) {
+        emptyList()   // turbosearch absent/malformed → app falls back to full search
     }
 
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url).document
 
-        val title = document.selectFirst("div.video-title > h1")?.text().toString()
-        // Character-video pages expose no og:image; thumbnailUrl is JSON-LD and blank on some pages.
+        // issue #564: article.vid grammar — breadcrumb title (h1.vid__t fallback),
+        // JSON-LD VideoObject carries duration + thumbnailUrl (now array-form)
+        val title = document.selectFirst("span.bc__c")?.text()?.trim()
+            ?: document.selectFirst("h1.vid__t")?.text()?.trim()
+            ?: ""
         val poster = MangopornParse.thumbnail(MangopornParse.videoLdJson(document))
 
-        val year = document.select("div#video-actors a[href*=/year/]").text().trim().toIntOrNull()
+        val details = document.selectFirst("div.dp__panel[data-panel=details]")
+        val year = (details ?: document).select("a[href*=/year/]")
+            .firstOrNull()?.text()?.trim()?.toIntOrNull()
         val duration = MangopornParse.videoLdJson(document)?.let { JsonLdParse.minutes(it) }
-        val description = document.selectFirst("div.video-description .desc p")?.text()
-        val actors = document.select("div#video-actors a[href*=/pornstar/]").map { Actor(it.text()) }
+        val description = document.selectFirst("div.vid__txt p")?.text()
+        val actors = details?.select("a.chip--star")?.map { Actor(it.text()) } ?: emptyList()
 
-        val tags = document.select("div#video-actors a[href*=/genre/]").map { it.text() }
+        val tags = details?.select("a[href*=/genre/]")?.map { it.text() }
+            ?: document.select("a[href*=/genre/]").map { it.text() }
 
-        val recommendations = document.select("div.related-videos div.video-block")
-            .mapNotNull { searchCard(it, "a.infos", posterSel = "a.thumb img", titleAttr = "title") }
+        val recommendations = document.select("section.sec article.card").mapNotNull {
+            searchCard(it, ".card__t a", hrefSel = "a.card__th", posterSel = "img.card__img")
+        }
         val imageHeaders = mapOf("Accept" to "image/avif,image/webp,image/png,image/svg+xml,image/*;q=0.8,*/*;q=0.5")
 
         if (tags.any { it.contains(kirliKelimeRegex) }) {

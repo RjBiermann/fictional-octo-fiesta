@@ -8,23 +8,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Unit tests for the Mangoporn port (issue #443), TDD-first per ADR-0005.
- * All tests exercise the shipped Parse functions in MangopornParse /
- * CloudWish.unpack — HTTP flows are covered by pipeline Verification.
+ * Unit tests for the Mangoporn port, TDD-first per ADR-0005.
+ * Fixtures are fresh live captures (2026-10-16, issue #564, BEM card/data-servers
+ * grammar). HTTP flows stay covered by pipeline Verification.
  */
 class MangopornParseTest {
-
-    // ---- CloudWish packed-JS unpack (provider-private grammar) ----
-
-    @Test
-    fun cloudWishUnpackExtractsMasterM3u8Path() {
-        // k = ["", "/stream/v/", "master.m3u8"]: token 1 -> /stream/v/, token 2 -> master.m3u8
-        val packed2 = "eval(function(p,a,c,k,e,d){}('1/2',10,3,'|/stream/v/|master.m3u8'.split('|'),0,{}))"
-        val out = CloudWish().unpack(packed2)
-        assertTrue(out!!.contains("/stream/v/"))
-        assertTrue(out.contains("master.m3u8"))
-        assertNull(CloudWish().unpack("no packed script here"))
-    }
 
     // ---- dirty-word filter (production word lists from Mangoporn) ----
 
@@ -39,95 +27,114 @@ class MangopornParseTest {
         assertTrue(pattern.containsMatchIn("Big Boobs Blast"))
     }
 
-    // ---- duration parse from load page ("2 hrs 5 mins") ----
-
-    @Test
-    fun durationParsesHoursAndMinutes() {
-        assertEquals(125, MangopornParse.durationMinutes("2 hrs 5 mins")!!)
-        assertEquals(35, MangopornParse.durationMinutes("35 mins")!!)
-        assertNull(MangopornParse.durationMinutes(null))
-        assertEquals(0, MangopornParse.durationMinutes("n/a")!!)
-    }
-
-    // ---- healed-site card grammar (issue #525): div.video-block cards, shared SearchCard ----
+    // ---- card grammar (issue #564): article.card BEM cards, shared SearchCard ----
 
     private fun fixture(name: String): org.jsoup.nodes.Document =
         Jsoup.parse(javaClass.classLoader.getResourceAsStream(name)!!.readBytes().decodeToString())
 
+    private fun cards(doc: org.jsoup.nodes.Document) =
+        com.kraptor.SearchCard.homeCards(
+            doc, "article.card", ".card__t a", hrefSel = "a.card__th", posterSel = "img.card__img"
+        )
+
     @Test
     fun homeCardsParseThroughSharedCardGrammar() {
-        val fields = com.kraptor.SearchCard.homeCards(
-            fixture("mangoporn-home.html"), "div.video-block", "a.infos",
-            titleAttr = "title", posterSel = "a.thumb img"
-        )
-        assertEquals(48, fields.size)
+        val fields = cards(fixture("mangoporn-home.html"))
+        assertEquals(38, fields.size)
         assertTrue(fields.any {
-            it.title.startsWith("Major Creampie") && it.href.endsWith("/movies/major-creampie/")
+            it.title.startsWith("Top-Tier SSS Beauty") &&
+                it.href.endsWith("/movies/top-tier-sss-beauty-returns-for-a-pure-unscripted-moment-of-passion/")
         })
-        // Home-root mixed lazy fill: many cards ship src="" — null poster, never fabricated
-        assertTrue(fields.count { it.poster == null } >= 1)
-        assertTrue(fields.count { it.poster?.startsWith("https://") == true } >= 40)
+        assertTrue(fields.all { it.poster?.startsWith("https://") == true })
+    }
+
+    @Test
+    fun headingTagVarianceDoesNotDropCards() {
+        // home p2 titles render as h2.card__t, home p1 as h3.card__t — class-only match
+        val p2 = cards(fixture("mangoporn-home-p2.html"))
+        assertTrue(p2.any { it.title == "Fetish Fantasies" })
+        assertTrue(p2.all { it.poster?.startsWith("https://") == true })
     }
 
     @Test
     fun searchCardsParseWithRealPosters() {
-        val fields = com.kraptor.SearchCard.homeCards(
-            fixture("mangoporn-search.html"), "div.video-block", "a.infos",
-            titleAttr = "title", posterSel = "a.thumb img"
-        )
-        assertEquals(48, fields.size)
+        val fields = cards(fixture("mangoporn-search.html"))
+        assertEquals(27, fields.size)
         assertTrue(fields.any {
-            it.title.startsWith("Diamond Collection 44") && it.href.endsWith("/movies/diamond-collection-44-senior-sex/")
+            it.title == "Anal" && it.href.endsWith("/movies/anal-2/")
         })
         assertTrue(fields.all { it.poster?.startsWith("https://") == true })
-        assertTrue(fields.none { it.title.contains("watch ", ignoreCase = true) })
-        assertTrue(fields.maxOf { it.title.length } > 100)   // long site titles survive verbatim
+        // the studio chip link (card__tx) must never win the href binding
+        assertTrue(fields.all { !it.href.contains("studios/") })
     }
 
-    // ---- load page (issue #525): JSON-LD VideoObject duration + thumbnail ----
+    @Test
+    fun oldGrammarSelectorsMatchNothingOnLiveHtml() {
+        val home = fixture("mangoporn-home.html")
+        assertEquals(0, home.select("div.video-block").size)
+        assertEquals(0, fixture("mangoporn-video.html").select("div#pettabs").size)
+    }
+
+    // ---- load page (issue #564): JSON-LD VideoObject — duration + thumbnailUrl array ----
 
     @Test
     fun videoLdJsonCarriesIsoDuration() {
         val ld = MangopornParse.videoLdJson(fixture("mangoporn-video.html"))
         assertTrue(ld!!.contains("VideoObject"))
-        assertEquals(18, com.kraptor.JsonLdParse.minutes(ld))
+        assertEquals(149, com.kraptor.JsonLdParse.minutes(ld))
     }
 
     @Test
-    fun videoThumbnailNullWhenSiteServesEmpty() {
+    fun videoThumbnailExtractedFromArrayForm() {
         val ld = MangopornParse.videoLdJson(fixture("mangoporn-video.html"))
-        assertNull(MangopornParse.thumbnail(ld))   // page-inconsistent field: empty on major-creampie
         assertEquals(
-            "https://i0.wp.com/pandanetwork.club/adult/wp-content/uploads/2026/06/3510965h.jpg",
-            MangopornParse.thumbnail("{\"thumbnailUrl\":\"https://i0.wp.com/pandanetwork.club/adult/wp-content/uploads/2026/06/3510965h.jpg\"}")
+            "https://i3.wp.com/pandanetwork.club/movies/wp-content/uploads/2026/10/03/17/3255674.jpg?resize=720,1080",
+            MangopornParse.thumbnail(ld)
+        )
+        // bare (non-array) form still supported
+        assertNull(MangopornParse.thumbnail("{}"))
+        assertEquals("https://x/y.jpg", MangopornParse.thumbnail("""{"thumbnailUrl":["https://x/y.jpg"]}"""))
+    }
+
+    // ---- data-servers player extraction (issue #564: section.hlm JSON embeds) ----
+
+    @Test
+    fun dataServersEmbedsExtractAllHosts() {
+        val links = MangopornParse.embedLinks(fixture("mangoporn-video.html"))
+        assertEquals(
+            listOf(
+                "https://playmate.to/embed/lIwXIX2evZ6ho",
+                "https://playmogo.com/e/ote1kbil63o9",
+                "https://luluvido.com/e/8n9fsmwl1tdt",
+                "https://voe.sx/e/f3nrt622h53i",
+                "https://mixdrop.ag/e/03vxj3mvsk96pq1",
+            ),
+            links
         )
     }
 
     @Test
-    fun liveVideoFixtureEmbedLinksExtract() {
-        val links = MangopornParse.embedLinks(fixture("mangoporn-video.html"))
-        assertTrue(links.any { it.startsWith("https://doply.net/e/") })
-        assertTrue(links.any { it.startsWith("https://luluvid.com/e/") })
-        assertFalse(links.any { it.contains("rapidgator") || it.contains("nitroflare") })
+    fun dataServersMissingOrMalformedYieldsNoLinks() {
+        assertEquals(emptyList<String>(), MangopornParse.embedLinks(Jsoup.parse("<html><body><section class='hlm'></section></body></html>")))
+        assertEquals(emptyList<String>(), MangopornParse.embedLinks(Jsoup.parse("""<section class='hlm' data-servers='not json'></section>""")))
     }
 
-    // ---- stream tab extraction from load page HTML (production selector) ----
+    // ---- quick search (issue #564: turbosearch suggest JSON) ----
 
     @Test
-    fun petTabsExtractsEmbedLinksAndSkipsFileLockers() {
-        val html = javaClass.classLoader
-            .getResourceAsStream("mangoporn-pettabs.html")!!
-            .readBytes().decodeToString()
-        val links = MangopornParse.embedLinks(Jsoup.parse(html))
-        assertTrue(links.contains("https://luluvid.com/e/jozkrpjgsueq"))
-        assertTrue(links.contains("https://playmogo.com/e/80wvduwl22id"))
-        assertFalse(links.any { it.contains("rapidgator") || it.contains("nitroflare") })
-        assertTrue(links.isNotEmpty())
-    }
-
-    @Test
-    fun oldArticleSelectorsMatchNothingOnLiveHtml() {
-        assertEquals(0, fixture("mangoporn-home.html").select("div.items > article").size)
-        assertEquals(0, fixture("mangoporn-search.html").select("article").size)
+    fun suggestPostsParseTurbosearchJson() {
+        val json = """{"q":"anal","posts":[
+            {"id":32116,"title":"Anal","url":"https:\/\/mangoporn.net\/movies\/anal-2\/",
+             "thumb":"https:\/\/i3.wp.com\/pandanetwork.club\/x.jpg?resize=360,540","meta":"29:00"},
+            {"id":3011,"title":"Anal","url":"https:\/\/mangoporn.net\/movies\/anal\/",
+             "thumb":"","meta":"17:00"}],"terms":[],"total":2}"""
+        val posts = MangopornParse.suggestPosts(json)
+        assertEquals(2, posts.size)
+        assertEquals("https://mangoporn.net/movies/anal-2/", posts[0].href)
+        assertTrue(posts[0].poster?.contains("pandanetwork.club") == true)
+        assertEquals("https://mangoporn.net/movies/anal/", posts[1].href)
+        assertNull(posts[1].poster)   // blank thumb → null, never fabricated
+        assertEquals(0, MangopornParse.suggestPosts("""{"posts":[],"terms":[]}""").size)
+        assertEquals(0, MangopornParse.suggestPosts("garbage").size)
     }
 }

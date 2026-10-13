@@ -1,4 +1,4 @@
-version = 5 // #533 paginated search + shared Playmate /watch/<code> fix (issue #522)
+version = 6 // #564 BEM card/data-servers grammar migration (markup = panda theme)
 
 cloudstream {
     authors     = listOf("kraptor", "ByAyzen", "HindiProvider")
