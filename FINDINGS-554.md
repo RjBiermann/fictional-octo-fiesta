@@ -143,3 +143,153 @@ Probe-tier notes (script artifacts, not findings):
 - `FINDINGS-554.md` (this file), `audits/findings.json` (run10), `audits/canaries.json`
 - `.pi/skills/audit-providers/scripts/check-findings.sh`: **PASS** (delivery gate)
 - Finding issue filed this run: **#555** (PandaMovies)
+
+---
+
+# run13 — 2026-10-10 (round 4 under #554)
+
+Note on run numbering: round 2 (run11) and round 3 (run12) shipped no merged
+artifacts — run11's PR #557 was closed unmerged and run12 opened no PR — so the
+merged evidence stream jumps from run10 to run13. Everything re-probed here
+supersedes those unmerged claims; where run11 observed Mangoporn/Xhamster
+conditions, this run re-derived them from scratch (see below).
+
+Operator: pi agent, branch `devloop/issue-554`. Probe IP: US datacenter.
+
+## Phase 0 — canary calibration
+
+All 3 canaries **MATCH** (2026-10-10):
+
+- film1k-challenge-pair: plain 403 / tls-impersonated 200
+- eporner-healthy: plain 200 (status-match; caveat below — the body is the
+  agegate, the canary is body-blind to that)
+- pandamovies-redirect-origin: plain 302 → `pandamovies.org` 200 / tls 200
+
+Instrument healthy. Blocked verdicts stay eligible (none needed).
+
+## Phase 1 — sweep (26/26)
+
+Every provider: home → search → video page → stream-artifact check, one pass,
+plain-curl tier with tls escalation per ladder (records: /tmp/sweep13,
+transcript-only). "Cards" = occurrences of the provider's own card grammar.
+
+| Provider | tier | home | search | video | stream artifact |
+|---|---|---|---|---|---|
+| AllClassicPorn | plain | 200 (84 `th item`) | 200 (60) | 200 | kt_player + get_file (KVS) |
+| Cat3Film | plain | 200 | 200 (`_ajax/_search` JSON) | 200 (`data-slug` page) | JS player API (extractor path) |
+| Cat3Movie | plain | 200 (58 `halim-thumb`) | 200 (4 — narrow result set) | 200 (`geranalmo-1994`) | WP player iframe |
+| EPorner | plain | 200 — **Age-verification sheet** (0 `vidresults`) | 200 — agegate | agegate |  n/a (walled) |
+| Eroticmv | plain | 200 (48 `post-item`) | 200 (18) | 200 | `.m3u8` ×3 + 53 iframes — merged #560 facet fix live |
+| Film1k | tls | 200 (24 `loop-post`) | 200 (24) | 200 | `film1k.xyz/e/…` embed 200 — merged #558/#561 scoping live |
+| FreePornVideos | tls | 200 (74 `item`) | 200 (50) | 200 ×3 | get_file + kt_player (session-bound, known) |
+| FullPorner | tls | 200 (72 `video-card`) | 200 (72) | 200 ×3 | `xiaoshenke.net` iframe (extractor path) |
+| HQPorner | plain | 200 (50 `image`) | 200 (50) | 200 | mydaddy embed |
+| JavGuru | plain | 200 (`inside-article` 12+) | 200 (12) | 200 | `javmiku` iframe (extractor path) |
+| Javbangers | plain | 200 (60) | 200 (75) | 200 (kt_player/get_file on public; newest uploads flagged **private** by the site, no player rendered) |
+| Javmost | plain | 200 | 200 (24 `"cover"` JSON) | 200 | mixdrop/streamtape/dood anchors |
+| Javseen | plain | 200 | 200 (31 `li id="video-…"` via AJAX JSON) | 200 | `data-embeds` → javhdz |
+| Javtiful | plain | 200 (24 `article.video-card` — post-#534 grammar healthy) | 200 (24) | 200 | mp4 markers |
+| Mangoporn | plain | 200 (0 `video-block`, 38 `card__th`) | 200 (0, 27 `card__th`) | 200 | `section.hlm[data-servers]` — **new drift, #564** |
+| MissAV | plain | 200 (11 `grid-cols-2`) | 200 (video cards `/en/<code>`) | 200 | surrit m3u8 (known flow) |
+| Neporn | plain | 200 (32 `div.item`) | 200 (24) | 200 | kt_player + get_file (KVS) |
+| PandaMovies | plain | 200 (0 `ml-item`, 49 `card__th`) | 200 (0, 27) | 200 | `section.hlm[data-servers]` — #555 re-confirmed |
+| PerverZija | plain | 200 (69 `col-md-3`) | 200 | 200 | pervl.xtremestream iframe |
+| PornXP | plain | 200 | 200 (36 `item_dur`) | 200 | cdrn mp4 markers |
+| Porntrex | plain | 200 (89 `video-preview-screen`) | 200 (104) | 200 | kt_player |
+| Sexfilm | plain | 200 (96 `short`) | 200 | 200 (cookie-jar 2-step) | filmcdm/morencius embeds (provider regex matches) |
+| WatchPorn | plain | 200 (57 `thumb item`) | 200 (40) | 200 | kt_player + get_file |
+| XMoviesForYou | tls | 200 (30 `data-video-card`) | 200 (24 `a.card`) | 200 | streamtape/mixdrop/dood anchors |
+| Xhamster | plain | 200 (`videoListProps` present — home initials fine) | 200 (37 `searchResult`) | 200 | m3u8 markers |
+| ixiporn | plain | 200 via .org → `.live` double redirect (#468 stands) | 200 (`video-block` 31 `a.infos`) | 200 | get_file (session-bound) |
+
+Verdict changes this run: **Mangoporn ok → ok-drift** (new condition #564).
+Everything else keeps its registry verdict. EPorner's agegate is recorded as a
+suspected probe-IP condition (below), not a Blocked — Phase 0 is healthy, but
+the wall's honesty requires the residential differential to decide.
+
+## Phase 2 — deep tier (rotation)
+
+Oldest missing `last_deep` stamps: Film1k, FreePornVideos (stamped but from the
+unmerged run11), FullPorner, Javbangers. EPorner was also under-deep but is
+agegate-walled on every surface from this probe IP — deep effort degraded,
+replaced by Javbangers to keep N=4.
+
+- **Film1k (tls)**: Latest `/` vs `/page/2` 24/24 cards, overlap 0; `/category/action/`
+  p1 vs p2 24/24, overlap 0. The 9-overlap seen with an unscoped raw grep
+  is the classic-featured *sidebar strip* repeated on every listing page — the
+  provider parses only `article.loop-post` cards (API dedupe via `distinctBy url`),
+  so it is benign. Search page-1 only (known; search 404s past p1). 3 video pages 200
+  (`aunt-pegs-fulfillment-1981`, `barbed-wire-dolls-1976`, `caligula-2-the-untold-story-1982`),
+  each embedding a live `film1k.xyz/e/<hash>` iframe (200) — the merged #558/#561
+  embed-scope fix parses on live markup. Full byse playback chain (captcha PoW →
+  playback AES) NOT replayed this run: no golden-parity harness rerun, Kotlin
+  solver and upstream ResolveURL byse.py unchanged since run11's replay.
+- **FreePornVideos (tls)**: `/latest-updates/1|2`, `/most-popular/week/1|2`,
+  `/networks/brazzers-com/1|2` — all 24/24, overlap 0. 3 video pages 200 with
+  get_file/KVS pipeline artifacts. kt_player client-side resolution not replayed
+  (same practice as previous runs).
+- **FullPorner (tls)**: `/home/1|2`, `/category/hd-porn/1|2`, `/category/amateur/1|2`
+  all 24/24 overlap 0. 3 watch pages 200, each with the `xiaoshenke.net/video/…`
+  quality-map iframe (extractor path unchanged).
+- **Javbangers (plain)**: `/latest-updates|/2`, `/most-popular|/2`,
+  `/categories/milf|/2` all 24/24, overlap 0 except **1** informal repeat
+  (`/video/406770/…`) between milf p1/p2. 3 video pages 200—but two of the
+  newest-updates entries render **"This video is a private…"** placeholders
+  instead of the KVS player (site-side privacy on fresh uploads; the older
+  public video page keeps kt_player/get_file). Not a listing defect.
+
+## Phase 3 — findings lifecycle
+
+Per the skill: open+recently-closed issue search per condition before filing.
+
+1. **Mangoporn BEM migration** — genuinely new condition (the post-#525 markup
+   this replaced was itself the 1st confirmed drift). Filed **#564** (unlabeled).
+   Registry: verdict `ok-drift`, `drift_confirmed` 1 → 2 (2nd confirmed
+   occurrence; a 3rd triggers the hardening rule). The grammar is identical in
+   kind to PandaMovies' #555 (same `card__th/card__t/card__dur`, same `section.hlm`
+   `data-servers` watch grammar, same `pandanetwork.club` image CDN), so the
+   open #555/#563 fix is partially reusable.
+2. **PandaMovies** — standing **#555** exists (pr-563 open): reposted evidence as a
+   comment on #555 (per-site sweeps re-confirm, no new issue).
+3. **EPorner age-wall** — all surfaces serve the agegate from the datacenter runner
+   (plain AND tls). This matches run11's observation exactly; no refile under the
+   excluded #447/#462 camera/photo class (this is an account-based wall), no new
+   issue (suspected, deciding residential differential unavailable:
+   `$RESIDENTIAL_PROXY_URL` unset in this environment). #537 is otherwise
+   unverifiable this run behind the same wall.
+4. **Xhamster — no finding** — the bare-shell `window.initials` condition
+   from run11 did **not** reproduce: search carried 37 `searchResult` cards and home
+   `videoListProps` on plain tier this run. No issue filed; no false positive
+   created (was never merged as a finding).
+5. False positives this run: **0**. Findings filed: **1** (#564). Standing-issue
+   updates: **1** (#555 comment).
+
+## Registry deltas (`audits/findings.json`)
+
+- Mangoporn: verdict `ok-drift`, `drift_confirmed` 2, issue/standing 564/525
+- PandaMovies: 2026-10-10 re-confirmation appended to reason
+- EPorner: reason now records the age-gate condition + a canary body-blindness
+  caveat (the eporner-healthy canary checks status code only, so it matches even
+  when the served body is the agegate)
+- `last_deep` stamped 2026-10-10: Film1k, FreePornVideos, FullPorner, Javbangers
+- `updated` 2026-10-10; `last_runs` += run13 (findings [564], false_positives [])
+- `audits/canaries.json`: `last_verified` 2026-10-10 ×3
+
+## Stream checks this run
+
+- Film1k: `film1k.xyz/e/<hash>` embed reachable 200 from the runner (chain endpoint
+  confirmed live; PoW+AES playback chain replay not re-run — unchanged since run11).
+- FreePornVideos / Javbangers / Neporn / WatchPorn / AllClassicPorn: KVS
+  kt_player/get_file artifacts on video pages (session-bound; bare get_file 403 is
+  known leech protection, not a defect).
+- FullPorner: `xiaoshenke.net` quality-map iframe on 3/3 watch pages.
+- Direct-media spot checks all healthy: Eroticmv m3u8, PornXP cdrn mp4,
+  Xhamster m3u8, Javtiful mp4 markers, Javseen javhdz chain (data-embeds).
+- EPorner / PandaMovies / Mangoporn streams moot on current listings (listings
+  themselves are the open conditions).
+
+## Artifacts
+
+- `FINDINGS-554.md` (this file), `audits/findings.json` (run13), `audits/canaries.json`
+- `.pi/skills/audit-providers/scripts/check-findings.sh`: **PASS** (delivery gate)
+- Finding issues filed this run: **#564**; standing issue updated: **#555**
