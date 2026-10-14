@@ -11,16 +11,16 @@ on:
     names: [status/planned]
   roles: [admin, maintainer, write]
 imports:
-  - .github/workflows/shared/engine-lane.md
-  - .github/workflows/shared/gate.md
-  - .github/workflows/shared/budget.md
+  - ../shared/engine-lane.md
+  - ../shared/gate.md
+  - ../shared/budget.md
 permissions:
   contents: read
   issues: read
   pull-requests: read
 concurrency:
   group: impl-${{ github.event.issue.number }}
-timeout-minutes: 30
+timeout-minutes: 75
 max-turns: 30
 max-ai-credits: 1500
 safe-outputs:
