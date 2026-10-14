@@ -135,6 +135,14 @@
       "findings": [],
       "false_positives": [],
       "note": "run 11 (issue 596 S1 of #593 spec round 14): full 26-provider uniform sweep home->search->video page->stream artifact (plain-curl, TLS tier for Eroticmv/FreePornVideos/FullPorner/XMoviesForYou video+search where plain 403 CF challenge). Canaries 3/3 match (film1k pair 403/200, eporner 200, pandamovies 302->200@.org), last_verified 2026-10-14. Javbangers standing search-p2 404 re-confirmed at provider URLs (p1 200 / p2 404). Observed-but-not-filed: Eroticmv header 403 = datacenter-IP CF challenge (TLS 200), probe-IP class; Eroticmv #538 articleSection condition observed healed (articleSection array populated live 2026-10-14) - closed issue, no re-open requested. No verdict changes (evidence-change-only rule), no deep tier this run (spec scope), 0 new findings."
+    },
+    {
+      "id": "run14",
+      "date": "2026-10-14",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run14 (issue 599 S3 of #593 spec round 14, registry write-up: evidence landed via PR #602 S1 uniform sweep + PR #606 S2 deep pass). Tiered round: S1 uniform canary-style pass on all 26 (PR #602), S2 deepest pass on the 8 ok-drift (PR #606). Canaries 3/3 match (last_verified 2026-10-14). Re-verdicts on evidence change only: 7 migrations ok-drift -> ok (PandaMovies #555 fix #563, Mangoporn #564 fix #566, XMoviesForYou #535 fix #547, Javtiful #534 fix #548, Javbangers #475 closed standing, Film1k #496/#501 fix, EPorner #537 fix #543); ixiporn stays ok-drift -- #468 standing double-redirect .org->.live unchanged, all faces healthy on that origin (not a new post-fix condition, no issue filed). 0 new findings, 0 false positives. Ground truth: FINDINGS-596.md, FINDINGS-598.md."
     }
   ],
   "providers": {
