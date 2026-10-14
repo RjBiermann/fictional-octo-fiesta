@@ -23,7 +23,7 @@ engine:
   config: |
     {
       "model": {
-        "id": "glm-5.3-flash",
+        "id": "aw-gateway/glm-5.3-flash",
         "name": "GLM-5.3-Flash (OpenCode Go)",
         "api": "openai-completions",
         "reasoning": false,
