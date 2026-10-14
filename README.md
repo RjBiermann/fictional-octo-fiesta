@@ -4,7 +4,7 @@ A [CloudStream3](https://github.com/recloudstream/cloudstream) extension repo of
 
 ## Providers
 
-Data as of `audits/findings.json` @ 2026-10-10.
+Data as of `audits/findings.json` @ 2026-10-14.
 
 | Provider | Site | Verdict | Tier |
 | --- | --- | --- | --- |
