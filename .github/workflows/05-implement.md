@@ -11,9 +11,9 @@ on:
     names: [status/planned]
   roles: [admin, maintainer, write]
 imports:
-  - ../shared/engine-lane.md
-  - ../shared/gate.md
-  - ../shared/budget.md
+  - .github/workflows/shared/engine-lane.md
+  - .github/workflows/shared/gate.md
+  - .github/workflows/shared/budget.md
 permissions:
   contents: read
   issues: read
