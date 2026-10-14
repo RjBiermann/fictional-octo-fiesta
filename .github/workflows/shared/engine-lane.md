@@ -14,7 +14,12 @@ engine:
   model: openai/glm-5.3-flash
   env:
     OPENAI_BASE_URL: https://opencode.ai/zen/go/v1
-    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    # Both engine-env keys alias to the repo's existing OpenCode secret —
+    # GenerateMultiSecretValidationStep validates the *user-supplied* name
+    # when engine.env overrides a credential key, so no new secret needs
+    # creating under gh-aw's canonical names.
+    CODEX_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+    OPENAI_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
   config: |
     {
       "model": {
