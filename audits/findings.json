@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "note": "Machine source of truth for the provider fleet audit. drift_confirmed counts only closed issues CONFIRMED as drift/broken (Suspected findings closed as false positives are exclusions, never occurrences). Audits update this file; the lint (scripts/check-findings.sh) must pass before delivery.",
-  "updated": "2026-10-10",
+  "updated": "2026-10-14",
   "last_runs": [
     {
       "id": "run1",
@@ -127,6 +127,14 @@
       ],
       "false_positives": [],
       "note": "run13 (issue 554, round 4): full 26-provider sweep (home/search/video/stream-artifact), canaries 3/3, EPorner agegate (deep replaced by Javbangers), deep tier Film1k/FreePornVideos/FullPorner/Javbangers; new condition #564 Mangoporn BEM migration; #555 re-confirmed; EPorner age-wall suspected held; run11 (round 2) and run12 (round 3, no changes) artifacts never merged \u2014 their evidence superseded by this run"
+    },
+    {
+      "id": "run11",
+      "date": "2026-10-14",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run 11 (issue 596 S1 of #593 spec round 14): full 26-provider uniform sweep home->search->video page->stream artifact (plain-curl, TLS tier for Eroticmv/FreePornVideos/FullPorner/XMoviesForYou video+search where plain 403 CF challenge). Canaries 3/3 match (film1k pair 403/200, eporner 200, pandamovies 302->200@.org), last_verified 2026-10-14. Javbangers standing search-p2 404 re-confirmed at provider URLs (p1 200 / p2 404). Observed-but-not-filed: Eroticmv header 403 = datacenter-IP CF challenge (TLS 200), probe-IP class; Eroticmv #538 articleSection condition observed healed (articleSection array populated live 2026-10-14) - closed issue, no re-open requested. No verdict changes (evidence-change-only rule), no deep tier this run (spec scope), 0 new findings."
     }
   ],
   "providers": {
