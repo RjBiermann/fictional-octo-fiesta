@@ -4,34 +4,50 @@
 # lane (below) is one example, not the default. Sources in this pipeline
 # never hardcode an engine; they import this file relatively.
 #
-# gh-aw v0.89.21 contract for pi custom providers: the model's first
-# segment selects the gateway — recognized prefixes are copilot |
-# anthropic | openai | codex (anything else silently falls back to the
-# Copilot lane; the docs' openrouter/ example routes through `openai`).
+# glm-5.3-flash on OpenCode Go speaks ONLY Chat Completions; gh-aw
+# v0.89.21's sandboxed pi gateway forces Responses for the openai/ lane
+# (confirmed by runtime 400 ModelProtocolUnsupported). Per gh-aw's own
+# documented escape hatch, the agent sandbox is disabled for this lane
+# (MCP gateway stays on) with a explicit per-workflow strict opt-out;
+# every agent-level guardrail outside the firewall remains: read-only
+# agent job, safe-output allow-lists, human-only labels/merge, on.roles.
 engine:
   id: pi
   version: "1.1.0"
   model: openai/glm-5.3-flash
   env:
-    OPENAI_BASE_URL: https://opencode.ai/zen/go/v1
-    # Both engine-env keys alias to the repo's existing OpenCode secret —
-    # GenerateMultiSecretValidationStep validates the *user-supplied* name
-    # when engine.env overrides a credential key, so no new secret needs
-    # creating under gh-aw's canonical names.
+    # Validation-step alias: GenerateMultiSecretValidationStep validates
+    # the user-supplied secret when engine.env overrides a credential key.
     CODEX_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
     OPENAI_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-  config: |
-    {
-      "model": {
-        "id": "aw-gateway/glm-5.3-flash",
-        "name": "GLM-5.3-Flash (OpenCode Go)",
-        "api": "openai-completions",
-        "reasoning": false,
-        "input": ["text"],
-        "contextWindow": 128000,
-        "maxTokens": 12000
+pre-agent-steps:
+  - name: Ship pi models.json (OpenCode Go lane - glm-5.3-flash, native)
+    run: |
+      DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+      mkdir -p "$DIR"
+      cat > "$DIR/models.json" <<'JSON'
+      {
+        "providers": {
+          "openai": {
+            "baseUrl": "https://opencode.ai/zen/go/v1",
+            "api": "openai-completions",
+            "apiKey": "$OPENCODE_API_KEY",
+            "models": [
+              {
+                "id": "glm-5.3-flash",
+                "name": "GLM-5.3-Flash (OpenCode Go)",
+                "reasoning": false,
+                "input": ["text"],
+                "contextWindow": 128000,
+                "maxTokens": 12000
+              }
+            ]
+          }
+        }
       }
-    }
+      JSON
+env:
+  OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
 network:
   allowed:
     - defaults
