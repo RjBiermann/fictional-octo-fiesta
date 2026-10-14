@@ -32,6 +32,7 @@
 #     - .github/workflows/shared/budget.md
 #
 # Frontmatter env variables:
+#   - GH_TOKEN: .github/workflows/shared/engine-lane.md
 #   - OPENCODE_API_KEY: .github/workflows/shared/engine-lane.md
 #
 # Secrets used:
@@ -81,6 +82,7 @@ concurrency:
 run-name: "Retry"
 
 env:
+  GH_TOKEN: ${{ github.token }}
   OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
   OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.GH_AW_DEFAULT_OTLP_ENDPOINT || vars.GH_AW_DEFAULT_OTLP_ENDPOINT }}
   OTEL_SERVICE_NAME: gh-aw.00-retry
