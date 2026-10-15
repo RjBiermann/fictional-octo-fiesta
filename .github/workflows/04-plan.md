@@ -11,8 +11,8 @@ on:
     events: [issues, issue_comment]
   roles: [admin, maintainer, write]
 imports:
-  .github/workflows/shared/engine-lane.md
-  .github/workflows/shared/gate.md
+  - .github/workflows/shared/engine-lane.md
+  - .github/workflows/shared/gate.md
 permissions:
   contents: read
   issues: read
