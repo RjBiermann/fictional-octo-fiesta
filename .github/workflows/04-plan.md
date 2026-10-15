@@ -11,8 +11,8 @@ on:
     events: [issues, issue_comment]
   roles: [admin, maintainer, write]
 imports:
-  - .github/workflows/shared/engine-lane.md
-  - .github/workflows/shared/gate.md
+  - ../shared/engine-lane.md
+  - ../shared/gate.md
 permissions:
   contents: read
   issues: read
@@ -34,6 +34,12 @@ safe-outputs:
 
 One round per `/plan` invocation. The human controls pacing; never
 advance a round yourself.
+
+**Heading convention (delta 16 follow-up):** every round post MUST begin
+with `Plan round N — ` (N ∈ {1,2,3}) exactly — e.g. "Plan round 1 — clarify
+questions". The mechanical conveyor (95-orchestrator, ADR-0008) detects
+the loop's state by that anchor; a differently-phrased heading makes the
+surrogate miss the round and stall the chain.
 
 - **Round 1** (no prior round-1 marker in the issue comments): read the
   issue + repo + comment thread (Comment Context: untrusted framing).
