@@ -159,9 +159,27 @@ def merge_readiness():
             print(f"[orchestrator] PR #{num}: mergeable_state={mstate} — not ready")
             continue
         if AUTO_MERGE:
-            run(["gh", "pr", "merge", str(num), "--squash", "--auto"])
-            print(f"[orchestrator] PR #{num}: auto-merge queued")
-            continue
+            # ADR-0008 gate decision (post-merge review): auto-merge may only
+            # act on chains whose round-3 approval comment exists on the
+            # parent spec issue (parsing "[spec] Story" detour not needed —
+            # the gate is evidence-level: the owner decision comment must
+            # exist on the PR's own thread or the parent found from the body).
+            gate_ok = False
+            body = (api(f"pulls/{num}") or {}).get("body") or ""
+            import re as _re
+            mm = _re.search(r"approved\s+#(\d+)\s+spec", body) or _re.search(r"Closes\s+#(\d+)", body)
+            if mm:
+                parent_n = mm.group(1)
+                gate_ok = any(
+                    (c.get("user", {}).get("login") == OWNER
+                     and (c.get("body") or "").strip().lower() in ("approved", "approve", "lgtm", "yes", "ok"))
+                    for c in (api(f"issues/{parent_n}/comments") or []))
+            if not gate_ok:
+                print(f"[orchestrator] PR #{num}: auto-merge gate requires the chain's owner approval — falling back to readiness ping")
+            else:
+                run(["gh", "pr", "merge", str(num), "--squash", "--auto"])
+                print(f"[orchestrator] PR #{num}: auto-merge queued (spec approved)")
+                continue
         sha = ((d.get("head") or {}).get("sha") or "")[:12]
         marker = f"ready @{OWNER} — all required checks green at `{sha}`"
         if _has_marker(comments(num), marker):
@@ -191,7 +209,7 @@ def chain_driver():
                 print(f"[orchestrator] story 1 (issue {s['number']}): no round-3 approval recorded — waiting on human")
             continue
         pstate = _story_state(num_story - 1, stories)
-        if pstate in ("closed", "CLOSED"):
+        if str(pstate).lower() == "closed":
             label_issue(s["number"], "status/planned")
             print(f"[orchestrator] story {num_story} (issue {s['number']}): trigger stamped (story {num_story-1} closed)")
         else:
@@ -207,7 +225,7 @@ def chain_driver():
         p = api(f"issues/{pid}")
         if not p or p.get("state") != "open":
             continue
-        if all(k["state"] in ("closed", "CLOSED") for k in kids):
+        if all(str(k.get("state","")) .lower() == "closed" for k in kids):
             c = comments(pid)
             if not _has_marker(c, "all stories of this approved chain are closed"):
                 close_issue(pid, "completed",
@@ -329,9 +347,8 @@ def watchdog():
 def _preflight_labels():
     """One-time existence check: every stamp silently fails if a label is
     missing (rc is stderr-only in the Actions UI)."""
-    have = {l["name"] for l in (gh_json("label", "list", "--json", "name", "--jq", ".[].name") if False else
-            gh_json("label", "list", "--json", "name"))}
-    names = [l["name"] for l in gh_json("label", "list", "--json", "name")]
+    labels = api("labels?per_page=100") or {}
+    names = {l.get("name") for l in (labels if isinstance(labels, list) else [])}
     for need in ("status/planned", "status/ready-to-merge", "status/queued", "status/in-review"):
         if need not in names:
             print(f"[orchestrator] ::warning::label missing on repo: '{need}' — stamps will no-op silently")
