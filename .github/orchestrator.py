@@ -39,6 +39,11 @@ TAG_OWNER = os.environ.get("GH_AW_ORCH_TAG_OWNER", "true") == "true"
 OWNER = os.environ.get("GH_AW_ORCH_OWNER", "RjBiermann")
 
 MARK = "[orchestrator]"
+
+
+def _fire_marker(rnd):
+    """Single source of truth for the per-round fire marker (lint-relevant)."""
+    return f"{MARK} /plan fired round {rnd}"
 STORY_RE = re.compile(r"\[spec\]\s*(?:Story\s+|S)(\d+)", re.I)
 PARENT_RE = re.compile(r"approved\s+#(\d+)\s+spec", re.I)
 ROUND_ANCH = {r: f"Plan round {r} —" for r in (1, 2, 3)}
@@ -231,6 +236,7 @@ def plan_loop_surrogate():
         return
     issues = api("issues?state=open&per_page=50") or []
     triggers = ("ai-fix", "ai-build", "ai-remove", "ai-new-site")
+    stories = all_stories()  # hoisted: one repo scan per pass (review nit)
     for i in issues:
         if i.get("pull_request"):
             continue
@@ -238,32 +244,32 @@ def plan_loop_surrogate():
         labels = [l["name"] for l in i.get("labels", [])]
         cs = comments(n)
         r1, r2, r3 = (_round_comment(cs, k) for k in (1, 2, 3))
-        kid_stories = [s for s in all_stories() if parent_of(s) == n]
+        kid_stories = [s for s in stories if parent_of(s) == n]
 
         fresh_trigger = any(l in triggers for l in labels)
         if fresh_trigger and not r1:
-            mk = f"{MARK} /plan fired round 1"
+            mk = _fire_marker(1)
             if not _has_marker(cs, mk):
-                post_comment(n, mk + " (fresh trigger label; ADR-0008 surrogate)")
+                post_comment(n, mk + " (fresh trigger; ADR-0008 surrogate)")
                 print(f"[orchestrator] {n}: /plan round 1 fired")
             continue
         if not r1:
             continue
         # round 2: human answered after round 1
         if not r2 and not kid_stories:
-            if not _has_marker(cs, f"{MARK} /plan fired round 2"):
+            if not _has_marker(cs, _fire_marker(2)):
                 human_after = [c for c in cs if c.get("user", {}).get("login") == OWNER and c["created_at"] > r1["created_at"]]
                 if human_after:
-                    post_comment(n, f"{MARK} /plan fired round 2 (round-1 answers received; ADR-0008 surrogate)")
+                    post_comment(n, _fire_marker(2) + " (round-1 answers received; ADR-0008 surrogate)")
                     print(f"[orchestrator] {n}: /plan round 2 fired")
         # round 3: owner approved after round 2
         if r2 and not kid_stories and not r3:
-            if not _has_marker(cs, f"{MARK} /plan fired round 3"):
+            if not _has_marker(cs, _fire_marker(3)):
                 appr = [c for c in cs if c.get("user", {}).get("login") == OWNER
                         and c["created_at"] > r2["created_at"]
                         and (c.get("body") or "").strip().lower() in ("approved", "approve", "lgtm", "yes", "ok")]
                 if appr:
-                    post_comment(n, f"{MARK} /plan fired round 3 (finalize; round-2 approved; ADR-0008 surrogate)")
+                    post_comment(n, _fire_marker(3) + " (finalize; round-2 approved; ADR-0008 surrogate)")
                     print(f"[orchestrator] {n}: /plan round 3 fired")
 
 
@@ -320,6 +326,17 @@ def watchdog():
             print(f"[orchestrator] closed transient diag #{num}")
 
 
+def _preflight_labels():
+    """One-time existence check: every stamp silently fails if a label is
+    missing (rc is stderr-only in the Actions UI)."""
+    have = {l["name"] for l in (gh_json("label", "list", "--json", "name", "--jq", ".[].name") if False else
+            gh_json("label", "list", "--json", "name"))}
+    names = [l["name"] for l in gh_json("label", "list", "--json", "name")]
+    for need in ("status/planned", "status/ready-to-merge", "status/queued", "status/in-review"):
+        if need not in names:
+            print(f"[orchestrator] ::warning::label missing on repo: '{need}' — stamps will no-op silently")
+
+
 if __name__ == "__main__":
     steps = {
         "approvals": approve_companion_runs,
@@ -329,6 +346,7 @@ if __name__ == "__main__":
         "decision_tags": decision_tags,
         "watchdog": watchdog,
     }
+    _preflight_labels()
     only = [a for a in sys.argv[1:] if a in steps]
     for name, fn in steps.items():
         if only and name not in only:
