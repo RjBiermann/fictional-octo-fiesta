@@ -1,15 +1,15 @@
 package com.kraptor
 
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-import com.lagradost.cloudstream3.plugins.Plugin
+import com.lagradost.cloudstream3.plugins.BasePlugin
 import android.content.Context
 import androidx.appcompat.app.AppCompatActivity
 import com.lagradost.cloudstream3.MainActivity
 import com.lagradost.cloudstream3.extractors.Maxstream
 
 @CloudstreamPlugin
-class MangopornProvider : Plugin() {
-    override fun load(context: Context) {
+class MangopornPlugin : BasePlugin() {
+    override fun load() {
         registerMainAPI(Mangoporn())
         // Shared host families (Extractorlar.kt, registered via registerHostExtractors)
         // already serve every host Mangoporn embeds — Dood, VidHidePro, Streamtape,
