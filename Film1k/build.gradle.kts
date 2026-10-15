@@ -1,4 +1,4 @@
-version = 11 // #558: byse embed/order matches exactly-once now (P1—P4, JS exp audit)
+version = 12 // #613: shared HostRegistry player.abyssplayer.com row (TDD)
 // fetches guarded (uncaught DNS exception), turbovid-only pages fall through cleanly
 
 cloudstream {

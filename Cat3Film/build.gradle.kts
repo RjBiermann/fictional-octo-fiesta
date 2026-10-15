@@ -1,4 +1,4 @@
-version = 12 // #487: backup-embed second route (Parse.backupEmbed, TDD)
+version = 13 // #613: backup embed dispatch hardened in shared HostRegistry (player. row, TDD)
 
 cloudstream {
     authors     = listOf("RjBiermann")

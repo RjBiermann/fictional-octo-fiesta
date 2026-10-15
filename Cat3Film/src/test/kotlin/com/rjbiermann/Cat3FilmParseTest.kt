@@ -101,4 +101,31 @@ class Cat3FilmParseTest {
         assertNull(Parse.backupEmbed(null))
         assertNull(Parse.backupEmbed("<html>Just a moment…</html>"))
     }
+
+    // --- 2026-10-15 re-probe (issue #613, Story 1): fresh evidence shape ------
+    // Fixture reproduces the live /api/v1/episodes/1815/sources body (token
+    // anonymized in the path; shape and hosts verbatim from FINDINGS.md).
+
+    /**
+     * Drift machine: the CDN host has moved cat3.asuka-vod.site → abyssssss.top →
+     * master.abyssssss.top while tokens kept working under each host. The suffix rule
+     * must be host-agnostic — pinned for every host recorded in FINDINGS.md.
+     */
+    @Test fun `bare token suffix rule is host-agnostic across recorded hosts`() {
+        val token = "M3D7o8kenCnnenP0XvPr0Xw9VfrIMr3lPcEjTnyRLc"
+        for (cdn in listOf(
+            "https://cat3.asuka-vod.site",          // first-probe host (2026-09-10)
+            "https://abyssssss.top",                 // #416 move (2026-09-16)
+            "https://master.abyssssss.top"           // #617 move (2026-10-15)
+        )) {
+            assertEquals("$cdn/$token/index.m3u8", Parse.streamUrl("$cdn/$token"))
+        }
+    }
+
+    @Test fun `fresh 1815 fixture parses backup embed and stream url`() {
+        assertEquals("https://player.abyssplayer.com/lD0RMD3Q_",
+            Parse.backupEmbed(res("sources-1815.json")))
+        assertEquals("https://master.abyssssss.top/M3D7o8kenCnnenP0XvPr0Xw9VfrIMr3lPcEjTnyRLc/index.m3u8",
+            Parse.streamUrl("https://master.abyssssss.top/M3D7o8kenCnnenP0XvPr0Xw9VfrIMr3lPcEjTnyRLc"))
+    }
 }

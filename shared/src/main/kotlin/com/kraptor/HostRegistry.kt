@@ -94,6 +94,7 @@ internal fun sharedHostRegistry(): List<ExtractorApi> = listOf(
         Turtleviplay(),
         Turboviplay(),
         AbyssPlayer(),
+        AbyssPlayerEmbed(),
         Vidguardto(),
         MixDropAg(),
         MixDropMy(),

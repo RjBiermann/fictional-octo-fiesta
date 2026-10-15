@@ -110,6 +110,29 @@ class HostRegistryTest {
     }
 
     /**
+     * (d) Cat3Film backup embed (#613 Story 2, FINDINGS 2026-10-15): the site's sources
+     * API backup lives on the player. subdomain (player.abyssplayer.com/<id>). The
+     * framework's loadExtractor primary dispatch is startsWith(target, stripped mainUrl);
+     * the player subdomain does not prefix-match the apex row, so without an explicit
+     * row the backup route only resolves via the fuzzy Levenshtein fallback. Pin that an
+     * explicit AbyssPlayer row answers it — and that the apex row is not shadowed.
+     */
+    @Test
+    fun `abyss backup embed player subdomain has an explicit row`() {
+        val playerRows = rows.filter { host(it.mainUrl) == "player.abyssplayer.com" }
+        assertTrue(
+            "no row answers player.abyssplayer.com — the #613 backup embed dispatch " +
+                "relies on the fuzzy Levenshtein fallback",
+            playerRows.isNotEmpty()
+        )
+        assertTrue(playerRows.single() is AbyssPlayer)
+        // The apex row stays reachable for apex-host embeds (Film1k fixture shape).
+        val apexRows = rows.filter { host(it.mainUrl) == "abyssplayer.com" }
+        assertTrue("apex abyssplayer row missing", apexRows.isNotEmpty())
+        assertTrue(apexRows.single() is AbyssPlayer)
+    }
+
+    /**
      * (c) Naming collisions across code paths (issue #347 P0-11) are
      * intentional — but only the documented ones. Names are user-facing in
      * CloudStream's source list; mirror families legitimately share a display
@@ -142,6 +165,7 @@ class HostRegistryTest {
          * Filesim adapter under the "Streamwish" name (2 rows total).
          */
         private val INTENTIONAL_NAME_COLLISIONS = mapOf(
+            "AbyssPlayer" to 2,       // AbyssPlayer apex (issue #233) + player. subdomain row (#613)
             "Byse" to 16,            // filemoon byse*.com mirror family
             "DoodStream" to 9,       // DoodStream class (myvidplay.com override) + dood factory default
             "EarnVids" to 5,         // vidHidePro mirrors
