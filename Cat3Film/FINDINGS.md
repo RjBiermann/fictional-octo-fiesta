@@ -46,9 +46,10 @@ Referer: https://cat3film.com/watch/{slug}
 Single server (`sv=1`, "Watch Online"). All hls, no qualities/alt urls.
 
 **CDN host has moved**: re-probes (2026-09-16, see the re-probe section below) recorded
-`cat3.asuka-vod.site` → `abyssssss.top`; the `cat3.asuka-vod.site` URLs above are the
-original first-probe record, superseded. Bare-token shape unchanged (no extension,
-site JS appends `/index.m3u8`).
+`cat3.asuka-vod.site` → `abyssssss.top`; 2026-10-15 re-probes (below) record a further move
+to `master.abyssssss.top`. The `cat3.asuka-vod.site` URLs above are the original
+first-probe record, superseded. Bare-token shape unchanged (no extension, site JS
+appends `/index.m3u8`).
 
 **Token URLs are bare** (`https://<cdn-host>/<token>`, no extension — host currently
 `abyssssss.top`, formerly `cat3.asuka-vod.site`). The site
@@ -121,3 +122,65 @@ movies render `<span class="badge">Movie` (verified `/the-handmaiden`, `/russian
 Search JSON also carries `format: "Movie"|"TV"` per result (future tie-breaker).
 CDN moved `cat3.asuka-vod.site` → `abyssssss.top` this run and is NOT CF-challenged
 (m3u8 200 with/without Referer, okhttp UA) — old challenged-CDN note obsolete.
+
+## 2026-10-15 re-probe (issue #617 — Story 1 of the approved #613 spec)
+
+Supersedes the 2026-09-16 records where stale. Chrome-124 UA unless noted; Cloudflare in
+front of `cat3film.com` (cf-ray) served 200 everywhere — no challenge encountered on any leg.
+
+**Sample titles (failing-string sample set for the issue):**
+
+- `/malombra` — movie, movie id 1690, ep id 1815, badges `[HD, Movie]` — first card on
+  `/movies`, **newest upload found this run** (also appears on `/` rank grid)
+- `/hache` — TV, movie id 394, ep ids 449–462 (S1 449–456 / S2 457–462, unchanged),
+  badges `[HD, TV]`; ep 449 probed end-to-end
+- `/impregnation-nation` — movie, movie id 778, ep id 886, badges `[Movie]` — first card on
+  `/`
+- dead ep id sanity: `/api/v1/episodes/1816/sources` → `{"error":"episode not found","success":false}`
+
+**Listing legs all healthy**: `/` 200 (60 cards), `/movies` 200 (30 cards), `/movies?page=2`
+200 (30 fresh cards: too-late, slugs, …), `/tv-series` 200 (14 cards), `section#related`
+present. `/_ajax/search?q=handmaiden` → 200 JSON, same one-hit shape
+(`format:Movie, slug, thumb, title, year`).
+
+**Sources API — unchanged shape, new CDN host.**
+`GET /api/v1/episodes/{id}/sources` (referer not enforced) → 200 `application/json`:
+
+    {"backup":"https://player.abyssplayer.com/lD0RMD3Q_",
+     "sources":[{"file":"https://master.abyssssss.top/<token>","type":"hls"}],
+     "subs":[],"success":true}
+
+- **CDN host moved 2nd time**: `abyssssss.top` → **`master.abyssssss.top`** (API now
+  returns the `master.` host for all fresh tokens: malombra 1815, hache 449/462,
+  impregnation-nation 886 all confirmed). The old apex host `abyssssss.top` still serves
+  the same current tokens behind the suffix (200 m3u8) — the move is a new subdomain, not
+  a token invalidation. Bare token (no suffix) → nginx 404 (both hosts), NOT a CF 403.
+- **Suffix behavior re-proven**: `/token/index.m3u8` → 200 `application/vnd.apple.mpegurl`,
+  VOD `#EXTM3U` (TargetDuration 4, ~1367 segments). `/token/index.json` → 200
+  `application/json` but identical `#EXTM3U` body — both suffixes serve the playlist.
+  `Parse.streamUrl()` behavior (always `/index.m3u8`) remains correct.
+- **Not CF-challenged**: m3u8 200 with okhttp UA and **no Referer** at all.
+- Segments live on `player.abyssssss.top/<token>/seg-N-v…` (`.jpg`-camouflage gone in
+  segment naming, now generic `seg-N-v…`; irrelevant to the provider — the player fetches
+  segment URLs straight out of the m3u8 body).
+- **Backup embed healthy**: `player.abyssplayer.com/<id>` → 200 HTML, `<title>m_1690.mp4`,
+  `const datas = "…"` (1528 chars) → `POST https://enc-dec.app/api/dec-abyss`
+  (Origin: enc-dec.app) → 200 with `result.sources` 2× (`480p`, `720p`, status true)
+  pointing at `*.sssrr.org/sora/…` MP4 links; those 302 → an ephemeral
+  `*.trycloudflare.com` mirror that serves `video/mp4` (206 on range) — playable when
+  redirects are followed. Shared `AbyssPlayer` adapter chain matches live shape.
+- Observation for Story 2 (not re-verified as broken): `loadExtractor`'s primary match is
+  `compareUrl.startsWith(extractor.mainUrl-stripped)` — `player.abyssplayer.com/…` does
+  **not** prefix-match `AbyssPlayer.mainUrl = "https://abyssplayer.com"`; it can only match
+  via the Levenshtein `partialRatio > 80` fallback loop.
+
+**Conclusion (ground truth for Story 2)**: every leg of the chain is server-side healthy
+today — 200 with plain nokogiri/plain-UA fingerprints, no drift in selectors, API shape, or
+suffix behavior; the only live drift is the **CDN host subdomain** (`abyssssss.top` →
+`master.abyssssss.top`), which `Parse.streamUrl()` handles host-agnostically. The issue's
+"No links found on every title" symptom therefore does **not** reproduce against today's
+site from this probe context — consistent with the `#410` client-side-CF-decision diagnosis
+(challenge HTML on the sources fetch, swallowed by `loadLinks` → zero callbacks). Client-
+side evidence carries nothing new this run; the interceptor path (`CloudflareKiller` +
+`cfChallenge`) shipped by `#410` remains the matching in-app mechanism, and the subdomain
+move is the one store-worthy change for Story 2's fix scope.
