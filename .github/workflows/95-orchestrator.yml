@@ -1,0 +1,38 @@
+name: Orchestrator (mechanical conveyor — approvals, readiness, chain, surrogate)
+
+# ADR-0008 (amended 2026-10-15): non-AI plain Actions, sibling of
+# 90-sweeper. Automates mechanics; surfaces decisions as @mentions;
+# humans still merge PRs by default (GH_AW_AUTO_MERGE=false).
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: orchestrator
+  cancel-in-progress: true
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  orchestrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Run the mechanical conveyor
+        env:
+          GH_AW_PROXY_PAT: ${{ secrets.GH_AW_PROXY_PAT }}
+          GH_AW_AUTO_MERGE: ${{ vars.GH_AW_AUTO_MERGE }}
+          GH_AW_ORCH_PLAN: ${{ vars.GH_AW_ORCH_PLAN }}
+          GH_AW_ORCH_TAG_OWNER: ${{ vars.GH_AW_ORCH_TAG_OWNER }}
+          GH_AW_ORCH_OWNER: ${{ vars.GH_AW_ORCH_OWNER }}
+        run: python3 .github/orchestrator.py
