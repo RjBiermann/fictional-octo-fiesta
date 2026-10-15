@@ -68,12 +68,14 @@ jobs:
       - uses: actions/checkout@v7
       - name: No legacy Plugin() classes or pass-through provider files
         run: |
-          # WatchPorn/FullPorner keep Plugin(context) — context-requiring constructors.
-          # Legacy shape is fully-qualified `plugins.Plugin()`; bare `: Plugin()` and
-          # --exclude-dir don't survive the globbed search roots (review #169 round 2).
+          # WatchPorn/FullPorner/Mangoporn keep Plugin(context) — context-requiring
+          # constructors / openSettings (Mangoporn's settings dialog is a Plugin-only
+          # feature; BasePlugin lacks it). Legacy shape is fully-qualified
+          # `plugins.Plugin()`; bare `: Plugin()` and --exclude-dir don't survive the
+          # globbed search roots (review #169 round 2).
           bad=$(grep -rnE --include='*.kt' '(:[[:space:]]*Plugin\(\)|plugins\.Plugin\(\))' \
             ./*/src/main/kotlin shared/src/main/kotlin 2>/dev/null \
-            | grep -vE '^\./(WatchPorn|FullPorner)/' || true)
+            | grep -vE '^\./(WatchPorn|FullPorner|Mangoporn)/' || true)
           # Same roots as the legacy grep above — shared/ is deliberately in
           # scope for both halves of this gate, so a pass-through file dropped
           # into shared/ cannot slip past either check (review #347 P1-10).
