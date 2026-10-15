@@ -304,3 +304,13 @@ open class AbyssPlayer : ExtractorApi() {
         }
     }
 }
+
+// player. subdomain of the abyssplayer embed host (Cat3Film #613 Story 2, FINDINGS
+// 2026-10-15): the site's sources-API backup embed lives at player.abyssplayer.com/<id>,
+// and loadExtractor's primary dispatch is startsWith(target, stripped mainUrl) — the
+// subdomain never prefix-matches the apex row, so without an explicit row the backup
+// route only resolves via the framework's fuzzy Levenshtein fallback. HlsFreeWww precedent.
+class AbyssPlayerEmbed : AbyssPlayer() {
+    override val name = "AbyssPlayer"
+    override val mainUrl = "https://player.abyssplayer.com"
+}

@@ -184,3 +184,29 @@ site from this probe context — consistent with the `#410` client-side-CF-decis
 side evidence carries nothing new this run; the interceptor path (`CloudflareKiller` +
 `cfChallenge`) shipped by `#410` remains the matching in-app mechanism, and the subdomain
 move is the one store-worthy change for Story 2's fix scope.
+
+## 2026-10-15 re-probe closure (issue #618 — Story 2 of the approved #613 spec)
+
+Diff of the fresh Story-1 evidence (`2026-10-15 re-probe` above) against the shipped
+`Cat3Film.kt` chain:
+
+- **Primary sources leg — no drift to fix.** Selectors, API shape, and suffix behavior all
+  match the shipped code; `Parse.streamUrl()` is host-agnostic, so the third CDN move
+  (`abyssssss.top` → `master.abyssssss.top`) needs no URL swap by design. To keep that
+  structural (per the 3rd-recurrence rule — #487, #522, #613 are the three closed plays
+  on Cat3Film at merge time), the `2026-10-15` fixture `src/test/resources/sources-1815.json`
+  now pins the live response shape, and `Cat3FilmParseTest` pins the suffix rule as
+  **host-agnostic across every FINDINGS-recorded host** (asuka/abyssssss/master — the
+  drift machine itself, not one instance of it).
+- **Real drift found: backup-embed dispatch.** `loadExtractor` (framework
+  `ExtractorApiKt.loadExtractor`, verified against the pre-release jar) dispatches by
+  `startsWith(target, stripped mainUrl)` first and only falls back to a fuzzy
+  `Levenshtein.partialRatio > 80` loop. The fresh sources body's backup
+  (`player.abyssplayer.com/<id>`) does not prefix-match the shared
+  `AbyssPlayer.mainUrl = https://abyssplayer.com`, so the provider's second route has been
+  riding that fuzzy fallback every run (same gap for Film1k's `player.`-subdomain embeds).
+  Root cause lives in `shared/`: new `AbyssPlayerEmbed` row (`mainUrl =
+  https://player.abyssplayer.com`, `AbyssPlayer` subclass — HlsFreeWww precedent),
+  registered in `HostRegistry`; red→green pinned in shared `HostRegistryTest` (the player
+  row exists and the apex row is not shadowed/removed). Film1k bumped alongside Cat3Film
+  (AOD rule: shared fix → bump every affected provider).

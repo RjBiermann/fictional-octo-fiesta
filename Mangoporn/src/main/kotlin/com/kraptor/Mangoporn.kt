@@ -2,6 +2,9 @@ package com.kraptor
 
 import com.lagradost.api.Log
 import org.jsoup.nodes.Element
+import com.lagradost.cloudstream3.extractors.Maxstream
+import androidx.appcompat.app.AppCompatActivity
+import android.content.Context
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import kotlin.random.Random
@@ -250,4 +253,30 @@ class Mangoporn : MainAPI() {
     )
 
     private val kirliKelimeRegex = MangopornParse.dirtyWordRegex(igrencKelimeler)
+}
+
+// Legacy Plugin() shape (mirrors WatchPorn/FullPorner carve-out): Mangoporn's
+// settings dialog attaches via `openSettings`, a Plugin-only feature the
+// shared BasePlugin contract does not carry (gate: .github/workflows/lint.yml).
+@com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+class MangopornPlugin : com.lagradost.cloudstream3.plugins.Plugin() {
+    override fun load(context: android.content.Context) {
+        registerMainAPI(Mangoporn())
+        // Shared host families (Extractorlar.kt, registered via registerHostExtractors)
+        // already serve every host Mangoporn embeds - Dood, VidHidePro, Streamtape,
+        // LULU, Voe, Player4Me, Vidguard etc. (ADR-0002: no mirror rows). Only the
+        // two hosts the shared table lacks are registered here.
+        registerHostExtractors(
+            listOf(
+                CloudWish(),
+                Maxstream(),
+            )
+        )
+
+        this.openSettings = { ctx: Context ->
+            MangoAyarlar.showSettingsDialog(ctx as AppCompatActivity) {
+                MainActivity.reloadHomeEvent.invoke(true)
+            }
+        }
+    }
 }
