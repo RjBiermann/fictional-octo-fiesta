@@ -196,7 +196,7 @@ def chain_driver():
     stories = all_stories()
     print(f"[orchestrator] chain_driver: {len(stories)} stories scanned")
     for s in stories:
-        if s["state"] != "open":
+        if str(s["state"]).lower() != "open":
             continue
         num_story = story_num(s["title"])
         labels = [l["name"] for l in s.get("labels", [])]
@@ -226,7 +226,7 @@ def chain_driver():
             by_parent.setdefault(p, []).append(s)
     for pid, kids in by_parent.items():
         p = api(f"issues/{pid}")
-        if not p or p.get("state") != "open":
+        if not p or str(p.get("state","")).lower() != "open":
             continue
         if all(str(k.get("state","")) .lower() == "closed" for k in kids):
             c = comments(pid)
@@ -260,7 +260,7 @@ def plan_loop_surrogate():
     triggers = ("ai-fix", "ai-build", "ai-remove", "ai-new-site")
     stories = all_stories()  # hoisted: one repo scan per pass (review nit)
     for i in issues:
-        if i.get("pull_request"):
+        if i.get("pull_request") is not None:
             continue
         n = i["number"]
         labels = [l["name"] for l in i.get("labels", [])]
@@ -301,10 +301,18 @@ def decision_tags():
         return
     print("[orchestrator] decision_tags: entered")
     openi = api("issues?state=open&per_page=50") or []
+    open_stories = set()
+    for srow in all_stories():
+        if str(srow["state"]).lower() == "open":
+            p = parent_of(srow)
+            if p:
+                open_stories.add(int(p))
     for i in openi:
-        if i.get("pull_request"):
+        if i.get("pull_request") is not None:
             continue
         n = i["number"]
+        if n in open_stories:
+            continue  # round-3 already produced sub-issues — round tags are stale
         cs = comments(n)
         for rnd in (1, 2):
             r = _round_comment(cs, rnd)
@@ -335,7 +343,7 @@ def watchdog():
     ml = []
     for i in openi:
         t = i.get("title", "")
-        if i.get("pull_request"):
+        if i.get("pull_request") is not None:
             continue
         if t.startswith("[aw]") and ("no safe outputs" in t or "reported incomplete" in t):
             ml.append((i["number"], i.get("created_at", "")))
