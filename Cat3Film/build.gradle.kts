@@ -1,4 +1,4 @@
-version = 13 // #613: backup embed dispatch hardened in shared HostRegistry (player. row, TDD)
+version = 14 // #613 Story 3: fix verified against the live site (test+build green, verify.sh pass)
 
 cloudstream {
     authors     = listOf("RjBiermann")

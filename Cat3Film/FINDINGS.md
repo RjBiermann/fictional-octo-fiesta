@@ -210,3 +210,68 @@ Diff of the fresh Story-1 evidence (`2026-10-15 re-probe` above) against the shi
   registered in `HostRegistry`; red→green pinned in shared `HostRegistryTest` (the player
   row exists and the apex row is not shadowed/removed). Film1k bumped alongside Cat3Film
   (AOD rule: shared fix → bump every affected provider).
+
+## 2026-10-15 chain validation (issue #619 — Story 3 of the approved #613 spec)
+
+Story 2's structural fix (PR #621, `shared` AbyssPlayerEmbed dispatch row) validated
+against the live site; the Story-1 failing sample set re-walked end to end.
+
+**Build/test gate (CI-equivalent)**: clean → `./gradlew test make makePluginsJson` →
+BUILD SUCCESSFUL (all 27 providers + shared splice). Zero failures: `Cat3FilmParseTest` 15,
+`Film1kParseTest` 15, shared `HostRegistryTest` 5 (incl. the `player.abyssplayer.com`
+AbyssPlayerEmbed prefix-match pin — the explicit row now answers the sources API's
+backup URL without the Levenshtein fallback).
+
+**Sources leg re-probe (fresh tokens, Chrome-124 UA, plain curl — 5/5 PASS)**
+
+- malombra ep 1815, hache ep 449, impregnation-nation ep 886, the-handmaiden ep 405,
+  jailhouse-wardress ep 1765 — all match the Story-1 ground truth: API shape unchanged
+  (`{"backup":"https://player.abyssplayer.com/<id>","sources":[{"file":"https://master.abyssssss.top/<token>","type":"hls"}],"success":true}`
+  — no `cat3.asuka-vod.site`/`abyssssss.top` regression; the API stays on `master.abyssssss.top`).
+- `<token>/index.m3u8` → 200 `application/vnd.apple.mpegurl`, VOD `#EXTM3U` for all 5;
+  segment leg exercised on malombra (`player.abyssssss.top/…/seg-1-v1-a1.jpg` → 206,
+  JPEG-camouflaged segment as recorded earlier) — the chain plays end to end.
+
+**verify.sh run (pipeline Verification, live site)** —
+`RESULT: FAIL` overall only because of the two documented-by-construction findings below;
+every provider-relevant check passed:
+
+- Search (check 1): **FAIL-by-tool, site shape — unchanged from the 2026-09-11 record.**
+  The site's only search surface is the AJAX JSON endpoint `/_ajax/search?q=` (HTML
+  `/search?q=` is 404); the script asserts HTML `a.card` and cannot count a JSON page.
+  Provider uses exactly this endpoint. Agreement re-proven by curl: `_ajax/search?q=handmaiden`
+  → `{"slug":"the-handmaiden","title":"The Handmaiden","thumb":"/uploads/672b550f7349ff8432a3.jpg"}`
+  agrees with load page `/the-handmaiden` (h1 `The Handmaiden`, `og:image`
+  `/uploads/672b550f7349ff8432a3.jpg` — same path). No provider defect.
+- Homepage rows (check 1a): `/movies` 30 cards, `/movies?page=2` 30 fresh, `/tv-series` 14 — PASS.
+- Video pages (check 2): 5/5 detail pages 200 with the watch-chain selector
+  (`a[href*="/watch/"]` — the chain's next leg); title `h1.info-title` 5/5 — PASS.
+- Streams (check 3): positional `--stream-url` (exact FINDINGS chain:
+  `.epbtn[data-ep]` → `/api/v1/episodes/{id}/sources` → `master.abyssssss.top/<token>/index.m3u8`)
+  5/5 → 200 m3u8 playlist bodies, paths distinct across videos — PASS.
+- Related (check 4): `section#related a.card` ≥1 on all 5, no duplicates/self-recs — PASS.
+- Field exposure (check 2a): actors and year selectors consistent 5/5. Tags live under
+  `.info-people` (Genre/Cast-labelled groups; FIRST block is Genre, present 5/5 by direct
+  probe). Duration deliberately left un-asserted by tool: it lives in the ld+json Movie
+  object (`PT91M` malombra et al.) which the regex DOM cannot read from text, and one
+  sampled page (`/hache`, TV series) has no ld+json Movie duration at all — a 4/5
+  all-or-none split is site shape, not provider drift.
+- Quick search: no distinct quick-search/suggest endpoint is recorded for this site —
+  the AJAX search endpoint **is** the only search surface — so none was passed (script NOTE noted).
+- Search↔load (check 5): NOTE (expected) — the JSON search surface has no HTML cards to
+  normalize; agreement proven by curl above.
+- Data-complete (check 6): recommendations/tags/plot/duration/year/actors/score/posters
+  all ≥2 assignments in `Cat3Film.kt` — PASS.
+
+**Version**: `Cat3Film` bumped 13 → 14 (Story 2 already landed the bump to 13 with the
+shared fix; this story marks its own verified delivery). No other provider bump —
+Story 3 changes no shared code; `Film1k` stays at 12 from Story 2.
+
+**Conclusion (Story 3)**: the chain that produced "No links found" in-app is healthy
+server-side today, and the two client-side mechanisms the previous rounds shipped for it
+are in place and pinned: the `CloudflareKiller`/`cfChallenge` interceptor path (#410) on
+every Cat3Film fetch (the CF-decision HTML would otherwise be swallowed into zero
+callbacks), and the explicit `AbyssPlayerEmbed` dispatch row in shared `HostRegistry`
+#621) so the backup embed resolves under the framework's prefix-match dispatch instead of
+the fuzzy fallback. Nothing further is broken against the live site from this probe
+context; PR delivers the validated state for maintainer review/merge.
