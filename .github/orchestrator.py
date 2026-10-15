@@ -122,6 +122,7 @@ def _has_marker(cs, text):
 
 # --------------------------------------------------------------- approvals
 def approve_companion_runs():
+    print("[orchestrator] approvals: entered")
     if not PROXY_PAT:
         print("[orchestrator] GH_AW_PROXY_PAT unset — approvals stay manual")
         return
@@ -131,7 +132,7 @@ def approve_companion_runs():
             continue
         runs = run(["gh", "run", "list", "--branch", branch, "--limit", "40",
                     "--json", "databaseId,workflowName,conclusion",
-                    "--jq", '.[] | select(.conclusion=="action_required") | "\(.databaseId)|\(.workflowName)"'])
+                    "--jq", r'.[] | select(.conclusion=="action_required") | "\(.databaseId)|\(.workflowName)"'])
         for line in runs.splitlines():
             if not line.strip():
                 continue
@@ -191,7 +192,9 @@ def merge_readiness():
 
 # ------------------------------------------------------------- chain driver
 def chain_driver():
+    print("[orchestrator] chain_driver: entered")
     stories = all_stories()
+    print(f"[orchestrator] chain_driver: {len(stories)} stories scanned")
     for s in stories:
         if s["state"] != "open":
             continue
@@ -252,6 +255,7 @@ def _story_state(num, stories):
 def plan_loop_surrogate():
     if not FIRE_PLAN:
         return
+    print("[orchestrator] plan_surrogate: entered")
     issues = api("issues?state=open&per_page=50") or []
     triggers = ("ai-fix", "ai-build", "ai-remove", "ai-new-site")
     stories = all_stories()  # hoisted: one repo scan per pass (review nit)
@@ -295,6 +299,7 @@ def plan_loop_surrogate():
 def decision_tags():
     if not TAG_OWNER:
         return
+    print("[orchestrator] decision_tags: entered")
     openi = api("issues?state=open&per_page=50") or []
     for i in openi:
         if i.get("pull_request"):
@@ -325,6 +330,7 @@ def _round_waiting_on(round_comment):
 
 # -------------------------------------------------------- transient watchdog
 def watchdog():
+    print("[orchestrator] watchdog: entered")
     openi = api("issues?state=open&per_page=50") or []
     ml = []
     for i in openi:
