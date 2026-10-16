@@ -264,11 +264,11 @@ class MangopornPlugin : com.lagradost.cloudstream3.plugins.Plugin() {
         registerMainAPI(Mangoporn())
         // Shared host families (Extractorlar.kt, registered via registerHostExtractors)
         // already serve every host Mangoporn embeds - Dood, VidHidePro, Streamtape,
-        // LULU, Voe, Player4Me, Vidguard etc. (ADR-0002: no mirror rows). Only the
-        // two hosts the shared table lacks are registered here.
+        // LULU, Voe, Player4Me, Vidguard etc., plus CloudWish (promoted to the shared
+        // table in #650, removed from the provider-local Extractors.kt) — (ADR-0002:
+        // no mirror rows). Only the host the shared table still lacks is registered here.
         registerHostExtractors(
             listOf(
-                CloudWish(),
                 Maxstream(),
             )
         )

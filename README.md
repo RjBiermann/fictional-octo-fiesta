@@ -20,7 +20,7 @@ Data as of `audits/findings.json` @ 2026-10-14.
 | [JavGuru](JavGuru/) | jav.guru | ok | plain-curl |
 | [Javbangers](Javbangers/) | www.javbangers.com | ok | plain-curl |
 | [Javmost](Javmost/) | www.javmost.ws | ok | plain-curl |
-| [Javseen](Javseen/) | javseen.tv | ok | plain-curl |
+| [Javseen](Javseen/) | javseen.tv | ok-drift | plain-curl |
 | [Javtiful](Javtiful/) | javtiful.com | ok | plain-curl |
 | [Mangoporn](Mangoporn/) | mangoporn.net | ok | plain-curl |
 | [MissAV](MissAV/) | missav.live | ok | plain-curl |
