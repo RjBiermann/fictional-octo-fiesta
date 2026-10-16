@@ -137,6 +137,14 @@
       "note": "run 11 (issue 596 S1 of #593 spec round 14): full 26-provider uniform sweep home->search->video page->stream artifact (plain-curl, TLS tier for Eroticmv/FreePornVideos/FullPorner/XMoviesForYou video+search where plain 403 CF challenge). Canaries 3/3 match (film1k pair 403/200, eporner 200, pandamovies 302->200@.org), last_verified 2026-10-14. Javbangers standing search-p2 404 re-confirmed at provider URLs (p1 200 / p2 404). Observed-but-not-filed: Eroticmv header 403 = datacenter-IP CF challenge (TLS 200), probe-IP class; Eroticmv #538 articleSection condition observed healed (articleSection array populated live 2026-10-14) - closed issue, no re-open requested. No verdict changes (evidence-change-only rule), no deep tier this run (spec scope), 0 new findings."
     },
     {
+      "id": "run15",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run15 (issue 632, approved #631 spec): PornXP one-provider deep pass, canaries 3/3 match (film1k 403/200 TLS, eporner 200, pandamovies 302->200). All surfaces healthy on plain-curl tier: home p1/p3 0 href-overlap, search /tags/ATKGirlfriends + /tags/DaughterSwap p1/p2 0 overlap + site > next-control, video x3 200, streams 3/3 206 video/mp4 bare + with-referer, no distinct quick-search endpoint (recorded absent, not drift). Standing 476 condition re-confirmed live, stays clear. 0 confirmed conditions -> no code fix, no version bump (PornXP version stays 10). verify.sh PASS. Ground truth: FINDINGS-632.md"
+    },
+    {
       "id": "run14",
       "date": "2026-10-14",
       "pr": 608,
@@ -202,7 +210,7 @@
     "AllClassicPorn": {
       "site": "allclassic.porn",
       "verdict": "ok",
-      "reason": "search has /videos/ links; KVS get_file stream 206 (single-use tokens: consumed-token 403, fresh replay works) (2026-09-29)",
+      "reason": "home /page/1/+2 and search pages disjoint (60 cards each); 5 fresh video pairs card-exact h1 titles; KVS get_file streams 206 video/mp4 (refresh 2026-10-16, single-use token note 2026-09-29 still holds)",
       "tier": "plain-curl",
       "surfaces": {
         "home": "200",
@@ -214,7 +222,7 @@
       "standing_issue": null,
       "drift_confirmed": 0,
       "chronic": false,
-      "last_deep": "2026-09-26"
+      "last_deep": "2026-10-16"
     },
     "Cat3Film": {
       "site": "cat3film.com",
@@ -382,18 +390,20 @@
     "PornXP": {
       "site": "pxp.news",
       "verdict": "ok",
-      "reason": "standing 476 stays clear: /tags/<q> 36 cards; video 200; stream 206 cdrn.pornxp.sh mp4 (2026-09-29)",
+      "reason": "standing 476 stays clear re-confirmed live: /tags/<q> 36 cards p1+p2 disjoint; video 200 x3; source mp4 206 (2026-10-16 deep pass)",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200",
-        "search": "200 (36 cards)",
-        "video": "200",
-        "stream": "206 video/mp4"
+        "home": "200 p1/p3 href-disjoint (36 cards each; p1\u2229p2 data-id pair = 2 distinct mirror videos, href-disjoint, site-level)",
+        "search": "200 via /tags/<q>; /?q= still serves the unfiltered homepage grid (known #330 condition, provider uses /tags)",
+        "quicksearch": "no distinct quick-search endpoint (2.js only rewrites form submit to /tags/; /co/ empty 200 click counter) \u2014 absent, not drift",
+        "video": "200 x3 (home/tag/newest-grid listings)",
+        "stream": "<source> mp4 206 video/mp4, no referer needed; CDN subdomain rotates (ce\u2192cdrn\u2192xxx.pornxp.sh), provider extracts from page"
       },
       "issue": null,
       "standing_issue": 476,
       "drift_confirmed": 0,
-      "chronic": false
+      "chronic": false,
+      "last_deep": "2026-10-16"
     },
     "Porntrex": {
       "site": "www.porntrex.com",

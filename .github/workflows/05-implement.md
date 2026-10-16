@@ -32,7 +32,8 @@ safe-outputs:
   create-pull-request:
     max: 1
     title-prefix: "[impl] "
-    draft: false   # ADR-0008: ready PRs are the conveyor's currency; a session-side `gh pr ready` was bare chore, removed
+    draft: false
+    allowed-base-branches: [main]  # per-provider audit runs share one default branch; per-run base overrides stay rejected   # ADR-0008: ready PRs are the conveyor's currency; a session-side `gh pr ready` was bare chore, removed
   add-labels:
     allowed: [status/in-review]
     max: 1

@@ -1,6 +1,14 @@
-# FINDINGS — pxp.news (2026-09 audit + 2026-09 fixes for #151, #235, #330, #331)
+# FINDINGS — pxp.news (2026-09 audit + 2026-09 fixes for #151, #235, #330, #331; 2026-10-16 deep pass #632)
 
 ## Verdict: OK (fixed #330 — search: `?q=` is ignored by the live site; real endpoint is `/tags/<query>`)
+
+## 2026-10-16 deep pass (#632) — all surfaces healthy, verdict ok, no code change
+
+See `FINDINGS-632.md` at the repo root for full evidence. Summary:
+- Home p1/p3 href-disjoint (36 cards each); search `/tags/` p1/p2 href-disjoint + site `>` next control.
+- **Quick-search: NO distinct quick-search endpoint** (2.js only rewrites the form submit to `/tags/`; `/co/` is an empty 200 click counter). Provider's `quickSearch() = search(q,1)` fallback stays correct.
+- Streams: `<source>` mp4 206 video/mp4, Referer optional (bare request also serves). CDN subdomain rotates between rounds (`ce.` → `cdrn.` → `xxx.`.pornxp.sh) — provider extracts `src` from the live page, never hardcodes the host; keep it that way.
+- Launch evidence: one p1∩p2 data-id pair on home is two distinct mirror videos (same title/duration, different hrefs) — same class as the known same-title grid artifacts below; not pagination drift.
 
 ## Root cause of #330 (search returns the homepage grid)
 The static site ignores the `q` parameter — `?q=<anything>` always serves the homepage
