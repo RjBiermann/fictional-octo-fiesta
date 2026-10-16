@@ -35,6 +35,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # full history: conflict_watch's merge-tree needs a common base
+          # between origin/main and the branch ref (shallow checkouts fail
+          # "refusing to merge unrelated histories")
+          fetch-depth: 0
 
       - name: Run the mechanical conveyor
         env:
