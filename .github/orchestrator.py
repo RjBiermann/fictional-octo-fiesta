@@ -98,7 +98,10 @@ def _fire_marker(rnd):
     return f"/plan\n\n{MARK} /plan fired round {rnd}"
 STORY_RE = re.compile(r"\[spec\]\s*(?:Story\s+|S)(\d+)", re.I)
 PARENT_RE = re.compile(r"approved\s+#(\d+)\s+spec", re.I)
+EPIC_KID_RE = re.compile(r"epic #(\d+)", re.I)
 ROUND_ANCH = {r: f"Plan round {r} —" for r in (1, 2, 3)}
+IN_FLIGHT = ("status/planned", "status/in-review", "status/fixing",
+             "status/fixing-stuck", "status/queued")
 
 APPROVE_ALLOWLIST = [
     "99-ci", "Lint", "CodeQL Advanced", "CodeQL",
@@ -648,6 +651,96 @@ def stall_watch():
         print(f"[orchestrator] {n}: stalled-fire flagged")
 
 
+# ------------------------------------------------------- epic wave driver
+def _wave_batch(kids, cap):
+    """Pure wave selection: kids is [(number, has_inflight_label)].
+    Fill up to `cap` concurrent runs by stamping the lowest-numbered
+    unlabeled kids. Returns numbers to stamp."""
+    inflight = sum(1 for _, busy in kids if busy)
+    if inflight >= cap:
+        return []
+    idle = sorted(n for n, busy in kids if not busy)
+    return idle[:cap - inflight]
+
+
+def wave_driver():
+    """Keep an approved epic's independent sub-issues flowing: while fewer
+    than GH_AW_ORCH_WAVE_CAP kids are in flight, stamp the next ones
+    status/planned (owner actor). Verdicts, chronic-provider removals and
+    policy calls stay human — this only schedules audits the epic already
+    approved."""
+    cap = int(os.environ.get("GH_AW_ORCH_WAVE_CAP", "8") or 8)
+    openi = api("issues?state=open&per_page=60") or []
+    by_epic = {}
+    for i in openi:
+        if i.get("pull_request"):
+            continue
+        m = EPIC_KID_RE.search(i.get("body") or "")
+        if not m:
+            continue
+        labels = [l["name"] for l in i.get("labels", [])]
+        by_epic.setdefault(int(m.group(1)), []).append(
+            (i["number"], any(l in IN_FLIGHT for l in labels)))
+    for epic, kids in by_epic.items():
+        p = api(f"issues/{epic}")
+        if not p or str(p.get("state", "")).lower() != "open":
+            continue
+        if not _chain_approved(epic):
+            continue
+        for n in _wave_batch(kids, cap):
+            label_issue(n, "status/planned")
+            print(f"[orchestrator] epic #{epic}: wave-stamped #{n} (cap {cap})")
+
+
+# --------------------------------------------------- fix-loop surrogate
+def fix_surrogate():
+    """GitHub's loop-prevention swallows `pull_request_review` events for
+    reviews posted with GITHUB_TOKEN — so agent verdicts never trigger the
+    fix loop (observed 2026-10-16: 4 verdicts, zero fix-loop runs). The
+    surrogate re-fires as the owner actor by submitting a stub `/repair`
+    review — a PAT-identity event fires natively. Deduped per review;
+    bounded by the fix loop's own cycle cap + status/fixing-stuck."""
+    if not PROXY_PAT:
+        return
+    for pr in open_pulls():
+        branch = pr.get("head", {}).get("ref", "")
+        if not branch.startswith("devloop/"):
+            continue
+        num = pr["number"]
+        revs = api(f"pulls/{num}/reviews?per_page=20") or []
+        bots = [r for r in revs if (r.get("user") or {}).get("login") == "github-actions[bot]"]
+        stubs = [r for r in revs if (r.get("user") or {}).get("login") == OWNER
+                 and ((r.get("body") or "").startswith("/repair"))]
+        if not bots:
+            continue
+        last = bots[-1]
+        # Deterministic pass contract first: a ready-to-merge label is the
+        # pipeline's own verdict — never repair those (review bodies are
+        # gh-aw boilerplate; the verdict text lives in the issue thread).
+        labels = [l["name"] for l in (api(f"issues/{num}") or {}).get("labels", [])]
+        if "status/ready-to-merge" in labels:
+            continue
+        verdict = ""
+        for c in reversed(comments(num)):
+            if (c.get("user") or {}).get("login") == "github-actions[bot]":
+                verdict = (c.get("body") or "")
+                break
+        low = verdict.lower()
+        if "blocker" not in low or any(s in low for s in ("0 blockers", "no blockers", "pass, no blockers")):
+            continue
+        if stubs and (stubs[-1].get("submitted_at") or "") > (last.get("submitted_at") or ""):
+            continue
+        if any(r.get("submitted_at", "") > (last.get("submitted_at") or "") for r in bots[bots.index(last) + 1:]):
+            continue
+        out = run(["gh", "api", "-X", "POST", f"repos/{REPO}/pulls/{num}/reviews",
+                   "-f", "event=COMMENT",
+                   "-f", f"body=/repair\n\n{MARK} /repair re-fired for {last['id']} "
+                          "(owner-actor stub; agent verdicts with GITHUB_TOKEN do not fire "
+                          "pull_request_review events — GitHub loop prevention)"])
+        ok = out.strip().startswith("{")
+        print(f"[orchestrator] fix surrogate on PR #{num}: {'fired' if ok else 'failed: ' + out[:120]}")
+
+
 def _preflight_labels():
     """One-time existence check: every stamp silently fails if a label is
     missing (rc is stderr-only in the Actions UI)."""
@@ -673,6 +766,8 @@ if __name__ == "__main__":
         "decision_tags": decision_tags,
         "conflict_watch": conflict_watch,
         "stall_watch": stall_watch,
+        "wave_driver": wave_driver,
+        "fix_surrogate": fix_surrogate,
         "watchdog": watchdog,
     }
     _preflight_labels()
