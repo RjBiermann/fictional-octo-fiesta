@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "note": "Machine source of truth for the provider fleet audit. drift_confirmed counts only closed issues CONFIRMED as drift/broken (Suspected findings closed as false positives are exclusions, never occurrences). Audits update this file; the lint (scripts/check-findings.sh) must pass before delivery.",
-  "updated": "2026-10-14",
+  "updated": "2026-10-16",
   "last_runs": [
     {
       "id": "run1",
@@ -143,6 +143,14 @@
       "findings": [],
       "false_positives": [],
       "note": "run14 (issue 599 S3 of #593 spec round 14, registry write-up: evidence landed via PR #602 S1 uniform sweep + PR #606 S2 deep pass). Tiered round: S1 uniform canary-style pass on all 26 (PR #602), S2 deepest pass on the 8 ok-drift (PR #606). Canaries 3/3 match (last_verified 2026-10-14). Re-verdicts on evidence change only: 7 migrations ok-drift -> ok (PandaMovies #555 fix #563, Mangoporn #564 fix #566, XMoviesForYou #535 fix #547, Javtiful #534 fix #548, Javbangers #475 closed standing, Film1k #496/#501 fix, EPorner #537 fix #543); ixiporn stays ok-drift -- #468 standing double-redirect .org->.live unchanged, all faces healthy on that origin (not a new post-fix condition, no issue filed). 0 new findings, 0 false positives. Ground truth: FINDINGS-596.md, FINDINGS-598.md."
+    },
+    {
+      "id": "run15",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run 15 (issue 637): AllClassicPorn single-provider deep pass, plain-curl tier -- home /page/1/+2 and search p1/p2 disjoint (60 cards each, 0 shared hrefs, no in-page dupes); 5 fresh video pages (5835/5834/5436/4188/5106) with card-exact h1 titles; 4/5 lack og:description and the #289 div fallback covers the current site shape; all 5 get_file streams 206 video/mp4 (token reuse verified twice per URL); remaining loadLinks emitter caption-screened (bracket-form video_url_text='480p' on all 5, parseQuality + structured quality); no quick-search endpoint (absence, not drift); verdict ok, zero confirmed drift -- no provider change, version stays 15; verify.sh FAILs = standing documented artifacts only (site-side related-href dups the provider dedupes via distinctByHref; card 320x240/N.jpg vs og:image preview.jpg variant mismatch)"
     }
   ],
   "providers": {
@@ -194,7 +202,7 @@
     "AllClassicPorn": {
       "site": "allclassic.porn",
       "verdict": "ok",
-      "reason": "search has /videos/ links; KVS get_file stream 206 (single-use tokens: consumed-token 403, fresh replay works) (2026-09-29)",
+      "reason": "home /page/1/+2 and search pages disjoint (60 cards each); 5 fresh video pairs card-exact h1 titles; KVS get_file streams 206 video/mp4 (refresh 2026-10-16, single-use token note 2026-09-29 still holds)",
       "tier": "plain-curl",
       "surfaces": {
         "home": "200",
@@ -206,7 +214,7 @@
       "standing_issue": null,
       "drift_confirmed": 0,
       "chronic": false,
-      "last_deep": "2026-09-26"
+      "last_deep": "2026-10-16"
     },
     "Cat3Film": {
       "site": "cat3film.com",

@@ -237,3 +237,48 @@ RESULT: FAIL (all FAILs = documented script-side artifacts above; direct flashva
   `distinctByHref`, fixture-tested); check-5 title (card stats prefix / h1 year suffix) and poster
   (320x240/N.jpg vs preview.jpg) mismatches. All streams 206 video/mp4; checks 1/1a/6 + field
   assignments PASS.
+
+## Audit #637 (2026-10-16) — deep re-probe, plain-curl tier: verdict `ok`, zero confirmed drift
+
+Spec: issue #637 (sub-issue of #631). No provider change — version stays 15.
+
+- Home pagination: `/page/1/` and `/page/2/` both 200, 60 cards each, **0 shared hrefs**,
+  no within-page duplicate hrefs (issue #322 D1 mapping intact).
+- Search: `/search/milf/` and `/search/milf/2/` both 200, 60 cards each, **0 shared hrefs**.
+  Quick search: provider has `hasQuickSearch = false`; site exposes **no distinct
+  quick-search endpoint** — absence recorded, not drift (NOTE verified against FINDINGS both ways).
+- Video pages (fresh sample, all 200): 5835 collection-film-76, 5834 collection-film-98,
+  5436 swedish-erotica-359, 4188 teenies-extrem-147, 5106 playing-with-fire (the last
+  sampled *from* the search page to exercise check-5 agreement).
+  - `h1[itemprop=name]` (without mechanical selector collision) matches the card
+    `div.th-description` exactly on all 5, including the canonical `- (yyyy)` suffix —
+    the #204 title fix holds (6161/2252-style both still live on page 2 samples).
+  - og:image = `preview.jpg`, `meta[itemprop=duration]` present on all 5 (PT7M03S/PT8M48S/
+    PT17M23S/PT83M07S/…); year parses from the title suffix on all 5.
+- **Plot exposure shifted since #289**: only 1 of the 5 fresh pages (5436) carries
+  `og:description`; the other 4 (5835/5834/4188/5106) fall through to the
+  `div.video-description[itemprop=description] .description-container` div, which is
+  present on every page with the `Description:` label — the #289 fallback covers the
+  current site shape (fixture video-5887 remains the og-less test bed; unit test green).
+- Streams: flashvars `video_url` colon form present on all 5; every URL → 302 →
+  `cdn1…/remote_control.php` → **206 video/mp4**, verified twice per URL within one
+  session (token reuse confirmed; single-use only across long windows per 2026-09-26 note).
+- **Remaining `loadLinks` emitter caption-screened** (spec item): the provider's only
+  emitter is its own flashvars path (no per-host extractor emits for allclassic.porn);
+  fresh pages emit the **bracket caption only** (`flashvars['video_url_text'] = '480p'`,
+  colon form absent on all 5) and `parseQuality` (both forms, issue #322 D2) + the #483
+  structured `getQualityFromName` assignment read them — caption chain is live, not just
+  past-pass screened.
+- verify.sh 2026-10-16 run (4-search/2-home/5-video/5-stream overrides): all surfaces
+  200, all streams 206 video/mp4, title agreement PASSES with the provider-faithful
+  `--search-title-selector div.th-description`. Remaining FAILs = the standing script-side/
+  site-side artifacts (unchanged):
+  1. "duplicate recommendations": the site's related-videos row serves duplicated hrefs
+     site-side (raw HTML) — the provider dedupes (`distinctByHref`, issue #266, fixture-tested).
+  2. check-5 poster mismatch: card `…/320x240/N.jpg` vs load og:image `…/preview.jpg` —
+     site exposes different thumbnail variants per surface (audit #204 artifact 2); no code
+     change can equalize.
+  Title mismatch no longer prints with the faithful card-title selector (the old
+  whole-card inner-text conflated rating/views/duration stats into the title).
+- Registry: `audits/findings.json` AllClassicPorn entry refreshed (`last_deep` 2026-10-16,
+  verdict `ok`, tier `plain-curl`), one `last_runs` entry appended as run15 (no findings).
