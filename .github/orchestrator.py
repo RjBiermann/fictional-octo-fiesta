@@ -52,20 +52,20 @@ def _pl(args, env=None):
 
 def _union_findings(a, b):
     """Union-merge two findings.json documents (delta 16-f6b).
-    List fields (last_runs) append from b unconditionally — entries are
-    append-only run records. Dict fields deep-merge, b wins scalars.
-    Returns a NEW document; inputs untouched."""
+    Recursively: list fields (top-level last_runs AND nested entries)
+    union by JSON-canonical identity — run records are append-only, so
+    b's entries are appended, never dropped. Dicts deep-merge, b wins
+    scalars. Returns a NEW document; inputs untouched."""
     out = json.loads(json.dumps(a))
     for k, v in b.items():
-        if isinstance(v, dict) and isinstance(out.get(k), dict):
-            for k2, v2 in v.items():
-                if isinstance(v2, list) and isinstance(out[k].get(k2), list):
-                    seen = {json.dumps(x, sort_keys=True) for x in out[k][k2]}
-                    for it in v2:
-                        if json.dumps(it, sort_keys=True) not in seen:
-                            out[k][k2].append(it)
-                else:
-                    out[k][k2] = v2
+        cur = out.get(k)
+        if isinstance(v, list):
+            lst = list(cur) if isinstance(cur, list) else []
+            seen = {json.dumps(x, sort_keys=True) for x in lst}
+            out[k] = lst + [it for it in v
+                            if json.dumps(it, sort_keys=True) not in seen]
+        elif isinstance(v, dict) and isinstance(cur, dict):
+            out[k] = _union_findings(cur, v)
         else:
             out[k] = v
     return out
@@ -502,8 +502,16 @@ def _conflict_files(branch):
     if rc == 0:
         return []
     lines = out.splitlines()
-    print(f"[orchestrator] merge-tree rc={rc} for {branch}: {lines[:3]}")
-    return frozenset(l.strip() for l in lines[1:] if l.strip())
+    # --name-only output: tree OID, then conflicted filenames, then a blank
+    # line, then informational messages ("Auto-merging…", "CONFLICT…") —
+    # stop at the blank line or the informational lines parse as filenames.
+    names = []
+    for l in lines[1:]:
+        if not l.strip() or l.startswith(("Auto-merging", "CONFLICT", "Removing")):
+            break
+        names.append(l.strip())
+    print(f"[orchestrator] merge-tree rc={rc} for {branch}: {names or lines[:3]}")
+    return frozenset(names)
 
 
 def _fix_findings_conflict(branch):
