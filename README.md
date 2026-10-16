@@ -30,7 +30,7 @@ Data as of `audits/findings.json` @ 2026-10-14.
 | [PornXP](PornXP/) | pxp.news | ok | plain-curl |
 | [Porntrex](Porntrex/) | www.porntrex.com | ok | plain-curl |
 | [Sexfilm](Sexfilm/) | en.sex-film.biz | ok | plain-curl |
-| [WatchPorn](WatchPorn/) | watchporn.to | ok | plain-curl |
+| [WatchPorn](WatchPorn/) | watchporn.to | ok-drift | plain-curl |
 | [XMoviesForYou](XMoviesForYou/) | xmoviesforyou.com | ok | tls-impersonated |
 | [Xhamster](Xhamster/) | xhamster.com | ok | plain-curl |
 | [ixiporn](ixiporn/) | ixiporn.org | ok-drift | plain-curl |
