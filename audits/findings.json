@@ -209,6 +209,14 @@
       "findings": [],
       "false_positives": [],
       "note": "run22 (issue #651, self-contained run of approved #631 spec): PerverZija full-surface deep pass, tier plain-curl on every surface (canaries 3/3: film1k plain 403, eporner 200, pandamovies 302 to 200@.org \u2014 no challenge, escalation ladder never needed). Home featured-scenes/studio/full-movie/tag-4k-quality/tag-classic p1+p2 all 200 x64 cards (div.col-md-3.col-xs-6), 0 href overlap p1-p2, 0 within-page dupes; search /?s=anal p1/p2 200 x64 item rows (div.post_ajax_tm, title via h3 a); quickSearch absent (no suggest endpoint, ?do=suggest 404, quick view = client-side data-embed lightbox) - recorded, not drift; 29 video pages 200 (h1/og:image/Tags/Stars/div.xs-related-item x15-18 intact, dt_rating_vgs absent so score null correct; JSON-LD now an array from saswp - regex shared JsonLdParse unaffected). Stream chain: iframe subdomains perv./pervl1-9/pervm1/j2 plus new moviekh.xtremestream.xyz - all handled (direct extractor call, referer derives from iframe URL); masters xs1.php #EXTM3U 18/18 tokens; end-to-end variant+segment MPEG-TS live on 9/18, rest die at variant/segment hop = per-token upstream CDN deadness (site-side, not grammar). NEW 1/29 video pages (allanal-lana): embed //mixdrop.to/e/enl4jzdjt76r6q instead of xtremestream - live probe 302 mxdrop.click -> 200 WE ARE SORRY can't-find-video page, reproduced x3; file dead at source, so provider's xtremestream guard misses nothing playable; latent fleet gap (shared HostRegistry lacks a mixdrop.to row) filed upstream instrument note. Verdict ok retained (0 drift since 2026-10-13), last_deep=2026-10-16. 0 confirmed findings -> no code change, no version bump (stays 13), 0 false positives. Gates: gradlew PerverZija:test 65x debug+release green after bootstrapCloudstream, clean PerverZija:make green, check-findings PASS. verify.sh 7 invocations (5 rows p1/p2, search p1/p2, 4 deep videos + masters): PASS on every mechanically expressible surface; single documented plateau - pydom path key flattens masters to /player/xs1.php (HLS identity = subdomain + ?data token) so stream-distinctness check cannot express this host (manual substitution: 4 distinct masters perv./pervl7/j2 each serve #EXTM3U, tokens fba9d881/46fc943e/f69543a0/c14a2a57); poster/title agreement NOTES documented (card -365x235 WP thumbs vs og:image full-size)."
+    },
+    {
+      "id": "run23",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run23 (issue #652, self-contained run of approved #631 spec): EPorner deep pass, tier plain-curl on every surface (no challenge anywhere \u2014 escalation ladder never needed). Canaries 3/3 on the plain tier (film1k 403, eporner 200, pandamovies 302; TLS-impersonation tool unavailable this run \u2014 plain decisive since no surface was blocked). Home p1/p2 64/66 overlap 3 (rail-placement class, identical to #598); search /search/cowgirl/1/ 301\u2192tag base unchanged, /tag/cowgirl/ p1/p2 65+65 with 1 boundary repeat of 65; video x3 200 (h1/og:image/related 30, actor data absent site-side = standing #537 side record); stream chain end-to-end (xhr available:true \u2192 720p mp4 206 + HLS master 200 on ca nodes; the fr CDN cluster of one sample unreachable at connect level from the datacenter runner \u2014 node flakiness, not drift). CONFIRMED DRIFT fixed in-run (version 18\u219219, TDD): watch-page h1 nests vid-length/vid-quality chip spans \u2192 h1.text() glued duration+quality onto every title (verify.sh check 5 caught it against live card titles); EPornerParse.videoTitle(ownText) + guarded fallback; fixture = verbatim live h1 markup; 11 tests green, clean make green. verify.sh: all content checks green (streams 206, related, tags, duration, recommendations); 4 instrument-limited FAIL lines adjudicated in FINDINGS-652 (search/home cross-page rank-churn repeats 1+3 \u2014 same site-native class as #598/#635; check-5 title mismatch = the fixed h1-chip glue as seen by the regex-DOM instrument which has no own-text semantics; poster frame-variant 5_240 vs 14_240 = site-side thumb variant). Verdict ok-drift, drift_confirmed 1\u21922, last_deep 2026-10-16. 0 findings filed (fixed in-run), 0 false positives."
     }
   ],
   "providers": {
@@ -349,24 +357,25 @@
     },
     "EPorner": {
       "site": "www.eporner.com",
-      "verdict": "ok",
-      "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #537 fix (#543, v18) live-verified \u2014 /search/<q>/1/ 301\u2192tag base exactly as the fix's #537 analysis documented; provider's /tag/<q>/<n>/ route paginates: tag/cowgirl p1/p2 65+65 p.mbtit cards disjoint; home p1/p2 65/64 essentially disjoint; /cat/vintage 61; 3 video pages 200 (h1, og:image, related 24). Stream chain live end-to-end: embed 200 \u2192 EP.video.player.hash \u2192 base36 conversion \u2192 /xhr/video/<id> 200 \u2192 labelShort/src ladder with 2160p mp4 206 video/mp4 + srcFallback HLS master.m3u8 200. Age-wall from run13 (2026-10-10) did NOT reproduce this run \u2014 every surface full content on plain tier; recorded as the suspected account/IP-geo wall class (standing suspected_excluded #447/#462), not reproduced. Historical drift record #537 closed; migrated ok-drift \u2192 ok.",
+      "verdict": "ok-drift",
+      "reason": "CONFIRMED DRIFT fixed 2026-10-16 (#652 deep pass): the live watch-page template nests span.vid-length / span.vid-quality chips inside the h1, so load()'s selectFirst(\"h1\").text() glued duration+quality onto every in-app title (\"Tobrut Enak 9min 720p\") \u2014 caught by verify.sh check 5 (search card 3xxx / tobrut enak vs load title) and confirmed against the live DOM at probe time. Fix in-run, TDD-first: pure EPornerParse.videoTitle keeps the h1's own text (ownText), with a unit-guarded full-text fallback for a future template that moves the title into a child element; fixture video-1Gh6mVaDndG-h1.html carries the verbatim live h1 markup; version 18\u219219; 11 tests green; clean EPorner:make green. #537 healed state re-verified live: /search/<q>/1/ still 301\u2192tag base (documented contract), /tag/<q>/<n>/ paginates (p1\u2229p2 = 1 boundary repeat of 65), home p1/p2 64/66 with the 3-overlap rail-placement class identical to the 2026-10-14 record, /cat category 200s, video x3 200 (h1/og:image/vid-length/vit-category/relateddiv 30). Stream chain end-to-end: embed 200 \u2192 EP.video.player.hash \u2192 base36 \u2192 /xhr/video/<id> 200 available:true \u2192 labelShort ladder 720p mp4 206 video/mp4 + srcFallback HLS master 200 application/vnd.apple.mpegurl (ca CDN nodes). vid-s1-s50-fr-cdn.eporner.com (video-0DbLLO1LU5O's whole cluster, mp4+HLS) unreachable from the datacenter runner at connect level (000 even on the bare host) \u2014 single-cluster CDN node flakiness, known class, player-side failover; not a provider condition. Actor data still absent site-side on every sampled page (no li.vit-pornstar, no span.valor, no JSON-LD actor, no og:description Starring clause) \u2014 standing #537 side record, provider no-ops to empty list, not drift. Age-wall class did not reproduce (all surfaces full content on plain tier).",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200 p1+p2 (65/64 cards, essentially disjoint)",
-        "search": "200 via /tag/<q>/<n>/ p1+p2 disjoint",
-        "video": "200 x3",
-        "stream": "xhr config 200 \u2192 2160p mp4 206 + HLS master 200"
+        "home": "200 p1+p2 (64/66 cards; 3-overlap rail-placement class, otherwise disjoint)",
+        "search": "200 via /tag/<q>/<n>/ p1+p2 (1 boundary repeat of 65); /search/<q>/1/ 301\u2192tag base unchanged",
+        "video": "200 x3 (h1, og:image, vid-length, vit-category, relateddiv 30)",
+        "stream": "xhr config 200 available:true \u2192 720p mp4 206 video/mp4 + srcFallback HLS master 200; fr-cluster single-video unreachable from runner (node flakiness, not drift)",
+        "quickSearch": "no distinct endpoint (delegates to search, standing #269 pattern)"
       },
-      "issue": 537,
+      "issue": null,
       "standing_issue": null,
-      "drift_confirmed": 1,
+      "drift_confirmed": 2,
       "suspected_excluded": [
         447,
         462
       ],
       "chronic": false,
-      "last_deep": "2026-10-14"
+      "last_deep": "2026-10-16"
     },
     "AllClassicPorn": {
       "site": "allclassic.porn",
