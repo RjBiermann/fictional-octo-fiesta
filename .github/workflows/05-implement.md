@@ -32,8 +32,8 @@ safe-outputs:
   create-pull-request:
     max: 1
     title-prefix: "[impl] "
-    draft: false
-    allowed-base-branches: [main]  # per-provider audit runs share one default branch; per-run base overrides stay rejected   # ADR-0008: ready PRs are the conveyor's currency; a session-side `gh pr ready` was bare chore, removed
+    draft: false   # ADR-0008: ready PRs are the conveyor's currency; a session-side `gh pr ready` was bare chore, removed
+    allowed-base-branches: [main]  # per-provider audit runs share one default branch; per-run base overrides stay rejected
   add-labels:
     allowed: [status/in-review]
     max: 1
@@ -58,6 +58,10 @@ never fix inline.
 3. `create-pull-request` — the PR body MUST include a "## Provenance"
    section: this workflow run URL, the trigger issue number, and your
    stamp (`gh-aw budget:` line per the budget protocol).
+   **Never set the `base` field.** The safe-output layer fills the
+   default (main); an explicit `base` — including habit-typed `master` —
+   is rejected and the code push is lost (observed twice, 2026-10-16:
+   runs 38957962887, 38961910251). Omit `base` entirely.
 4. Transition state in one pass: `add-labels status/in-review`, then
    `remove-labels status/planned` (one state label at a time; partial
    failure is healed by the daily sweep).
