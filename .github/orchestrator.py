@@ -580,7 +580,11 @@ def _resolve_version_pair(a, b):
     return a if na > nb else b
 
 
-def _auto_resolve_conflict(branch, files):
+GIT_AUTHOR_IDENTITY = ["-c", "user.name=orchestrator",
+                       "-c", "user.email=orchestrator@users.noreply.github.com"]
+
+
+def _auto_resolve_conflict(branch):
     """Resolve a main-into-branch merge conflict mechanically (delta 16-f6b,
     generalized f11). Known conflict classes only:
     - audits/findings.json  -> union-merge (run records append, main wins scalars)
@@ -634,7 +638,11 @@ def _auto_resolve_conflict(branch, files):
             return False
         _, bsha = _pl(["git", "rev-parse", f"origin/{branch}"])
         _, msha = _pl(["git", "rev-parse", "origin/main"])
-        _, commit = _pl(["git", "commit-tree", new_tree, "-p", bsha, "-p", msha,
+        # Runners bake no git identity; without -c the commit fails
+        # "Author identity unknown" (round-4 review blocker) and both f11
+        # classes stay inert in exactly the environment they target.
+        _, commit = _pl(["git", *GIT_AUTHOR_IDENTITY, "commit-tree", new_tree,
+                         "-p", bsha, "-p", msha,
                          "-m", f"merge main into {branch}: mechanical conflict resolve "
                                f"({', '.join(sorted(files))}) (orchestrator 16-f6b)"])
         ok, out = _git_push(branch, commit)
@@ -668,7 +676,7 @@ def conflict_watch():
         _pl(["git", "fetch", "origin", branch])
         files = _conflict_files(branch)
         if files and all(f == FINDINGS_PATH or f.endswith("build.gradle.kts") for f in files):
-            if _auto_resolve_conflict(branch, files):
+            if _auto_resolve_conflict(branch):
                 continue
         marker = f"{MARK} merge conflict detected"
         if _has_marker(comments(num), marker):
