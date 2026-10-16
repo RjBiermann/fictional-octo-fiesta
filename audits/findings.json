@@ -1,664 +1,682 @@
 {
- "schema": 1,
- "note": "Machine source of truth for the provider fleet audit. drift_confirmed counts only closed issues CONFIRMED as drift/broken (Suspected findings closed as false positives are exclusions, never occurrences). Audits update this file; the lint (scripts/check-findings.sh) must pass before delivery.",
- "updated": "2026-10-16",
- "last_runs": [
-  {
-   "id": "run1",
-   "date": "2026-09-24",
-   "pr": 469,
-   "findings": [
-    461,
-    462,
-    463,
-    464,
-    465,
-    466,
-    467,
-    468
-   ],
-   "false_positives": [
-    461,
-    462,
-    465,
-    466,
-    467
-   ],
-   "note": "datacenter-IP CF challenges verdicted Blocked without escalation"
-  },
-  {
-   "id": "run2",
-   "date": "2026-09-25",
-   "pr": 474,
-   "findings": [
-    471,
-    472,
-    473
-   ],
-   "false_positives": [
-    473
-   ],
-   "duplicates": [
-    471,
-    472
-   ],
-   "note": "471/472 closed as duplicates of standing 463/464; 473 false-positive per residential differential; audit-providers skill + registry shipped in 7044dc9"
-  },
-  {
-   "id": "run3",
-   "date": "2026-09-26",
-   "pr": null,
-   "findings": [
-    480
-   ],
-   "false_positives": [],
-   "note": "run 3 (issue 479): full 26-provider sweep, canaries matched; deep tier Cat3Film/Eroticmv/Javmost/Xhamster; standing 463/464/468/475 re-confirmed, 476/477 cleared; new finding: Javmost home page 2 duplicates page 1; probe-IP challenge artifacts (Film1k/FreePornVideos/FullPorner/XMoviesForYou search) not re-filed per suspected_excluded"
-  },
-  {
-   "id": "run4",
-   "date": "2026-09-26",
-   "pr": null,
-   "findings": [],
-   "false_positives": [],
-   "note": "run 4 (issue 483): canaries matched (film1k 403/200 TLS, eporner 200, pandamovies 522 both tiers); AllClassicPorn deep audit + quality pass-through fix (ExtractorLink.quality); REPO BUILD REPAIR — jitpack -SNAPSHOT metadata advertises gradle--32895aedb6-1 whose pom/jar 404 (re-verified 2026-09-26, CI red since 2026-09-26T05:24), plugin re-vendored verbatim from f0ec7c7 into vendor/ behind the restored P0-15 integrity gate; scope = AllClassicPorn deep audit only, issue stays open — remaining loadLinks emitters not caption-screened this run (screened: Cat3Film/Javmost run 3 deep tier, ixiporn #479/#483 greps; Cat3Movie = absence of evidence only); REPO BUILD REPAIR — jitpack -SNAPSHOT metadata advertises gradle--32895aedb6-1 whose pom/jar 404 (re-verified 2026-09-26, CI red since 2026-09-26T05:24), plugin re-vendored verbatim from f0ec7c7 into vendor/ behind the restored P0-15 integrity gate, vendoring-vs-pinned-coordinate is a flagged maintainer decision; standing verify FAILs (og:video-embed stream check, card-vs-og:image poster) remain OPEN script artifacts tracked in AllClassicPorn/FINDINGS.md audits #204/#266 — not false positives"
-  },
-  {
-   "id": "run5",
-   "date": "2026-09-29",
-   "pr": 498,
-   "findings": [
-    496,
-    497
-   ],
-   "false_positives": [],
-   "note": "run 5 (issue 494): full 26-provider sweep + deep tier (Eroticmv, MissAV, Javtiful, HQPorner). Canaries: film1k pair match, eporner match, pandamovies-dead-origin MISMATCH expectation-stale — origin healed at .org, expectation update proposed. Standing conditions: Javmost #480 CLEARED, PandaMovies #463/#471 healed (verdict ok-drift), Mangoporn #464 re-confirmed 522, Javbangers #475 re-confirmed, ixiporn #468 re-confirmed. Findings: #496 Film1k turbovid CDN DNS-dead, #497 Eroticmv single-row vs 75 facets. EPorner full-page age-wall = suspected probe-IP geo artifact (CA), differential HITL decides."
-  },
-  {
-   "id": "run7",
-   "date": "2026-10-09",
-   "pr": 528,
-   "findings": [
-    525,
-    526,
-    527
-   ],
-   "false_positives": [],
-   "note": "run 7 (issue 524): full 26-provider sweep + details-field gap audit. Canaries: 3/3 match (film1k pair, eporner, pandamovies-redirect). Deep tier Cat3Movie/JavGuru/Neporn/WatchPorn (last_deep 2026-10-09, no gaps). Findings: #525 Mangoporn origin healed but provider parser matches 0 cards, #526 FullPorner tags gap, #527 HQPorner tags gap. Standing Javbangers #475 re-confirmed (p1 200 / p2 404). Run 6 (issue 511) closed unmerged — its registried facts re-verified live and folded in here. 0 false positives."
-  },
-  {
-   "id": "run8",
-   "date": "2026-10-09",
-   "pr": null,
-   "findings": [
-    534,
-    535,
-    536,
-    537,
-    538,
-    539
-   ],
-   "false_positives": [],
-   "note": "run 8 (issue 524 re-fire, same day as run 7): targeted field-exposure deepening, listing/watch markup re-mapped live. Canaries 3/3 match (re-checked same day). Findings: #534 Javtiful full redesign (all front-* selectors dead), #535 XMoviesForYou listing selectors dead (watch page OK), #536 FreePornVideos details-block rename kills Description/Models/Duration parsing, #537 EPorner /search/<q>/<N>/ redirects collapse pages 2+ to /tag/<q>/ p1, #538 Eroticmv JSON-LD articleSection gone (tags empty), #539 Javseen og:video:duration content=\"0\" sentinel. Standing #525 re-confirmed (fresh transcript posted). Xhamster year Lead re-proven, still unfiled. No last_deep stamps moved (deep-tier stream resolution not run this run). 0 false positives."
-  },
-  {
-   "id": "run9",
-   "date": "2026-10-09",
-   "pr": 551,
-   "findings": [],
-   "false_positives": [],
-   "note": "run 9 (issue 524 re-fire, PR #551): full fleet sweep re-run (26/26, all ok vs run-8 verdicts; sweep-script URL artifacts only: javbangers /search/sex/<N> 404 on script prefix, provider p1 URL fine; javmost script URL missing bucket piece, provider paths 200). Rotating deep tier completed for Eroticmv, ixiporn, Mangoporn (home+search pagination+3 video pages+stream resolution where applicable). No genuinely new conditions — 0 new issues; standing #468/#525/#538 updated with live evidence comments. No new drift; canaries 3/3 match. Raw probe HTML deletes from repo per FINDINGS-only ground-truth rule."
-  },
-  {
-   "id": "run10",
-   "date": "2026-10-13",
-   "pr": null,
-   "findings": [
-    555
-   ],
-   "false_positives": [],
-   "note": "run 10 (issue 554): full fleet sweep 26/26 home→search→video→stream-artifact; canaries 3/3 match; rotating deep tier: PandaMovies, XMoviesForYou, Javseen, PerverZija. 1 new condition: PandaMovies theme markup migration → #555. #539 sentinel observed healed (og:video:duration 6540). FreePornVideos video pages need TLS tier (known session/leech class, standing #449/#466 ok-suspected excluded). Probe-IP CF challenge not observed anywhere this run."
-  },
-  {
-   "id": "run13",
-   "date": "2026-10-10",
-   "pr": null,
-   "findings": [
-    564
-   ],
-   "false_positives": [],
-   "note": "run13 (issue 554, round 4): full 26-provider sweep (home/search/video/stream-artifact), canaries 3/3, EPorner agegate (deep replaced by Javbangers), deep tier Film1k/FreePornVideos/FullPorner/Javbangers; new condition #564 Mangoporn BEM migration; #555 re-confirmed; EPorner age-wall suspected held; run11 (round 2) and run12 (round 3, no changes) artifacts never merged — their evidence superseded by this run"
-  },
-  {
-   "id": "run11",
-   "date": "2026-10-14",
-   "pr": null,
-   "findings": [],
-   "false_positives": [],
-   "note": "run 11 (issue 596 S1 of #593 spec round 14): full 26-provider uniform sweep home->search->video page->stream artifact (plain-curl, TLS tier for Eroticmv/FreePornVideos/FullPorner/XMoviesForYou video+search where plain 403 CF challenge). Canaries 3/3 match (film1k pair 403/200, eporner 200, pandamovies 302->200@.org), last_verified 2026-10-14. Javbangers standing search-p2 404 re-confirmed at provider URLs (p1 200 / p2 404). Observed-but-not-filed: Eroticmv header 403 = datacenter-IP CF challenge (TLS 200), probe-IP class; Eroticmv #538 articleSection condition observed healed (articleSection array populated live 2026-10-14) - closed issue, no re-open requested. No verdict changes (evidence-change-only rule), no deep tier this run (spec scope), 0 new findings."
-  },
-  {
-   "id": "run15",
-   "date": "2026-10-16",
-   "pr": null,
-   "findings": [],
-   "false_positives": [],
-   "note": "run15 (issue 632, approved #631 spec): PornXP one-provider deep pass, canaries 3/3 match (film1k 403/200 TLS, eporner 200, pandamovies 302->200). All surfaces healthy on plain-curl tier: home p1/p3 0 href-overlap, search /tags/ATKGirlfriends + /tags/DaughterSwap p1/p2 0 overlap + site > next-control, video x3 200, streams 3/3 206 video/mp4 bare + with-referer, no distinct quick-search endpoint (recorded absent, not drift). Standing 476 condition re-confirmed live, stays clear. 0 confirmed conditions -> no code fix, no version bump (PornXP version stays 10). verify.sh PASS. Ground truth: FINDINGS-632.md"
-  },
-  {
-   "id": "run14",
-   "date": "2026-10-14",
-   "pr": 608,
-   "findings": [],
-   "false_positives": [],
-   "note": "run14 (issue 599 S3 of #593 spec round 14, registry write-up: evidence landed via PR #602 S1 uniform sweep + PR #606 S2 deep pass). Tiered round: S1 uniform canary-style pass on all 26 (PR #602), S2 deepest pass on the 8 ok-drift (PR #606). Canaries 3/3 match (last_verified 2026-10-14). Re-verdicts on evidence change only: 7 migrations ok-drift -> ok (PandaMovies #555 fix #563, Mangoporn #564 fix #566, XMoviesForYou #535 fix #547, Javtiful #534 fix #548, Javbangers #475 closed standing, Film1k #496/#501 fix, EPorner #537 fix #543); ixiporn stays ok-drift -- #468 standing double-redirect .org->.live unchanged, all faces healthy on that origin (not a new post-fix condition, no issue filed). 0 new findings, 0 false positives. Ground truth: FINDINGS-596.md, FINDINGS-598.md."
-  },
-  {
-   "id": "run15",
-   "date": "2026-10-16",
-   "pr": null,
-   "findings": [],
-   "false_positives": [],
-   "note": "run15 (issue #633, sub-issue of #631 spec): Porntrex full-surface deep pass, tier plain-curl on every surface. Canaries 3/3 match (2026-10-16). All faces healthy: search p1/p2 85+85 cards disjoint; home via category-path async (bare-URL / async serves 200 with an empty body — provider unaffected, every mainPage row is a category URL); p1∩p2 churn proven site-native (async p2 ≡ the site's own /2/ page 120/120); quickSearch absent unchanged (#275); direct guest shells unchanged (#171 standing, /embed/ fallback healthy with full flashvars); streams 206 video/mp4 on 5 fresh single-use tokens; related_videos_html/3364971/ 45 items, provider selectors match. Verdict ok retained (no drift since 2026-09-29), last_deep=2026-10-16. 0 findings (fix policy: no confirmed condition, no version bump), 0 false positives. verify.sh: all provider checks PASS; 2 instrument false-FAILs (title-keyed dedupe on distinct same-title videos, href dedupe clean; plot '-' placeholder distinctness) filed as verify.sh backlog issue. Ground truth: FINDINGS-633.md, Porntrex/FINDINGS.md."
-  },
-  {
-   "id": "run17",
-   "date": "2026-10-16",
-   "pr": null,
-   "findings": [
-    "dood.so-mirror-gap (#671)"
-   ],
-   "false_positives": [],
-   "note": "run17 (issue #640, self-contained run of approved #631 spec): Javmost deep pass, tier plain-curl. Home pagination 4 rows × p1/p2/p3 all 200, 24/page, 0 overlap (480 holds); search JSON disjoint p1/p2, sw-256 2 results; quickSearch absent (unchanged); 6+ video pages 200 with intact parse semantics. CONFIRMED DRIFT fixed (version 11 → 13, TDD): (1) dooplayer/mostplayer embed service is back — x-embed contract byte-identical to 2026-09-10 (Sec-Fetch-Dest: iframe + Referer GET → 4 x-embed metas → signed POST → cdn.mostplayer.com/stream?t= mp4, HTTP 206); the provider's doo branch had been cut while the hosts were dead → doo-hosted pages emitted 0 links since #332. Restored host-agnostically (metas-keyed). Note: the morning run (38852760754, PR #665) read doo embeds as 204 — header-blind artifact, re-bisected this run. (2) select_part now renders 'parent' AND 'child' buttons; provider regex was parent-only → child embeds silently dropped; Parse.servers() matched for both variants, embed de-dup per page. Fixtures dooplayer-embed/mostplayer-embed/abw-286/avsa-457-video; gradlew test green (174 tests); clean :Javmost:make green. verify.sh PASS all checks (search 4 pages, home 6 pages, 4 video pages live, 4 fresh doo mp4 streams 206; runtime source-tracked adaptation: stream identity keeps the query — token lives there). SUSPECTED (recorded, not filed): emturbovid.com TCP-timeout + turbovidhls NXDOMAIN from runner IP — same chain served 206 m3u8 from a runner on 2026-09-26; network artifact, no finding. FINDING filed: #671 shared HostRegistry lacks a dood.so row (301s to registered playmogo, prefix-match drops it) — fleet-wide non-Javmost gap. Verdict ok-drift, drift_confirmed 0→2, last_deep 2026-10-16, standing_issue 480→null."
-  },
-  {
-   "id": "run18",
-   "date": "2026-10-16",
-   "pr": null,
-   "findings": [],
-   "false_positives": [],
-   "note": "run18 (issue #634, self-contained run of approved #631 spec): Sexfilm full-surface deep pass, tier plain-curl on every surface (TLS tier confirmed home 200; browser step never reached — no blocked surface). Canaries 3/3 match (film1k 403/200 TLS, eporner 200, pandamovies 302->200@.org). All faces healthy: 6 main-page rows p1/p2 disjoint (24 cards each); search milf p1/p2/p3 disjoint + tarzan; quick-search absent (do=suggest serves a full unfiltered HTML page — not drift); 6 video pages 200 (home/category/related) with all load fields live; filmcdm/morencius two-hop hls4 streams 200 application/vnd.apple.mpegurl with and without referer. Standing limitations re-confirmed, not drift: playmogo 403 bot wall, s2.filmcdn cfglobalcdn m3u8 IP-locked + TCP-timeout from runner, one hls3 alternate host 403 (hls2/hls4 fine on that video). The 2026-09-29 two-step cookie-jar handshake did NOT reproduce — a single fresh cookie-less request serves every surface; provider needs no cookie plumbing. Verdict ok retained, last_deep=2026-10-16. 0 findings (fix policy: no confirmed condition, no version bump — Sexfilm stays 12), 0 false positives. verify.sh PASS x6 (main run + one per home row; cross-section card overlap is a site reality per FINDINGS, so rows verified per-row). Gates: gradlew Sexfilm:test PASS, clean gradlew Sexfilm:make PASS, check-findings.sh PASS. Ground truth: FINDINGS-634.md, Sexfilm/FINDINGS.md."
-  },
-  {
-   "id": "run19",
-   "date": "2026-10-16",
-   "pr": null,
-   "findings": [],
-   "false_positives": [],
-   "note": "run19 (issue #635, sub-issue of #631 spec): Xhamster full-surface deep pass, tier plain-curl on every surface. Home p1/p2 46+46 cards disjoint; search 46+46 via searchResult.videoThumbProps (cross-page rank re-injection of 7/46 cards on fresh fetches — site-native, within-page always unique); quickSearch absent (no suggest API, unchanged #275); video x5 200; streams 5/5 206 vnd.apple.mpegurl via decodeXhUrl (algos 1-7 all observed live). Year/UploadDate open question RESOLVED: template re-expanded, videoModel.created = epoch upload timestamp (cross-checked against videoEntity.dateAgo x3) — fixed in-run TDD-first (yearFromCreated UTC, version 22->23, 16/16 tests green). verify.sh: 5/5 streams serve, 3 FAIL lines instrument-limited (rank re-injection / og:image 16px artifact #427 / attr-only SSR titles) — evidence-backed in FINDINGS-635. Verdict ok"
-  },
-  {
-   "id": "run20",
-   "date": "2026-10-16",
-   "pr": null,
-   "findings": [],
-   "false_positives": [],
-   "note": "run20 (issue #649, self-contained run of approved #631 spec): WatchPorn full-surface deep pass, tier plain-curl on every surface (TLS/browser steps never reached — no blocked surface). Canaries 3/3 match (film1k plain 403 / TLS 200, eporner 200, pandamovies 302→200@.org). CONFIRMED DRIFT fixed in-run: the site shipped a new KVS theme (\"wp-\" classes) killing every v15 selector — span.thumb__title / h1.single__content-title / single__info-row / li.next dead at probe time → 0 parsed cards + null load(). Fixed TDD-first with pure WatchPornParse (a.wp-ctitle / a.wp-card__link / data-webp?:data-original posters / span.wp-r / h1.wp-vi__title / a.wp-vchip / a.wp-cast span.wp-cast__n / li.wp-pag__next), legacy selectors kept as fallbacks, legacy fixture still green (partial-rollout guard); new fixtures search-milf-1.html + video-136954.html; plot assignment removed (site exposes no synopsis — ld+json/og = tag-glue/boilerplate). version 15→16, 150 tests green, clean make green. verify.sh: search 40+40, home 20+20, sites rows 20+20, 5 video pages, streams 5/5 → 302 → 206 video/mp4 (no cookies/referer — old session-bound note gone); 4 instrument-limited FAIL lines evidence-backed in FINDINGS-649 (identical ad-card payload read as home title, empty-plot '-' placeholder collision, site-native short card title vs og title, thumbnail-vs-og-poster on real-src cards). No finding issue filed: condition fixed in-run, drift survives only as the pending merge (registry verdict ok-drift, issue/standing_issue null). 0 false positives. Gates: check-findings.sh PASS. Ground truth: FINDINGS-649.md, WatchPorn/FINDINGS.md."
-  },
-  {
-   "id": "run21",
-   "date": "2026-10-16",
-   "pr": null,
-   "findings": [],
-   "false_positives": [],
-   "note": "run21 (issue #650, self-contained run of approved #631 spec): Javseen full-surface deep pass, tier plain-curl on every surface (browser step never reached). Canaries 3/3 match (film1k plain 403 / TLS 200, eporner 200, pandamovies 302->200 @.org). Home recent/category/tag p1/p2 30+30 cards, numeric-ID overlap 0 on all four axes; search AJAX p1/p2 30+30 disjoint; quickSearch correctly absent (no suggest endpoint, unchanged); video x6 200 with real og fields; data-embeds decode to cloudwish (primary, every fresh page), mycloudz (CDN 502 datacenter-IP = standing 477, unchanged), streambeast/streamtape/playmogo rows unchanged, javhdz rows registered but unused on fresh pages. CONFIRMED shared-registry gap fixed in-run: cloudwish.xyz had NO row in shared/HostRegistry — CloudWish existed only as a Mangoporn-local extractor (shipped for #443), so Javseen would resolve its primary embed to no extractor at all. Promoted to shared/src/main/kotlin/com/kraptor/CloudWish.kt (CloudWishParse unpack/links/preferred + extractor class) TDD-first: red fixture test (real ~16KB cloudwish embed page, cloudwish_embed.html, token 3gop55rnx9nd) then green 6/6; host row added to HostRegistry in front of MyDaddyExtractor; Mangoporn duplicate Extractors.kt deleted (registration narrowed to Maxstream()). Version Javseen 19->20, Mangoporn 6->7. Test-discovered JVM nuance: Mangoporn port’s capturing-group alternation regex StackOverflows java.util.regex on a real 16KB page (Android ICU iterative, JVM gates recursive) — argument extraction rewritten to strict greedy groups with the .split('|') terminator, unpack output byte-identical to the node unpacker after escape normalization. #539 stays cleared (real durations 7800/14640/12000/7380/7200 on fresh pages; the /287527/ sentinel-0 page is guarded client-side by DurationParse). #477 state re-checked live: mycloudz unpacks, dramiyos-cdn.com 502 from datacenter IP — unchanged, remains the standing site-side limitation; cloudwish unaffected on every fresh page, not refiled. Javhdz/Javhdz2 rows unused today — noted as future removal candidate only if a sweep observes a semantic absence. verify.sh: 6/6 stream overrides 200 mpegurl, video pages +4–9 choice buttons, 6 instrument-limited FAIL lines evidence-backed in FINDINGS-650 (AJAX JSON listing payloads backslash-escaped, the CSS-matching harness reads 0 — same limitation recorded since #145; unescape step is shared-script surface, proposed under #631). 0 false positives. Gates: check-findings.sh PASS, Javseen/Mangoporn test green, clean make green across all 24 providers. Ground truth: FINDINGS-650.md, Javseen/FINDINGS.md."
+  "schema": 1,
+  "note": "Machine source of truth for the provider fleet audit. drift_confirmed counts only closed issues CONFIRMED as drift/broken (Suspected findings closed as false positives are exclusions, never occurrences). Audits update this file; the lint (scripts/check-findings.sh) must pass before delivery.",
+  "updated": "2026-10-16",
+  "last_runs": [
+    {
+      "id": "run1",
+      "date": "2026-09-24",
+      "pr": 469,
+      "findings": [
+        461,
+        462,
+        463,
+        464,
+        465,
+        466,
+        467,
+        468
+      ],
+      "false_positives": [
+        461,
+        462,
+        465,
+        466,
+        467
+      ],
+      "note": "datacenter-IP CF challenges verdicted Blocked without escalation"
+    },
+    {
+      "id": "run2",
+      "date": "2026-09-25",
+      "pr": 474,
+      "findings": [
+        471,
+        472,
+        473
+      ],
+      "false_positives": [
+        473
+      ],
+      "duplicates": [
+        471,
+        472
+      ],
+      "note": "471/472 closed as duplicates of standing 463/464; 473 false-positive per residential differential; audit-providers skill + registry shipped in 7044dc9"
+    },
+    {
+      "id": "run3",
+      "date": "2026-09-26",
+      "pr": null,
+      "findings": [
+        480
+      ],
+      "false_positives": [],
+      "note": "run 3 (issue 479): full 26-provider sweep, canaries matched; deep tier Cat3Film/Eroticmv/Javmost/Xhamster; standing 463/464/468/475 re-confirmed, 476/477 cleared; new finding: Javmost home page 2 duplicates page 1; probe-IP challenge artifacts (Film1k/FreePornVideos/FullPorner/XMoviesForYou search) not re-filed per suspected_excluded"
+    },
+    {
+      "id": "run4",
+      "date": "2026-09-26",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run 4 (issue 483): canaries matched (film1k 403/200 TLS, eporner 200, pandamovies 522 both tiers); AllClassicPorn deep audit + quality pass-through fix (ExtractorLink.quality); REPO BUILD REPAIR \u2014 jitpack -SNAPSHOT metadata advertises gradle--32895aedb6-1 whose pom/jar 404 (re-verified 2026-09-26, CI red since 2026-09-26T05:24), plugin re-vendored verbatim from f0ec7c7 into vendor/ behind the restored P0-15 integrity gate; scope = AllClassicPorn deep audit only, issue stays open \u2014 remaining loadLinks emitters not caption-screened this run (screened: Cat3Film/Javmost run 3 deep tier, ixiporn #479/#483 greps; Cat3Movie = absence of evidence only); REPO BUILD REPAIR \u2014 jitpack -SNAPSHOT metadata advertises gradle--32895aedb6-1 whose pom/jar 404 (re-verified 2026-09-26, CI red since 2026-09-26T05:24), plugin re-vendored verbatim from f0ec7c7 into vendor/ behind the restored P0-15 integrity gate, vendoring-vs-pinned-coordinate is a flagged maintainer decision; standing verify FAILs (og:video-embed stream check, card-vs-og:image poster) remain OPEN script artifacts tracked in AllClassicPorn/FINDINGS.md audits #204/#266 \u2014 not false positives"
+    },
+    {
+      "id": "run5",
+      "date": "2026-09-29",
+      "pr": 498,
+      "findings": [
+        496,
+        497
+      ],
+      "false_positives": [],
+      "note": "run 5 (issue 494): full 26-provider sweep + deep tier (Eroticmv, MissAV, Javtiful, HQPorner). Canaries: film1k pair match, eporner match, pandamovies-dead-origin MISMATCH expectation-stale \u2014 origin healed at .org, expectation update proposed. Standing conditions: Javmost #480 CLEARED, PandaMovies #463/#471 healed (verdict ok-drift), Mangoporn #464 re-confirmed 522, Javbangers #475 re-confirmed, ixiporn #468 re-confirmed. Findings: #496 Film1k turbovid CDN DNS-dead, #497 Eroticmv single-row vs 75 facets. EPorner full-page age-wall = suspected probe-IP geo artifact (CA), differential HITL decides."
+    },
+    {
+      "id": "run7",
+      "date": "2026-10-09",
+      "pr": 528,
+      "findings": [
+        525,
+        526,
+        527
+      ],
+      "false_positives": [],
+      "note": "run 7 (issue 524): full 26-provider sweep + details-field gap audit. Canaries: 3/3 match (film1k pair, eporner, pandamovies-redirect). Deep tier Cat3Movie/JavGuru/Neporn/WatchPorn (last_deep 2026-10-09, no gaps). Findings: #525 Mangoporn origin healed but provider parser matches 0 cards, #526 FullPorner tags gap, #527 HQPorner tags gap. Standing Javbangers #475 re-confirmed (p1 200 / p2 404). Run 6 (issue 511) closed unmerged \u2014 its registried facts re-verified live and folded in here. 0 false positives."
+    },
+    {
+      "id": "run8",
+      "date": "2026-10-09",
+      "pr": null,
+      "findings": [
+        534,
+        535,
+        536,
+        537,
+        538,
+        539
+      ],
+      "false_positives": [],
+      "note": "run 8 (issue 524 re-fire, same day as run 7): targeted field-exposure deepening, listing/watch markup re-mapped live. Canaries 3/3 match (re-checked same day). Findings: #534 Javtiful full redesign (all front-* selectors dead), #535 XMoviesForYou listing selectors dead (watch page OK), #536 FreePornVideos details-block rename kills Description/Models/Duration parsing, #537 EPorner /search/<q>/<N>/ redirects collapse pages 2+ to /tag/<q>/ p1, #538 Eroticmv JSON-LD articleSection gone (tags empty), #539 Javseen og:video:duration content=\"0\" sentinel. Standing #525 re-confirmed (fresh transcript posted). Xhamster year Lead re-proven, still unfiled. No last_deep stamps moved (deep-tier stream resolution not run this run). 0 false positives."
+    },
+    {
+      "id": "run9",
+      "date": "2026-10-09",
+      "pr": 551,
+      "findings": [],
+      "false_positives": [],
+      "note": "run 9 (issue 524 re-fire, PR #551): full fleet sweep re-run (26/26, all ok vs run-8 verdicts; sweep-script URL artifacts only: javbangers /search/sex/<N> 404 on script prefix, provider p1 URL fine; javmost script URL missing bucket piece, provider paths 200). Rotating deep tier completed for Eroticmv, ixiporn, Mangoporn (home+search pagination+3 video pages+stream resolution where applicable). No genuinely new conditions \u2014 0 new issues; standing #468/#525/#538 updated with live evidence comments. No new drift; canaries 3/3 match. Raw probe HTML deletes from repo per FINDINGS-only ground-truth rule."
+    },
+    {
+      "id": "run10",
+      "date": "2026-10-13",
+      "pr": null,
+      "findings": [
+        555
+      ],
+      "false_positives": [],
+      "note": "run 10 (issue 554): full fleet sweep 26/26 home\u2192search\u2192video\u2192stream-artifact; canaries 3/3 match; rotating deep tier: PandaMovies, XMoviesForYou, Javseen, PerverZija. 1 new condition: PandaMovies theme markup migration \u2192 #555. #539 sentinel observed healed (og:video:duration 6540). FreePornVideos video pages need TLS tier (known session/leech class, standing #449/#466 ok-suspected excluded). Probe-IP CF challenge not observed anywhere this run."
+    },
+    {
+      "id": "run13",
+      "date": "2026-10-10",
+      "pr": null,
+      "findings": [
+        564
+      ],
+      "false_positives": [],
+      "note": "run13 (issue 554, round 4): full 26-provider sweep (home/search/video/stream-artifact), canaries 3/3, EPorner agegate (deep replaced by Javbangers), deep tier Film1k/FreePornVideos/FullPorner/Javbangers; new condition #564 Mangoporn BEM migration; #555 re-confirmed; EPorner age-wall suspected held; run11 (round 2) and run12 (round 3, no changes) artifacts never merged \u2014 their evidence superseded by this run"
+    },
+    {
+      "id": "run11",
+      "date": "2026-10-14",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run 11 (issue 596 S1 of #593 spec round 14): full 26-provider uniform sweep home->search->video page->stream artifact (plain-curl, TLS tier for Eroticmv/FreePornVideos/FullPorner/XMoviesForYou video+search where plain 403 CF challenge). Canaries 3/3 match (film1k pair 403/200, eporner 200, pandamovies 302->200@.org), last_verified 2026-10-14. Javbangers standing search-p2 404 re-confirmed at provider URLs (p1 200 / p2 404). Observed-but-not-filed: Eroticmv header 403 = datacenter-IP CF challenge (TLS 200), probe-IP class; Eroticmv #538 articleSection condition observed healed (articleSection array populated live 2026-10-14) - closed issue, no re-open requested. No verdict changes (evidence-change-only rule), no deep tier this run (spec scope), 0 new findings."
+    },
+    {
+      "id": "run15",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run15 (issue 632, approved #631 spec): PornXP one-provider deep pass, canaries 3/3 match (film1k 403/200 TLS, eporner 200, pandamovies 302->200). All surfaces healthy on plain-curl tier: home p1/p3 0 href-overlap, search /tags/ATKGirlfriends + /tags/DaughterSwap p1/p2 0 overlap + site > next-control, video x3 200, streams 3/3 206 video/mp4 bare + with-referer, no distinct quick-search endpoint (recorded absent, not drift). Standing 476 condition re-confirmed live, stays clear. 0 confirmed conditions -> no code fix, no version bump (PornXP version stays 10). verify.sh PASS. Ground truth: FINDINGS-632.md"
+    },
+    {
+      "id": "run14",
+      "date": "2026-10-14",
+      "pr": 608,
+      "findings": [],
+      "false_positives": [],
+      "note": "run14 (issue 599 S3 of #593 spec round 14, registry write-up: evidence landed via PR #602 S1 uniform sweep + PR #606 S2 deep pass). Tiered round: S1 uniform canary-style pass on all 26 (PR #602), S2 deepest pass on the 8 ok-drift (PR #606). Canaries 3/3 match (last_verified 2026-10-14). Re-verdicts on evidence change only: 7 migrations ok-drift -> ok (PandaMovies #555 fix #563, Mangoporn #564 fix #566, XMoviesForYou #535 fix #547, Javtiful #534 fix #548, Javbangers #475 closed standing, Film1k #496/#501 fix, EPorner #537 fix #543); ixiporn stays ok-drift -- #468 standing double-redirect .org->.live unchanged, all faces healthy on that origin (not a new post-fix condition, no issue filed). 0 new findings, 0 false positives. Ground truth: FINDINGS-596.md, FINDINGS-598.md."
+    },
+    {
+      "id": "run15",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run15 (issue #633, sub-issue of #631 spec): Porntrex full-surface deep pass, tier plain-curl on every surface. Canaries 3/3 match (2026-10-16). All faces healthy: search p1/p2 85+85 cards disjoint; home via category-path async (bare-URL / async serves 200 with an empty body \u2014 provider unaffected, every mainPage row is a category URL); p1\u2229p2 churn proven site-native (async p2 \u2261 the site's own /2/ page 120/120); quickSearch absent unchanged (#275); direct guest shells unchanged (#171 standing, /embed/ fallback healthy with full flashvars); streams 206 video/mp4 on 5 fresh single-use tokens; related_videos_html/3364971/ 45 items, provider selectors match. Verdict ok retained (no drift since 2026-09-29), last_deep=2026-10-16. 0 findings (fix policy: no confirmed condition, no version bump), 0 false positives. verify.sh: all provider checks PASS; 2 instrument false-FAILs (title-keyed dedupe on distinct same-title videos, href dedupe clean; plot '-' placeholder distinctness) filed as verify.sh backlog issue. Ground truth: FINDINGS-633.md, Porntrex/FINDINGS.md."
+    },
+    {
+      "id": "run17",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [
+        "dood.so-mirror-gap (#671)"
+      ],
+      "false_positives": [],
+      "note": "run17 (issue #640, self-contained run of approved #631 spec): Javmost deep pass, tier plain-curl. Home pagination 4 rows \u00d7 p1/p2/p3 all 200, 24/page, 0 overlap (480 holds); search JSON disjoint p1/p2, sw-256 2 results; quickSearch absent (unchanged); 6+ video pages 200 with intact parse semantics. CONFIRMED DRIFT fixed (version 11 \u2192 13, TDD): (1) dooplayer/mostplayer embed service is back \u2014 x-embed contract byte-identical to 2026-09-10 (Sec-Fetch-Dest: iframe + Referer GET \u2192 4 x-embed metas \u2192 signed POST \u2192 cdn.mostplayer.com/stream?t= mp4, HTTP 206); the provider's doo branch had been cut while the hosts were dead \u2192 doo-hosted pages emitted 0 links since #332. Restored host-agnostically (metas-keyed). Note: the morning run (38852760754, PR #665) read doo embeds as 204 \u2014 header-blind artifact, re-bisected this run. (2) select_part now renders 'parent' AND 'child' buttons; provider regex was parent-only \u2192 child embeds silently dropped; Parse.servers() matched for both variants, embed de-dup per page. Fixtures dooplayer-embed/mostplayer-embed/abw-286/avsa-457-video; gradlew test green (174 tests); clean :Javmost:make green. verify.sh PASS all checks (search 4 pages, home 6 pages, 4 video pages live, 4 fresh doo mp4 streams 206; runtime source-tracked adaptation: stream identity keeps the query \u2014 token lives there). SUSPECTED (recorded, not filed): emturbovid.com TCP-timeout + turbovidhls NXDOMAIN from runner IP \u2014 same chain served 206 m3u8 from a runner on 2026-09-26; network artifact, no finding. FINDING filed: #671 shared HostRegistry lacks a dood.so row (301s to registered playmogo, prefix-match drops it) \u2014 fleet-wide non-Javmost gap. Verdict ok-drift, drift_confirmed 0\u21922, last_deep 2026-10-16, standing_issue 480\u2192null."
+    },
+    {
+      "id": "run18",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run18 (issue #634, self-contained run of approved #631 spec): Sexfilm full-surface deep pass, tier plain-curl on every surface (TLS tier confirmed home 200; browser step never reached \u2014 no blocked surface). Canaries 3/3 match (film1k 403/200 TLS, eporner 200, pandamovies 302->200@.org). All faces healthy: 6 main-page rows p1/p2 disjoint (24 cards each); search milf p1/p2/p3 disjoint + tarzan; quick-search absent (do=suggest serves a full unfiltered HTML page \u2014 not drift); 6 video pages 200 (home/category/related) with all load fields live; filmcdm/morencius two-hop hls4 streams 200 application/vnd.apple.mpegurl with and without referer. Standing limitations re-confirmed, not drift: playmogo 403 bot wall, s2.filmcdn cfglobalcdn m3u8 IP-locked + TCP-timeout from runner, one hls3 alternate host 403 (hls2/hls4 fine on that video). The 2026-09-29 two-step cookie-jar handshake did NOT reproduce \u2014 a single fresh cookie-less request serves every surface; provider needs no cookie plumbing. Verdict ok retained, last_deep=2026-10-16. 0 findings (fix policy: no confirmed condition, no version bump \u2014 Sexfilm stays 12), 0 false positives. verify.sh PASS x6 (main run + one per home row; cross-section card overlap is a site reality per FINDINGS, so rows verified per-row). Gates: gradlew Sexfilm:test PASS, clean gradlew Sexfilm:make PASS, check-findings.sh PASS. Ground truth: FINDINGS-634.md, Sexfilm/FINDINGS.md."
+    },
+    {
+      "id": "run19",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run19 (issue #635, sub-issue of #631 spec): Xhamster full-surface deep pass, tier plain-curl on every surface. Home p1/p2 46+46 cards disjoint; search 46+46 via searchResult.videoThumbProps (cross-page rank re-injection of 7/46 cards on fresh fetches \u2014 site-native, within-page always unique); quickSearch absent (no suggest API, unchanged #275); video x5 200; streams 5/5 206 vnd.apple.mpegurl via decodeXhUrl (algos 1-7 all observed live). Year/UploadDate open question RESOLVED: template re-expanded, videoModel.created = epoch upload timestamp (cross-checked against videoEntity.dateAgo x3) \u2014 fixed in-run TDD-first (yearFromCreated UTC, version 22->23, 16/16 tests green). verify.sh: 5/5 streams serve, 3 FAIL lines instrument-limited (rank re-injection / og:image 16px artifact #427 / attr-only SSR titles) \u2014 evidence-backed in FINDINGS-635. Verdict ok"
+    },
+    {
+      "id": "run20",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run20 (issue #649, self-contained run of approved #631 spec): WatchPorn full-surface deep pass, tier plain-curl on every surface (TLS/browser steps never reached \u2014 no blocked surface). Canaries 3/3 match (film1k plain 403 / TLS 200, eporner 200, pandamovies 302\u2192200@.org). CONFIRMED DRIFT fixed in-run: the site shipped a new KVS theme (\"wp-\" classes) killing every v15 selector \u2014 span.thumb__title / h1.single__content-title / single__info-row / li.next dead at probe time \u2192 0 parsed cards + null load(). Fixed TDD-first with pure WatchPornParse (a.wp-ctitle / a.wp-card__link / data-webp?:data-original posters / span.wp-r / h1.wp-vi__title / a.wp-vchip / a.wp-cast span.wp-cast__n / li.wp-pag__next), legacy selectors kept as fallbacks, legacy fixture still green (partial-rollout guard); new fixtures search-milf-1.html + video-136954.html; plot assignment removed (site exposes no synopsis \u2014 ld+json/og = tag-glue/boilerplate). version 15\u219216, 150 tests green, clean make green. verify.sh: search 40+40, home 20+20, sites rows 20+20, 5 video pages, streams 5/5 \u2192 302 \u2192 206 video/mp4 (no cookies/referer \u2014 old session-bound note gone); 4 instrument-limited FAIL lines evidence-backed in FINDINGS-649 (identical ad-card payload read as home title, empty-plot '-' placeholder collision, site-native short card title vs og title, thumbnail-vs-og-poster on real-src cards). No finding issue filed: condition fixed in-run, drift survives only as the pending merge (registry verdict ok-drift, issue/standing_issue null). 0 false positives. Gates: check-findings.sh PASS. Ground truth: FINDINGS-649.md, WatchPorn/FINDINGS.md."
+    },
+    {
+      "id": "run21",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run21 (issue #650, self-contained run of approved #631 spec): Javseen full-surface deep pass, tier plain-curl on every surface (browser step never reached). Canaries 3/3 match (film1k plain 403 / TLS 200, eporner 200, pandamovies 302->200 @.org). Home recent/category/tag p1/p2 30+30 cards, numeric-ID overlap 0 on all four axes; search AJAX p1/p2 30+30 disjoint; quickSearch correctly absent (no suggest endpoint, unchanged); video x6 200 with real og fields; data-embeds decode to cloudwish (primary, every fresh page), mycloudz (CDN 502 datacenter-IP = standing 477, unchanged), streambeast/streamtape/playmogo rows unchanged, javhdz rows registered but unused on fresh pages. CONFIRMED shared-registry gap fixed in-run: cloudwish.xyz had NO row in shared/HostRegistry \u2014 CloudWish existed only as a Mangoporn-local extractor (shipped for #443), so Javseen would resolve its primary embed to no extractor at all. Promoted to shared/src/main/kotlin/com/kraptor/CloudWish.kt (CloudWishParse unpack/links/preferred + extractor class) TDD-first: red fixture test (real ~16KB cloudwish embed page, cloudwish_embed.html, token 3gop55rnx9nd) then green 6/6; host row added to HostRegistry in front of MyDaddyExtractor; Mangoporn duplicate Extractors.kt deleted (registration narrowed to Maxstream()). Version Javseen 19->20, Mangoporn 6->7. Test-discovered JVM nuance: Mangoporn port\u2019s capturing-group alternation regex StackOverflows java.util.regex on a real 16KB page (Android ICU iterative, JVM gates recursive) \u2014 argument extraction rewritten to strict greedy groups with the .split('|') terminator, unpack output byte-identical to the node unpacker after escape normalization. #539 stays cleared (real durations 7800/14640/12000/7380/7200 on fresh pages; the /287527/ sentinel-0 page is guarded client-side by DurationParse). #477 state re-checked live: mycloudz unpacks, dramiyos-cdn.com 502 from datacenter IP \u2014 unchanged, remains the standing site-side limitation; cloudwish unaffected on every fresh page, not refiled. Javhdz/Javhdz2 rows unused today \u2014 noted as future removal candidate only if a sweep observes a semantic absence. verify.sh: 6/6 stream overrides 200 mpegurl, video pages +4\u20139 choice buttons, 6 instrument-limited FAIL lines evidence-backed in FINDINGS-650 (AJAX JSON listing payloads backslash-escaped, the CSS-matching harness reads 0 \u2014 same limitation recorded since #145; unescape step is shared-script surface, proposed under #631). 0 false positives. Gates: check-findings.sh PASS, Javseen/Mangoporn test green, clean make green across all 24 providers. Ground truth: FINDINGS-650.md, Javseen/FINDINGS.md."
+    },
+    {
+      "id": "run21",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run21 (issue #648, self-contained run of approved #631 spec): Neporn full-surface deep pass, re-run of the lost 38961910251 work (its PR was rejected on the base-field guard). Tier plain-curl on every surface \u2014 no challenge encountered, escalation ladder not needed. All faces healthy: home latest-updates p1/p2 200, 24+24 cards, 0 href overlap; search /search/anal/ 200/24 cards + async p2 200/24 (li.page.last halts pagination); quickSearch absent (recorded, not drift); 3+ video pages 200; KVS flashvars video_url -> 302 -> 206 video/mp4 with referer (bare get_file 403 = known session-bound class, not drift). Latest-upload slugs are volatile (old-slug URLs 301 to fresh slugs) \u2014 provider always uses fresh hrefs, no impact. Model anchors absent on newest videos (video_models: '') \u2014 optional-actors handling correct; older scenes still expose models. Verdict ok retained (0 drift since 2026-10-09), last_deep=2026-10-16. 0 findings (fix policy: no confirmed condition, no version bump \u2014 Neporn stays 7), 0 false positives. Gates: gradlew Neporn:test PASS, clean Neporn:make, verify.sh PASS (1b absence NOTE = quickSearch absent, actors/duration NOTEs = instrument regex-DOM limits + content variance, evidence-backed in Neporn/FINDINGS.md), check-findings.sh PASS. Ground truth: FINDINGS-648.md, Neporn/FINDINGS.md."
+    },
+    {
+      "id": "run22",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run22 (issue #651, self-contained run of approved #631 spec): PerverZija full-surface deep pass, tier plain-curl on every surface (canaries 3/3: film1k plain 403, eporner 200, pandamovies 302 to 200@.org \u2014 no challenge, escalation ladder never needed). Home featured-scenes/studio/full-movie/tag-4k-quality/tag-classic p1+p2 all 200 x64 cards (div.col-md-3.col-xs-6), 0 href overlap p1-p2, 0 within-page dupes; search /?s=anal p1/p2 200 x64 item rows (div.post_ajax_tm, title via h3 a); quickSearch absent (no suggest endpoint, ?do=suggest 404, quick view = client-side data-embed lightbox) - recorded, not drift; 29 video pages 200 (h1/og:image/Tags/Stars/div.xs-related-item x15-18 intact, dt_rating_vgs absent so score null correct; JSON-LD now an array from saswp - regex shared JsonLdParse unaffected). Stream chain: iframe subdomains perv./pervl1-9/pervm1/j2 plus new moviekh.xtremestream.xyz - all handled (direct extractor call, referer derives from iframe URL); masters xs1.php #EXTM3U 18/18 tokens; end-to-end variant+segment MPEG-TS live on 9/18, rest die at variant/segment hop = per-token upstream CDN deadness (site-side, not grammar). NEW 1/29 video pages (allanal-lana): embed //mixdrop.to/e/enl4jzdjt76r6q instead of xtremestream - live probe 302 mxdrop.click -> 200 WE ARE SORRY can't-find-video page, reproduced x3; file dead at source, so provider's xtremestream guard misses nothing playable; latent fleet gap (shared HostRegistry lacks a mixdrop.to row) filed upstream instrument note. Verdict ok retained (0 drift since 2026-10-13), last_deep=2026-10-16. 0 confirmed findings -> no code change, no version bump (stays 13), 0 false positives. Gates: gradlew PerverZija:test 65x debug+release green after bootstrapCloudstream, clean PerverZija:make green, check-findings PASS. verify.sh 7 invocations (5 rows p1/p2, search p1/p2, 4 deep videos + masters): PASS on every mechanically expressible surface; single documented plateau - pydom path key flattens masters to /player/xs1.php (HLS identity = subdomain + ?data token) so stream-distinctness check cannot express this host (manual substitution: 4 distinct masters perv./pervl7/j2 each serve #EXTM3U, tokens fba9d881/46fc943e/f69543a0/c14a2a57); poster/title agreement NOTES documented (card -365x235 WP thumbs vs og:image full-size)."
+    }
+  ],
+  "providers": {
+    "PandaMovies": {
+      "site": "pandamovies.pw",
+      "verdict": "ok",
+      "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #555 fix (#563, v5) live-verified \u2014 search p1/p2 27+27 card__th cards disjoint, home /page/2 27 disjoint on the .org origin, quickSearch turbosearch 200 (@.org), video grammar (span.bc__c, section.hlm[data-servers]) matches with embeds playmogo/luluvido/mixdrop on the shared adapter set. Card counts (27) differ from fix-time 49/35 \u2014 surface sizes changed, grammar did not. #463 origin-down stays cleared. Historical drift record #555 closed; migrated ok-drift \u2192 ok per the round-14 re-verdict rule.",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200 (.pw 302\u2192.org; p2 disjoint)",
+        "search": "200 p1+p2 disjoint",
+        "video": "200 x2",
+        "stream": "embeds enumerated (playmogo/luluvido/mixdrop)",
+        "quick_search": "turbosearch 200"
+      },
+      "issue": 555,
+      "standing_issue": 463,
+      "drift_confirmed": 4,
+      "chronic": true,
+      "last_deep": "2026-10-14"
+    },
+    "Mangoporn": {
+      "site": "mangoporn.net",
+      "verdict": "ok",
+      "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #564 fix (#566, v6) live-verified \u2014 search p1/p2 + home p2 27 card__th cards each disjoint, 3 video pages 200 with section.hlm[data-servers] embeds (luluvido/playmogo/mixdrop/voe/playmate), quickSearch turbosearch 200, luluvido embed chain live: packed Dean-Edwards JW config unpacks to tnmr.org master.m3u8 which serves 200 HLS on the TLS tier (luluvido embed page plain 403 = CF on datacenter IP, same ok-suspected exclusion class). Historical drift record #564 closed; migrated ok-drift \u2192 ok.",
+      "tier": "plain-curl (embeds TLS)",
+      "surfaces": {
+        "home": "200 p1+p2 disjoint (24+ cards)",
+        "search": "200 p1+p2 disjoint 27 cards",
+        "video": "200 x3",
+        "stream": "luluvido packed-JW \u2192 tnmr.org master.m3u8 200 (TLS)",
+        "quick_search": "turbosearch 200"
+      },
+      "issue": 564,
+      "standing_issue": 525,
+      "drift_confirmed": 2,
+      "chronic": false,
+      "last_deep": "2026-10-14"
+    },
+    "ixiporn": {
+      "site": "ixiporn.org",
+      "verdict": "ok-drift",
+      "reason": "STANDING 2026-10-14 (deep pass, S2 of #593): #468 closed-record condition confirmed unchanged \u2014 ixiporn.org still double-redirects to the .live origin. Every other face healthy on that origin: home p1/p2 200 with 30 cards each disjoint, search /search/lingerie/ p1\u2013p3 200 p1\u2229p2 disjoint, 3 video pages 200 with meta[itemprop=contentUrl] streams (cdn2.ixifile.xyz / ixifile.xyz) all 206 video/mp4 on the .live referer. No quick-search endpoint on site (absent surface). Same standing condition, not a new post-fix condition \u2192 no record reopened, no new issue filed per the S4 rule.",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200 (double redirect)",
+        "search": "200 p1\u2013p3 disjoint",
+        "video": "200 x3",
+        "stream": "contentUrl mp4s 206 (all 3)"
+      },
+      "issue": 468,
+      "standing_issue": 468,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-10-14"
+    },
+    "XMoviesForYou": {
+      "site": "xmoviesforyou.com",
+      "verdict": "ok",
+      "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #535 fix (#547, v14) live-verified \u2014 all three live card shapes parse on XMoviesForYouParse.CARD: home 30 a[data-video-card] + 24 a.group.flex.flex-col (30/30, 24/24 parseable with h3/href/img), search p1/p2 24 a.card each disjoint; video page 200 (h1/og:postId/JSON-LD/runtime chip), /api/related/<postId> 200, streamtape filehost anchor present (shared adapter registered). streamtape get_video answers {status:500} from the datacenter IP on fresh tokens \u2014 host-side on probe IP, not provider grammar. No quick-search endpoint on site; provider has no quickSearch override (absent surface, not drift). Historical drift record #535 closed; migrated ok-drift \u2192 ok.",
+      "tier": "tls-impersonated",
+      "surfaces": {
+        "home": "200 TLS (30 carousel + 24 grid, all parseable)",
+        "search": "200 TLS p1+p2 disjoint 24 a.card",
+        "video": "200 TLS",
+        "stream": "filehost anchor present; final get_video 500 host-side on dc IP"
+      },
+      "issue": 535,
+      "standing_issue": null,
+      "drift_confirmed": 1,
+      "suspected_excluded": [
+        450,
+        467,
+        473
+      ],
+      "chronic": false,
+      "last_deep": "2026-10-14"
+    },
+    "Film1k": {
+      "site": "www.film1k.com",
+      "verdict": "ok",
+      "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #500/#501 fix (v11) live-verified \u2014 home p1/p2 24 article.loop-post each disjoint (same-URL doc-wide hrefs are the Top-10 sidebar <ul>, outside articles; parseList selects articles only); search ?s= 200 24-article template on real hits, empty term legitimately returns No articles; /page/2/?s= 200-wraps a Page-not-found template matching the provider's p>1\u2192empty contract; video page 200 with player strip #aa-videos-op carrying both abyssplayer occurrences (source tag + lazy iframe) inside the strip \u2014 #558 scoping holds; film1k.xyz/api/videos/<code>/embed/captcha/ 200 JSON (PoW-protected byse chain live; final stream gated behind the server-side challenge, not bypassed); turbovid family still DNS-dead (historical #496) but harmless \u2014 the fix removed the branch so no dead path remains. Historical record #496 closed; migrated ok-drift \u2192 ok.",
+      "tier": "tls-impersonated",
+      "surfaces": {
+        "home": "200 TLS p1+p2 disjoint (24 loop-post each)",
+        "search": "200 TLS (page-1 only; p2 200-wraps 404 template)",
+        "video": "200 TLS",
+        "stream": "byse captcha API 200 (challenge-gated); abyssplayer embed in player strip"
+      },
+      "issue": 496,
+      "standing_issue": 496,
+      "drift_confirmed": 0,
+      "suspected_excluded": [
+        448,
+        465
+      ],
+      "chronic": false,
+      "last_deep": "2026-10-14"
+    },
+    "FreePornVideos": {
+      "site": "www.freepornvideos.xxx",
+      "verdict": "ok",
+      "reason": "TLS 200 home/search(24 div.item cards)/video 2026-10-09; get_file 403 bare class retired like FullPorner; details-block rebuild kills Description:/Models:/Duration parsing (now Channel/Network/Categories/Pornstars; duration in meta video:duration + JSON-LD) \u2014 #536 filed 2026-10-09; Categories xpath still matches | deep 2026-10-10 (run13): listing rows p1/p2 disjoint on provider grammar, 3 video pages 200, stream artifacts on extractor path (film1k.xyz byse embed 200; FullPorner xiaoshenke iframe; FreePornVideos/Javbangers kt_player/get_file).",
+      "tier": "tls-impersonated",
+      "surfaces": {
+        "home": "200 TLS",
+        "search": "200 TLS",
+        "video": "200 TLS"
+      },
+      "issue": 536,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "suspected_excluded": [
+        449,
+        466
+      ],
+      "chronic": false,
+      "last_deep": "2026-10-10"
+    },
+    "FullPorner": {
+      "site": "fullporner.com",
+      "verdict": "ok",
+      "reason": "TLS 200 search (24 video-card) + video; embed xiaoshenke JS quality map (extractor path); fresh site healthy 2026-10-09, challenge-artifact tier history retired; tags gap #526 filed 2026-10-09 (live /watch/<hash> exposes /category/* tags) | deep 2026-10-10 (run13): listing rows p1/p2 disjoint on provider grammar, 3 video pages 200, stream artifacts on extractor path (film1k.xyz byse embed 200; FullPorner xiaoshenke iframe; FreePornVideos/Javbangers kt_player/get_file).",
+      "tier": "tls-impersonated",
+      "surfaces": {
+        "home": "200 TLS",
+        "search": "200 TLS",
+        "video": "200 TLS"
+      },
+      "issue": 526,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "suspected_excluded": [
+        461
+      ],
+      "chronic": false,
+      "last_deep": "2026-10-10"
+    },
+    "EPorner": {
+      "site": "www.eporner.com",
+      "verdict": "ok",
+      "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #537 fix (#543, v18) live-verified \u2014 /search/<q>/1/ 301\u2192tag base exactly as the fix's #537 analysis documented; provider's /tag/<q>/<n>/ route paginates: tag/cowgirl p1/p2 65+65 p.mbtit cards disjoint; home p1/p2 65/64 essentially disjoint; /cat/vintage 61; 3 video pages 200 (h1, og:image, related 24). Stream chain live end-to-end: embed 200 \u2192 EP.video.player.hash \u2192 base36 conversion \u2192 /xhr/video/<id> 200 \u2192 labelShort/src ladder with 2160p mp4 206 video/mp4 + srcFallback HLS master.m3u8 200. Age-wall from run13 (2026-10-10) did NOT reproduce this run \u2014 every surface full content on plain tier; recorded as the suspected account/IP-geo wall class (standing suspected_excluded #447/#462), not reproduced. Historical drift record #537 closed; migrated ok-drift \u2192 ok.",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200 p1+p2 (65/64 cards, essentially disjoint)",
+        "search": "200 via /tag/<q>/<n>/ p1+p2 disjoint",
+        "video": "200 x3",
+        "stream": "xhr config 200 \u2192 2160p mp4 206 + HLS master 200"
+      },
+      "issue": 537,
+      "standing_issue": null,
+      "drift_confirmed": 1,
+      "suspected_excluded": [
+        447,
+        462
+      ],
+      "chronic": false,
+      "last_deep": "2026-10-14"
+    },
+    "AllClassicPorn": {
+      "site": "allclassic.porn",
+      "verdict": "ok",
+      "reason": "home /page/1/+2 and search pages disjoint (60 cards each); 5 fresh video pairs card-exact h1 titles; KVS get_file streams 206 video/mp4 (refresh 2026-10-16, single-use token note 2026-09-29 still holds)",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200",
+        "video": "200",
+        "stream": "206 video/mp4"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-10-16"
+    },
+    "Cat3Film": {
+      "site": "cat3film.com",
+      "verdict": "ok",
+      "reason": "_ajax/search JSON alive: sex->8, teen->8, anal->2 (milf->0 = no matching titles on niche site); home 200 (2026-09-29)",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200 (_ajax JSON)"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-09-26"
+    },
+    "Cat3Movie": {
+      "site": "cat3movie.org",
+      "verdict": "ok",
+      "reason": "search 200 with /movie links (2026-10-09); deep 2026-10-09 video-page rollout: og fields present, no JSON-LD/duration on site, provider covers all exposed fields",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200",
+        "video": "200"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-10-09"
+    },
+    "Eroticmv": {
+      "site": "eroticmv.com",
+      "verdict": "ok",
+      "reason": "run-9 deep 2026-10-09 post-#538-fix: home/search 24 article.post-item + a.blog-img cards, 3 watch pages 200 with .categories-elm tags + /actor/ anchors + og metas alive; JSON-LD articleSection BACK on 3/3 sampled pages (intermittent/healed site-side, #538 stays open); stream RESOLVED: b64 og:video:url -> vidcdn2 m3u8 GET 200 #EXTM3U 27.8KB/41.2KB",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200 (24 cards)",
+        "search": "200",
+        "video": "200 x3",
+        "stream": "200 m3u8 #EXTM3U"
+      },
+      "issue": 538,
+      "standing_issue": 497,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-10-09"
+    },
+    "HQPorner": {
+      "site": "hqporner.com",
+      "verdict": "ok",
+      "reason": "deep 2026-09-29: 67 rows, 55 p1/p2 fully disjoint, 12 with <=3 rotating featured repeats (benign); search p1/p2 disjoint; stream 206 via mydaddy embed (referer required); tags gap #527 filed 2026-10-09 (live /hdporn/<id> exposes tag set)",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200",
+        "video": "200",
+        "stream": "206 video/mp4"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-09-29"
+    },
+    "JavGuru": {
+      "site": "jav.guru",
+      "verdict": "ok",
+      "reason": "home/search/video 200; stream via javmiku base64 iframe (extractor path); deep 2026-10-09: 3 video pages 200, site exposes Release Date + tags, no og: meta, provider markup-parse consistent",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200",
+        "video": "200"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-10-09"
+    },
+    "Javbangers": {
+      "site": "www.javbangers.com",
+      "verdict": "ok",
+      "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #475 record closed standing \u2014 condition (search p2 404) confirmed unchanged and matches the provider contract exactly (search declares hasNext=false; the site has no search pagination). Live: /latest-updates p1/p2 30 div.video-item cards each disjoint, /categories/milf 24, search p1 24, 2 video pages 200 with div.block-details/Tags/related, flashvars video_url/video_alt_url resolve: get_file \u2192 302 \u2192 origin11-direct.cdntrex.com \u2192 206 video/mp4 on the site referer. Historical record #475 closed; migrated ok-drift \u2192 ok.",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200 p1+p2 disjoint 30 cards",
+        "search": "200 p1 (p2 404 standing; provider hasNext=false by design)",
+        "video": "200 x2",
+        "stream": "get_file 302 \u2192 cdntrex origin 206 mp4"
+      },
+      "issue": 475,
+      "standing_issue": 475,
+      "drift_confirmed": 1,
+      "chronic": false,
+      "last_deep": "2026-10-14"
+    },
+    "Javmost": {
+      "site": "www.javmost.ws",
+      "verdict": "ok-drift",
+      "reason": "P1 confirmed drift fixed 2026-10-16 (#640): dooplayer/mostplayer embed service healed but the provider's x-embed branch had been cut at #332/#376 \u2014 doo-hosted pages emitted 0 links since then; branch restored host-agnostically (metas-keyed contract) + select_part parent/child fix. 480 pagination condition cleared, re-probed disjoint. emturbovid suspected runner-IP artifact.",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200 (p1/p2/p3 disjoint, all four rows)",
+        "search": "200 (24/page, disjoint)",
+        "video": "200 (doo+emturbovid rows; emturbovid TCP-dead from probe IP \u2014 suspected)"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 2,
+      "chronic": false,
+      "last_deep": "2026-10-16"
+    },
+    "Javseen": {
+      "site": "javseen.tv",
+      "verdict": "ok",
+      "reason": "AJAX search + always-appended ?ajax= home URLs return 30 cards (deep 2026-10-13: p1/p2 disjoint); video pages 200; data-embeds base64 \u2192 javhdz embed 200 with m3u8; og:video:duration sentinel healed (real 6540) \u2014 #539 condition cleared, standing 477 clear",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200 (AJAX)",
+        "video": "200"
+      },
+      "issue": 539,
+      "standing_issue": 477,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-10-13"
+    },
+    "Javtiful": {
+      "site": "javtiful.com",
+      "verdict": "ok",
+      "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #534 fix (#548, v13) live-verified on the provider's actual rows: /videos, /videos?sort=most_viewed, /videos?sort=top_rated, /category/milf \u2014 all 200 with 23 article.video-card per page, p1/p2 disjoint, LIVE a.pagination__link Next anchors with real hrefs (home and category p2 Next \u2192 page=3 verified); search ?q= p1/p2 disjoint with live Next; a.video-card__title carries title as inner text AND title attr on every listing face; 4 video pages 200 with JSON-LD VideoObject + watch-detail year path; related 20/20 parseable; embed script#watch-config playerSources fast-stream.jav.si/p/<token> verified 200 + 206 video/mp4. Root / is an SPA infinite feed (page=2 duplicates p1) but is NOT a provider row \u2014 run13's dead-pagination impression probed the SPA root. Historical drift record #534 closed; migrated ok-drift \u2192 ok.",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200 rows p1+p2 disjoint (23 cards) with live Next anchors",
+        "search": "200 p1+p2 disjoint",
+        "video": "200 x3 + embed",
+        "stream": "watch-config playerSources 200/206 mp4"
+      },
+      "issue": 534,
+      "standing_issue": null,
+      "drift_confirmed": 1,
+      "chronic": false,
+      "last_deep": "2026-10-14"
+    },
+    "MissAV": {
+      "site": "missav.live",
+      "verdict": "ok",
+      "reason": "deep 2026-09-29: 21 rows clean (1 pinned card on /en/new), search p1/p2 disjoint; video 200; eval-packed surrit m3u8 (known flow)",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200",
+        "video": "200"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-09-29"
+    },
+    "Neporn": {
+      "site": "neporn.com",
+      "verdict": "ok",
+      "reason": "search/video 200; get_file bare (no acctoken) 403 = known session-bound class, reproduced-with-referer flow 302 -> 206 video/mp4; deep 2026-10-16: home p1/p2 24+24 disjoint, search 200/24 + async p2 200/24 (li.page.last halts), quickSearch absent (recorded, not drift), 3+ video pages 200 with Duration/tags exposure \u2014 provider covers all exposed fields; gr-648 re-probe unchanged",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200 (p1/p2 disjoint 24+24)",
+        "search": "200 (24 async items, async p2 disjoint)",
+        "video": "200 x3 (Duration/tags/ld+json uploadDate)",
+        "stream": "get_file 302 -> 206 video/mp4",
+        "quick_search": "absent"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-10-16"
+    },
+    "PerverZija": {
+      "site": "tube.perverzija.com",
+      "verdict": "ok",
+      "reason": "deep 2026-10-16: 5 home rows p1/p2 disjoint x64 cards, search p1/p2 x64, quickSearch absent recorded, 29 video pages 200, masters #EXTM3U 18/18 + end-to-end TS on 9/18 tokens (per-token CDN deadness site-side); mixdrop.to embed on 1/29 = dead at source, no confirmed condition (registry row gap filed); version stays 13",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200",
+        "video": "200"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-10-16"
+    },
+    "PornXP": {
+      "site": "pxp.news",
+      "verdict": "ok",
+      "reason": "standing 476 stays clear re-confirmed live: /tags/<q> 36 cards p1+p2 disjoint; video 200 x3; source mp4 206 (2026-10-16 deep pass)",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200 p1/p3 href-disjoint (36 cards each; p1\u2229p2 data-id pair = 2 distinct mirror videos, href-disjoint, site-level)",
+        "search": "200 via /tags/<q>; /?q= still serves the unfiltered homepage grid (known #330 condition, provider uses /tags)",
+        "quicksearch": "no distinct quick-search endpoint (2.js only rewrites form submit to /tags/; /co/ empty 200 click counter) \u2014 absent, not drift",
+        "video": "200 x3 (home/tag/newest-grid listings)",
+        "stream": "<source> mp4 206 video/mp4, no referer needed; CDN subdomain rotates (ce\u2192cdrn\u2192xxx.pornxp.sh), provider extracts from page"
+      },
+      "issue": null,
+      "standing_issue": 476,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-10-16"
+    },
+    "Porntrex": {
+      "site": "www.porntrex.com",
+      "verdict": "ok",
+      "reason": "REVERIFIED 2026-10-16 (deep pass, run15 #633): all surfaces plain-curl ok \u2014 search p1/p2 85+85 disjoint; home p1/async-p2 120+120 (p1\u2229p2=5 proven site-native: async p2 \u2261 native /2/); quickSearch absent, album-only suggestion endpoint (#275 verdict re-confirmed); direct video pages serve the standing guest shell (#171/#256, unchanged) resolved by the /embed/ fallback (full flashvars, title/cats/tags); streams 206 video/mp4 on 5 fresh single-use tokens; related_videos_html 45 items with the provider's selectors matching. No new condition; no fix, no version bump (fix policy \u2014 fix on confirmed condition only). instrument note: verify.sh printed 2 false-FAILs this run \u2014 dedupe conflating two distinct same-title videos (href-keyed dedupe clean) and the plot '-' placeholder entering distinctness when the site exposes no plot \u2014 filed as a verify.sh backlog issue, not provider conditions",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200",
+        "video": "200 (guest shell; resolved via /embed/{id}/)",
+        "stream": "206 video/mp4 (fresh token per replay)",
+        "quick_search": "absent (album-only)"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-10-16"
+    },
+    "Sexfilm": {
+      "site": "en.sex-film.biz",
+      "verdict": "ok",
+      "reason": "REVERIFIED 2026-10-16 (deep pass, run18 #634): the 2026-09-29 two-step cookie-jar handshake did NOT reproduce \u2014 every surface serves 200 to a single fresh cookie-less request; 6 main-page rows p1/p2 all 200 disjoint (24 cards each); search story=milf p1/p2/p3 disjoint + story=tarzan; quick-search absent (do=suggest serves a full unfiltered HTML page, not AJAX); 6 video pages 200 (home/category/related listings) with all load fields live (h1#s-title, og:image, #s-desc, /tags/ anchors, Casting, span.gv year, meta[itemprop=duration]); two-hop filmcdm/morencius hls4 streams 200 m3u8 with and without referer; playmogo 403 + cfglobalcdn TCP-timeout standing (not drift). No confirmed condition \u2014 no fix, no version bump (stays 12).",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200 (6 rows; p1/p2 disjoint per row, 24 cards each)",
+        "search": "200 (story=Q + search_start=N pagination, disjoint; provider shape unchanged)",
+        "video": "200 x6 (home/category/related listings, unified shape)",
+        "stream": "filmcdm/morencius two-hop hls4 200 m3u8 bare; playmogo 403 + cfglobalcdn TCP-timeout standing",
+        "quick_search": "absent (do=suggest = full HTML page, not AJAX)"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-10-16"
+    },
+    "WatchPorn": {
+      "site": "watchporn.to",
+      "verdict": "ok-drift",
+      "reason": "CONFIRMED DRIFT fixed 2026-10-16 (#649): full KVS theme redesign replaced the card and video-page grammar with \"wp-\" classes \u2014 span.thumb__title, h1.single__content-title, single__info-row tags/actors, li.next all dead at probe time \u2192 search/home parsed 0 cards and load() returned null for every video. All faces healthy on the new grammar: home p1/p2 19 cards disjoint (plus 1 identical ad card), /categories/<slug>/ now 301 \u2192 /sites/<slug>/ (19 cards, 1/19 site-native boundary repeat), search p1/p2 39 cards disjoint, quickSearch /suggest/ JSON unchanged, 5 video pages 200 with h1.wp-vi__title / a.wp-vchip / a.wp-cast intact and related 15/page, flashvars video_url/video_alt_url \u2192 302 \u2192 srv*.zload.cc \u2192 206 video/mp4 WITHOUT cookies/referer \u2014 the 2026-09-10 session-bound anti-leech note did not reproduce. Site no longer exposes a plot synopsis (ld+json/og:description = tag-glue or boilerplate); removed from load(). Fix in-run, TDD-first: pure WatchPornParse keeps legacy selectors as fallbacks (partial-rollout guard tested against the old fixture); version 15\u219216; 150 tests green; clean make green.",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200 (top-rated p1/p2 disjoint; /categories/<slug>/ 301 \u2192 /sites/<slug/>, 1/19 repeat)",
+        "search": "200 (39 wp-cards + 1 ad card each, p1/p2 disjoint)",
+        "video": "200 (h1.wp-vi__title; related 15/page; JSON-LD duration/uploadDate intact)",
+        "quickSearch": "/suggest/ 200 JSON (20 Models + 20 Videos) \u2014 unchanged"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 1,
+      "chronic": false,
+      "last_deep": "2026-10-16"
+    },
+    "Xhamster": {
+      "site": "xhamster.com",
+      "verdict": "ok",
+      "reason": "search 200 (46 JSON cards /videos/), home p1/p2 200 disjoint, video 200, streams 5/5 206 m3u8 via xplayerSettings decode algos 1-7 (2026-10-16); year gap closed: videoModel.created epoch now exposed and parsed (LoadResponse year, FINDINGS-635)",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200",
+        "search": "200",
+        "video": "200",
+        "stream": "206 m3u8 (5/5)"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 0,
+      "chronic": false,
+      "last_deep": "2026-10-16"
+    }
   }
- ],
- "providers": {
-  "PandaMovies": {
-   "site": "pandamovies.pw",
-   "verdict": "ok",
-   "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #555 fix (#563, v5) live-verified — search p1/p2 27+27 card__th cards disjoint, home /page/2 27 disjoint on the .org origin, quickSearch turbosearch 200 (@.org), video grammar (span.bc__c, section.hlm[data-servers]) matches with embeds playmogo/luluvido/mixdrop on the shared adapter set. Card counts (27) differ from fix-time 49/35 — surface sizes changed, grammar did not. #463 origin-down stays cleared. Historical drift record #555 closed; migrated ok-drift → ok per the round-14 re-verdict rule.",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200 (.pw 302→.org; p2 disjoint)",
-    "search": "200 p1+p2 disjoint",
-    "video": "200 x2",
-    "stream": "embeds enumerated (playmogo/luluvido/mixdrop)",
-    "quick_search": "turbosearch 200"
-   },
-   "issue": 555,
-   "standing_issue": 463,
-   "drift_confirmed": 4,
-   "chronic": true,
-   "last_deep": "2026-10-14"
-  },
-  "Mangoporn": {
-   "site": "mangoporn.net",
-   "verdict": "ok",
-   "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #564 fix (#566, v6) live-verified — search p1/p2 + home p2 27 card__th cards each disjoint, 3 video pages 200 with section.hlm[data-servers] embeds (luluvido/playmogo/mixdrop/voe/playmate), quickSearch turbosearch 200, luluvido embed chain live: packed Dean-Edwards JW config unpacks to tnmr.org master.m3u8 which serves 200 HLS on the TLS tier (luluvido embed page plain 403 = CF on datacenter IP, same ok-suspected exclusion class). Historical drift record #564 closed; migrated ok-drift → ok.",
-   "tier": "plain-curl (embeds TLS)",
-   "surfaces": {
-    "home": "200 p1+p2 disjoint (24+ cards)",
-    "search": "200 p1+p2 disjoint 27 cards",
-    "video": "200 x3",
-    "stream": "luluvido packed-JW → tnmr.org master.m3u8 200 (TLS)",
-    "quick_search": "turbosearch 200"
-   },
-   "issue": 564,
-   "standing_issue": 525,
-   "drift_confirmed": 2,
-   "chronic": false,
-   "last_deep": "2026-10-14"
-  },
-  "ixiporn": {
-   "site": "ixiporn.org",
-   "verdict": "ok-drift",
-   "reason": "STANDING 2026-10-14 (deep pass, S2 of #593): #468 closed-record condition confirmed unchanged — ixiporn.org still double-redirects to the .live origin. Every other face healthy on that origin: home p1/p2 200 with 30 cards each disjoint, search /search/lingerie/ p1–p3 200 p1∩p2 disjoint, 3 video pages 200 with meta[itemprop=contentUrl] streams (cdn2.ixifile.xyz / ixifile.xyz) all 206 video/mp4 on the .live referer. No quick-search endpoint on site (absent surface). Same standing condition, not a new post-fix condition → no record reopened, no new issue filed per the S4 rule.",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200 (double redirect)",
-    "search": "200 p1–p3 disjoint",
-    "video": "200 x3",
-    "stream": "contentUrl mp4s 206 (all 3)"
-   },
-   "issue": 468,
-   "standing_issue": 468,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-10-14"
-  },
-  "XMoviesForYou": {
-   "site": "xmoviesforyou.com",
-   "verdict": "ok",
-   "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #535 fix (#547, v14) live-verified — all three live card shapes parse on XMoviesForYouParse.CARD: home 30 a[data-video-card] + 24 a.group.flex.flex-col (30/30, 24/24 parseable with h3/href/img), search p1/p2 24 a.card each disjoint; video page 200 (h1/og:postId/JSON-LD/runtime chip), /api/related/<postId> 200, streamtape filehost anchor present (shared adapter registered). streamtape get_video answers {status:500} from the datacenter IP on fresh tokens — host-side on probe IP, not provider grammar. No quick-search endpoint on site; provider has no quickSearch override (absent surface, not drift). Historical drift record #535 closed; migrated ok-drift → ok.",
-   "tier": "tls-impersonated",
-   "surfaces": {
-    "home": "200 TLS (30 carousel + 24 grid, all parseable)",
-    "search": "200 TLS p1+p2 disjoint 24 a.card",
-    "video": "200 TLS",
-    "stream": "filehost anchor present; final get_video 500 host-side on dc IP"
-   },
-   "issue": 535,
-   "standing_issue": null,
-   "drift_confirmed": 1,
-   "suspected_excluded": [
-    450,
-    467,
-    473
-   ],
-   "chronic": false,
-   "last_deep": "2026-10-14"
-  },
-  "Film1k": {
-   "site": "www.film1k.com",
-   "verdict": "ok",
-   "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #500/#501 fix (v11) live-verified — home p1/p2 24 article.loop-post each disjoint (same-URL doc-wide hrefs are the Top-10 sidebar <ul>, outside articles; parseList selects articles only); search ?s= 200 24-article template on real hits, empty term legitimately returns No articles; /page/2/?s= 200-wraps a Page-not-found template matching the provider's p>1→empty contract; video page 200 with player strip #aa-videos-op carrying both abyssplayer occurrences (source tag + lazy iframe) inside the strip — #558 scoping holds; film1k.xyz/api/videos/<code>/embed/captcha/ 200 JSON (PoW-protected byse chain live; final stream gated behind the server-side challenge, not bypassed); turbovid family still DNS-dead (historical #496) but harmless — the fix removed the branch so no dead path remains. Historical record #496 closed; migrated ok-drift → ok.",
-   "tier": "tls-impersonated",
-   "surfaces": {
-    "home": "200 TLS p1+p2 disjoint (24 loop-post each)",
-    "search": "200 TLS (page-1 only; p2 200-wraps 404 template)",
-    "video": "200 TLS",
-    "stream": "byse captcha API 200 (challenge-gated); abyssplayer embed in player strip"
-   },
-   "issue": 496,
-   "standing_issue": 496,
-   "drift_confirmed": 0,
-   "suspected_excluded": [
-    448,
-    465
-   ],
-   "chronic": false,
-   "last_deep": "2026-10-14"
-  },
-  "FreePornVideos": {
-   "site": "www.freepornvideos.xxx",
-   "verdict": "ok",
-   "reason": "TLS 200 home/search(24 div.item cards)/video 2026-10-09; get_file 403 bare class retired like FullPorner; details-block rebuild kills Description:/Models:/Duration parsing (now Channel/Network/Categories/Pornstars; duration in meta video:duration + JSON-LD) — #536 filed 2026-10-09; Categories xpath still matches | deep 2026-10-10 (run13): listing rows p1/p2 disjoint on provider grammar, 3 video pages 200, stream artifacts on extractor path (film1k.xyz byse embed 200; FullPorner xiaoshenke iframe; FreePornVideos/Javbangers kt_player/get_file).",
-   "tier": "tls-impersonated",
-   "surfaces": {
-    "home": "200 TLS",
-    "search": "200 TLS",
-    "video": "200 TLS"
-   },
-   "issue": 536,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "suspected_excluded": [
-    449,
-    466
-   ],
-   "chronic": false,
-   "last_deep": "2026-10-10"
-  },
-  "FullPorner": {
-   "site": "fullporner.com",
-   "verdict": "ok",
-   "reason": "TLS 200 search (24 video-card) + video; embed xiaoshenke JS quality map (extractor path); fresh site healthy 2026-10-09, challenge-artifact tier history retired; tags gap #526 filed 2026-10-09 (live /watch/<hash> exposes /category/* tags) | deep 2026-10-10 (run13): listing rows p1/p2 disjoint on provider grammar, 3 video pages 200, stream artifacts on extractor path (film1k.xyz byse embed 200; FullPorner xiaoshenke iframe; FreePornVideos/Javbangers kt_player/get_file).",
-   "tier": "tls-impersonated",
-   "surfaces": {
-    "home": "200 TLS",
-    "search": "200 TLS",
-    "video": "200 TLS"
-   },
-   "issue": 526,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "suspected_excluded": [
-    461
-   ],
-   "chronic": false,
-   "last_deep": "2026-10-10"
-  },
-  "EPorner": {
-   "site": "www.eporner.com",
-   "verdict": "ok",
-   "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #537 fix (#543, v18) live-verified — /search/<q>/1/ 301→tag base exactly as the fix's #537 analysis documented; provider's /tag/<q>/<n>/ route paginates: tag/cowgirl p1/p2 65+65 p.mbtit cards disjoint; home p1/p2 65/64 essentially disjoint; /cat/vintage 61; 3 video pages 200 (h1, og:image, related 24). Stream chain live end-to-end: embed 200 → EP.video.player.hash → base36 conversion → /xhr/video/<id> 200 → labelShort/src ladder with 2160p mp4 206 video/mp4 + srcFallback HLS master.m3u8 200. Age-wall from run13 (2026-10-10) did NOT reproduce this run — every surface full content on plain tier; recorded as the suspected account/IP-geo wall class (standing suspected_excluded #447/#462), not reproduced. Historical drift record #537 closed; migrated ok-drift → ok.",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200 p1+p2 (65/64 cards, essentially disjoint)",
-    "search": "200 via /tag/<q>/<n>/ p1+p2 disjoint",
-    "video": "200 x3",
-    "stream": "xhr config 200 → 2160p mp4 206 + HLS master 200"
-   },
-   "issue": 537,
-   "standing_issue": null,
-   "drift_confirmed": 1,
-   "suspected_excluded": [
-    447,
-    462
-   ],
-   "chronic": false,
-   "last_deep": "2026-10-14"
-  },
-  "AllClassicPorn": {
-   "site": "allclassic.porn",
-   "verdict": "ok",
-   "reason": "home /page/1/+2 and search pages disjoint (60 cards each); 5 fresh video pairs card-exact h1 titles; KVS get_file streams 206 video/mp4 (refresh 2026-10-16, single-use token note 2026-09-29 still holds)",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200",
-    "video": "200",
-    "stream": "206 video/mp4"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-10-16"
-  },
-  "Cat3Film": {
-   "site": "cat3film.com",
-   "verdict": "ok",
-   "reason": "_ajax/search JSON alive: sex->8, teen->8, anal->2 (milf->0 = no matching titles on niche site); home 200 (2026-09-29)",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200 (_ajax JSON)"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-09-26"
-  },
-  "Cat3Movie": {
-   "site": "cat3movie.org",
-   "verdict": "ok",
-   "reason": "search 200 with /movie links (2026-10-09); deep 2026-10-09 video-page rollout: og fields present, no JSON-LD/duration on site, provider covers all exposed fields",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200",
-    "video": "200"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-10-09"
-  },
-  "Eroticmv": {
-   "site": "eroticmv.com",
-   "verdict": "ok",
-   "reason": "run-9 deep 2026-10-09 post-#538-fix: home/search 24 article.post-item + a.blog-img cards, 3 watch pages 200 with .categories-elm tags + /actor/ anchors + og metas alive; JSON-LD articleSection BACK on 3/3 sampled pages (intermittent/healed site-side, #538 stays open); stream RESOLVED: b64 og:video:url -> vidcdn2 m3u8 GET 200 #EXTM3U 27.8KB/41.2KB",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200 (24 cards)",
-    "search": "200",
-    "video": "200 x3",
-    "stream": "200 m3u8 #EXTM3U"
-   },
-   "issue": 538,
-   "standing_issue": 497,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-10-09"
-  },
-  "HQPorner": {
-   "site": "hqporner.com",
-   "verdict": "ok",
-   "reason": "deep 2026-09-29: 67 rows, 55 p1/p2 fully disjoint, 12 with <=3 rotating featured repeats (benign); search p1/p2 disjoint; stream 206 via mydaddy embed (referer required); tags gap #527 filed 2026-10-09 (live /hdporn/<id> exposes tag set)",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200",
-    "video": "200",
-    "stream": "206 video/mp4"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-09-29"
-  },
-  "JavGuru": {
-   "site": "jav.guru",
-   "verdict": "ok",
-   "reason": "home/search/video 200; stream via javmiku base64 iframe (extractor path); deep 2026-10-09: 3 video pages 200, site exposes Release Date + tags, no og: meta, provider markup-parse consistent",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200",
-    "video": "200"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-10-09"
-  },
-  "Javbangers": {
-   "site": "www.javbangers.com",
-   "verdict": "ok",
-   "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #475 record closed standing — condition (search p2 404) confirmed unchanged and matches the provider contract exactly (search declares hasNext=false; the site has no search pagination). Live: /latest-updates p1/p2 30 div.video-item cards each disjoint, /categories/milf 24, search p1 24, 2 video pages 200 with div.block-details/Tags/related, flashvars video_url/video_alt_url resolve: get_file → 302 → origin11-direct.cdntrex.com → 206 video/mp4 on the site referer. Historical record #475 closed; migrated ok-drift → ok.",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200 p1+p2 disjoint 30 cards",
-    "search": "200 p1 (p2 404 standing; provider hasNext=false by design)",
-    "video": "200 x2",
-    "stream": "get_file 302 → cdntrex origin 206 mp4"
-   },
-   "issue": 475,
-   "standing_issue": 475,
-   "drift_confirmed": 1,
-   "chronic": false,
-   "last_deep": "2026-10-14"
-  },
-  "Javmost": {
-   "site": "www.javmost.ws",
-   "verdict": "ok-drift",
-   "reason": "P1 confirmed drift fixed 2026-10-16 (#640): dooplayer/mostplayer embed service healed but the provider's x-embed branch had been cut at #332/#376 — doo-hosted pages emitted 0 links since then; branch restored host-agnostically (metas-keyed contract) + select_part parent/child fix. 480 pagination condition cleared, re-probed disjoint. emturbovid suspected runner-IP artifact.",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200 (p1/p2/p3 disjoint, all four rows)",
-    "search": "200 (24/page, disjoint)",
-    "video": "200 (doo+emturbovid rows; emturbovid TCP-dead from probe IP — suspected)"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 2,
-   "chronic": false,
-   "last_deep": "2026-10-16"
-  },
-  "Javseen": {
-   "site": "javseen.tv",
-   "verdict": "ok-drift",
-   "reason": "primary cloudwish embed host (on every fresh page) was missing from shared HostRegistry — Mangoporn-local extractor promoted to shared (CloudWishParse, Dean-Edwards unpack + hls2/hls4 master.m3u8 matcher, fixed in-run TDD-first version 19->20 2026-10-16); JSON list surfaces 30+30 cards disjoint p1/p2 all axes; video x6 200; streams 6/6 m3u8 200 (hls2:hls4 mix); quickSearch correctly absent; #539 stays cleared (durations real, '/287527/' sentinel guarded client-side); standing 477 (mycloudz CDN 502 datacenter-IP) reproduced unchanged as site-side gate",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200 (AJAX)",
-    "search": "200 (AJAX)",
-    "video": "200"
-   },
-   "issue": 539,
-   "standing_issue": 477,
-   "drift_confirmed": 1,
-   "chronic": false,
-   "last_deep": "2026-10-16"
-  },
-  "Javtiful": {
-   "site": "javtiful.com",
-   "verdict": "ok",
-   "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #534 fix (#548, v13) live-verified on the provider's actual rows: /videos, /videos?sort=most_viewed, /videos?sort=top_rated, /category/milf — all 200 with 23 article.video-card per page, p1/p2 disjoint, LIVE a.pagination__link Next anchors with real hrefs (home and category p2 Next → page=3 verified); search ?q= p1/p2 disjoint with live Next; a.video-card__title carries title as inner text AND title attr on every listing face; 4 video pages 200 with JSON-LD VideoObject + watch-detail year path; related 20/20 parseable; embed script#watch-config playerSources fast-stream.jav.si/p/<token> verified 200 + 206 video/mp4. Root / is an SPA infinite feed (page=2 duplicates p1) but is NOT a provider row — run13's dead-pagination impression probed the SPA root. Historical drift record #534 closed; migrated ok-drift → ok.",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200 rows p1+p2 disjoint (23 cards) with live Next anchors",
-    "search": "200 p1+p2 disjoint",
-    "video": "200 x3 + embed",
-    "stream": "watch-config playerSources 200/206 mp4"
-   },
-   "issue": 534,
-   "standing_issue": null,
-   "drift_confirmed": 1,
-   "chronic": false,
-   "last_deep": "2026-10-14"
-  },
-  "MissAV": {
-   "site": "missav.live",
-   "verdict": "ok",
-   "reason": "deep 2026-09-29: 21 rows clean (1 pinned card on /en/new), search p1/p2 disjoint; video 200; eval-packed surrit m3u8 (known flow)",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200",
-    "video": "200"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-09-29"
-  },
-  "Neporn": {
-   "site": "neporn.com",
-   "verdict": "ok",
-   "reason": "search/video 200; get_file 403 bare (session-bound cookie flow, known); deep 2026-10-09: async search 24 items, video page 200 with Duration/tags/models exposure — provider covers all exposed fields",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200 (24 async items)",
-    "video": "200"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-10-09"
-  },
-  "PerverZija": {
-   "site": "tube.perverzija.com",
-   "verdict": "ok",
-   "reason": "deep 2026-10-13: featured-scenes rows p1/p2 disjoint (carousel repeats deduped), search p2 200, 3 video pages 200 with per-page pervl*.xtremestream.xyz player iframes (extractor path)",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200",
-    "video": "200"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-10-13"
-  },
-  "PornXP": {
-   "site": "pxp.news",
-   "verdict": "ok",
-   "reason": "standing 476 stays clear re-confirmed live: /tags/<q> 36 cards p1+p2 disjoint; video 200 x3; source mp4 206 (2026-10-16 deep pass)",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200 p1/p3 href-disjoint (36 cards each; p1∩p2 data-id pair = 2 distinct mirror videos, href-disjoint, site-level)",
-    "search": "200 via /tags/<q>; /?q= still serves the unfiltered homepage grid (known #330 condition, provider uses /tags)",
-    "quicksearch": "no distinct quick-search endpoint (2.js only rewrites form submit to /tags/; /co/ empty 200 click counter) — absent, not drift",
-    "video": "200 x3 (home/tag/newest-grid listings)",
-    "stream": "<source> mp4 206 video/mp4, no referer needed; CDN subdomain rotates (ce→cdrn→xxx.pornxp.sh), provider extracts from page"
-   },
-   "issue": null,
-   "standing_issue": 476,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-10-16"
-  },
-  "Porntrex": {
-   "site": "www.porntrex.com",
-   "verdict": "ok",
-   "reason": "REVERIFIED 2026-10-16 (deep pass, run15 #633): all surfaces plain-curl ok — search p1/p2 85+85 disjoint; home p1/async-p2 120+120 (p1∩p2=5 proven site-native: async p2 ≡ native /2/); quickSearch absent, album-only suggestion endpoint (#275 verdict re-confirmed); direct video pages serve the standing guest shell (#171/#256, unchanged) resolved by the /embed/ fallback (full flashvars, title/cats/tags); streams 206 video/mp4 on 5 fresh single-use tokens; related_videos_html 45 items with the provider's selectors matching. No new condition; no fix, no version bump (fix policy — fix on confirmed condition only). instrument note: verify.sh printed 2 false-FAILs this run — dedupe conflating two distinct same-title videos (href-keyed dedupe clean) and the plot '-' placeholder entering distinctness when the site exposes no plot — filed as a verify.sh backlog issue, not provider conditions",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200",
-    "video": "200 (guest shell; resolved via /embed/{id}/)",
-    "stream": "206 video/mp4 (fresh token per replay)",
-    "quick_search": "absent (album-only)"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-10-16"
-  },
-  "Sexfilm": {
-   "site": "en.sex-film.biz",
-   "verdict": "ok",
-   "reason": "REVERIFIED 2026-10-16 (deep pass, run18 #634): the 2026-09-29 two-step cookie-jar handshake did NOT reproduce — every surface serves 200 to a single fresh cookie-less request; 6 main-page rows p1/p2 all 200 disjoint (24 cards each); search story=milf p1/p2/p3 disjoint + story=tarzan; quick-search absent (do=suggest serves a full unfiltered HTML page, not AJAX); 6 video pages 200 (home/category/related listings) with all load fields live (h1#s-title, og:image, #s-desc, /tags/ anchors, Casting, span.gv year, meta[itemprop=duration]); two-hop filmcdm/morencius hls4 streams 200 m3u8 with and without referer; playmogo 403 + cfglobalcdn TCP-timeout standing (not drift). No confirmed condition — no fix, no version bump (stays 12).",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200 (6 rows; p1/p2 disjoint per row, 24 cards each)",
-    "search": "200 (story=Q + search_start=N pagination, disjoint; provider shape unchanged)",
-    "video": "200 x6 (home/category/related listings, unified shape)",
-    "stream": "filmcdm/morencius two-hop hls4 200 m3u8 bare; playmogo 403 + cfglobalcdn TCP-timeout standing",
-    "quick_search": "absent (do=suggest = full HTML page, not AJAX)"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-10-16"
-  },
-  "WatchPorn": {
-   "site": "watchporn.to",
-   "verdict": "ok-drift",
-   "reason": "CONFIRMED DRIFT fixed 2026-10-16 (#649): full KVS theme redesign replaced the card and video-page grammar with \"wp-\" classes — span.thumb__title, h1.single__content-title, single__info-row tags/actors, li.next all dead at probe time → search/home parsed 0 cards and load() returned null for every video. All faces healthy on the new grammar: home p1/p2 19 cards disjoint (plus 1 identical ad card), /categories/<slug>/ now 301 → /sites/<slug>/ (19 cards, 1/19 site-native boundary repeat), search p1/p2 39 cards disjoint, quickSearch /suggest/ JSON unchanged, 5 video pages 200 with h1.wp-vi__title / a.wp-vchip / a.wp-cast intact and related 15/page, flashvars video_url/video_alt_url → 302 → srv*.zload.cc → 206 video/mp4 WITHOUT cookies/referer — the 2026-09-10 session-bound anti-leech note did not reproduce. Site no longer exposes a plot synopsis (ld+json/og:description = tag-glue or boilerplate); removed from load(). Fix in-run, TDD-first: pure WatchPornParse keeps legacy selectors as fallbacks (partial-rollout guard tested against the old fixture); version 15→16; 150 tests green; clean make green.",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200 (top-rated p1/p2 disjoint; /categories/<slug>/ 301 → /sites/<slug/>, 1/19 repeat)",
-    "search": "200 (39 wp-cards + 1 ad card each, p1/p2 disjoint)",
-    "video": "200 (h1.wp-vi__title; related 15/page; JSON-LD duration/uploadDate intact)",
-    "quickSearch": "/suggest/ 200 JSON (20 Models + 20 Videos) — unchanged"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 1,
-   "chronic": false,
-   "last_deep": "2026-10-16"
-  },
-  "Xhamster": {
-   "site": "xhamster.com",
-   "verdict": "ok",
-   "reason": "search 200 (46 JSON cards /videos/), home p1/p2 200 disjoint, video 200, streams 5/5 206 m3u8 via xplayerSettings decode algos 1-7 (2026-10-16); year gap closed: videoModel.created epoch now exposed and parsed (LoadResponse year, FINDINGS-635)",
-   "tier": "plain-curl",
-   "surfaces": {
-    "home": "200",
-    "search": "200",
-    "video": "200",
-    "stream": "206 m3u8 (5/5)"
-   },
-   "issue": null,
-   "standing_issue": null,
-   "drift_confirmed": 0,
-   "chronic": false,
-   "last_deep": "2026-10-16"
-  }
- }
 }
