@@ -193,6 +193,14 @@
       "findings": [],
       "false_positives": [],
       "note": "run20 (issue #649, self-contained run of approved #631 spec): WatchPorn full-surface deep pass, tier plain-curl on every surface (TLS/browser steps never reached — no blocked surface). Canaries 3/3 match (film1k plain 403 / TLS 200, eporner 200, pandamovies 302→200@.org). CONFIRMED DRIFT fixed in-run: the site shipped a new KVS theme (\"wp-\" classes) killing every v15 selector — span.thumb__title / h1.single__content-title / single__info-row / li.next dead at probe time → 0 parsed cards + null load(). Fixed TDD-first with pure WatchPornParse (a.wp-ctitle / a.wp-card__link / data-webp?:data-original posters / span.wp-r / h1.wp-vi__title / a.wp-vchip / a.wp-cast span.wp-cast__n / li.wp-pag__next), legacy selectors kept as fallbacks, legacy fixture still green (partial-rollout guard); new fixtures search-milf-1.html + video-136954.html; plot assignment removed (site exposes no synopsis — ld+json/og = tag-glue/boilerplate). version 15→16, 150 tests green, clean make green. verify.sh: search 40+40, home 20+20, sites rows 20+20, 5 video pages, streams 5/5 → 302 → 206 video/mp4 (no cookies/referer — old session-bound note gone); 4 instrument-limited FAIL lines evidence-backed in FINDINGS-649 (identical ad-card payload read as home title, empty-plot '-' placeholder collision, site-native short card title vs og title, thumbnail-vs-og-poster on real-src cards). No finding issue filed: condition fixed in-run, drift survives only as the pending merge (registry verdict ok-drift, issue/standing_issue null). 0 false positives. Gates: check-findings.sh PASS. Ground truth: FINDINGS-649.md, WatchPorn/FINDINGS.md."
+    },
+    {
+      "id": "run21",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run21 (issue #648, self-contained run of approved #631 spec): Neporn full-surface deep pass, re-run of the lost 38961910251 work (its PR was rejected on the base-field guard). Tier plain-curl on every surface — no challenge encountered, escalation ladder not needed. All faces healthy: home latest-updates p1/p2 200, 24+24 cards, 0 href overlap; search /search/anal/ 200/24 cards + async p2 200/24 (li.page.last halts pagination); quickSearch absent (recorded, not drift); 3+ video pages 200; KVS flashvars video_url -> 302 -> 206 video/mp4 with referer (bare get_file 403 = known session-bound class, not drift). Latest-upload slugs are volatile (old-slug URLs 301 to fresh slugs) — provider always uses fresh hrefs, no impact. Model anchors absent on newest videos (video_models: '') — optional-actors handling correct; older scenes still expose models. Verdict ok retained (0 drift since 2026-10-09), last_deep=2026-10-16. 0 findings (fix policy: no confirmed condition, no version bump — Neporn stays 7), 0 false positives. Gates: gradlew Neporn:test PASS, clean Neporn:make, verify.sh PASS (1b absence NOTE = quickSearch absent, actors/duration NOTEs = instrument regex-DOM limits + content variance, evidence-backed in Neporn/FINDINGS.md), check-findings.sh PASS. Ground truth: FINDINGS-648.md, Neporn/FINDINGS.md."
     }
   ],
   "providers": {
@@ -535,18 +543,20 @@
     "Neporn": {
       "site": "neporn.com",
       "verdict": "ok",
-      "reason": "search/video 200; get_file 403 bare (session-bound cookie flow, known); deep 2026-10-09: async search 24 items, video page 200 with Duration/tags/models exposure — provider covers all exposed fields",
+      "reason": "search/video 200; get_file bare (no acctoken) 403 = known session-bound class, reproduced-with-referer flow 302 -> 206 video/mp4; deep 2026-10-16: home p1/p2 24+24 disjoint, search 200/24 + async p2 200/24 (li.page.last halts), quickSearch absent (recorded, not drift), 3+ video pages 200 with Duration/tags exposure — provider covers all exposed fields; gr-648 re-probe unchanged",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200",
-        "search": "200 (24 async items)",
-        "video": "200"
+        "home": "200 (p1/p2 disjoint 24+24)",
+        "search": "200 (24 async items, async p2 disjoint)",
+        "video": "200 x3 (Duration/tags/ld+json uploadDate)",
+        "stream": "get_file 302 -> 206 video/mp4",
+        "quick_search": "absent"
       },
       "issue": null,
       "standing_issue": null,
       "drift_confirmed": 0,
       "chronic": false,
-      "last_deep": "2026-10-09"
+      "last_deep": "2026-10-16"
     },
     "PerverZija": {
       "site": "tube.perverzija.com",
