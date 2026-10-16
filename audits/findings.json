@@ -167,6 +167,14 @@
       "findings": ["dood.so-mirror-gap (#671)"],
       "false_positives": [],
       "note": "run17 (issue #640, self-contained run of approved #631 spec): Javmost deep pass, tier plain-curl. Home pagination 4 rows \u00d7 p1/p2/p3 all 200, 24/page, 0 overlap (480 holds); search JSON disjoint p1/p2, sw-256 2 results; quickSearch absent (unchanged); 6+ video pages 200 with intact parse semantics. CONFIRMED DRIFT fixed (version 11 \u2192 13, TDD): (1) dooplayer/mostplayer embed service is back \u2014 x-embed contract byte-identical to 2026-09-10 (Sec-Fetch-Dest: iframe + Referer GET \u2192 4 x-embed metas \u2192 signed POST \u2192 cdn.mostplayer.com/stream?t= mp4, HTTP 206); the provider's doo branch had been cut while the hosts were dead \u2192 doo-hosted pages emitted 0 links since #332. Restored host-agnostically (metas-keyed). Note: the morning run (38852760754, PR #665) read doo embeds as 204 \u2014 header-blind artifact, re-bisected this run. (2) select_part now renders 'parent' AND 'child' buttons; provider regex was parent-only \u2192 child embeds silently dropped; Parse.servers() matched for both variants, embed de-dup per page. Fixtures dooplayer-embed/mostplayer-embed/abw-286/avsa-457-video; gradlew test green (174 tests); clean :Javmost:make green. verify.sh PASS all checks (search 4 pages, home 6 pages, 4 video pages live, 4 fresh doo mp4 streams 206; runtime source-tracked adaptation: stream identity keeps the query \u2014 token lives there). SUSPECTED (recorded, not filed): emturbovid.com TCP-timeout + turbovidhls NXDOMAIN from runner IP \u2014 same chain served 206 m3u8 from a runner on 2026-09-26; network artifact, no finding. FINDING filed: #671 shared HostRegistry lacks a dood.so row (301s to registered playmogo, prefix-match drops it) \u2014 fleet-wide non-Javmost gap. Verdict ok-drift, drift_confirmed 0\u21922, last_deep 2026-10-16, standing_issue 480\u2192null."
+    },
+    {
+      "id": "run18",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run18 (issue #634, self-contained run of approved #631 spec): Sexfilm full-surface deep pass, tier plain-curl on every surface (TLS tier confirmed home 200; browser step never reached — no blocked surface). Canaries 3/3 match (film1k 403/200 TLS, eporner 200, pandamovies 302->200@.org). All faces healthy: 6 main-page rows p1/p2 disjoint (24 cards each); search milf p1/p2/p3 disjoint + tarzan; quick-search absent (do=suggest serves a full unfiltered HTML page — not drift); 6 video pages 200 (home/category/related) with all load fields live; filmcdm/morencius two-hop hls4 streams 200 application/vnd.apple.mpegurl with and without referer. Standing limitations re-confirmed, not drift: playmogo 403 bot wall, s2.filmcdn cfglobalcdn m3u8 IP-locked + TCP-timeout from runner, one hls3 alternate host 403 (hls2/hls4 fine on that video). The 2026-09-29 two-step cookie-jar handshake did NOT reproduce — a single fresh cookie-less request serves every surface; provider needs no cookie plumbing. Verdict ok retained, last_deep=2026-10-16. 0 findings (fix policy: no confirmed condition, no version bump — Sexfilm stays 12), 0 false positives. verify.sh PASS x6 (main run + one per home row; cross-section card overlap is a site reality per FINDINGS, so rows verified per-row). Gates: gradlew Sexfilm:test PASS, clean gradlew Sexfilm:make PASS, check-findings.sh PASS. Ground truth: FINDINGS-634.md, Sexfilm/FINDINGS.md."
     }
   ],
   "providers": {
@@ -434,17 +442,20 @@
     "Sexfilm": {
       "site": "en.sex-film.biz",
       "verdict": "ok",
-      "reason": "two-step cookie-jar flow: search 200, div.short nl2 cards with video links (2026-09-29)",
+      "reason": "REVERIFIED 2026-10-16 (deep pass, run18 #634): the 2026-09-29 two-step cookie-jar handshake did NOT reproduce — every surface serves 200 to a single fresh cookie-less request; 6 main-page rows p1/p2 all 200 disjoint (24 cards each); search story=milf p1/p2/p3 disjoint + story=tarzan; quick-search absent (do=suggest serves a full unfiltered HTML page, not AJAX); 6 video pages 200 (home/category/related listings) with all load fields live (h1#s-title, og:image, #s-desc, /tags/ anchors, Casting, span.gv year, meta[itemprop=duration]); two-hop filmcdm/morencius hls4 streams 200 m3u8 with and without referer; playmogo 403 + cfglobalcdn TCP-timeout standing (not drift). No confirmed condition — no fix, no version bump (stays 12).",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200",
-        "search": "200",
-        "video": "200"
+        "home": "200 (6 rows; p1/p2 disjoint per row, 24 cards each)",
+        "search": "200 (story=Q + search_start=N pagination, disjoint; provider shape unchanged)",
+        "video": "200 x6 (home/category/related listings, unified shape)",
+        "stream": "filmcdm/morencius two-hop hls4 200 m3u8 bare; playmogo 403 + cfglobalcdn TCP-timeout standing",
+        "quick_search": "absent (do=suggest = full HTML page, not AJAX)"
       },
       "issue": null,
       "standing_issue": null,
       "drift_confirmed": 0,
-      "chronic": false
+      "chronic": false,
+      "last_deep": "2026-10-16"
     },
     "WatchPorn": {
       "site": "watchporn.to",

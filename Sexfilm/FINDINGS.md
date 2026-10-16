@@ -165,6 +165,38 @@ Standing risk: poster URLs stay third-party-hosted on `sex-empire.org` — a fut
 auth there takes out search, home, and load posters at once. Single point of image failure
 for this provider.
 
+## Deep audit (issue #634, 2026-10-16)
+Full-surface deep pass — verdict `ok`, tier `plain-curl`, 0 confirmed conditions, no version
+bump (12). Full transcript: FINDINGS-634.md at repo root. Registry: run18, `last_deep`
+2026-10-16.
+
+- **Two-step cookie-jar handshake (2026-09-29 note) NOT reproduced**: a single fresh
+  cookie-less request serves home, all 6 section rows p1/p2, search, and video pages 200.
+  `Set-Cookie` (PHPSESSID/language) is emitted but never required downstream — no cookie
+  plumbing needed.
+- **Home**: all 6 `getMainPage` rows p1/p2 → 200, 24 `a.short-poster` cards each, href
+  overlap 0 per row. Cross-section card sharing persists (site reality, section above).
+- **Search**: `story=milf` p1/p2/p3 → 24/24/24 cards, p1∩p2 = p1∩p3 = 0; `story=tarzan`
+  → 10 cards incl. the sampled 6760 video.
+- **Quick search: no distinct endpoint** — `/index.php?do=suggest&story=mil` serves a full
+  unfiltered HTML page (story ignored, template chrome present), not AJAX/JSON; zero
+  suggest/autocomplete/keyup handlers in the homepage HTML. Provider's hasQuickSearch
+  default (unset → false) stays correct.
+- **Video ×6** (home / search / 3 category rows / related-sourced 10556): unified shape,
+  all load fields live. `span.gv a[href*=/watch/year/]` confirmed correct — nav-menu
+  "Premieres" anchors also hit `/watch/year/` but sit outside `span.gv`, so the scoped
+  selector is what keeps year parsing on the real value.
+- **Streams**: filmcdm hls4 (relative → embed-host) 200 m3u8 on 4/4 pages, bare no-referer
+  200 too; morencius hls4 200 on 3/3, its acek-cdn hls2 200 today (earlier token-bound
+  note relaxed); s2.filmcdn cfglobalcdn m3u8 still IP-locked and **TCP-times-out from the
+  runner** (standing); playmogo still 403 (standing, intentionally unmatched); one hls3
+  alternate host 403'd (per-host CDN artifact — hls2/hls4 fine on that video).
+- **verify.sh PASS ×6** (main run + one per home row; rows verified per-row because
+  cross-section card overlap trips the run-wide dedupe by design). Search milf p1/p2 24+24
+  disjoint, tarzan 10; video ×6 `div#video_container` ≥1, two-hop embed streams 200/206
+  m3u8; tags/actors/year 6/6; related 6/page; LoadResponse all assigned. Gates:
+  `gradlew Sexfilm:test` PASS, clean `gradlew Sexfilm:make` PASS, check-findings.sh PASS.
+
 ## Poster recurrence hardening (issue #521, 2026-09-30)
 Blank posters reported again 6 days after #493. Re-probe (full transcript in
 FINDINGS-521.md at repo root): site side unchanged and healthy — same single host
