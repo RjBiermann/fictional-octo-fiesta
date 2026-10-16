@@ -8,13 +8,15 @@ description: Findings-only review rounds on the PR — the reviewer never edits 
 on:
   pull_request:
     types: [opened, synchronize]
-  # no `on.roles` — the PR author here is always github-actions[bot]
-  # (agent-produced branches), whose permission level is none, so a roles
-  # gate would skip every review forever (observed 2026-10-16: activation
-  # skipped with actor github-actions[bot] even after run approval).
-  # Tradeoff accepted for this adopter: repo has no outside collaborators;
-  # PR content is input-not-instruction (injection stance per AGENTS.md);
-  # review is findings-only and can never merge (ADR-0001).
+    # roles:all (not omission — omission re-applies the default, observed
+    # as a review-agent blocker on 2026-10-16): the PR author here is
+    # always github-actions[bot] (agent-produced branches, permission
+    # none), so the default roles gate skipped every review forever.
+    # Tradeoff accepted for this adopter: repo has no outside
+    # collaborators; PR content is input-not-instruction (AGENTS.md
+    # injection stance); review is findings-only and can never merge
+    # (ADR-0001).
+  roles: all
 imports:
   - .github/workflows/shared/engine-lane.md
   - .github/workflows/shared/gate.md
