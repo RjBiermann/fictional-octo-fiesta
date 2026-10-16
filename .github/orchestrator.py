@@ -523,36 +523,56 @@ def watchdog():
 
 
 # ------------------------------------------------- conflict watch
-def _conflict_files(branch):
-    """Conflict file set when merging main into branch (no worktree).
-    git ≥2.40 plumbing: merge-tree --write-tree --name-only."""
-    rc, out = _pl(["git", "merge-tree", "--write-tree", "--name-only",
-                   "origin/main", f"origin/{branch}"])
-    if rc == 0:
-        return []
-    lines = out.splitlines()
-    # --name-only output: tree OID, then conflicted filenames, then a blank
-    # line, then informational messages ("Auto-merging…", "CONFLICT…") —
-    # stop at the blank line or the informational lines parse as filenames.
+def _parse_conflict_names(out):
+    """Parse merge-tree --name-only output: tree OID, then conflicted
+    filenames, then a blank line, then informational messages
+    ("Auto-merging…", "CONFLICT…") — stop at the blank line so
+    informational lines never parse as filenames."""
     names = []
-    for l in lines[1:]:
+    for l in out.splitlines()[1:]:
         if not l.strip() or l.startswith(("Auto-merging", "CONFLICT", "Removing")):
             break
         names.append(l.strip())
+    return frozenset(names)
+
+
+def _conflict_files(branch):
+    """Conflict file set when merging main into branch (no worktree).
+    git ≥2.40 plumbing: merge-tree --write-tree --name-only.
+    Tolerant of rc=128 (e.g. missing refs in shallow checkouts): returns
+    an empty set rather than dying — conflict_watch then degrades to the
+    human-notify path with the git stderr already logged by _pl."""
+    rc, out = _pl(["git", "merge-tree", "--write-tree", "--name-only",
+                   "origin/main", f"origin/{branch}"])
+    if rc == 0:
+        return frozenset()
+    names = _parse_conflict_names(out)
+    lines = out.splitlines()
     print(f"[orchestrator] merge-tree rc={rc} for {branch}: {names or lines[:3]}")
     return frozenset(names)
 
 
-VERSION_RE = re.compile(r"^\s*version\s*=\s*(\d+)\s*$", re.M)
+VERSION_RE = re.compile(r"^\s*version\s*=\s*(\d+)\s*(?://.*)?$", re.M)
 
 
-def _pick_higher_version(a, b):
-    """Deterministic version-bump resolution: keep the side with the higher
-    `version = N`. None when either side lacks a parseable version."""
+def _resolve_version_pair(a, b):
+    """Deterministic version-bump resolution (round-2 review hardening).
+    Safe only when the two bodies differ solely in the `version = N` line
+    (number and/or trailing bump-comment — the winner's line wins whole):
+    then the higher version wins. Any other difference (or unparsable
+    versions) returns None — degrade to the human path rather than
+    silently discarding real content fixes on the losing side."""
+    if (a or "") == (b or ""):
+        return a
     va, vb = VERSION_RE.search(a or ""), VERSION_RE.search(b or "")
     if not va or not vb:
         return None
-    return a if int(va.group(1)) >= int(vb.group(1)) else b
+    if a[:va.start()] != b[:vb.start()] or a[va.end():] != b[vb.end():]:
+        return None
+    na, nb = int(va.group(1)), int(vb.group(1))
+    if na == nb:
+        return None  # same number, differing bump-comment — human decides
+    return a if na > nb else b
 
 
 def _auto_resolve_conflict(branch, files):
@@ -574,6 +594,10 @@ def _auto_resolve_conflict(branch, files):
     tree = out.splitlines()[0].strip()
     if len(tree) != 40:
         return False
+    # Re-derive the conflicted set from THIS merge-tree (round-2 review):
+    # a caller-derived set can be stale if a push landed in between, and a
+    # path that now merges cleanly must not be whole-blob overwritten.
+    files = _parse_conflict_names(out)
     idx = f"{os.environ.get('RUNNER_TEMP', '/tmp')}/orch-idx.{os.getpid()}"
     ienv = {"GIT_INDEX_FILE": idx}
     try:
@@ -589,16 +613,19 @@ def _auto_resolve_conflict(branch, files):
                 except Exception:
                     return False
             elif path.endswith("build.gradle.kts"):
-                body = _pick_higher_version(ours_body, side_body)
+                body = _resolve_version_pair(ours_body, side_body)
                 if body is None:
                     return False
                 payload = body if body.endswith("\n") else body + "\n"
             else:
                 return False
             blob = subprocess.run(["git", "hash-object", "-w", "--stdin"], input=payload,
-                                  capture_output=True, text=True).stdout.strip()
-            if not blob:
+                                  capture_output=True, text=True)
+            if blob.returncode != 0 or not blob.stdout.strip():
+                sys.stderr.write(f"[orchestrator] hash-object rc={blob.returncode} "
+                                 f"for {path}: {blob.stderr.strip()[:200]}\n")
                 return False
+            blob = blob.stdout.strip()
             if _pl(["git", "update-index", "--cacheinfo", f"100644,{blob},{path}"], env=ienv)[0] != 0:
                 return False
         _, new_tree = _pl(["git", "write-tree"], env=ienv)
