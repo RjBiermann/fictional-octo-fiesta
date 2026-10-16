@@ -45,8 +45,14 @@ FINDINGS_PATH = "audits/findings.json"
 
 
 def _pl(args, env=None):
-    """Run a git plumbing command, return (rc, stdout)."""
-    r = subprocess.run(args, capture_output=True, text=True, env=(dict(os.environ, **env) if env else None))
+    """Run a git plumbing command, return (rc, stdout). Non-trivial rc
+    (clean=0, conflict=1) logs stderr — the round-3 hardening: without it
+    rc=128 in the runner was indistinguishable from "fetched nothing"."""
+    r = subprocess.run(args, capture_output=True, text=True,
+                       env=(dict(os.environ, **env) if env else None))
+    if r.returncode not in (0, 1):
+        sys.stderr.write(f"[orchestrator] git rc={r.returncode} on {' '.join(args[:4])}: "
+                         f"{r.stderr.strip()[:220]}\n")
     return r.returncode, r.stdout.strip()
 
 
@@ -537,59 +543,77 @@ def _conflict_files(branch):
     return frozenset(names)
 
 
-def _fix_findings_conflict(branch):
-    """Resolve a main-into-branch conflict confined to audits/findings.json
-    by union-merging and pushing a normal merge commit (no force push,
-    no rebase — review history is preserved; the synchronize event re-fires
-    review). Plumbing only: merge-tree tree + swapped blob via a throwaway
-    index (GIT_INDEX_FILE), never touching the runner's checkout."""
-    run(["git", "fetch", "origin", branch, "main"])
+VERSION_RE = re.compile(r"^\s*version\s*=\s*(\d+)\s*$", re.M)
+
+
+def _pick_higher_version(a, b):
+    """Deterministic version-bump resolution: keep the side with the higher
+    `version = N`. None when either side lacks a parseable version."""
+    va, vb = VERSION_RE.search(a or ""), VERSION_RE.search(b or "")
+    if not va or not vb:
+        return None
+    return a if int(va.group(1)) >= int(vb.group(1)) else b
+
+
+def _auto_resolve_conflict(branch, files):
+    """Resolve a main-into-branch merge conflict mechanically (delta 16-f6b,
+    generalized f11). Known conflict classes only:
+    - audits/findings.json  -> union-merge (run records append, main wins scalars)
+    - */build.gradle.kts    -> higher version wins (per-provider bumps race)
+    Anything else -> False; the PR degrades to the human-notify path.
+    Plumbing only: merge-tree tree + swapped blobs via a throwaway index
+    (GIT_INDEX_FILE); pushes a normal merge commit — no force, no rebase,
+    review history preserved; the synchronize event re-fires review."""
+    frc = _pl(["git", "fetch", "origin", branch, "main"])[0]
+    if frc not in (0, 1):
+        print(f"[orchestrator] fetch rc={frc} for {branch} — skipping auto-fix")
+        return False
     rc, out = _pl(["git", "merge-tree", "--write-tree", "origin/main", f"origin/{branch}"])
-    # rc: 0 = clean, 1 = conflicts (the case this fixes), ≥2 real error
     if rc not in (0, 1) or not out:
-        print(f"[orchestrator] merge-tree rc={rc} — skipping auto-fix")
         return False
-    tree = out.splitlines()[0].strip()  # oid line; messages follow the blank line
+    tree = out.splitlines()[0].strip()
     if len(tree) != 40:
-        print("[orchestrator] merge-tree oid unparsable — skipping auto-fix")
-        return False
-    docs = {}
-    for name, ref in (("theirs", f"origin/{branch}"), ("ours", "origin/main")):
-        _, body = _pl(["git", "show", f"{ref}:{FINDINGS_PATH}"])
-        try:
-            docs[name] = json.loads(body)
-        except Exception:
-            print(f"[orchestrator] {FINDINGS_PATH} unreadable on {ref} — skipping auto-fix")
-            return False
-    # branch first, then main: main's scalars win, run records union in
-    payload = json.dumps(_union_findings(docs["theirs"], docs["ours"]), indent=2) + "\n"
-    blob = subprocess.run(["git", "hash-object", "-w", "--stdin"], input=payload,
-                          capture_output=True, text=True).stdout.strip()
-    if not blob:
-        print("[orchestrator] hash-object failed — skipping auto-fix")
         return False
     idx = f"{os.environ.get('RUNNER_TEMP', '/tmp')}/orch-idx.{os.getpid()}"
     ienv = {"GIT_INDEX_FILE": idx}
     try:
-        rc, _ = _pl(["git", "read-tree", tree], env=ienv)
-        if rc != 0:
-            print("[orchestrator] read-tree failed — skipping auto-fix")
+        if _pl(["git", "read-tree", tree], env=ienv)[0] != 0:
             return False
-        _pl(["git", "update-index", "--cacheinfo", f"100644,{blob},{FINDINGS_PATH}"], env=ienv)
-        _, new_tree = _pl(["git", "write-tree"], env={"GIT_INDEX_FILE": idx})
+        for path in sorted(files):
+            _, ours_body = _pl(["git", "show", f"origin/main:{path}"])
+            _, side_body = _pl(["git", "show", f"origin/{branch}:{path}"])
+            if path == FINDINGS_PATH:
+                try:
+                    payload = json.dumps(_union_findings(json.loads(side_body),
+                                                         json.loads(ours_body)), indent=2) + "\n"
+                except Exception:
+                    return False
+            elif path.endswith("build.gradle.kts"):
+                body = _pick_higher_version(ours_body, side_body)
+                if body is None:
+                    return False
+                payload = body if body.endswith("\n") else body + "\n"
+            else:
+                return False
+            blob = subprocess.run(["git", "hash-object", "-w", "--stdin"], input=payload,
+                                  capture_output=True, text=True).stdout.strip()
+            if not blob:
+                return False
+            if _pl(["git", "update-index", "--cacheinfo", f"100644,{blob},{path}"], env=ienv)[0] != 0:
+                return False
+        _, new_tree = _pl(["git", "write-tree"], env=ienv)
         if not new_tree or len(new_tree) != 40:
-            print("[orchestrator] write-tree failed — skipping auto-fix")
             return False
         _, bsha = _pl(["git", "rev-parse", f"origin/{branch}"])
         _, msha = _pl(["git", "rev-parse", "origin/main"])
         _, commit = _pl(["git", "commit-tree", new_tree, "-p", bsha, "-p", msha,
-                         "-m", f"merge main into {branch}: union-resolve {FINDINGS_PATH} "
-                               f"(orchestrator 16-f6b, mechanical)"])
+                         "-m", f"merge main into {branch}: mechanical conflict resolve "
+                               f"({', '.join(sorted(files))}) (orchestrator 16-f6b)"])
         ok, out = _git_push(branch, commit)
         if not ok and PROXY_PAT:
             if _push_ref_via_api(branch, commit):
                 ok, out = True, "pushed via git/refs PATCH (owner actor)"
-        print(f"[orchestrator] findings conflict auto-resolved on {branch}: "
+        print(f"[orchestrator] conflict auto-resolved on {branch}: "
               f"{'pushed ' + commit[:10] if ok and commit else 'FAILED: ' + str(out)[:130]}")
         return bool(ok and commit)
     finally:
@@ -600,8 +624,8 @@ def _fix_findings_conflict(branch):
 
 
 def conflict_watch():
-    """Merge conflicts on agent PRs: auto-resolve when confined to the
-    per-provider registry (the only conflict class observed), else notify
+    """Merge conflicts on agent PRs: auto-resolve the known mechanical
+    classes (findings.json union-merge, gradle version bumps), else notify
     with the recipe — one comment per PR."""
     # merge-tree + plumbing need up-to-date refs; branch fetches happen per-PR
     _pl(["git", "fetch", "origin", "main"])
@@ -615,8 +639,8 @@ def conflict_watch():
             continue
         _pl(["git", "fetch", "origin", branch])
         files = _conflict_files(branch)
-        if files == {FINDINGS_PATH}:
-            if _fix_findings_conflict(branch):
+        if files and all(f == FINDINGS_PATH or f.endswith("build.gradle.kts") for f in files):
+            if _auto_resolve_conflict(branch, files):
                 continue
         marker = f"{MARK} merge conflict detected"
         if _has_marker(comments(num), marker):
