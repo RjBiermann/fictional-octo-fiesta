@@ -138,4 +138,82 @@ class JavmostParseTest {
         assertEquals("Some \"quoted\" here", Javmost.Parse.title("", " Some &quot;quoted&quot; here "))
         assertEquals("", Javmost.Parse.title("", ""))
     }
+
+    // --- 2026-10 audit: dooplayer.com / mostplayer.com embed service is BACK (dead at the
+    // #332/#376 fixes). Embed pages serve the x-embed contract again: GET (Sec-Fetch-Dest:
+    // iframe + Referer) → content="<token>"name=x-embed-token | x-embed-api | x-embed-et |
+    // x-embed-sig; POST <api><urlencoded-token> with X-Embed-Auth/ET/SIG + {"ref":<embed>}
+    // → {"ok":true,"url":"<direct-stream>"}. Fix restores the branch HOST-AGNOSTICALLY
+    // (detect the metas, not the hostname — hardening against future host migrations).
+    private fun dooMetas(fixture: String) = Javmost.Parse.dooMetas(
+        javaClass.classLoader!!.getResource(fixture)!!.readText()
+    )
+
+    @Test fun `dooMetas parses the live dooplayer embed page`() {
+        val m = dooMetas("dooplayer-embed.html")!!
+        assertEquals("MTEzMjky.5ef6592a1f6cbbc3", m.token)
+        assertEquals("https://www.dooplayer.com/api/stream/", m.api)
+        assertTrue(m.et.toLong() > 1_700_000_000)
+        assertEquals(64, m.sig.length)
+    }
+
+    @Test fun `dooMetas parses the mostplayer embed page (same contract, other host)`() {
+        val m = dooMetas("mostplayer-embed.html")!!
+        assertEquals("MTE1NjA2MA.318bda65e33b3894", m.token)
+        assertEquals("https://www.mostplayer.com/api/stream/", m.api)
+    }
+
+    @Test fun `dooMetas null on an embed page without the metas`() =
+        assertNull(Javmost.Parse.dooMetas("<html><title>nope</title></html>"))
+
+    @Test fun `dooMetas null when metas incomplete (missing sig)`() =
+        assertNull(Javmost.Parse.dooMetas(
+            "<meta content=\"tok\"name=x-embed-token><meta content=\"https://x/api/stream/\"name=x-embed-api><meta content=\"123\"name=x-embed-et>"
+        ))
+
+    @Test fun `dooStream returns the direct stream url`() {
+        assertEquals(
+            "https://cdn.mostplayer.com/stream?t=abc",
+            Javmost.Parse.dooStream("""{"ok":true,"url":"https://cdn.mostplayer.com/stream?t=abc"}""")
+        )
+    }
+
+    @Test fun `dooStream null on error shape (no bogus substring artifact)`() {
+        // regression of the 2026-09-10 reviewer finding: substringAfter with a missing
+        // delimiter default used to yield "{" on this body
+        assertNull(Javmost.Parse.dooStream("""{"ok":false,"error":"bad token"}"""))
+    }
+
+    @Test fun `dooStream null on non-json garbage`() =
+        assertNull(Javmost.Parse.dooStream("<html>gateway timeout</html>"))
+
+    @Test fun `dooStream null when ok without url`() =
+        assertNull(Javmost.Parse.dooStream("""{"ok":true}"""))
+
+    // --- 2026-10 audit finding 2: video pages now render TWO select_part buttons per group
+    // (a 'parent' one and a 'child' one). The old loadLinks regex hardcoded 'parent', so
+    // child-sourced embeds were dropped — ABW-286's child rows add a dood.so mirror embed,
+    // a second distinct mostplayer embed, and a whole group (34) the parent-only pass never
+    // saw. Parse.servers() (pure) matches both variants; the placeholder no-op call
+    // select_part('1',YWRzMg,'','no',...) can't match (group is not numeric).
+    private fun servers(fixture: String) = Javmost.Parse.servers(
+        javaClass.classLoader!!.getResource(fixture)!!.readText()
+    )
+
+    @Test fun `servers matches both parent and child buttons on abw-286`() {
+        val s = servers("abw-286.html")
+        assertEquals(13, s.size)
+        assertEquals(setOf("34", "41", "46", "50", "54", "61"), s.map { it.group }.toSet())
+    }
+
+    @Test fun `servers matches parent-child pairs on avsa-457`() {
+        val s = servers("avsa-457-video.html")
+        assertEquals(4, s.size)
+        assertEquals(setOf("60", "62"), s.map { it.group }.toSet())
+    }
+
+    @Test fun `servers ignores the no-op placeholder call`() =
+        assertTrue(Javmost.Parse.servers(
+            "select_part('1',YWRzMg,'','no',YWRzNA,YWRzNQ,YWRzNg)"
+        ).isEmpty())
 }

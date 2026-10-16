@@ -159,6 +159,14 @@
       "findings": [],
       "false_positives": [],
       "note": "run15 (issue #633, sub-issue of #631 spec): Porntrex full-surface deep pass, tier plain-curl on every surface. Canaries 3/3 match (2026-10-16). All faces healthy: search p1/p2 85+85 cards disjoint; home via category-path async (bare-URL / async serves 200 with an empty body — provider unaffected, every mainPage row is a category URL); p1∩p2 churn proven site-native (async p2 ≡ the site's own /2/ page 120/120); quickSearch absent unchanged (#275); direct guest shells unchanged (#171 standing, /embed/ fallback healthy with full flashvars); streams 206 video/mp4 on 5 fresh single-use tokens; related_videos_html/3364971/ 45 items, provider selectors match. Verdict ok retained (no drift since 2026-09-29), last_deep=2026-10-16. 0 findings (fix policy: no confirmed condition, no version bump), 0 false positives. verify.sh: all provider checks PASS; 2 instrument false-FAILs (title-keyed dedupe on distinct same-title videos, href dedupe clean; plot '-' placeholder distinctness) filed as verify.sh backlog issue. Ground truth: FINDINGS-633.md, Porntrex/FINDINGS.md."
+    },
+    {
+      "id": "run17",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": ["dood.so-mirror-gap (#671)"],
+      "false_positives": [],
+      "note": "run17 (issue #640, self-contained run of approved #631 spec): Javmost deep pass, tier plain-curl. Home pagination 4 rows \u00d7 p1/p2/p3 all 200, 24/page, 0 overlap (480 holds); search JSON disjoint p1/p2, sw-256 2 results; quickSearch absent (unchanged); 6+ video pages 200 with intact parse semantics. CONFIRMED DRIFT fixed (version 11 \u2192 13, TDD): (1) dooplayer/mostplayer embed service is back \u2014 x-embed contract byte-identical to 2026-09-10 (Sec-Fetch-Dest: iframe + Referer GET \u2192 4 x-embed metas \u2192 signed POST \u2192 cdn.mostplayer.com/stream?t= mp4, HTTP 206); the provider's doo branch had been cut while the hosts were dead \u2192 doo-hosted pages emitted 0 links since #332. Restored host-agnostically (metas-keyed). Note: the morning run (38852760754, PR #665) read doo embeds as 204 \u2014 header-blind artifact, re-bisected this run. (2) select_part now renders 'parent' AND 'child' buttons; provider regex was parent-only \u2192 child embeds silently dropped; Parse.servers() matched for both variants, embed de-dup per page. Fixtures dooplayer-embed/mostplayer-embed/abw-286/avsa-457-video; gradlew test green (174 tests); clean :Javmost:make green. verify.sh PASS all checks (search 4 pages, home 6 pages, 4 video pages live, 4 fresh doo mp4 streams 206; runtime source-tracked adaptation: stream identity keeps the query \u2014 token lives there). SUSPECTED (recorded, not filed): emturbovid.com TCP-timeout + turbovidhls NXDOMAIN from runner IP \u2014 same chain served 206 m3u8 from a runner on 2026-09-26; network artifact, no finding. FINDING filed: #671 shared HostRegistry lacks a dood.so row (301s to registered playmogo, prefix-match drops it) \u2014 fleet-wide non-Javmost gap. Verdict ok-drift, drift_confirmed 0\u21922, last_deep 2026-10-16, standing_issue 480\u2192null."
     }
   ],
   "providers": {
@@ -308,19 +316,19 @@
     "Javbangers": {"site": "www.javbangers.com","verdict": "ok","reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #475 record closed standing \u2014 condition (search p2 404) confirmed unchanged and matches the provider contract exactly (search declares hasNext=false; the site has no search pagination). Live: /latest-updates p1/p2 30 div.video-item cards each disjoint, /categories/milf 24, search p1 24, 2 video pages 200 with div.block-details/Tags/related, flashvars video_url/video_alt_url resolve: get_file \u2192 302 \u2192 origin11-direct.cdntrex.com \u2192 206 video/mp4 on the site referer. Historical record #475 closed; migrated ok-drift \u2192 ok.","tier": "plain-curl","surfaces": {"home": "200 p1+p2 disjoint 30 cards","search": "200 p1 (p2 404 standing; provider hasNext=false by design)","video": "200 x2","stream": "get_file 302 \u2192 cdntrex origin 206 mp4"},"issue": 475,"standing_issue": 475,"drift_confirmed": 1,"chronic": false,"last_deep": "2026-10-14"},
     "Javmost": {
       "site": "www.javmost.ws",
-      "verdict": "ok",
-      "reason": "standing 480 page-2-dupes-page-1 CLEARED: /showlist2/{all,uncensor,censor,new} p1/p2/p3 distinct JSON, 0 url overlap (2026-09-29); search JSON 24 results",
+      "verdict": "ok-drift",
+      "reason": "P1 confirmed drift fixed 2026-10-16 (#640): dooplayer/mostplayer embed service healed but the provider's x-embed branch had been cut at #332/#376 \u2014 doo-hosted pages emitted 0 links since then; branch restored host-agnostically (metas-keyed contract) + select_part parent/child fix. 480 pagination condition cleared, re-probed disjoint. emturbovid suspected runner-IP artifact.",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200 (p2/p3 now disjoint)",
-        "search": "200 (24 results)",
-        "video": "200"
+        "home": "200 (p1/p2/p3 disjoint, all four rows)",
+        "search": "200 (24/page, disjoint)",
+        "video": "200 (doo+emturbovid rows; emturbovid TCP-dead from probe IP \u2014 suspected)"
       },
       "issue": null,
-      "standing_issue": 480,
-      "drift_confirmed": 0,
+      "standing_issue": null,
+      "drift_confirmed": 2,
       "chronic": false,
-      "last_deep": "2026-09-26"
+      "last_deep": "2026-10-16"
     },
     "Javseen": {
       "site": "javseen.tv",

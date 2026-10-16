@@ -518,3 +518,128 @@ surface. Same bridging mechanics as prior runs (listing pages are JS templates �
   and the two self-referencing title anchors share selector `a[alt]`; the script cannot
   exclude self links, the provider filters `.filter { it.url != url }` in code (with the
   related flag the run FAILs on every page for exactly that reason).
+
+## Deep-pass fix run 2026-10-16 (issue #640 — approved #631 spec, self-contained)
+
+Scope per spec: deep-pass re-verification of pagination, search, ≥3 video pages, stream
+resolution; only fix what's confirmed. All probes plain curl/desktop UA (tier
+plain-curl), 2026-10-16.
+
+### Deep-pass surfaces (all re-verified live)
+
+- **Pagination disjointness: PASS** — `/showlist2/{all,uncensor,censor}/p{1,2,3}/category/`
+  and `/showlist2/new/p{1,2,3}/release/` all HTTP 200, 24 items/page, **p1∩p2 = p1∩p3 =
+  p2∩p3 = 0 URLs on every group** (the cleared #480 condition holds; do not re-open).
+  `new/{p}/category/` answers `{"result":[],"total":0}` — the provider's `new::release` row
+  is the correct pairing.
+- **Search JSON contract: PASS** — `/showlist2/{q}/{p}/search/` 200, 24 results/page
+  (avop), p1∩p2 = 0. `sw-256` still yields 2.
+- **Video pages: PASS ×9 probed** (AVSA-457, ABW-286, DLDSS-529, PIYO-158, DDU-032,
+  NHDTB-715, HEYZO-3937, CARIBBEANCOM-082926-001, AVOP-137/069-REDUCING-MOSAIC): all
+  HTTP 200 with `og:title`, `og:image`, `twitter:description`, `h1.page-header`,
+  `YWRzMQo` value and `select_part` buttons — provider metadata parsing verified intact
+  (jsoup parse-simulation equals the shipped `Parse.cardBlock/plot/recs` queries;
+  censored pages still expose year/duration/actors/tags in the video's own card-block,
+  first in DOM order; uncensored pages carry no meta — same site ceiling as 2026-09-09).
+- **quick search: none exists** (unchanged since 2026-09-08; absence recorded, not drift).
+
+### Confirmed finding 1 (fixed): dooplayer/mostplayer embed service is BACK — provider
+### could no longer resolve those embeds (branch cut at #332/#376) → confirmed drift
+
+At the #332/#376 fixes (2026-09-11) `dooplayer.com` was domain-parked and `mostplayer.com`
+`/embed/e/` answered 204, so the whole x-embed resolution branch was cut from `loadLinks`
+and the hosts reverted to dead-host fail-fast. **2026-10-16: both hosts are live again**
+and the x-embed contract is byte-identical to the 2026-09-10 spec:
+
+```
+GET  https://www.dooplayer.com/embed/e/<id>      → 200 ONLY with Sec-Fetch-Dest: iframe +
+                                                   Referer: <video page> (204 otherwise,
+                                                   re-bisected this run)
+metas: content="<token>"name=x-embed-token | x-embed-api | x-embed-et | x-embed-sig
+POST <api><urlencode(token)>  Headers: X-Embed-Auth: 1, X-Embed-ET, X-Embed-SIG; Referer:
+     <embed>; JSON body {"ref":"<embed>"}  → {"ok":true,"url":"https://cdn.mostplayer.com/stream?t=..."}
+GET  <url>  (range) → HTTP 206 video/mp4 — works with NO Referer, plain UA
+```
+
+mostplayer.com embeds use the same contract against `https://www.mostplayer.com/api/stream/`
+(identical identity verified: metas → POST → direct stream). Site impact: dooplayer rows
+(g62) now carry *player-verifiable* streams for AVSA-457, HEYZO-3937,
+CARIBBEANCOM-082926-001, AVOP-137/069-REDUCING-MOSAIC — pages that since #332 emitted
+**0 links** in-app. Uncensored catalogue pages whose only server row is dooplayer
+(HEYZO-3937 g62-only, CARIBBEANCOM-082926-001 g62-only) regain playback.
+
+**fix (TDD, version 11 → 13):** `Parse.dooMetas(html)` (pure; parses the minified
+`content="..."name=x-embed-*` metas, null unless all four present), `Parse.dooStream(json)`
+(null on error shapes — cannot regress the 2026-09-10 `substringAfter` artifact), and
+`loadLinks` re-dispatches non-emturbovid embeds host-agnostically: framework
+`loadExtractor` first (voe/dood/streamtape rows), then the x-embed chain on
+`Sec-Fetch-Dest: iframe` GET → metas → signed POST. Host-Agnostic-hardening (drift-rule:
+3+ closed drift issues ⇒ no point selector): the contract is detected by its metas, not a
+hostname, so any future host migration auto-recovers. Fixtures `dooplayer-embed.html`,
+`mostplayer-embed.html` from live pages.
+
+### Confirmed finding 2 (fixed): select_part now renders 'parent' AND 'child' buttons
+
+Video pages render two `select_part('1','<group>',this,'…'` buttons per group — the old
+inline regex hardcoded `'parent'`, so **child-sourced embeds were always dropped**. Live
+probed: for ABW-286 the child rows return a `dood.so` mirror embed, a *second distinct*
+mostplayer embed (MTE1NTA2Ng vs the parent-row MTE1NjA2MA) **and a whole group (34) the
+parent-only pass never saw**; AVSA-457 child posts the same embeds as parent. Per-page
+truth: ABW-286 has 13 parent+child buttons across groups 34/41/46/50/54/61 (13 distinct
+code tuples), AVSA-457 has 4 (60/62 × parent+child).
+
+**fix (TDD):** `Parse.servers(html)` (pure; matches `(?:parent|child)`, rejects the
+mandatory no-op `select_part('1',YWRzMg,'','no',…)` placeholder — group non-numeric — and
+obfuscated calls) wired into `loadLinks`; embed URLs de-duplicated per page
+(`seenEmbeds`) so the double-attempt of a duplicated group cannot emit one stream twice.
+
+### Suspected (recorded, not filed): emturbovid unreachable from this runner IP
+
+`emturbovid.com` DNS resolves (132.243.175.122) but **TCP connect times out**; its player
+mirror `turbovidhls.com` is **NXDOMAIN** from here. 2026-09-26 the same chain resolved to
+HTTP 206 m3u8 from a runner, so this is a network-path artifact of the probe IP, not
+observably a site change — classification `suspected` per the verdict vocabulary
+(residential differential unavailable). In-app behavior on residential networks is
+unknown today; the provider's emturbovid branch is unchanged and correct.
+
+### Related finding (filed separately): shared registry lacks a dood.so row
+
+ABW-286's child row returns `dood.so/e/<id>` which 301s to `playmogo.com/e/<id>` — the
+engine (`dood` family) is registered, the **mirror domain is not**: `loadExtractor` can't
+match `dood.so` URLs, so that embed is dropped everywhere (all providers dispatching
+dood-family embeds). Fleet-wide, not a Javmost regression — filed as its own issue in
+this run.
+
+### Verification (2026-10-16) — verify.sh RESULT: PASS (exit 0, log /tmp/gh-aw/agent/verify-javmost.log)
+
+Same bridging mechanics as prior runs (listing pages are JS templates → live `showlist2`
+JSON bridged to minimal card HTML `a.c` on 127.0.0.1:8779; card title = showlist2 `name`,
+poster omitted — cover↔og:image differ only by a size-variant path segment, equivalence
+recorded 2026-09-11):
+
+- search: avop p1+p2 (24×24, disjoint), sw-256 (2), avsa p1 (24) → all ≥2 cards, zero
+  cross-page duplicates; home: all three provider rows ×p1+p2
+  (`uncensor/censor→category`, `new→release`) → 24×24 each, zero duplicates; cross-group
+  overlap 0 across all 6 home pages.
+- quick search: none exists (explicit NOTE in the run).
+- 4 live video pages (AVSA-457, AVOP-137-REDUCING-MOSAIC, AVOP-069-REDUCING-MOSAIC,
+  CARIBBEANCOM-082926-001): 200, `button[onclick*=select_part]` 2–4 matches, distinct
+  titles (`h1.page-header`), distinct plots (`meta[name=twitter:description]`), distinct
+  posters, tags present on 4/4.
+- streams: 4 position-matched `--stream-url`s resolved live through the provider's **new**
+  doo branch (AJAX → dooplayer embed → metas → signed POST → fresh mp4) → all **HTTP 206
+  video/mp4** on cdn.mostplayer.com, tokens all distinct. **Runtime adaptation
+  (source-tracked): a copied verify.sh keeps the query string in the stream identity —
+  the unpatched script's `url_path` compares `/stream` equal for all 4 (token is in the
+  query) and fake-fails; the mp4 stream token is the only path there.**
+- field NOTEs (mandatory): `--video-actors-year-duration` omitted — the sampled pages are
+  the doo-hosted uncensored pages whose card-block carries no meta (site ceiling,
+  2026-09-09); year/duration/actors/tags live-verified instead via the parse-simulation
+  on sampled censored pages (ABW-286 y=2022 d=165 1 actor 5 tags; PIYO-158 y=2022 d=180
+  2 actors 6 tags; NHDTB-715 y=2022 d=175 3 actors 5 tags; AVSA-457 y=2026 d=114
+  1 actor 6 tags). `--related-selector` omitted: recorded limitation (2026-09-09) —
+  video-page related anchors and the two self-referencing title anchors share selector
+  `a[alt]`, the provider filters `.filter { it.url != url }` in code.
+- `gradlew Javmost:test` → 174 tests, 0 failures (fixtures dooplayer-embed,
+  mostplayer-embed, abw-286, avsa-457-video; dooMetas ×4, dooStream ×4, servers ×3).
+- `gradlew clean :Javmost:make` → clean build, `Javmost.cs3` @ version 13.

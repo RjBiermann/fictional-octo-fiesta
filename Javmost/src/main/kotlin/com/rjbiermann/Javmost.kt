@@ -72,6 +72,23 @@ class Javmost : MainAPI() {
                 ?.maxByOrNull { it.attr("alt").trim().length }   // synopsis anchor, not the short code anchor
                 ?.attr("alt")?.trim()?.takeIf { it.isNotBlank() }
 
+        /** 2026-10 audit finding 2: the video page renders TWO select_part buttons per group
+         *  ('parent' and 'child'), which take DIFFERENT base64 code payloads. The old inline
+         *  regex in loadLinks hardcoded 'parent', so child-sourced embeds were always dropped —
+         *  live-probed: ABW-286's child rows return a dood.so mirror embed, a second distinct
+         *  mostplayer embed and a whole group (34) the parent-only pass never saw. Returns
+         *  every parent+child button. The mandatory placeholder no-op call
+         *  select_part('1',YWRzMg,'','no',...) cannot match (group is not numeric, args not
+         *  quoted); obfuscated-player select_part(_0x…) calls have no quoted codes either. */
+        data class Server(val group: String, val code: String, val code2: String, val code3: String)
+
+        fun servers(html: String): List<Server> =
+            Regex(
+                "select_part\\('1','(\\d+)',this,'(?:parent|child)','([A-Za-z0-9+/=]+)','([A-Za-z0-9+/=]+)','([A-Za-z0-9+/=]+)'\\)"
+            ).findAll(html).map { m ->
+                Server(m.groupValues[1], m.groupValues[2], m.groupValues[3], m.groupValues[4])
+            }.toList()
+
         /** issue #332 finding 2 / issue #376: the /ri3123o235r/ AJAX response is
          *  {"status":"success","data":["<embed-url>"...]} (slashes JSON-escaped). embedTargets
          *  returns EVERY url in the data array — emturbovid ones are resolved server-direct
@@ -84,6 +101,36 @@ class Javmost : MainAPI() {
                 .map { it.groupValues[1].replace("\\/", "/") }
                 .filter { it.startsWith("http") }
                 .toList()
+        }
+
+        /** 2026-10 audit: dooplayer.com / mostplayer.com embed service is BACK (it was dead
+         *  at the #332/#376 fixes, where the whole resolution branch was cut). The embed page
+         *  (GET requires Sec-Fetch-Dest: iframe + Referer — 204 without, re-bisected) serves
+         *  the minified metas `content="<v>"name=x-embed-token|api|et|sig`. dooMetas parses
+         *  that shape — HOST-AGNOSTICALLY (structural hardening: detects the contract by its
+         *  metas, not a hardcoded hostname, so future host migrations recover for free).
+         *  Null unless all four metas are present. */
+        data class DooInfo(val token: String, val api: String, val et: String, val sig: String)
+
+        fun dooMetas(html: String): DooInfo? {
+            val m = Regex("content=\"?([^\">\\s]+)\"?\\s*name=x-embed-(\\w+)")
+                .findAll(html)
+                .associate { it.groupValues[2] to it.groupValues[1] }
+            val token = m["token"]?.takeIf { it.isNotBlank() } ?: return null
+            val api = m["api"]?.takeIf { it.startsWith("http") } ?: return null
+            val et = m["et"]?.takeIf { it.isNotBlank() } ?: return null
+            val sig = m["sig"]?.takeIf { it.isNotBlank() } ?: return null
+            return DooInfo(token, api, et, sig)
+        }
+
+        /** The api/stream response: {"ok":true,"url":"<direct-stream>"} — null on the error
+         *  shape or any malformed body (no substring artifact: 2026-09-10 reviewer fix). */
+        fun dooStream(json: String): String? {
+            if (!json.trimStart().startsWith("{")) return null
+            val ok = json.contains("\"ok\":true")
+            if (!ok) return null
+            return Regex("\"url\"\\s*:\\s*\"([^\"]+)\"").find(json)?.groupValues?.get(1)
+                ?.takeIf { it.startsWith("http") }
         }
     }
     override var mainUrl        = "https://www.javmost.ws"
@@ -180,6 +227,35 @@ class Javmost : MainAPI() {
         }
     }
 
+    private suspend fun resolveDoo(embedUrl: String, referer: String): String? {
+        return try {
+            // x-embed contract (dooplayer.com/mostplayer.com rows, live again 2026-10):
+            // embed page 204 without Sec-Fetch-Dest: iframe + Referer (re-bisected this run);
+            // metas token/api/et/sig → POST <api><urlencoded-token>, X-Embed-Auth: 1 /
+            // X-Embed-ET / X-Embed-SIG, JSON body {"ref":<embed>} → {"ok":true,"url":...}
+            val html = app.get(
+                embedUrl,
+                referer = referer,
+                headers = mapOf("Sec-Fetch-Dest" to "iframe")
+            ).text
+            val metas = Parse.dooMetas(html) ?: return null
+            val res = app.post(
+                metas.api + java.net.URLEncoder.encode(metas.token, "utf-8"),
+                headers = mapOf(
+                    "X-Embed-Auth" to "1",
+                    "X-Embed-ET" to metas.et,
+                    "X-Embed-SIG" to metas.sig,
+                ),
+                json = mapOf("ref" to embedUrl),
+                referer = embedUrl,
+            ).text
+            Parse.dooStream(res)
+        } catch (e: Exception) {
+            Log.d(name, "resolveDoo: ${e.message}")
+            null
+        }
+    }
+
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
@@ -189,10 +265,12 @@ class Javmost : MainAPI() {
         val document = app.get(data).document
         // FINDINGS: constant on every video page, feeds the AJAX value param
         val value = Regex("YWRzMQo\\s*=\\s*'([^']+)'").find(document.html())?.groupValues?.get(1) ?: return true
-        // FINDINGS: select_part('1','<group>',this,'parent','<code>','<code2>','<code3>')
-        val servers = Regex(
-            "select_part\\('1','(\\d+)',this,'parent','([A-Za-z0-9+/=]+)','([A-Za-z0-9+/=]+)','([A-Za-z0-9+/=]+)'\\)"
-        ).findAll(document.html())
+        // 2026-10 audit finding 2: parent AND child buttons (child rows carry embeds the
+        // parent rows do not); de-duplicate embed urls at the page level — the same embed
+        // commonly backs both variants of a group, and double-emitting would fake the
+        // player with identical links.
+        val servers = Parse.servers(document.html())
+        val seenEmbeds = HashSet<String>()
 
         for (m in servers) {
             try {
@@ -200,16 +278,17 @@ class Javmost : MainAPI() {
                     "$mainUrl/ri3123o235r/",                     // FINDINGS: AJAX endpoint
                     headers = mapOf("Referer" to data),
                     data = mapOf(
-                        "group" to m.groupValues[1],
+                        "group" to m.group,
                         "part" to "1",
-                        "code" to m.groupValues[2],
-                        "code2" to m.groupValues[3],
-                        "code3" to m.groupValues[4],
+                        "code" to m.code,
+                        "code2" to m.code2,
+                        "code3" to m.code3,
                         "value" to value,
                         "sound" to "av",
                     )
                 ).text
                 for (embed in Parse.embedTargets(body)) {
+                    if (!seenEmbeds.add(embed)) continue
                     if (embed.contains("emturbovid.com")) {
                         val m3u8 = resolveEmturbovid(embed, data) ?: continue
                         callback.invoke(
@@ -221,14 +300,30 @@ class Javmost : MainAPI() {
                         )
                     } else {
                         // issue #376: voe.sx / dood.ws / streamtape server rows are registered
-                        // repo-wide — dispatch through the framework instead of dropping them;
-                        // hosts with no registered adapter (dooplayer.com is domain-parked,
-                        // mostplayer.com answers 204) match nothing and return immediately, so
-                        // dead pages still fail fast with 0 links, never hang.
-                        try {
+                        // repo-wide — dispatch through the framework instead of dropping them.
+                        // 2026-10 audit: dooplayer.com / mostplayer.com embed service is BACK
+                        // (dead at the #332/#376 fixes — those embeds yielded 0 links ever
+                        // since; live chain re-probed: embed 200 → metas → api/stream POST →
+                        // direct stream HTTP 206). No shared adapter exists for the x-embed
+                        // contract, so after a failed loadExtractor dispatch the embed is
+                        // resolved here HOST-AGNOSTICALLY (the metas identify the contract,
+                        // not the hostname — future host migrations recover automatically).
+                        val handled = try {
                             loadExtractor(embed, data, subtitleCallback, callback)
                         } catch (e: Exception) {
                             Log.d(name, "loadExtractor($embed): ${e.message}")
+                            false
+                        }
+                        if (!handled) {
+                            resolveDoo(embed, data)?.let { stream ->
+                                callback.invoke(
+                                    newExtractorLink(name, name, stream) {
+                                        this.referer = embed
+                                        this.quality = Qualities.Unknown.value
+                                        this.type = if (stream.contains("m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                                    }
+                                )
+                            }
                         }
                     }
                 }
