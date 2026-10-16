@@ -1,4 +1,4 @@
-version = 22 // FINDINGS-515: Retro category row + pagesCategoryComponent initials parse
+version = 23 // run #635: year from videoModel.created epoch (template re-expanded; upload date now exposed)
 
 cloudstream {
     authors     = listOf("kraptor","coxju","SIX")

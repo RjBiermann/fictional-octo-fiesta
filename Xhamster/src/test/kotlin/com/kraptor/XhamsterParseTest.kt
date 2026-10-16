@@ -202,6 +202,25 @@ class XhamsterParseTest {
         }
     }
 
+    // 2026-10-16 (run #635, year/UploadDate open question resolved): the video template
+    // re-expanded and videoModel now carries created = unix-epoch upload timestamp
+    // (cross-checked against videoEntity.dateAgo on three live pages). The LoadResponse
+    // year gap closes by deriving the UTC year from it.
+    @Test fun `videoModel created epoch parses from live template`() {
+        val vm = xh.getInitialsJson(pageFixture("xhamster-video-v4.html"))!!.videoModel!!
+        assertEquals(1788379812L, vm.created)
+        val ve = xh.getInitialsJson(pageFixture("xhamster-video-v4.html"))!!.videoEntity!!
+        assertEquals("1 month ago", ve.dateAgo)
+    }
+
+    @Test fun `yearFromCreated maps epoch to utc year and stays null-safe`() {
+        assertEquals(2026, xHamster().yearFromCreated(1788379812L))
+        assertEquals(2024, xHamster().yearFromCreated(1711626209L)) // vid3: matches "2 years ago"
+        assertEquals(2012, xHamster().yearFromCreated(1356940800L)) // 2012-12-31 08:00 UTC — near-year-boundary guard
+        assertNull(xHamster().yearFromCreated(null))
+        assertNull(xHamster().yearFromCreated(0L))
+    }
+
     private fun pageFixture(name: String): String =
         javaClass.getResource("/$name")!!.readText()
 
