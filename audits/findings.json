@@ -159,6 +159,14 @@
       "findings": [],
       "false_positives": [],
       "note": "run 15 (issue 637): AllClassicPorn single-provider deep pass, plain-curl tier -- home /page/1/+2 and search p1/p2 disjoint (60 cards each, 0 shared hrefs, no in-page dupes); 5 fresh video pages (5835/5834/5436/4188/5106) with card-exact h1 titles; 4/5 lack og:description and the #289 div fallback covers the current site shape; all 5 get_file streams 206 video/mp4 (token reuse verified twice per URL); remaining loadLinks emitter caption-screened (bracket-form video_url_text='480p' on all 5, parseQuality + structured quality); no quick-search endpoint (absence, not drift); verdict ok, zero confirmed drift -- no provider change, version stays 15; verify.sh FAILs = standing documented artifacts only (site-side related-href dups the provider dedupes via distinctByHref; card 320x240/N.jpg vs og:image preview.jpg variant mismatch)"
+     },
+     {
+      "id": "run16",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run15 (issue #633, sub-issue of #631 spec): Porntrex full-surface deep pass, tier plain-curl on every surface. Canaries 3/3 match (2026-10-16). All faces healthy: search p1/p2 85+85 cards disjoint; home via category-path async (bare-URL / async serves 200 with an empty body — provider unaffected, every mainPage row is a category URL); p1∩p2 churn proven site-native (async p2 ≡ the site's own /2/ page 120/120); quickSearch absent unchanged (#275); direct guest shells unchanged (#171 standing, /embed/ fallback healthy with full flashvars); streams 206 video/mp4 on 5 fresh single-use tokens; related_videos_html/3364971/ 45 items, provider selectors match. Verdict ok retained (no drift since 2026-09-29), last_deep=2026-10-16. 0 findings (fix policy: no confirmed condition, no version bump), 0 false positives. verify.sh: all provider checks PASS; 2 instrument false-FAILs (title-keyed dedupe on distinct same-title videos, href dedupe clean; plot '-' placeholder distinctness) filed as verify.sh backlog issue. Ground truth: FINDINGS-633.md, Porntrex/FINDINGS.md."
     }
   ],
   "providers": {
@@ -408,18 +416,20 @@
     "Porntrex": {
       "site": "www.porntrex.com",
       "verdict": "ok",
-      "reason": "search 200 (85 cards); video 200; stream 206 on live videos (fresh single-use token); one old video file 404s on CDN (single dead asset, not a listing defect) (2026-09-29)",
+      "reason": "REVERIFIED 2026-10-16 (deep pass, run15 #633): all surfaces plain-curl ok — search p1/p2 85+85 disjoint; home p1/async-p2 120+120 (p1∩p2=5 proven site-native: async p2 ≡ native /2/); quickSearch absent, album-only suggestion endpoint (#275 verdict re-confirmed); direct video pages serve the standing guest shell (#171/#256, unchanged) resolved by the /embed/ fallback (full flashvars, title/cats/tags); streams 206 video/mp4 on 5 fresh single-use tokens; related_videos_html 45 items with the provider's selectors matching. No new condition; no fix, no version bump (fix policy — fix on confirmed condition only). instrument note: verify.sh printed 2 false-FAILs this run — dedupe conflating two distinct same-title videos (href-keyed dedupe clean) and the plot '-' placeholder entering distinctness when the site exposes no plot — filed as a verify.sh backlog issue, not provider conditions",
       "tier": "plain-curl",
       "surfaces": {
         "home": "200",
         "search": "200",
-        "video": "200",
-        "stream": "206 video/mp4"
+        "video": "200 (guest shell; resolved via /embed/{id}/)",
+        "stream": "206 video/mp4 (fresh token per replay)",
+        "quick_search": "absent (album-only)"
       },
       "issue": null,
       "standing_issue": null,
       "drift_confirmed": 0,
-      "chronic": false
+      "chronic": false,
+      "last_deep": "2026-10-16"
     },
     "Sexfilm": {
       "site": "en.sex-film.biz",
