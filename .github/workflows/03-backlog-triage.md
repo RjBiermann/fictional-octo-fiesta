@@ -22,11 +22,14 @@ safe-outputs:
   add-labels:
     allowed: [status/queued, status/in-review, status/fixing, status/fixing-stuck, status/ready-to-merge, triage/from-agent]
     max: 20
+    target: "*"            # scheduled runs have no triggering issue — every call targets an explicit number
   remove-labels:
     allowed: [status/queued, status/in-review, status/fixing, status/fixing-stuck, status/ready-to-merge]
     max: 20
+    target: "*"
   add-comment:
     max: 10
+    target: "*"
   link-sub-issue:
     max: 10
   create-issue:
@@ -42,6 +45,11 @@ what the sweeper can do deterministically):
 - Scan open issues; normalize state labels to the one-state-at-a-time
   invariant (this is the **healer** for non-atomic safe-output batches —
   add the correct label, remove stale ones, same pass).
+- **Scheduled runs have no triggering issue** (observed 2026-10-16:
+  `Target is "triggering" but not running in issue context`): every
+  safe-output call MUST carry an explicit target issue number
+  (`itemNumber` for label/comment calls; explicit parent & sub for
+  `link-sub-issue`). Never rely on context.
 - Add `triage/from-agent` when you discover or classify work; link
   discovered sub-work to parents via `link-sub-issue`.
 - Flag chronic flappers (issues cycling fix/work states repeatedly, per

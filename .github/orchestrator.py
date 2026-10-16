@@ -41,6 +41,54 @@ TAG_OWNER = os.environ.get("GH_AW_ORCH_TAG_OWNER", "true") == "true"
 OWNER = os.environ.get("GH_AW_ORCH_OWNER", "RjBiermann")
 
 MARK = "[orchestrator]"
+FINDINGS_PATH = "audits/findings.json"
+
+
+def _pl(args, env=None):
+    """Run a git plumbing command, return (rc, stdout)."""
+    r = subprocess.run(args, capture_output=True, text=True, env=(dict(os.environ, **env) if env else None))
+    return r.returncode, r.stdout.strip()
+
+
+def _git_push(branch, commit):
+    """Push via the checked-out origin (checkout embeds the actions token);
+    requires 95-orchestrator.yml `contents: write`. Falls back to gh-based
+    ref update carrying the PROXY_PAT explicitly."""
+    rc, out = _pl(["git", "push", "origin", f"{commit}:refs/heads/{branch}"])
+    return rc == 0, out
+
+
+def _push_ref_via_api(branch, commit):
+    """Update refs/heads/<branch> to <commit> through the REST API with the
+    owner-actor PAT (PATCH /repos/.../git/refs/heads/<branch>). Success is
+    the returned ref JSON naming our commit."""
+    out = run(["gh", "api", "-X", "PATCH", f"repos/{REPO}/git/refs/heads/{branch}",
+               "-f", f"sha={commit}"])
+    try:
+        return commit in (json.loads(out).get("object") or {}).get("sha", "")
+    except Exception:
+        return False
+
+
+def _union_findings(a, b):
+    """Union-merge two findings.json documents (delta 16-f6b).
+    Recursively: list fields (top-level last_runs AND nested entries)
+    union by JSON-canonical identity — run records are append-only, so
+    b's entries are appended, never dropped. Dicts deep-merge, b wins
+    scalars. Returns a NEW document; inputs untouched."""
+    out = json.loads(json.dumps(a))
+    for k, v in b.items():
+        cur = out.get(k)
+        if isinstance(v, list):
+            lst = list(cur) if isinstance(cur, list) else []
+            seen = {json.dumps(x, sort_keys=True) for x in lst}
+            out[k] = lst + [it for it in v
+                            if json.dumps(it, sort_keys=True) not in seen]
+        elif isinstance(v, dict) and isinstance(cur, dict):
+            out[k] = _union_findings(cur, v)
+        else:
+            out[k] = v
+    return out
 
 
 def _fire_marker(rnd):
@@ -466,10 +514,94 @@ def watchdog():
 
 
 # ------------------------------------------------- conflict watch
+def _conflict_files(branch):
+    """Conflict file set when merging main into branch (no worktree).
+    git ≥2.40 plumbing: merge-tree --write-tree --name-only."""
+    rc, out = _pl(["git", "merge-tree", "--write-tree", "--name-only",
+                   "origin/main", f"origin/{branch}"])
+    if rc == 0:
+        return []
+    lines = out.splitlines()
+    # --name-only output: tree OID, then conflicted filenames, then a blank
+    # line, then informational messages ("Auto-merging…", "CONFLICT…") —
+    # stop at the blank line or the informational lines parse as filenames.
+    names = []
+    for l in lines[1:]:
+        if not l.strip() or l.startswith(("Auto-merging", "CONFLICT", "Removing")):
+            break
+        names.append(l.strip())
+    print(f"[orchestrator] merge-tree rc={rc} for {branch}: {names or lines[:3]}")
+    return frozenset(names)
+
+
+def _fix_findings_conflict(branch):
+    """Resolve a main-into-branch conflict confined to audits/findings.json
+    by union-merging and pushing a normal merge commit (no force push,
+    no rebase — review history is preserved; the synchronize event re-fires
+    review). Plumbing only: merge-tree tree + swapped blob via a throwaway
+    index (GIT_INDEX_FILE), never touching the runner's checkout."""
+    run(["git", "fetch", "origin", branch, "main"])
+    rc, out = _pl(["git", "merge-tree", "--write-tree", "origin/main", f"origin/{branch}"])
+    # rc: 0 = clean, 1 = conflicts (the case this fixes), ≥2 real error
+    if rc not in (0, 1) or not out:
+        print(f"[orchestrator] merge-tree rc={rc} — skipping auto-fix")
+        return False
+    tree = out.splitlines()[0].strip()  # oid line; messages follow the blank line
+    if len(tree) != 40:
+        print("[orchestrator] merge-tree oid unparsable — skipping auto-fix")
+        return False
+    docs = {}
+    for name, ref in (("theirs", f"origin/{branch}"), ("ours", "origin/main")):
+        _, body = _pl(["git", "show", f"{ref}:{FINDINGS_PATH}"])
+        try:
+            docs[name] = json.loads(body)
+        except Exception:
+            print(f"[orchestrator] {FINDINGS_PATH} unreadable on {ref} — skipping auto-fix")
+            return False
+    # branch first, then main: main's scalars win, run records union in
+    payload = json.dumps(_union_findings(docs["theirs"], docs["ours"]), indent=2) + "\n"
+    blob = subprocess.run(["git", "hash-object", "-w", "--stdin"], input=payload,
+                          capture_output=True, text=True).stdout.strip()
+    if not blob:
+        print("[orchestrator] hash-object failed — skipping auto-fix")
+        return False
+    idx = f"{os.environ.get('RUNNER_TEMP', '/tmp')}/orch-idx.{os.getpid()}"
+    ienv = {"GIT_INDEX_FILE": idx}
+    try:
+        rc, _ = _pl(["git", "read-tree", tree], env=ienv)
+        if rc != 0:
+            print("[orchestrator] read-tree failed — skipping auto-fix")
+            return False
+        _pl(["git", "update-index", "--cacheinfo", f"100644,{blob},{FINDINGS_PATH}"], env=ienv)
+        _, new_tree = _pl(["git", "write-tree"], env={"GIT_INDEX_FILE": idx})
+        if not new_tree or len(new_tree) != 40:
+            print("[orchestrator] write-tree failed — skipping auto-fix")
+            return False
+        _, bsha = _pl(["git", "rev-parse", f"origin/{branch}"])
+        _, msha = _pl(["git", "rev-parse", "origin/main"])
+        _, commit = _pl(["git", "commit-tree", new_tree, "-p", bsha, "-p", msha,
+                         "-m", f"merge main into {branch}: union-resolve {FINDINGS_PATH} "
+                               f"(orchestrator 16-f6b, mechanical)"])
+        ok, out = _git_push(branch, commit)
+        if not ok and PROXY_PAT:
+            if _push_ref_via_api(branch, commit):
+                ok, out = True, "pushed via git/refs PATCH (owner actor)"
+        print(f"[orchestrator] findings conflict auto-resolved on {branch}: "
+              f"{'pushed ' + commit[:10] if ok and commit else 'FAILED: ' + str(out)[:130]}")
+        return bool(ok and commit)
+    finally:
+        try:
+            os.remove(idx)
+        except OSError:
+            pass
+
+
 def conflict_watch():
-    """Flag merge conflicts on agent PRs instead of letting them rot.
-    The usual culprit is audits/findings.json (per-provider runs collide
-    on last_runs); notify with the exact merge recipe — one comment per PR."""
+    """Merge conflicts on agent PRs: auto-resolve when confined to the
+    per-provider registry (the only conflict class observed), else notify
+    with the recipe — one comment per PR."""
+    # merge-tree + plumbing need up-to-date refs; branch fetches happen per-PR
+    _pl(["git", "fetch", "origin", "main"])
     for pr in open_pulls():
         branch = pr.get("head", {}).get("ref", "")
         if not branch.startswith("devloop/"):
@@ -478,15 +610,19 @@ def conflict_watch():
         d = api(f"pulls/{num}") or {}
         if d.get("mergeable_state") != "dirty":
             continue
+        _pl(["git", "fetch", "origin", branch])
+        files = _conflict_files(branch)
+        if files == {FINDINGS_PATH}:
+            if _fix_findings_conflict(branch):
+                continue
         marker = f"{MARK} merge conflict detected"
         if _has_marker(comments(num), marker):
             continue
+        names = ", ".join(sorted(files)) if files else "unresolvable via merge-tree"
         post_comment(num,
-            f"{marker} on this PR — likely `audits/findings.json` (per-provider runs collide on `last_runs`). "
-            f"Recipe: `git fetch origin main && git rebase origin/main`; on conflict keep BOTH sides' `last_runs` "
-            f"and `providers` entries, then `git add audits/findings.json && git rebase --continue && git push --force-with-lease`. "
-            f"@{OWNER} — or say the word and a fix lands on this branch.")
-        print(f"[orchestrator] PR #{num}: conflict flagged")
+            f"{marker} on this PR — files: `{names}`. "
+            f"@{OWNER} — outside the mechanical findings.json auto-merge scope; needs a human merge decision.")
+        print(f"[orchestrator] PR #{num}: conflict flagged ({names})")
 
 
 # ------------------------------------------------- stall watch

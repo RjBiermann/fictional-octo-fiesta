@@ -5,12 +5,20 @@ name: Orchestrator (mechanical conveyor — approvals, readiness, chain, surroga
 # humans still merge PRs by default (GH_AW_AUTO_MERGE=false).
 
 on:
-  schedule:
-    - cron: "*/10 * * * *"
+  schedule:                 # background sweep (GitHub throttles schedules under
+    - cron: "*/10 * * * *"  # load; event triggers carry the chain latency)
   workflow_dispatch:
+  issues:
+    types: [opened, labeled]      # fresh trigger labels / new specs go instantly
+  pull_request:
+    types: [closed]               # chain advance immediately after a merge
 
 permissions:
-  contents: read
+  # contents: write — 16-f6b pushes union-merge commits to resolve the
+  # findings.json conflict class mechanically (checkout embeds the actions
+  # token for git transport). All other mutations still act as the owner
+  # via GH_AW_PROXY_PAT.
+  contents: write
   issues: write
   pull-requests: write
   actions: write
