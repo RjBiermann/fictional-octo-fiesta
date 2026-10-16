@@ -95,10 +95,10 @@ class WatchPorn(context: Context) : MainAPI() {
     }
 
     private fun Element.toMainPageResult(): SearchResponse? {
-        val title = this.selectFirst("span.thumb__title")?.text()?.trim() ?: return null
-        val href = fixUrlNull(this.selectFirst("a")?.attr("href")) ?: return null
-        val posterUrl = fixUrlNull(this.selectFirst("img")?.attr("data-webp") ?: this.selectFirst("img")?.attr("src"))
-        val rating = this.select("span.thumb__meta-item").lastOrNull()?.text()?.replace("%", "")?.trim()
+        val title = WatchPornParse.cardTitle(this) ?: return null
+        val href = fixUrlNull(WatchPornParse.cardHref(this)) ?: return null
+        val posterUrl = fixUrlNull(WatchPornParse.cardPoster(this))
+        val rating = WatchPornParse.cardRating(this)?.replace("%", "")?.trim()
 
         return newMovieSearchResponse(title, "$href|$posterUrl", TvType.NSFW) {
             this.posterUrl = posterUrl
@@ -115,7 +115,7 @@ class WatchPorn(context: Context) : MainAPI() {
         val document = app.get(url).document
 
         val aramaCevap = document.select("div.thumb.item").mapNotNull { it.toMainPageResult() }
-        val hasNext = document.selectFirst("li.next") != null
+        val hasNext = WatchPornParse.hasNext(document)
 
         return newSearchResponseList(aramaCevap, hasNext)
     }
@@ -130,20 +130,16 @@ class WatchPorn(context: Context) : MainAPI() {
         val document = response.document
         val cookies = response.cookies.toString()
 
-        val title = document.selectFirst("h1.single__content-title")?.text()?.trim() ?: return null
+        val title = WatchPornParse.pageTitle(document) ?: return null
         val poster = storedPoster ?: document.selectFirst("meta[property=og:image]")?.attr("content")
 
-        val tags = document.select("div.single__info-row:contains(Categories:) a").map { it.text().trim() }
-        val actors = document.select("div.single__info-row:contains(Models:) a").map { Actor(it.text().trim()) }
+        val tags = WatchPornParse.tags(document)
+        val actors = WatchPornParse.actors(document).map { Actor(it) }
 
-        // fp-time-duration selector is dead; duration lives in the JSON-LD VideoObject ("PT0H36M3S")
-        val ldJson = document.select("script[type=application/ld+json]")
-            .firstOrNull { it.data().contains("\"@type\": \"VideoObject\"") || it.data().contains("\"@type\":\"VideoObject\"") }
-            ?.data()
+        // fp-time-duration selector is dead; duration lives in the JSON-LD VideoObject ("PT0H36M40S")
+        val ldJson = WatchPornParse.ldJson(document)
         val duration = JsonLdParse.minutes(ldJson)
         val year = JsonLdParse.year(ldJson)
-
-        val plot = document.selectFirst("p.single__content-description")?.text()?.trim()
 
         val recommendations = document.select("div.related-videos div.thumb.item").mapNotNull {
             it.toMainPageResult()
@@ -157,7 +153,9 @@ class WatchPorn(context: Context) : MainAPI() {
                 "Cookie" to cookies
             )
             this.tags = tags
-            this.plot = plot
+            // issue #649: the theme redesign removed the visible description paragraph
+            // (p.single__content-description); ld+json/og:description now carry tag-glue or the
+            // site-wide boilerplate, not a real synopsis — site does not expose a plot.
             this.duration = duration
             this.year = year
             this.recommendations = recommendations
@@ -286,6 +284,67 @@ class WatchPornPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
     override fun load(context: android.content.Context) {
         registerMainAPI(WatchPorn(context))
     }
+}
+
+/**
+ * Issue #649: the 2026-10-16 KVS theme redesign (audit sub-issue of #631, spec #649) replaced the
+ * listing-card and video-page grammar with "wp-" classes. Every lookup keeps its legacy-theme
+ * selector as a fallback for a partial rollout. Pure parsing helpers — test-safe (ADR-0005).
+ */
+object WatchPornParse {
+
+    private fun textOf(root: Element, selector: String): String? =
+        root.selectFirst(selector)?.text()?.trim()?.takeIf { it.isNotEmpty() }
+
+    /** Card title: new theme <a class="wp-ctitle"> (ad cards carry neither — caller mapNotNull skips). */
+    fun cardTitle(card: Element): String? =
+        textOf(card, "a.wp-ctitle") ?: textOf(card, "span.thumb__title")
+
+    /** Card link anchor: new theme a.wp-card__link, old theme bare a[href]. */
+    fun cardHref(card: Element): String? =
+        card.selectFirst("a.wp-card__link, a.wp-ctitle, a")?.attr("href")?.takeIf { it.isNotBlank() }
+
+    /** Card poster: data-webp first; src is a 1px gif placeholder — never record it. */
+    fun cardPoster(card: Element): String? {
+        val img = card.selectFirst("img") ?: return null
+        for (attr in listOf("data-webp", "data-original")) {
+            img.attr(attr).takeIf { it.isNotBlank() }?.let { return it }
+        }
+        return img.attr("src").takeIf { it.isNotBlank() && !it.startsWith("data:") }
+    }
+
+    /** Card rating ("90%"): new theme span.wp-r, old theme span.thumb__meta-item. */
+    fun cardRating(card: Element): String? =
+        textOf(card, "span.wp-r") ?: textOf(card, "span.thumb__meta-item")
+
+    /** Search/listing pagination: new theme li.wp-pag__next, old theme li.next. */
+    fun hasNext(document: org.jsoup.nodes.Document): Boolean =
+        document.selectFirst("li.wp-pag__next, li.next") != null
+
+    /** Video page title: new theme h1.wp-vi__title, old theme h1.single__content-title. */
+    fun pageTitle(document: org.jsoup.nodes.Document): String? =
+        textOf(document, "h1.wp-vi__title") ?: textOf(document, "h1.single__content-title")
+
+    /** Video page categories: new theme a.wp-vchip, old theme Categories: info row. */
+    fun tags(document: org.jsoup.nodes.Document): List<String> =
+        document.select("a.wp-vchip").map { it.text().trim() }
+            .plus(document.select("div.single__info-row:contains(Categories:) a").map { it.text().trim() })
+            .filter { it.isNotEmpty() }
+            .distinct()
+
+    /** Video page models: new theme a.wp-cast span.wp-cast__n, old theme Models: info row. */
+    fun actors(document: org.jsoup.nodes.Document): List<String> =
+        document.select("a.wp-cast span.wp-cast__n").map { it.text().trim() }
+            .plus(document.select("div.single__info-row:contains(Models:) a").map { it.text().trim() })
+            .filter { it.isNotEmpty() }
+            .distinct()
+
+    /** JSON-LD VideoObject shell (duration/year live in it via shared JsonLdParse). */
+    fun ldJson(document: org.jsoup.nodes.Document): String? =
+        document.select("script[type=application/ld+json]")
+            .firstOrNull {
+                it.data().contains("\"@type\": \"VideoObject\"") || it.data().contains("\"@type\":\"VideoObject\"")
+            }?.data()
 }
 
 /** Issue #278: /suggest/ JSON → video-only (title, url) pairs. Models entries (/models/) are skipped. */
