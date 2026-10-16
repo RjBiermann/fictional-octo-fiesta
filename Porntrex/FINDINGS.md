@@ -231,3 +231,53 @@ inline block-details variant kept green, navbar-garbage test kept green.
   else PASS.
 - Endpoints used: search async `block_id=list_videos_videos&from=2` works (85 page-2
   cards); home async `block_id=list_videos_common_videos_list_norm&from=2` works.
+## Deep pass — issue #633 (2026-10-16, full-surface audit)
+
+First full-surface deep pass (sets `last_deep`). Tier: all surfaces plain-curl
+(UA `Mozilla/5.0 … Firefox/130.0`), no TLS escalation needed — Porntrex never
+challenged the probe (calibration: film1k 403/TLS-200 + eporner 200 +
+pandamovies pw→org; 3/3 match, instrument healthy).
+
+| Surface | Result | Evidence |
+| --- | --- | --- |
+| Home \(teen\) p1 | 200, 120 cards | a.thumb hrefs, p.inf titles — all extractors match provider |
+| Home p2 \(async\) | 200, 120 cards \(category-path async\) | block_id=list_videos_common_videos_list_norm&from=2 via `/categories/teen/` |
+| Home p1∩p2 | 5 hrefs shared — site-native, not drift | the site's own `/categories/teen/2/` shares the same 5 with p1 and equals async p2 120/120 — this is the documented site reshuffle (#275/#309 note), async pagination is faithful to it |
+| Home bare `/` async | 200 but **empty body** | `?mode=async…from=2` on the bare homepage URL yields 0 bytes; on category URLs it works. Provider unaffected: every mainPage row is a `/categories/<x>/` URL, so the provider's page-2 URL always lands on the working localizing category-path form |
+| Search p1/p2 | 200, 85 cards each, 0 overlaps | `/search/massage/` + async from=2 — exact provider URLs/headers |
+| Quick search | `search` array empty \(album/category/model suggestions only\) | `/search_results.php?q=milf` — the recorded #275 verdict re-confirmed; hasQuickSearch=false stays correct, surface recorded as absent \(not drift\) |
+| Direct video pages \(4 sampled: 3364971, 1018683, 2913997, 1122515\) | 200 **guest shells** — 0 flashvars, empty p.title-video, no og:, body `video-page-not member-page` | the standing #171/#256 guest-shell condition, unchanged; provider resolves through /embed/ |
+| Embed pages \(4 + 3074115\) | 200, full kt_player flashvars \(title, video_url, video_categories, video_tags; 3 redirect flags\) | embed fallback healthy; #256 qualityLinks redirect-skip still correct |
+| Streams \(fresh token per replay\) | **206 video/mp4 on all 5** | get_file/…/\(id\).mp4 302→CDN; ranged GET with Referer — consumed-token 403 would be expected, none occurred |
+| related_videos_html/{id}/ | 200, 45 items | a.player-related-videos-item.kt-api-related-item + span.title + div.thumb style url — exactly the provider's #171 fallback selectors |
+
+**Verdict: `ok` (unchanged).** No new condition; nothing to fix, no version bump
+(fix policy: fix on confirmed condition only). drift-related history stands at 2
+confirmed drift issues (#35, #171) — under the hardening threshold.
+
+Search↔load agreement \(manual, embed-surface note\): search async p2 carries
+`/video/1018683/stepmom-teaches-stepteen-massage-tricks` "Stepmom teaches
+stepteen massage tricks" — the sampled embed (video1) title matches its base
+title; the provider's load href for a search hit is the /video/ id URL, which
+resolves to this embed.
+
+### verify.sh transcript (5 embeds + search p1/p2 + busty home p1/p2)
+
+- check 1 search: 200, 85 cards each
+- check 1a home: 200, 120 cards each
+- check 1b: NOTE no quick-search url — recorded absent verdict above ✓
+- check 2 videos: 5 embeds 200, div#kt_player ×1 each; streams 206 video/mp4 ×5, path-distinct
+- check 5: NOTE (embed workaround) — covered manually above
+- check 6 LoadResponse: recommendations, tags, plot, duration, actors, posters all assigned ✓
+
+RESULT: all provider checks PASS. Two FAIL lines printed are verify.sh instrument
+false-FAILs, not provider conditions:
+1. `duplicate home cards … hot japanese milf, home1,home1` — two **distinct** videos on
+   busty async p2 (`/video/3362506/hot-japanese-milf2`, `/video/3362381/hot-japanese-milf`)
+   share a normalized title; href-keyed dedupe is clean 120+120. This is the residual
+   #509-class dedupe conflation (same-title distinct videos ≠ same video).
+2. `cross-video identity collisions: plot - video0-4` — the site exposes no plot on the
+   guest surface; verify writes the `'-'` placeholder, whose all-or-none grep tests `$5 != ""`
+   so unexposed plot enters the distinctness column and 5×'-' "collides". Manual
+   href,title dedupe on the same TSV: clean (exit 0).
+Both recorded as an instrument backlog issue (not a Porntrex defect).
