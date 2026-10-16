@@ -61,8 +61,11 @@ APPROVE_ALLOWLIST = [
 # gh-aw's own pipeline runs on bot PR branches also land in
 # `action_required` (pre_activation sees github-actions[bot] as
 # permission:none). These are agent work already gated by trigger labels —
-# safe to approve mechanically. Review stays human (ADR-0001).
-AGENT_RUN_ALLOWLIST = {"Implement", "Plan"}
+# safe to approve mechanically. Review is included per owner decision
+# 2026-10-16: it is findings-only (never merges), so auto-running it just
+# surfaces findings sooner; the human still reads them and merges.
+AGENT_RUN_ALLOWLIST = {"Implement", "Plan",
+                       "Review (findings only; ADR-0001 semantics preserved)"}
 
 
 def run(cmd, **kw):
