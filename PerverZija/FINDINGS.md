@@ -101,3 +101,39 @@ version bump (out of scope for an ai-fix per repo rules).
   rating element — score stays null.
 - Gate: `./gradlew PerverZija:make` BUILD SUCCESSFUL; `./gradlew PerverZija:test` BUILD SUCCESSFUL.
   version 10 → 11.
+
+## Deep audit re-run for #631 spec (2026-10-16 builder, run 38969803445 / issue #651) — verdict ok
+- Full-surface audit at tier plain-curl (canaries 3/3: film1k plain 403, eporner 200, pandamovies
+  302→200@.org — no challenge anywhere; escalation ladder not needed).
+- Home pagination: featured-scenes / studio / full-movie / tag/4k-quality / tag/classic, p1 & p2
+  all 200 ×64 cards, 0 href overlap p1↔p2, 0 within-page dupes → carousel-dedup home contract
+  holds on every row (verify.sh wrapper `div.col-md-3.col-xs-6`).
+- Search `/?s=anal` p1/p2 200 ×64 item rows (`div.post_ajax_tm`, title via `h3 a`), 0 overlap/dupes.
+- quickSearch absent (re-confirmed): no suggest endpoint (`?do=suggest` 404), "quick view" is a
+  client-side lightbox (`data-embed` attr on listing cards only). hasQuickSearch stays false.
+- 29 video pages sampled: `iframe[src*=xtremestream]` ×1, h1/og:image/Tags/Stars intact,
+  `div.xs-related-item` ×15–18/page (1 site-native title repeat on the veronica-leal page only),
+  `dt_rating_vgs` absent → score null correct. JSON-LD emitted as an **array** by saswp now —
+  regex-based shared `JsonLdParse` unaffected (name/duration/datePublished still match).
+- Stream chain: iframe subdomain variety now includes `moviekh.xtremestream.xyz` alongside
+  perv./pervl1–9/pervm1/j2 — all handled since the provider calls `PerverZijaExtractor()` directly
+  (referer derives from the iframe URL; no host registry match needed). Masters `xs1.php?data=<tok>`
+  → `#EXTM3U` on 18/18 checked tokens. End-to-end variant+segment live on 9/18 sampled tokens
+  (MPEG-TS 0x47 under the player-domain referer); the rest die at the variant/segment hop —
+  per-token upstream CDN deadness, site-side, unchanged class (extractor handles them).
+- NEW (1/29 video pages, `allanal-lana-anal-rebel-rhyderanal-cravings/`): embed is
+  `//mixdrop.to/e/enl4jzdjt76r6q` instead of xtremestream. Live probe: 302 → `mxdrop.click/e/…` →
+  200 "WE ARE SORRY / We can't find the video" (reproduced ×3) ⇒ the file is dead at the source;
+  the provider's xtremestream guard misses nothing playable. Latent fleet gap recorded:
+  `shared/HostRegistry` has no `mixdrop.to` row (only .is/.my/.ag) — filed upstream for when a
+  live mixdrop file appears. Not a confirmed provider condition → findings-only.
+- verify.sh: 7 invocations (5 home rows × p1/p2 disjoint, search p1/p2, 4 deep videos with
+  tags/actors/related selectors + LoadResponse completeness). All PASS except one instrument
+  plateau: `path` key flattens all masters to `/player/xs1.php` (HLS identity lives in
+  subdomain + `?data=` token) → stream-distinctness check mismatches the query-token shape.
+  Manual substitution: 4 distinct masters (perv./pervl7/j2) each serve `#EXTM3U` with distinct
+  tokens (fba9d881/46fc943e/f69543a0/c14a2a57). Poster/title NOTES: card thumbs are WP responsive
+  variants (`-365x235.jpg`) while load page exposes og:image full-size — mechanically unmatchable,
+  poster exposure asserted directly (og:image on 4/4 video pages).
+- Gates: `./gradlew :PerverZija:test` 65 × debug+release, 0 failures; `./gradlew clean
+  :PerverZija:make` BUILD SUCCESSFUL. No code change → version stays 13.
