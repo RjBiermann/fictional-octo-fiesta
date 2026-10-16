@@ -11,8 +11,8 @@ on:
     events: [issues, issue_comment]
   roles: [admin, maintainer, write]
 imports:
-  - .github/workflows/shared/engine-lane.md
-  - .github/workflows/shared/gate.md
+  - ../shared/engine-lane.md
+  - ../shared/gate.md
 permissions:
   contents: read
   issues: read
@@ -27,7 +27,7 @@ safe-outputs:
     max: 30
     title-prefix: "[spec] "
   link-sub-issue:
-    max: 6
+    max: 30
 ---
 
 # Plan (spec loop port)
