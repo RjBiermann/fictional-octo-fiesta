@@ -50,6 +50,26 @@ def _pl(args, env=None):
     return r.returncode, r.stdout.strip()
 
 
+def _git_push(branch, commit):
+    """Push via the checked-out origin (checkout embeds the actions token);
+    requires 95-orchestrator.yml `contents: write`. Falls back to gh-based
+    ref update carrying the PROXY_PAT explicitly."""
+    rc, out = _pl(["git", "push", "origin", f"{commit}:refs/heads/{branch}"])
+    return rc == 0, out
+
+
+def _push_ref_via_api(branch, commit):
+    """Update refs/heads/<branch> to <commit> through the REST API with the
+    owner-actor PAT (PATCH /repos/.../git/refs/heads/<branch>). Success is
+    the returned ref JSON naming our commit."""
+    out = run(["gh", "api", "-X", "PATCH", f"repos/{REPO}/git/refs/heads/{branch}",
+               "-f", f"sha={commit}"])
+    try:
+        return commit in (json.loads(out).get("object") or {}).get("sha", "")
+    except Exception:
+        return False
+
+
 def _union_findings(a, b):
     """Union-merge two findings.json documents (delta 16-f6b).
     Recursively: list fields (top-level last_runs AND nested entries)
@@ -521,9 +541,14 @@ def _fix_findings_conflict(branch):
     review). Plumbing only: merge-tree tree + swapped blob via a throwaway
     index (GIT_INDEX_FILE), never touching the runner's checkout."""
     run(["git", "fetch", "origin", branch, "main"])
-    rc, tree = _pl(["git", "merge-tree", "--write-tree", "origin/main", f"origin/{branch}"])
-    if rc != 0:
-        print("[orchestrator] merge-tree failed — skipping auto-fix")
+    rc, out = _pl(["git", "merge-tree", "--write-tree", "origin/main", f"origin/{branch}"])
+    # rc: 0 = clean, 1 = conflicts (the case this fixes), ≥2 real error
+    if rc not in (0, 1) or not out:
+        print(f"[orchestrator] merge-tree rc={rc} — skipping auto-fix")
+        return False
+    tree = out.splitlines()[0].strip()  # oid line; messages follow the blank line
+    if len(tree) != 40:
+        print("[orchestrator] merge-tree oid unparsable — skipping auto-fix")
         return False
     docs = {}
     for name, ref in (("theirs", f"origin/{branch}"), ("ours", "origin/main")):
@@ -557,10 +582,13 @@ def _fix_findings_conflict(branch):
         _, commit = _pl(["git", "commit-tree", new_tree, "-p", bsha, "-p", msha,
                          "-m", f"merge main into {branch}: union-resolve {FINDINGS_PATH} "
                                f"(orchestrator 16-f6b, mechanical)"])
-        rc, out = _pl(["git", "push", "origin", f"{commit}:refs/heads/{branch}"])
+        ok, out = _git_push(branch, commit)
+        if not ok and PROXY_PAT:
+            if _push_ref_via_api(branch, commit):
+                ok, out = True, "pushed via git/refs PATCH (owner actor)"
         print(f"[orchestrator] findings conflict auto-resolved on {branch}: "
-              f"{'pushed ' + commit[:10] if rc == 0 and commit else 'FAILED: ' + out[:130]}")
-        return rc == 0 and bool(commit)
+              f"{'pushed ' + commit[:10] if ok and commit else 'FAILED: ' + str(out)[:130]}")
+        return bool(ok and commit)
     finally:
         try:
             os.remove(idx)
