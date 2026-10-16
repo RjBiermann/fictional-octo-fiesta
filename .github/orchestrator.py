@@ -98,7 +98,10 @@ def _fire_marker(rnd):
     return f"/plan\n\n{MARK} /plan fired round {rnd}"
 STORY_RE = re.compile(r"\[spec\]\s*(?:Story\s+|S)(\d+)", re.I)
 PARENT_RE = re.compile(r"approved\s+#(\d+)\s+spec", re.I)
+EPIC_KID_RE = re.compile(r"epic #(\d+)", re.I)
 ROUND_ANCH = {r: f"Plan round {r} —" for r in (1, 2, 3)}
+IN_FLIGHT = ("status/planned", "status/in-review", "status/fixing",
+             "status/fixing-stuck", "status/queued")
 
 APPROVE_ALLOWLIST = [
     "99-ci", "Lint", "CodeQL Advanced", "CodeQL",
@@ -648,6 +651,47 @@ def stall_watch():
         print(f"[orchestrator] {n}: stalled-fire flagged")
 
 
+# ------------------------------------------------------- epic wave driver
+def _wave_batch(kids, cap):
+    """Pure wave selection: kids is [(number, has_inflight_label)].
+    Fill up to `cap` concurrent runs by stamping the lowest-numbered
+    unlabeled kids. Returns numbers to stamp."""
+    inflight = sum(1 for _, busy in kids if busy)
+    if inflight >= cap:
+        return []
+    idle = sorted(n for n, busy in kids if not busy)
+    return idle[:cap - inflight]
+
+
+def wave_driver():
+    """Keep an approved epic's independent sub-issues flowing: while fewer
+    than GH_AW_ORCH_WAVE_CAP kids are in flight, stamp the next ones
+    status/planned (owner actor). Verdicts, chronic-provider removals and
+    policy calls stay human — this only schedules audits the epic already
+    approved."""
+    cap = int(os.environ.get("GH_AW_ORCH_WAVE_CAP", "8") or 8)
+    openi = api("issues?state=open&per_page=60") or []
+    by_epic = {}
+    for i in openi:
+        if i.get("pull_request"):
+            continue
+        m = EPIC_KID_RE.search(i.get("body") or "")
+        if not m:
+            continue
+        labels = [l["name"] for l in i.get("labels", [])]
+        by_epic.setdefault(int(m.group(1)), []).append(
+            (i["number"], any(l in IN_FLIGHT for l in labels)))
+    for epic, kids in by_epic.items():
+        p = api(f"issues/{epic}")
+        if not p or str(p.get("state", "")).lower() != "open":
+            continue
+        if not _chain_approved(epic):
+            continue
+        for n in _wave_batch(kids, cap):
+            label_issue(n, "status/planned")
+            print(f"[orchestrator] epic #{epic}: wave-stamped #{n} (cap {cap})")
+
+
 def _preflight_labels():
     """One-time existence check: every stamp silently fails if a label is
     missing (rc is stderr-only in the Actions UI)."""
@@ -673,6 +717,7 @@ if __name__ == "__main__":
         "decision_tags": decision_tags,
         "conflict_watch": conflict_watch,
         "stall_watch": stall_watch,
+        "wave_driver": wave_driver,
         "watchdog": watchdog,
     }
     _preflight_labels()
