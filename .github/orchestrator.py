@@ -523,33 +523,38 @@ def watchdog():
 
 
 # ------------------------------------------------- conflict watch
-def _parse_conflict_names(out):
-    """Parse merge-tree --name-only output: tree OID, then conflicted
-    filenames, then a blank line, then informational messages
-    ("Auto-merging…", "CONFLICT…") — stop at the blank line so
-    informational lines never parse as filenames."""
+def _merge_tree(branch):
+    """THE single merge-tree probe (round-3 consolidation: _conflict_files
+    and _auto_resolve_conflict share one invocation shape so the name-only
+    parser can never be fed full-mode output again — the exact regression
+    the round-2 review caught). Returns (rc, tree_oid_or_None, names).
+    git ≥2.40; --name-only output: OID line, then conflicted filenames,
+    then a blank line, then informational messages ("Auto-merging…",
+    "CONFLICT…"). Tolerant of rc≥2 (e.g. missing refs in shallow
+    checkouts): empty names + stderr already logged by _pl."""
+    rc, out = _pl(["git", "merge-tree", "--write-tree", "--name-only",
+                   "origin/main", f"origin/{branch}"])
+    if rc not in (1,) or not out:   # 0 = clean merge, rc>=2 = git error
+        return rc, None, frozenset()
+    lines = out.splitlines()
+    tree = lines[0].strip()
     names = []
-    for l in out.splitlines()[1:]:
+    for l in lines[1:]:
         if not l.strip() or l.startswith(("Auto-merging", "CONFLICT", "Removing")):
             break
         names.append(l.strip())
-    return frozenset(names)
+    if len(tree) != 40:
+        tree = None
+    return rc, tree, frozenset(names)
 
 
 def _conflict_files(branch):
-    """Conflict file set when merging main into branch (no worktree).
-    git ≥2.40 plumbing: merge-tree --write-tree --name-only.
-    Tolerant of rc=128 (e.g. missing refs in shallow checkouts): returns
-    an empty set rather than dying — conflict_watch then degrades to the
-    human-notify path with the git stderr already logged by _pl."""
-    rc, out = _pl(["git", "merge-tree", "--write-tree", "--name-only",
-                   "origin/main", f"origin/{branch}"])
-    if rc == 0:
+    """Conflict file set when merging main into branch (no worktree)."""
+    rc, _, names = _merge_tree(branch)
+    if rc != 1:
         return frozenset()
-    names = _parse_conflict_names(out)
-    lines = out.splitlines()
-    print(f"[orchestrator] merge-tree rc={rc} for {branch}: {names or lines[:3]}")
-    return frozenset(names)
+    print(f"[orchestrator] merge-tree rc=1 for {branch}: {sorted(names)}")
+    return names
 
 
 VERSION_RE = re.compile(r"^\s*version\s*=\s*(\d+)\s*(?://.*)?$", re.M)
@@ -588,16 +593,12 @@ def _auto_resolve_conflict(branch, files):
     if frc not in (0, 1):
         print(f"[orchestrator] fetch rc={frc} for {branch} — skipping auto-fix")
         return False
-    rc, out = _pl(["git", "merge-tree", "--write-tree", "origin/main", f"origin/{branch}"])
-    if rc not in (0, 1) or not out:
+    rc, tree, files = _merge_tree(branch)
+    if rc != 1 or not tree:
         return False
-    tree = out.splitlines()[0].strip()
-    if len(tree) != 40:
-        return False
-    # Re-derive the conflicted set from THIS merge-tree (round-2 review):
-    # a caller-derived set can be stale if a push landed in between, and a
-    # path that now merges cleanly must not be whole-blob overwritten.
-    files = _parse_conflict_names(out)
+    # Files re-derived from THIS probe (round-2 review): a caller-derived
+    # set can be stale if a push landed in between, and a path that now
+    # merges cleanly must not be whole-blob overwritten.
     idx = f"{os.environ.get('RUNNER_TEMP', '/tmp')}/orch-idx.{os.getpid()}"
     ienv = {"GIT_INDEX_FILE": idx}
     try:
