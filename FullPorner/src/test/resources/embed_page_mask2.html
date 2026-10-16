@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="//static.xiaoshenke.net/css/frame.css" rel="stylesheet">
+  <script type="2665f4ca82b736595a39580d-text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
+  <script type="2665f4ca82b736595a39580d-text/javascript" src="//static.xiaoshenke.net/js/player.min.js?v=3"></script>
+  <title>Video Player</title>
+</head>
+
+<body>
+  <!-- Error overlay -->
+  <div id="ovrl_err" style="display:none;">
+    <div id="ovrl_err_cont">Oops.. Something went wrong.<br><br>waiting for redirect...</div>
+  </div>
+  
+  <!-- Video container -->
+  <div id="jwd" style="display: none; position: relative;">
+    <div id="jw" style="position: absolute;"></div>
+  </div>
+  
+  <script type="2665f4ca82b736595a39580d-text/javascript">
+    // Player variables
+    var hasAdblock = false, player, flvv, t_min = 0, t_max = 0, t_cur = 0, t_chk = false;
+    var id = "e98d5f2ef1da6".split('').reverse().join('');
+    var poster = "";
+    var quality = parseInt("2");
+    var fplay = true;
+    var backup = false;
+    
+    // Player state functions
+    function st_p() {
+      if (fplay) {
+        fplay = false;
+      }
+    }
+    
+    function st_v() {}
+    
+    // Initialize player
+    function hide_ov() {
+      $("#jwd").show();
+      player = fluidPlayer("flvv", {
+        vastOptions: {
+          allowVPAID: true,
+          adList: [{
+            roll: "preRoll",
+            vastTag: "https://tsyndicate.com/do2/e138dd4c31134950ba09c843a4e023d4/vast"
+          },{
+            roll: "postRoll",
+            vastTag: "https://tsyndicate.com/do2/2918d2fb3a1c4a62a1f90515a4e54ad3/vast"
+          }],
+          vastAdvanced: {
+            noVastVideoCallback: function() {},
+            vastLoadedCallback: function() {},
+            vastVideoSkippedCallback: function() {},
+            vastVideoEndedCallback: function() {
+              console.log("vast end");
+              t_chk = true;
+            }
+          }
+        },
+        layoutControls: {
+          primaryColor: false,
+          preload: "none",
+          allowDownload: false,
+          allowTheatre: false,
+          miniPlayer: {enabled: false},
+          playPauseAnimation: true,
+          playButtonShowing: true,
+          posterImage: poster,
+          controlBar: {
+            autoHideTimeout: 3,
+            animated: true,
+            autoHide: true
+          }
+        }
+      });
+      
+      // Set player references and time boundaries
+      flvv = $("#flvv")[0];
+      player.ft_min = t_min;
+      player.ft_max = t_max;
+      
+      // Set player dimensions
+      $("#fluid_video_wrapper_flvv").css({ height: "100%", width: "100%" });
+      
+      // Initial play button handler
+      $("#flvv_fluid_initial_play").on("click", function() {
+        st_p();
+        
+        $("#vast_video_loading_flvv").show();
+        $("#flvv_fluid_initial_play").hide();
+        
+        $("#flvv").on("loadstart", function() {
+          $("#vast_video_loading_flvv").show();
+        });
+        
+        $("#flvv").on("canplay", function() {
+          $("#vast_video_loading_flvv").hide();
+        });
+      });
+      
+      // Time update handler for enforcing time boundaries
+      $("#flvv").on("timeupdate", function() {
+        if (!t_chk) { return; }
+        t_cur = flvv.currentTime;
+        
+        if (t_min > 0 && t_cur < t_min) {
+          flvv.currentTime = t_min;
+        }
+        
+        if (t_max > 0 && t_cur > t_max) {
+          player.pause();
+        }
+      });
+
+      // Error handling for video load
+      $("#flvv").on("error", function(e) {
+        if (backup) {
+          console.error("Video load error:", e);
+          gevent("video_error", {
+            category: "Video Player",
+            label: "Load Error " + base.split('.')[0],
+            value: 1
+          });
+
+          $("#ovrl_err").show();
+          $("#ovrl_err_cont").html("Video failed to load. Please try again later.");
+        } else {
+          setTimeout(function() {
+            $("#ovrl_err").hide();
+            $("#ovrl_err_cont").html("");
+            
+            backup = true;
+            videos = videos.map(v => {
+              v.media = v.media + '/b'; // Change to backup URL
+              return v;
+            });
+            poster = poster + '/b'; // Change poster URL to backup
+            setVideo(videos, poster);
+          }, 3000); // Retry after 5 seconds
+
+          $("#ovrl_err").show();
+          $("#ovrl_err_cont").html("Video failed to load. Retrying ...");
+        }
+      });
+    }
+    
+    // Initialize
+    st_v();
+    
+    // Analytics event tracking
+    window.gevent = function(event, options) {
+      if (gtag) {
+        gtag('event', event, {
+          'event_category': options.category,
+          'event_label': options.label,
+          'non_interaction': true,
+          'value': options.value
+        });
+      }
+    }
+    
+    // Set up video with qualities
+    function setVideo(qualities, poster) {
+      if (quality) {
+        let sources = qualities.map((q) => `<source src="${q.media}" title="${q.label}" type="video/mp4" />`).join("");
+        $("#jw").html(`<video id="flvv" preload="none" controls style="width:100%; height:100%;" controlslist="nodownload">${sources}</video>`);
+        hide_ov();
+      } else {
+        $("#ovrl_err").show();
+        $("#ovrl_err_cont").html("Video failed to load. Please try again later.");
+      }
+    }
+
+    function getPoster(id) {
+      if (quality) {
+        return `${prefix}/${id}/720/i`;
+      } else {
+        let path = Math.floor(parseInt(id) / 1000) + '000';
+        return `//imgx.${base}/posterz/contents/videos_screenshots/${path}/${id}/preview_720p.mp4.jpg`;
+      }
+    }
+    
+    function btq(f) {
+      if (typeof f === 'string') {
+        f = parseInt(f, 2);
+      }
+      const res = [];
+      if (f & 1) res.push(360);
+      if (f & 2) res.push(480);
+      if (f & 4) res.push(720);
+      if (f & 8) res.push(1080);
+      return res;
+    }
+    
+    let videos = [], v;
+    let qualities = btq(quality);
+    let base = location.hostname;
+    let prefix = `//${base}/vid`;
+    for (let i = 0; i < qualities.length; i++) {
+      v = {};
+      v.media = `${prefix}/${id}/${qualities[i]}`;
+      v.label = `${qualities[i]}p`;
+      videos.push(v);
+    }
+    poster = getPoster(id);
+    setVideo(videos, poster);
+  </script>
+  
+  <!-- Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-159440314-2" type="2665f4ca82b736595a39580d-text/javascript"></script>
+  <script type="2665f4ca82b736595a39580d-text/javascript">
+    window.dataLayer = window.dataLayer || [];
+    function gtag() {
+      dataLayer.push(arguments);
+    }
+    gtag('js', new Date());
+    gtag('config', 'UA-159440314-2');
+  </script>
+<script src="/cdn-cgi/scripts/7d0fa10a/cloudflare-static/rocket-loader.min.js" data-cf-settings="2665f4ca82b736595a39580d-|49" defer></script><script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a4b9a8ce5e293bf1',t:'MTc5MjE4MDkyNw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+
+</html>

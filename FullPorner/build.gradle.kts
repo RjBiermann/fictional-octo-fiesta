@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 15 // FINDINGS-515: Vintage category row
+version = 16 // FINDINGS-644: fluidPlayer embed Parse (#644 drift fix); video-info duration/year
 
 cloudstream {
     authors     = listOf("kraptor")
