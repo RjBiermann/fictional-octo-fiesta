@@ -185,6 +185,14 @@
       "findings": [],
       "false_positives": [],
       "note": "run19 (issue #635, sub-issue of #631 spec): Xhamster full-surface deep pass, tier plain-curl on every surface. Home p1/p2 46+46 cards disjoint; search 46+46 via searchResult.videoThumbProps (cross-page rank re-injection of 7/46 cards on fresh fetches \u2014 site-native, within-page always unique); quickSearch absent (no suggest API, unchanged #275); video x5 200; streams 5/5 206 vnd.apple.mpegurl via decodeXhUrl (algos 1-7 all observed live). Year/UploadDate open question RESOLVED: template re-expanded, videoModel.created = epoch upload timestamp (cross-checked against videoEntity.dateAgo x3) \u2014 fixed in-run TDD-first (yearFromCreated UTC, version 22->23, 16/16 tests green). verify.sh: 5/5 streams serve, 3 FAIL lines instrument-limited (rank re-injection / og:image 16px artifact #427 / attr-only SSR titles) \u2014 evidence-backed in FINDINGS-635. Verdict ok"
+    },
+    {
+      "id": "run20",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run20 (issue #646, self-contained run of approved #631 spec): Eroticmv full-surface deep pass, tier tls-impersonated \u2014 the site fronts a new Cloudflare challenge against plain curl (cf-mitigated 403 'Just a moment', consistent x3, new since the 2026-10-09 last_deep); chrome-fingerprint TLS passes every surface and the film1k-challenge-pair canary matches 3/3 (instrument healthy). Escalation never reached browser tier. All faces healthy: home p1/p2 24+24 disjoint; facet classic-erotica p1/p2 24+24 disjoint; 1970s 24 (10 shared with home p1 = cross-section recency, not drift); search 17 cards, p2 404 (no pagination \u2014 provider matches); quickSearch absent (/search/suggest/ = theme search-page fallback \u2014 hasQuickSearch=false stays correct); video x5 (home/facet/search listings) 200, tags 3-6 (.categories-elm a.category-item live), actors 1-14 (/actor/ title attrs), related 12/page distinct, og:title/image/description live; articleSection present only in the yoast @graph Article node 5/5 (VideoObject carries none) \u2014 the #538 merged fix parses the anchors, covers both faces, record stays closed. Stream chain re-resolved end-to-end: b64 og:video:url -> data.eroticmvs.com m3u8 206 vnd.apple.mpegurl 5/5 distinct, serves with and without referer \u2014 the CDN host migrated vidcdn2.eroticmv.com -> data.eroticmvs.com since 2026-10-09; the provider carries no hardcoded CDN host (payload-driven decode), zero code impact. verify.sh PASS through a curl_cffi-chrome curl shim (tier-2 instrument; 3 poster-agreement FAILs = WP crop-rendition artifact class adjudicated 2026-09-11, actors NOTE = pydom first-anchor-empty-text artifact, provider reads title attr). Gates: gradlew Eroticmv:test 72/0, clean Eroticmv:make. 0 findings (fix policy: no confirmed condition, no version bump \u2014 stays 11), 0 false positives. Verdict ok-suspected (challenge wall vs device OkHttp unadjudicated); standing_issue 497 -> null. Ground truth: FINDINGS-646.md + Eroticmv/FINDINGS.md."
     }
   ],
   "providers": {
@@ -394,20 +402,22 @@
     },
     "Eroticmv": {
       "site": "eroticmv.com",
-      "verdict": "ok",
-      "reason": "run-9 deep 2026-10-09 post-#538-fix: home/search 24 article.post-item + a.blog-img cards, 3 watch pages 200 with .categories-elm tags + /actor/ anchors + og metas alive; JSON-LD articleSection BACK on 3/3 sampled pages (intermittent/healed site-side, #538 stays open); stream RESOLVED: b64 og:video:url -> vidcdn2 m3u8 GET 200 #EXTM3U 27.8KB/41.2KB",
-      "tier": "plain-curl",
+      "verdict": "ok-suspected",
+      "reason": "deep 2026-10-16 (#646, TLS-impersonated tier \u2014 plain curl newly challenge-walled since 2026-10-09: cf-mitigated 'Just a moment' 403 on every plain fetch, consistent x3; chrome-fingerprint TLS passes every surface; film1k canary pair 3/3 match, instrument healthy; challenge-vs-device-OkHttp unadjudicated \u2014 no residential differential, hence ok-suspected not ok). All faces healthy: home p1/p2 24+24 article.post-item disjoint; facet classic-erotica p1/p2 24+24 disjoint (#559 pagination live), 1970s 24; search ?s= 17 cards, page-2 404 (no pagination \u2014 provider matches); quickSearch absent (/search/suggest/ serves the theme's HTML search page, hasQuickSearch=false correct); video x5 200 (home/facet/search listings) with tags 3-6 via .categories-elm a.category-item (#538 fix path live; articleSection now yoast-@graph-only 5/5, VideoObject carries none \u2014 provider unaffected either way), actors 1-14/page, related 12/page, og title/poster/plot all live; stream: b64 og:video:url decodes to data.eroticmvs.com \u2014 CDN host migrated from vidcdn2.eroticmv.com since 2026-10-09, payload-driven, zero provider impact; m3u8 206 vnd.apple.mpegurl #EXTM3U 5/5 with+without referer, distinct streams. verify.sh PASS (tier-2 instrument; 4 instrument-limited lines adjudicated raw in FINDINGS-646). No confirmed condition \u2014 no code change, version stays 11. #538 stays closed (fix live); standing_issue 497 -> null (facet fix merged+closed).",
+      "tier": "tls-impersonated",
       "surfaces": {
-        "home": "200 (24 cards)",
-        "search": "200",
-        "video": "200 x3",
-        "stream": "200 m3u8 #EXTM3U"
+        "home": "200 (24 cards, p2 disjoint)",
+        "facet": "200 (classic-erotica p1/p2 disjoint; 1970s 24 cards)",
+        "search": "200 (17 cards; no pagination, p2 404)",
+        "video": "200 x5",
+        "stream": "206 m3u8 #EXTM3U x5 @ data.eroticmvs.com (with+without referer)",
+        "quickSearch": "absent (/search/suggest/ = full HTML search page; hasQuickSearch=false correct)"
       },
       "issue": 538,
-      "standing_issue": 497,
+      "standing_issue": null,
       "drift_confirmed": 0,
       "chronic": false,
-      "last_deep": "2026-10-09"
+      "last_deep": "2026-10-16"
     },
     "HQPorner": {
       "site": "hqporner.com",
