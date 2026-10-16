@@ -14,6 +14,18 @@
 - actors: `div.info-content a[href*=/models/]` → Whitney Wright, Ramon Nomar ✓
 - streams unchanged; verify.sh PASS (search 200/24 items, 2 video pages 200 + 206 video/mp4, all LoadResponse fields assigned).
 
+## Update — issue #648 deep audit (2026-10-16)
+- Full-surface re-probe, plain-curl tier, all healthy: home latest-updates p1/p2 24+24
+  disjoint; search p1 24 + async p2 24 disjoint (`li.page.last` halts); quickSearch absent
+  (recorded, not drift); 3+ video pages 200; flashvars `video_url` → 302 → 206 video/mp4
+  (session-bound acctoken; bare get_file 403 = known session-bound class, not drift).
+- verify.sh PASS; remaining NOTEs adjudicated in FINDINGS-648.md (pydom regex-DOM engine
+  limits on `:contains`/descendant selectors, newest videos carry `video_models: ''` —
+  model anchors verified live on older scenes via raw grep; Duration `<em>` + ld+json
+  `uploadDate` likewise curl-grep verified on all 3 samples).
+- Latest-upload slugs volatile (older slugs 301 to fresh slugs) — provider unaffected
+  (always uses fresh hrefs). No confirmed condition; verdict ok retained; version stays 7.
+
 ## Update — issue #301 Correctness fix (video/35636)
 - Model anchors inside `div.info-content` carry a `.button-info` span with the member's
   video count; jsoup `.text()` on the `<a>` yields e.g. "Marica Hase 32".

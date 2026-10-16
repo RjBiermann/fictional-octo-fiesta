@@ -38,15 +38,33 @@ PROXY_PAT = os.environ.get("GH_AW_PROXY_PAT", "")
 AUTO_MERGE = os.environ.get("GH_AW_AUTO_MERGE", "false") == "true"
 FIRE_PLAN = os.environ.get("GH_AW_ORCH_PLAN", "true") == "true"
 TAG_OWNER = os.environ.get("GH_AW_ORCH_TAG_OWNER", "true") == "true"
-OWNER = os.environ.get("GH_AW_ORCH_OWNER", "RjBiermann")
+# REPO-AGNOSTIC contract: every adopter-specific value comes from config.
+# NOTHING here names an adopter. OWNER is required for any owner-actor
+# mutation; when unset, mutation steps degrade to read-only (prints
+# advice once). Conflict classes auto-resolve only for paths configured
+# via GH_AW_REGISTRY_PATH (a per-adopter append-only JSON registry) —
+# unset means the feature is off for that adopter.
+OWNER = os.environ.get("GH_AW_ORCH_OWNER", "")
 
 MARK = "[orchestrator]"
-FINDINGS_PATH = "audits/findings.json"
+REGISTRY_PATH = os.environ.get("GH_AW_REGISTRY_PATH", "")
+# Adopters whose conflict surface is exactly an append-only JSON registry
+# get the deterministic auto-merge; anything else stays human.
+FINDINGS_PATH = REGISTRY_PATH if REGISTRY_PATH.endswith(".json") else None
+REGISTRY_VERSION_SUFFIXES = tuple(os.environ.get(
+    "GH_AW_REGISTRY_VERSION_FILES", "build.gradle.kts").split(",")) if os.environ.get(
+    "GH_AW_REGISTRY_VERSION_FILES") else ("build.gradle.kts",)
 
 
 def _pl(args, env=None):
-    """Run a git plumbing command, return (rc, stdout)."""
-    r = subprocess.run(args, capture_output=True, text=True, env=(dict(os.environ, **env) if env else None))
+    """Run a git plumbing command, return (rc, stdout). Non-trivial rc
+    (clean=0, conflict=1) logs stderr — the round-3 hardening: without it
+    rc=128 in the runner was indistinguishable from "fetched nothing"."""
+    r = subprocess.run(args, capture_output=True, text=True,
+                       env=(dict(os.environ, **env) if env else None))
+    if r.returncode not in (0, 1):
+        sys.stderr.write(f"[orchestrator] git rc={r.returncode} on {' '.join(args[:4])}: "
+                         f"{r.stderr.strip()[:220]}\n")
     return r.returncode, r.stdout.strip()
 
 
@@ -185,6 +203,14 @@ def _has_marker(cs, text):
 
 
 # --------------------------------------------------------------- approvals
+def _owner_configured():
+    """repo-agnostic gate: owner-actor mutations need the adopter identified."""
+    if not OWNER:
+        print("[orchestrator] GH_AW_ORCH_OWNER unset — owner-actor mutations disabled (repo-agnostic default)")
+        return False
+    return True
+
+
 def approve_companion_runs():
     if not PROXY_PAT:
         print("[orchestrator] GH_AW_PROXY_PAT unset — approvals stay manual")
@@ -517,79 +543,135 @@ def watchdog():
 
 
 # ------------------------------------------------- conflict watch
-def _conflict_files(branch):
-    """Conflict file set when merging main into branch (no worktree).
-    git ≥2.40 plumbing: merge-tree --write-tree --name-only."""
+def _merge_tree(branch):
+    """THE single merge-tree probe (round-3 consolidation: _conflict_files
+    and _auto_resolve_conflict share one invocation shape so the name-only
+    parser can never be fed full-mode output again — the exact regression
+    the round-2 review caught). Returns (rc, tree_oid_or_None, names).
+    git ≥2.40; --name-only output: OID line, then conflicted filenames,
+    then a blank line, then informational messages ("Auto-merging…",
+    "CONFLICT…"). Tolerant of rc≥2 (e.g. missing refs in shallow
+    checkouts): empty names + stderr already logged by _pl."""
     rc, out = _pl(["git", "merge-tree", "--write-tree", "--name-only",
                    "origin/main", f"origin/{branch}"])
-    if rc == 0:
-        return []
+    if rc not in (1,) or not out:   # 0 = clean merge, rc>=2 = git error
+        return rc, None, frozenset()
     lines = out.splitlines()
-    # --name-only output: tree OID, then conflicted filenames, then a blank
-    # line, then informational messages ("Auto-merging…", "CONFLICT…") —
-    # stop at the blank line or the informational lines parse as filenames.
+    tree = lines[0].strip()
     names = []
     for l in lines[1:]:
         if not l.strip() or l.startswith(("Auto-merging", "CONFLICT", "Removing")):
             break
         names.append(l.strip())
-    print(f"[orchestrator] merge-tree rc={rc} for {branch}: {names or lines[:3]}")
-    return frozenset(names)
-
-
-def _fix_findings_conflict(branch):
-    """Resolve a main-into-branch conflict confined to audits/findings.json
-    by union-merging and pushing a normal merge commit (no force push,
-    no rebase — review history is preserved; the synchronize event re-fires
-    review). Plumbing only: merge-tree tree + swapped blob via a throwaway
-    index (GIT_INDEX_FILE), never touching the runner's checkout."""
-    run(["git", "fetch", "origin", branch, "main"])
-    rc, out = _pl(["git", "merge-tree", "--write-tree", "origin/main", f"origin/{branch}"])
-    # rc: 0 = clean, 1 = conflicts (the case this fixes), ≥2 real error
-    if rc not in (0, 1) or not out:
-        print(f"[orchestrator] merge-tree rc={rc} — skipping auto-fix")
-        return False
-    tree = out.splitlines()[0].strip()  # oid line; messages follow the blank line
     if len(tree) != 40:
-        print("[orchestrator] merge-tree oid unparsable — skipping auto-fix")
+        tree = None
+    return rc, tree, frozenset(names)
+
+
+def _conflict_files(branch):
+    """Conflict file set when merging main into branch (no worktree)."""
+    rc, _, names = _merge_tree(branch)
+    if rc != 1:
+        return frozenset()
+    print(f"[orchestrator] merge-tree rc=1 for {branch}: {sorted(names)}")
+    return names
+
+
+VERSION_RE = re.compile(r"^\s*version\s*=\s*(\d+)\s*(?://.*)?$", re.M)
+
+
+def _resolve_version_pair(a, b):
+    """Deterministic version-bump resolution (round-2 review hardening).
+    Safe only when the two bodies differ solely in the `version = N` line
+    (number and/or trailing bump-comment — the winner's line wins whole):
+    then the higher version wins. Any other difference (or unparsable
+    versions) returns None — degrade to the human path rather than
+    silently discarding real content fixes on the losing side."""
+    if (a or "") == (b or ""):
+        return a
+    va, vb = VERSION_RE.search(a or ""), VERSION_RE.search(b or "")
+    if not va or not vb:
+        return None
+    if a[:va.start()] != b[:vb.start()] or a[va.end():] != b[vb.end():]:
+        return None
+    na, nb = int(va.group(1)), int(vb.group(1))
+    if na == nb:
+        return None  # same number, differing bump-comment — human decides
+    return a if na > nb else b
+
+
+GIT_AUTHOR_IDENTITY = ["-c", "user.name=orchestrator",
+                       "-c", "user.email=orchestrator@users.noreply.github.com"]
+
+
+def _auto_resolve_conflict(branch):
+    """Resolve a main-into-branch merge conflict mechanically (delta 16-f6b,
+    generalized f11). Known conflict classes only:
+    - GH_AW_REGISTRY_PATH (adopter-configured append-only JSON registry)
+      -> union-merge (records append, main wins scalars)
+    - configurable version-file (default */build.gradle.kts)
+      -> higher version wins when bodies differ solely there
+    Anything else -> False; the PR degrades to the human-notify path.
+    Plumbing only: merge-tree tree + swapped blobs via a throwaway index
+    (GIT_INDEX_FILE); pushes a normal merge commit — no force, no rebase,
+    review history preserved; the synchronize event re-fires review."""
+    frc = _pl(["git", "fetch", "origin", branch, "main"])[0]
+    if frc not in (0, 1):
+        print(f"[orchestrator] fetch rc={frc} for {branch} — skipping auto-fix")
         return False
-    docs = {}
-    for name, ref in (("theirs", f"origin/{branch}"), ("ours", "origin/main")):
-        _, body = _pl(["git", "show", f"{ref}:{FINDINGS_PATH}"])
-        try:
-            docs[name] = json.loads(body)
-        except Exception:
-            print(f"[orchestrator] {FINDINGS_PATH} unreadable on {ref} — skipping auto-fix")
-            return False
-    # branch first, then main: main's scalars win, run records union in
-    payload = json.dumps(_union_findings(docs["theirs"], docs["ours"]), indent=2) + "\n"
-    blob = subprocess.run(["git", "hash-object", "-w", "--stdin"], input=payload,
-                          capture_output=True, text=True).stdout.strip()
-    if not blob:
-        print("[orchestrator] hash-object failed — skipping auto-fix")
+    rc, tree, files = _merge_tree(branch)
+    if rc != 1 or not tree:
         return False
+    # Files re-derived from THIS probe (round-2 review): a caller-derived
+    # set can be stale if a push landed in between, and a path that now
+    # merges cleanly must not be whole-blob overwritten.
     idx = f"{os.environ.get('RUNNER_TEMP', '/tmp')}/orch-idx.{os.getpid()}"
     ienv = {"GIT_INDEX_FILE": idx}
     try:
-        rc, _ = _pl(["git", "read-tree", tree], env=ienv)
-        if rc != 0:
-            print("[orchestrator] read-tree failed — skipping auto-fix")
+        if _pl(["git", "read-tree", tree], env=ienv)[0] != 0:
             return False
-        _pl(["git", "update-index", "--cacheinfo", f"100644,{blob},{FINDINGS_PATH}"], env=ienv)
-        _, new_tree = _pl(["git", "write-tree"], env={"GIT_INDEX_FILE": idx})
+        for path in sorted(files):
+            _, ours_body = _pl(["git", "show", f"origin/main:{path}"])
+            _, side_body = _pl(["git", "show", f"origin/{branch}:{path}"])
+            if path == FINDINGS_PATH:
+                try:
+                    payload = json.dumps(_union_findings(json.loads(side_body),
+                                                         json.loads(ours_body)), indent=2) + "\n"
+                except Exception:
+                    return False
+            elif any(path.endswith(suf) for suf in REGISTRY_VERSION_SUFFIXES):
+                body = _resolve_version_pair(ours_body, side_body)
+                if body is None:
+                    return False
+                payload = body if body.endswith("\n") else body + "\n"
+            else:
+                return False
+            blob = subprocess.run(["git", "hash-object", "-w", "--stdin"], input=payload,
+                                  capture_output=True, text=True)
+            if blob.returncode != 0 or not blob.stdout.strip():
+                sys.stderr.write(f"[orchestrator] hash-object rc={blob.returncode} "
+                                 f"for {path}: {blob.stderr.strip()[:200]}\n")
+                return False
+            blob = blob.stdout.strip()
+            if _pl(["git", "update-index", "--cacheinfo", f"100644,{blob},{path}"], env=ienv)[0] != 0:
+                return False
+        _, new_tree = _pl(["git", "write-tree"], env=ienv)
         if not new_tree or len(new_tree) != 40:
-            print("[orchestrator] write-tree failed — skipping auto-fix")
             return False
         _, bsha = _pl(["git", "rev-parse", f"origin/{branch}"])
         _, msha = _pl(["git", "rev-parse", "origin/main"])
-        _, commit = _pl(["git", "commit-tree", new_tree, "-p", bsha, "-p", msha,
-                         "-m", f"merge main into {branch}: union-resolve {FINDINGS_PATH} "
-                               f"(orchestrator 16-f6b, mechanical)"])
+        # Runners bake no git identity; without -c the commit fails
+        # "Author identity unknown" (round-4 review blocker) and both f11
+        # classes stay inert in exactly the environment they target.
+        _, commit = _pl(["git", *GIT_AUTHOR_IDENTITY, "commit-tree", new_tree,
+                         "-p", bsha, "-p", msha,
+                         "-m", f"merge main into {branch}: mechanical conflict resolve "
+                               f"({', '.join(sorted(files))}) (orchestrator 16-f6b)"])
         ok, out = _git_push(branch, commit)
         if not ok and PROXY_PAT:
             if _push_ref_via_api(branch, commit):
                 ok, out = True, "pushed via git/refs PATCH (owner actor)"
-        print(f"[orchestrator] findings conflict auto-resolved on {branch}: "
+        print(f"[orchestrator] conflict auto-resolved on {branch}: "
               f"{'pushed ' + commit[:10] if ok and commit else 'FAILED: ' + str(out)[:130]}")
         return bool(ok and commit)
     finally:
@@ -600,8 +682,8 @@ def _fix_findings_conflict(branch):
 
 
 def conflict_watch():
-    """Merge conflicts on agent PRs: auto-resolve when confined to the
-    per-provider registry (the only conflict class observed), else notify
+    """Merge conflicts on agent PRs: auto-resolve the known mechanical
+    classes (findings.json union-merge, gradle version bumps), else notify
     with the recipe — one comment per PR."""
     # merge-tree + plumbing need up-to-date refs; branch fetches happen per-PR
     _pl(["git", "fetch", "origin", "main"])
@@ -615,8 +697,10 @@ def conflict_watch():
             continue
         _pl(["git", "fetch", "origin", branch])
         files = _conflict_files(branch)
-        if files == {FINDINGS_PATH}:
-            if _fix_findings_conflict(branch):
+        if FINDINGS_PATH and files and all(
+                f == FINDINGS_PATH or any(f.endswith(suf) for suf in REGISTRY_VERSION_SUFFIXES)
+                for f in files):
+            if _auto_resolve_conflict(branch):
                 continue
         marker = f"{MARK} merge conflict detected"
         if _has_marker(comments(num), marker):
@@ -771,8 +855,15 @@ if __name__ == "__main__":
         "watchdog": watchdog,
     }
     _preflight_labels()
+    mutation_steps = {"merge_readiness", "chain_driver", "plan_surrogate",
+                      "decision_tags", "stall_watch", "wave_driver",
+                      "fix_surrogate", "watchdog"}
+    available = {name: fn for name, fn in steps.items()
+                 if name not in mutation_steps or _owner_configured()}
     only = [a for a in sys.argv[1:] if a in steps]
-    for name, fn in steps.items():
+    for name, fn in {**available, "approvals": steps["approvals"]}.items():
+        # approvals self-gates on PROXY_PAT inside; conflict_watch pushes via
+        # the checked-out token (contents: write) and needs no owner identity
         if only and name not in only:
             continue
         try:

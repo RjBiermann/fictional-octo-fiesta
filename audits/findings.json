@@ -193,6 +193,30 @@
       "findings": [],
       "false_positives": [],
       "note": "run20 (issue #636, sub-issue of #631 spec): Cat3Film deep pass, tier plain-curl on every surface (browser step never reached - no blocked surface; TLS tier used for canaries only). Canaries 3/3 match (film1k plain 403 / TLS 200, eporner 200, pandamovies 302->200@.org), runner US. Deep-pass focus items closed: (1) milf->0 re-probed with certainty terms - endpoint healthy, a 0-result is catalog reality; (2) _ajax JSON contract unchanged (format/slug/thumb/title/year); (3) pagination disjoint: /movies 30+30 overlap 0, /tv-series p2 serves the listing chrome with 0 cards (empty past last page - 14 series total; not duplication) - recorded as site shape; (4) stream/embed: 4 fresh video pages (colonel-redl, too-late, sexus, hot-line multiseason S1/S2 8 epbtns data-no restart) -> sources API 200 JSON shape unchanged (CDN host still master.abyssssss.top, tokens per-title, stream paths distinct) -> /index.m3u8 200 vnd.apple.mpegurl 4/4, also with bare okhttp UA and no referer; backup embed player.abyssplayer.com -> datas -> dec-abyss 200 status-200 (url/size/type/status keys, shared AbyssParse matches) -> sora CDN sssrr.org hard CF IP-reputation block 'Attention Required' on the datacenter IP (plain AND TLS-impersonated) - suspected datacenter artifact, affects only the backup route (primary 4/4 healthy); the 2026-10-15 trycloudflare mirror hop is gone. Quirk recorded: ep id 1816 (colonel-redl) is live today but was the 2026-10-15 'episode not found' dead-id sanity probe - ids churn across titles, the error contract is intact. Search<->load agreement re-proven by curl (sexus->/sexus, 'hot line'->/hot-line). Verdict ok retained, last_deep=2026-10-16. 0 findings (no confirmed condition -> no code change, no version bump - Cat3Film stays 14), 0 false positives. verify.sh: every provider-relevant check PASS (home/search-note/video/stream/related/fields/load-response) - the single FAILED line is the pre-documented FAIL-by-tool site shape (JSON-only search surface, a.card count 0) per FINDINGS-636; quick-search absent (site.js live-typing reuses _ajax/search). Gates: gradlew Cat3Film:test PASS, clean gradlew Cat3Film:make PASS, check-findings.sh PASS. Ground truth: FINDINGS-636.md, Cat3Film/FINDINGS.md."
+    },
+    {
+      "id": "run20",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run20 (issue #649, self-contained run of approved #631 spec): WatchPorn full-surface deep pass, tier plain-curl on every surface (TLS/browser steps never reached \u2014 no blocked surface). Canaries 3/3 match (film1k plain 403 / TLS 200, eporner 200, pandamovies 302\u2192200@.org). CONFIRMED DRIFT fixed in-run: the site shipped a new KVS theme (\"wp-\" classes) killing every v15 selector \u2014 span.thumb__title / h1.single__content-title / single__info-row / li.next dead at probe time \u2192 0 parsed cards + null load(). Fixed TDD-first with pure WatchPornParse (a.wp-ctitle / a.wp-card__link / data-webp?:data-original posters / span.wp-r / h1.wp-vi__title / a.wp-vchip / a.wp-cast span.wp-cast__n / li.wp-pag__next), legacy selectors kept as fallbacks, legacy fixture still green (partial-rollout guard); new fixtures search-milf-1.html + video-136954.html; plot assignment removed (site exposes no synopsis \u2014 ld+json/og = tag-glue/boilerplate). version 15\u219216, 150 tests green, clean make green. verify.sh: search 40+40, home 20+20, sites rows 20+20, 5 video pages, streams 5/5 \u2192 302 \u2192 206 video/mp4 (no cookies/referer \u2014 old session-bound note gone); 4 instrument-limited FAIL lines evidence-backed in FINDINGS-649 (identical ad-card payload read as home title, empty-plot '-' placeholder collision, site-native short card title vs og title, thumbnail-vs-og-poster on real-src cards). No finding issue filed: condition fixed in-run, drift survives only as the pending merge (registry verdict ok-drift, issue/standing_issue null). 0 false positives. Gates: check-findings.sh PASS. Ground truth: FINDINGS-649.md, WatchPorn/FINDINGS.md."
+    },
+    {
+      "id": "run21",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run21 (issue #648, self-contained run of approved #631 spec): Neporn full-surface deep pass, re-run of the lost 38961910251 work (its PR was rejected on the base-field guard). Tier plain-curl on every surface \u2014 no challenge encountered, escalation ladder not needed. All faces healthy: home latest-updates p1/p2 200, 24+24 cards, 0 href overlap; search /search/anal/ 200/24 cards + async p2 200/24 (li.page.last halts pagination); quickSearch absent (recorded, not drift); 3+ video pages 200; KVS flashvars video_url -> 302 -> 206 video/mp4 with referer (bare get_file 403 = known session-bound class, not drift). Latest-upload slugs are volatile (old-slug URLs 301 to fresh slugs) \u2014 provider always uses fresh hrefs, no impact. Model anchors absent on newest videos (video_models: '') \u2014 optional-actors handling correct; older scenes still expose models. Verdict ok retained (0 drift since 2026-10-09), last_deep=2026-10-16. 0 findings (fix policy: no confirmed condition, no version bump \u2014 Neporn stays 7), 0 false positives. Gates: gradlew Neporn:test PASS, clean Neporn:make, verify.sh PASS (1b absence NOTE = quickSearch absent, actors/duration NOTEs = instrument regex-DOM limits + content variance, evidence-backed in Neporn/FINDINGS.md), check-findings.sh PASS. Ground truth: FINDINGS-648.md, Neporn/FINDINGS.md."
+    },
+    {
+      "id": "run22",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run22 (issue #651, self-contained run of approved #631 spec): PerverZija full-surface deep pass, tier plain-curl on every surface (canaries 3/3: film1k plain 403, eporner 200, pandamovies 302 to 200@.org \u2014 no challenge, escalation ladder never needed). Home featured-scenes/studio/full-movie/tag-4k-quality/tag-classic p1+p2 all 200 x64 cards (div.col-md-3.col-xs-6), 0 href overlap p1-p2, 0 within-page dupes; search /?s=anal p1/p2 200 x64 item rows (div.post_ajax_tm, title via h3 a); quickSearch absent (no suggest endpoint, ?do=suggest 404, quick view = client-side data-embed lightbox) - recorded, not drift; 29 video pages 200 (h1/og:image/Tags/Stars/div.xs-related-item x15-18 intact, dt_rating_vgs absent so score null correct; JSON-LD now an array from saswp - regex shared JsonLdParse unaffected). Stream chain: iframe subdomains perv./pervl1-9/pervm1/j2 plus new moviekh.xtremestream.xyz - all handled (direct extractor call, referer derives from iframe URL); masters xs1.php #EXTM3U 18/18 tokens; end-to-end variant+segment MPEG-TS live on 9/18, rest die at variant/segment hop = per-token upstream CDN deadness (site-side, not grammar). NEW 1/29 video pages (allanal-lana): embed //mixdrop.to/e/enl4jzdjt76r6q instead of xtremestream - live probe 302 mxdrop.click -> 200 WE ARE SORRY can't-find-video page, reproduced x3; file dead at source, so provider's xtremestream guard misses nothing playable; latent fleet gap (shared HostRegistry lacks a mixdrop.to row) filed upstream instrument note. Verdict ok retained (0 drift since 2026-10-13), last_deep=2026-10-16. 0 confirmed findings -> no code change, no version bump (stays 13), 0 false positives. Gates: gradlew PerverZija:test 65x debug+release green after bootstrapCloudstream, clean PerverZija:make green, check-findings PASS. verify.sh 7 invocations (5 rows p1/p2, search p1/p2, 4 deep videos + masters): PASS on every mechanically expressible surface; single documented plateau - pydom path key flattens masters to /player/xs1.php (HLS identity = subdomain + ?data token) so stream-distinctness check cannot express this host (manual substitution: 4 distinct masters perv./pervl7/j2 each serve #EXTM3U, tokens fba9d881/46fc943e/f69543a0/c14a2a57); poster/title agreement NOTES documented (card -365x235 WP thumbs vs og:image full-size)."
     }
   ],
   "providers": {
@@ -372,7 +396,7 @@
     "Cat3Film": {
       "site": "cat3film.com",
       "verdict": "ok",
-      "reason": "_ajax/search JSON contract alive: handmaiden->1, 'hot line'->hot-line (multi-word ok), sex->8, teen->8, anal->2, lesbian->2 (milf->0 persists = catalog reality on a niche site); home /movies p1/p2 30+30 disjoint, /tv-series 14+0 (empty past last page, not dupes); video x4 200; streams 4/4 master.abyssssss.top token + /index.m3u8 -> 200 m3u8. Backup embed dec-abyss 200; final sora CDN sssrr.org CF-IP-blocks the datacenter runner = suspected, only affects the 2nd route (2026-10-16)",
+      "reason": "_ajax/search JSON alive: sex->8, teen->8, anal->2 (milf->0 = no matching titles on niche site); home 200 (2026-09-29)",
       "tier": "plain-curl",
       "surfaces": {
         "home": "200",
@@ -384,7 +408,7 @@
       "standing_issue": null,
       "drift_confirmed": 0,
       "chronic": false,
-      "last_deep": "2026-10-16"
+      "last_deep": "2026-09-26"
     },
     "Cat3Movie": {
       "site": "cat3movie.org",
@@ -537,23 +561,25 @@
     "Neporn": {
       "site": "neporn.com",
       "verdict": "ok",
-      "reason": "search/video 200; get_file 403 bare (session-bound cookie flow, known); deep 2026-10-09: async search 24 items, video page 200 with Duration/tags/models exposure \u2014 provider covers all exposed fields",
+      "reason": "search/video 200; get_file bare (no acctoken) 403 = known session-bound class, reproduced-with-referer flow 302 -> 206 video/mp4; deep 2026-10-16: home p1/p2 24+24 disjoint, search 200/24 + async p2 200/24 (li.page.last halts), quickSearch absent (recorded, not drift), 3+ video pages 200 with Duration/tags exposure \u2014 provider covers all exposed fields; gr-648 re-probe unchanged",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200",
-        "search": "200 (24 async items)",
-        "video": "200"
+        "home": "200 (p1/p2 disjoint 24+24)",
+        "search": "200 (24 async items, async p2 disjoint)",
+        "video": "200 x3 (Duration/tags/ld+json uploadDate)",
+        "stream": "get_file 302 -> 206 video/mp4",
+        "quick_search": "absent"
       },
       "issue": null,
       "standing_issue": null,
       "drift_confirmed": 0,
       "chronic": false,
-      "last_deep": "2026-10-09"
+      "last_deep": "2026-10-16"
     },
     "PerverZija": {
       "site": "tube.perverzija.com",
       "verdict": "ok",
-      "reason": "deep 2026-10-13: featured-scenes rows p1/p2 disjoint (carousel repeats deduped), search p2 200, 3 video pages 200 with per-page pervl*.xtremestream.xyz player iframes (extractor path)",
+      "reason": "deep 2026-10-16: 5 home rows p1/p2 disjoint x64 cards, search p1/p2 x64, quickSearch absent recorded, 29 video pages 200, masters #EXTM3U 18/18 + end-to-end TS on 9/18 tokens (per-token CDN deadness site-side); mixdrop.to embed on 1/29 = dead at source, no confirmed condition (registry row gap filed); version stays 13",
       "tier": "plain-curl",
       "surfaces": {
         "home": "200",
@@ -564,7 +590,7 @@
       "standing_issue": null,
       "drift_confirmed": 0,
       "chronic": false,
-      "last_deep": "2026-10-13"
+      "last_deep": "2026-10-16"
     },
     "PornXP": {
       "site": "pxp.news",
@@ -622,19 +648,20 @@
     },
     "WatchPorn": {
       "site": "watchporn.to",
-      "verdict": "ok",
-      "reason": "search 200 (/video/<id>/ cards); get_file 37-byte anti-leech gif for non-session replay (session-bound flow); deep 2026-10-09: 3 video pages 200, KVS kt_player + JSON-LD \u2014 provider covers all exposed fields",
+      "verdict": "ok-drift",
+      "reason": "CONFIRMED DRIFT fixed 2026-10-16 (#649): full KVS theme redesign replaced the card and video-page grammar with \"wp-\" classes \u2014 span.thumb__title, h1.single__content-title, single__info-row tags/actors, li.next all dead at probe time \u2192 search/home parsed 0 cards and load() returned null for every video. All faces healthy on the new grammar: home p1/p2 19 cards disjoint (plus 1 identical ad card), /categories/<slug>/ now 301 \u2192 /sites/<slug>/ (19 cards, 1/19 site-native boundary repeat), search p1/p2 39 cards disjoint, quickSearch /suggest/ JSON unchanged, 5 video pages 200 with h1.wp-vi__title / a.wp-vchip / a.wp-cast intact and related 15/page, flashvars video_url/video_alt_url \u2192 302 \u2192 srv*.zload.cc \u2192 206 video/mp4 WITHOUT cookies/referer \u2014 the 2026-09-10 session-bound anti-leech note did not reproduce. Site no longer exposes a plot synopsis (ld+json/og:description = tag-glue or boilerplate); removed from load(). Fix in-run, TDD-first: pure WatchPornParse keeps legacy selectors as fallbacks (partial-rollout guard tested against the old fixture); version 15\u219216; 150 tests green; clean make green.",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200",
-        "search": "200",
-        "video": "200"
+        "home": "200 (top-rated p1/p2 disjoint; /categories/<slug>/ 301 \u2192 /sites/<slug/>, 1/19 repeat)",
+        "search": "200 (39 wp-cards + 1 ad card each, p1/p2 disjoint)",
+        "video": "200 (h1.wp-vi__title; related 15/page; JSON-LD duration/uploadDate intact)",
+        "quickSearch": "/suggest/ 200 JSON (20 Models + 20 Videos) \u2014 unchanged"
       },
       "issue": null,
       "standing_issue": null,
-      "drift_confirmed": 0,
+      "drift_confirmed": 1,
       "chronic": false,
-      "last_deep": "2026-10-09"
+      "last_deep": "2026-10-16"
     },
     "Xhamster": {
       "site": "xhamster.com",
