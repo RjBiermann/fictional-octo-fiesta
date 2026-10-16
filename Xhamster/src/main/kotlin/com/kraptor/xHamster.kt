@@ -181,6 +181,8 @@ class xHamster : MainAPI() {
             this.duration = durationSec
             this.tags = tags
             this.recommendations = recommendations
+            // 2026-10-16 (run #635): upload year now derivable — videoModel.created epoch.
+            this.year = yearFromCreated(videoModel?.created)
             addActors(actors)
         }
     }
@@ -308,7 +310,8 @@ class xHamster : MainAPI() {
         val duration: Int? = null,
         val description: String? = null,
         val thumbBig: String? = null,
-        val pornstarModels: List<PornstarModel>? = null
+        val pornstarModels: List<PornstarModel>? = null,
+        val dateAgo: String? = null
     )
 
     // pornstarModels entries carry no image URL of their own (only thumb.avatar1/avatar2
@@ -330,11 +333,15 @@ class xHamster : MainAPI() {
     )
 
     // Current video's own metadata from window.initials (duration is in seconds).
+    // 2026-10-16 (run #635): the template re-expanded — created is the unix-epoch upload
+    // timestamp (cross-checked against videoEntity.dateAgo on three live pages); it backs
+    // the LoadResponse year.
     data class VideoModel(
         val title: String? = null,
         val duration: Int? = null,
         val description: String? = null,
-        val thumbURL: String? = null
+        val thumbURL: String? = null,
+        val created: Long? = null
     )
 
     data class XPlayerSettings(
@@ -462,6 +469,20 @@ class xHamster : MainAPI() {
 
     private fun usablePoster(url: String?): String? =
         url?.takeIf { it.isNotBlank() && !it.contains("s(w:16,h:9)") }
+
+    // run #635 (year/UploadDate open question resolved): videoModel.created is the
+    // unix-epoch upload timestamp. Derive the LoadResponse year from it in UTC
+    // (Calendar, not java.time — minSdk 21). Null/absurd epochs stay null.
+    internal fun yearFromCreated(created: Long?): Int? {
+        if (created == null || created <= 0L) return null
+        return try {
+            val cal = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
+            cal.timeInMillis = created * 1000L
+            cal.get(java.util.Calendar.YEAR)
+        } catch (e: Exception) {
+            null
+        }
+    }
 
     internal fun getInitialsJson(html: String): InitialsJson? {
         return try {
