@@ -127,16 +127,13 @@ class HQPorner : MainAPI() {
         val feedPoster = parts.getOrNull(1)?.trim()
         val document = app.get(currentUrl, referer = "$mainUrl/", headers = mapOf("User-Agent" to desktopUa)).document
 
-        val title           = document.selectFirst("h1")?.text()?.trim() ?: return null
-        val description     = document.selectFirst("meta[name=description]")?.attr("content")?.trim()
-        val year            = document.selectFirst("div.extra span.C a")?.text()?.trim()?.toIntOrNull()
-        val tags            = document.select("section h3 + p a").map { it.text() }
-        val score           = document.selectFirst("span.dt_rating_vgs")?.text()?.trim()
+        val meta = VideoPageParse.from(document)
+        val title = meta.title ?: return null
+
         // duration clock grammar ("1h 22m" badges) lives in the shared DurationParse Parse function
-        val duration        = DurationParse.minutes(document.selectFirst("li.icon.fa-clock-o")?.text())
+        val duration        = DurationParse.minutes(meta.durationText)
 
         val recommendations = document.select("div.\\34 u section").mapNotNull { it.toMainPageResult() }
-        val actors          = document.select("li.icon.fa-star-o a").map { Actor(it.text()) }
 
         return newMovieLoadResponse(title, currentUrl, TvType.NSFW, currentUrl) {
             this.posterUrl       = feedPoster ?: playerPoster(document, currentUrl)
@@ -144,13 +141,11 @@ class HQPorner : MainAPI() {
                 "Referer" to "$mainUrl/",
                 "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
             )
-            this.plot            = description
-            this.year            = year
-            this.tags            = tags
-            this.score           = Score.from10(score)
+            this.plot            = meta.plot
+            this.tags            = meta.tags
             this.duration        = duration
             this.recommendations = recommendations
-            addActors(actors)
+            addActors(meta.actors.map { Actor(it) })
         }
     }
 
@@ -187,6 +182,29 @@ class HQPorner : MainAPI() {
         return true
     }
 }
+// Pure Parse (issue #642): video-page detail fields under the 2026-10 grammar.
+// The former year block (div.extra span.C a) and rating span (span.dt_rating_vgs)
+// dropped out of the served body entirely (verified live across all probed pages,
+// 2026-10-16) — the dead selectors are gone and year/score stay null: the site
+// exposes no substitute. Fixture: issue642/128207-special_request.html.
+object VideoPageParse {
+    data class Meta(
+        val title: String?,
+        val plot: String?,
+        val tags: List<String>,
+        val actors: List<String>,
+        val durationText: String?,
+    )
+
+    fun from(document: Document): Meta = Meta(
+        title = document.selectFirst("h1")?.text()?.trim()?.takeIf { it.isNotEmpty() },
+        plot = document.selectFirst("meta[name=description]")?.attr("content")?.trim(),
+        tags = document.select("section h3 + p a").map { it.text() },
+        actors = document.select("li.icon.fa-star-o a").map { it.text() },
+        durationText = document.selectFirst("li.icon.fa-clock-o")?.text(),
+    )
+}
+
 // Pure Parse (issue #518): resolve the current video's own cover from its player embed.
 // hqwo iframe src: ?img=<URL-encoded base64 of the cover url>; mydaddy embed body:
 // poster="//s62.bigcdn.cc/pubs/<key>/main.jpg" (the same CDN path shape the videos use).
