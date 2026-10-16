@@ -43,4 +43,10 @@ jobs:
           GH_AW_ORCH_PLAN: ${{ vars.GH_AW_ORCH_PLAN }}
           GH_AW_ORCH_TAG_OWNER: ${{ vars.GH_AW_ORCH_TAG_OWNER }}
           GH_AW_ORCH_OWNER: ${{ vars.GH_AW_ORCH_OWNER }}
+          # repo-agnostic adopter config: the append-only JSON registry
+          # enables the mechanical findings/registry conflict auto-merge;
+          # comma list of version-file suffixes (default build.gradle.kts).
+          # An adopter that configures neither keeps every conflict human.
+          GH_AW_REGISTRY_PATH: ${{ vars.GH_AW_REGISTRY_PATH }}
+          GH_AW_REGISTRY_VERSION_FILES: ${{ vars.GH_AW_REGISTRY_VERSION_FILES }}
         run: python3 .github/orchestrator.py

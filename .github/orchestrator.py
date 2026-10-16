@@ -38,10 +38,22 @@ PROXY_PAT = os.environ.get("GH_AW_PROXY_PAT", "")
 AUTO_MERGE = os.environ.get("GH_AW_AUTO_MERGE", "false") == "true"
 FIRE_PLAN = os.environ.get("GH_AW_ORCH_PLAN", "true") == "true"
 TAG_OWNER = os.environ.get("GH_AW_ORCH_TAG_OWNER", "true") == "true"
-OWNER = os.environ.get("GH_AW_ORCH_OWNER", "RjBiermann")
+# REPO-AGNOSTIC contract: every adopter-specific value comes from config.
+# NOTHING here names an adopter. OWNER is required for any owner-actor
+# mutation; when unset, mutation steps degrade to read-only (prints
+# advice once). Conflict classes auto-resolve only for paths configured
+# via GH_AW_REGISTRY_PATH (a per-adopter append-only JSON registry) —
+# unset means the feature is off for that adopter.
+OWNER = os.environ.get("GH_AW_ORCH_OWNER", "")
 
 MARK = "[orchestrator]"
-FINDINGS_PATH = "audits/findings.json"
+REGISTRY_PATH = os.environ.get("GH_AW_REGISTRY_PATH", "")
+# Adopters whose conflict surface is exactly an append-only JSON registry
+# get the deterministic auto-merge; anything else stays human.
+FINDINGS_PATH = REGISTRY_PATH if REGISTRY_PATH.endswith(".json") else None
+REGISTRY_VERSION_SUFFIXES = tuple(os.environ.get(
+    "GH_AW_REGISTRY_VERSION_FILES", "build.gradle.kts").split(",")) if os.environ.get(
+    "GH_AW_REGISTRY_VERSION_FILES") else ("build.gradle.kts",)
 
 
 def _pl(args, env=None):
@@ -191,6 +203,14 @@ def _has_marker(cs, text):
 
 
 # --------------------------------------------------------------- approvals
+def _owner_configured():
+    """repo-agnostic gate: owner-actor mutations need the adopter identified."""
+    if not OWNER:
+        print("[orchestrator] GH_AW_ORCH_OWNER unset — owner-actor mutations disabled (repo-agnostic default)")
+        return False
+    return True
+
+
 def approve_companion_runs():
     if not PROXY_PAT:
         print("[orchestrator] GH_AW_PROXY_PAT unset — approvals stay manual")
@@ -587,8 +607,10 @@ GIT_AUTHOR_IDENTITY = ["-c", "user.name=orchestrator",
 def _auto_resolve_conflict(branch):
     """Resolve a main-into-branch merge conflict mechanically (delta 16-f6b,
     generalized f11). Known conflict classes only:
-    - audits/findings.json  -> union-merge (run records append, main wins scalars)
-    - */build.gradle.kts    -> higher version wins (per-provider bumps race)
+    - GH_AW_REGISTRY_PATH (adopter-configured append-only JSON registry)
+      -> union-merge (records append, main wins scalars)
+    - configurable version-file (default */build.gradle.kts)
+      -> higher version wins when bodies differ solely there
     Anything else -> False; the PR degrades to the human-notify path.
     Plumbing only: merge-tree tree + swapped blobs via a throwaway index
     (GIT_INDEX_FILE); pushes a normal merge commit — no force, no rebase,
@@ -617,7 +639,7 @@ def _auto_resolve_conflict(branch):
                                                          json.loads(ours_body)), indent=2) + "\n"
                 except Exception:
                     return False
-            elif path.endswith("build.gradle.kts"):
+            elif any(path.endswith(suf) for suf in REGISTRY_VERSION_SUFFIXES):
                 body = _resolve_version_pair(ours_body, side_body)
                 if body is None:
                     return False
@@ -675,7 +697,9 @@ def conflict_watch():
             continue
         _pl(["git", "fetch", "origin", branch])
         files = _conflict_files(branch)
-        if files and all(f == FINDINGS_PATH or f.endswith("build.gradle.kts") for f in files):
+        if FINDINGS_PATH and files and all(
+                f == FINDINGS_PATH or any(f.endswith(suf) for suf in REGISTRY_VERSION_SUFFIXES)
+                for f in files):
             if _auto_resolve_conflict(branch):
                 continue
         marker = f"{MARK} merge conflict detected"
@@ -831,8 +855,15 @@ if __name__ == "__main__":
         "watchdog": watchdog,
     }
     _preflight_labels()
+    mutation_steps = {"merge_readiness", "chain_driver", "plan_surrogate",
+                      "decision_tags", "stall_watch", "wave_driver",
+                      "fix_surrogate", "watchdog"}
+    available = {name: fn for name, fn in steps.items()
+                 if name not in mutation_steps or _owner_configured()}
     only = [a for a in sys.argv[1:] if a in steps]
-    for name, fn in steps.items():
+    for name, fn in {**available, "approvals": steps["approvals"]}.items():
+        # approvals self-gates on PROXY_PAT inside; conflict_watch pushes via
+        # the checked-out token (contents: write) and needs no owner identity
         if only and name not in only:
             continue
         try:
