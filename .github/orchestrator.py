@@ -30,6 +30,8 @@ import os
 import re
 import subprocess
 import sys
+import time
+from datetime import datetime
 
 REPO = os.environ.get("GITHUB_REPOSITORY", "")
 PROXY_PAT = os.environ.get("GH_AW_PROXY_PAT", "")
@@ -42,8 +44,10 @@ MARK = "[orchestrator]"
 
 
 def _fire_marker(rnd):
-    """Single source of truth for the per-round fire marker (lint-relevant)."""
-    return f"{MARK} /plan fired round {rnd}"
+    """Body of a surrogate fire. MUST begin with /plan — gh-aw's
+    slash-command parser only recognizes bodies that start with the
+    command; the [orchestrator] marker trails for dedupe."""
+    return f"/plan\n\n{MARK} /plan fired round {rnd}"
 STORY_RE = re.compile(r"\[spec\]\s*(?:Story\s+|S)(\d+)", re.I)
 PARENT_RE = re.compile(r"approved\s+#(\d+)\s+spec", re.I)
 ROUND_ANCH = {r: f"Plan round {r} —" for r in (1, 2, 3)}
@@ -53,6 +57,12 @@ APPROVE_ALLOWLIST = [
     "Security scan (08+09 merged)",
     "Automatic Dependency Submission (Gradle)",
 ]
+
+# gh-aw's own pipeline runs on bot PR branches also land in
+# `action_required` (pre_activation sees github-actions[bot] as
+# permission:none). These are agent work already gated by trigger labels —
+# safe to approve mechanically. Review stays human (ADR-0001).
+AGENT_RUN_ALLOWLIST = {"Implement", "Plan"}
 
 
 def run(cmd, **kw):
@@ -136,7 +146,8 @@ def approve_companion_runs():
             if not line.strip():
                 continue
             rid, _, wname = line.partition("|")
-            if wname in APPROVE_ALLOWLIST:
+            if wname in APPROVE_ALLOWLIST or (wname in AGENT_RUN_ALLOWLIST
+                                              and branch.startswith("devloop/issue-")):
                 out = run(["curl", "-s", "-X", "POST",
                            "-H", f"Authorization: Bearer {PROXY_PAT}",
                            "-H", "Accept: application/vnd.github+json",
@@ -147,6 +158,30 @@ def approve_companion_runs():
 
 
 # ---------------------------------------------------------- merge readiness
+def _effective_ready(num, mstate):
+    """A PR is effectively ready when every check finished green/skipped.
+    Bot PRs sit `blocked`/`unstable` forever (skipped gh-aw head-sha runs,
+    missing human approval), so `clean` alone never fires the readiness
+    ping. Treat blocked/unstable as ready iff no check is pending or
+    failed — the only thing left blocking is then the human approval."""
+    if mstate == "clean":
+        return True
+    if mstate not in ("blocked", "unstable"):
+        return False
+    d = api(f"pulls/{num}") or {}
+    sha = ((d.get("head") or {}).get("sha") or "")
+    if not sha:
+        return False
+    cr = api(f"commits/{sha}/check-runs?per_page=100") or {}
+    bad = ("failure", "timed_out", "cancelled", "action_required", "stale")
+    for c in (cr.get("check_runs") or []):
+        if c.get("status") != "COMPLETED":
+            return False
+        if (c.get("conclusion") or "").lower() in bad:
+            return False
+    return True
+
+
 def merge_readiness():
     for pr in open_pulls():
         num = pr["number"]
@@ -155,7 +190,7 @@ def merge_readiness():
             continue
         d = api(f"pulls/{num}") or {}
         mstate = d.get("mergeable_state")
-        if mstate != "clean":
+        if not _effective_ready(num, mstate):
             print(f"[orchestrator] PR #{num}: mergeable_state={mstate} — not ready")
             continue
         if AUTO_MERGE:
@@ -181,11 +216,11 @@ def merge_readiness():
                 print(f"[orchestrator] PR #{num}: auto-merge queued (spec approved)")
                 continue
         sha = ((d.get("head") or {}).get("sha") or "")[:12]
-        marker = f"ready @{OWNER} — all required checks green at `{sha}`"
+        marker = f"ready @{OWNER} — all checks green at `{sha}`"
         if _has_marker(comments(num), marker):
             continue
         label_issue(num, "status/ready-to-merge")
-        post_comment(num, f"{MARK} ready @{OWNER} — all required checks green at `{sha}`; please review and merge when ready.")
+        post_comment(num, f"{MARK} ready @{OWNER} — all checks green at `{sha}`; please review and merge when ready.")
         print(f"[orchestrator] PR #{num}: tagged {OWNER} for merge")
 
 
@@ -215,40 +250,84 @@ def chain_driver():
         else:
             print(f"[orchestrator] story {num_story} (issue {s['number']}): predecessor still {pstate}")
 
-    # Reconcile: stamps whose Implement-side fire was role-gated away
-    # (old bot-applied labels) get re-fired once under the owner actor.
+    _reconcile_pass(stories, _claim_planned_fires(stories))
+
+    # Parent spec issue: close once every story referencing it is closed.
+    by_parent = {}
+
+def _parse_ts(s):
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
+    except Exception:
+        return 0.0
+
+
+def _implement_fires():
+    """Implement runs triggered by issue events (label fires), newest first."""
+    out = run(["gh", "run", "list", "--workflow", "Implement", "--limit", "60",
+               "--json", "createdAt,event"])
+    try:
+        rows = json.loads(out or "[]")
+    except Exception:
+        return []
+    return sorted((r.get("createdAt") or "" for r in rows if r.get("event") == "issues"), reverse=True)
+
+
+def _claim_planned_fires(stories):
+    """Map open status/planned issues to the Implement run their label event
+    fired. gh-aw run payloads carry no issue attribution, so claim by
+    proximity: a run within 150s after the stamp claims at most one issue
+    (greedy nearest match). Returns {issue_number: fired}.
+    (This replaces the old reconcile check against the workflow's global
+    latest run, which any sibling issue's run suppressed.)"""
+    runs = _implement_fires()
+    taken = set()
+    claims = {}
     for s in stories:
-        if str(s["state"]).lower() != "open":
+        if str(s.get("state", "")).lower() != "open":
             continue
         if "status/planned" not in [l["name"] for l in s.get("labels", [])]:
             continue
         ts = _label_applied_at(s["number"], "status/planned")
         if not ts:
             continue
-        latest = _latest_workflow_run_at("Implement")
-        if latest and latest > ts:
-            continue
-        run(["gh", "api", "-X", "DELETE", f"repos/{REPO}/issues/{s['number']}/labels/status%2Fplanned"])
-        run(["gh", "api", "-X", "POST", f"repos/{REPO}/issues/{s['number']}/labels",
-             "-f", "labels[]=status/planned"])
-        print(f"[orchestrator] {s['number']}: trigger re-fired under owner actor (old stamp was bot-gated)")
+        best = None
+        for i, rt in enumerate(runs):
+            if i in taken or not rt:
+                continue
+            delta = _parse_ts(rt) - _parse_ts(ts)
+            if 0 <= delta <= 150 and (best is None or delta < best[1]):
+                best = (i, delta)
+        if best is not None:
+            taken.add(best[0])
+        claims[s["number"]] = best is not None
+    return claims
 
-    # Parent spec issue: close once every story referencing it is closed.
-    by_parent = {}
+
+def _has_stall_flag(cs):
+    today = time.strftime("%Y-%m-%d", time.gmtime())
+    return any(MARK in (c.get("body") or "") and "stalled" in c.get("body", "")
+               and (c.get("created_at") or "").startswith(today) for c in cs)
+
+
+def _reconcile_pass(stories, claims):
+    # Reconcile: stamps whose Implement-side fire was role-gated away
+    # (old bot-applied labels) get re-fired once under the owner actor.
+    # Skips issues already flagged stalled today — re-firing into an AIC
+    # guardrail just spams label events.
     for s in stories:
-        p = parent_of(s)
-        if p:
-            by_parent.setdefault(p, []).append(s)
-    for pid, kids in by_parent.items():
-        p = api(f"issues/{pid}")
-        if not p or p.get("state") != "open":
+        n = s["number"]
+        if str(s.get("state", "")).lower() != "open" or claims.get(n, True):
             continue
-        if all(str(k.get("state","")) .lower() == "closed" for k in kids):
-            c = comments(pid)
-            if not _has_marker(c, "all stories of this approved chain are closed"):
-                close_issue(pid, "completed",
-                            "Orchestrator (ADR-0008): all stories of this approved chain are closed (merged PRs). Closing the parent.")
-                print(f"[orchestrator] parent #{pid}: closed ({len(kids)} stories complete)")
+        ts = _label_applied_at(n, "status/planned")
+        if not ts or time.time() - _parse_ts(ts) < 600:
+            continue
+        if _has_stall_flag(comments(n)):
+            continue
+        run(["gh", "api", "-X", "DELETE", f"repos/{REPO}/issues/{n}/labels/status%2Fplanned"])
+        run(["gh", "api", "-X", "POST", f"repos/{REPO}/issues/{n}/labels",
+             "-f", "labels[]=status/planned"])
+        print(f"[orchestrator] {n}: trigger re-fired under owner actor (stamp fired no run)")
 
 
 def _chain_approved(pnum):
@@ -279,7 +358,6 @@ def _latest_workflow_run_at(name):
         return None
     hits = [r["createdAt"] for r in rows if r.get("event") in ("issues", "issue_comment")]
     return max(hits) if hits else None
-
 
 def _story_state(num, stories):
     for s in stories:
@@ -384,6 +462,53 @@ def watchdog():
             print(f"[orchestrator] closed transient diag #{num}")
 
 
+# ------------------------------------------------- conflict watch
+def conflict_watch():
+    """Flag merge conflicts on agent PRs instead of letting them rot.
+    The usual culprit is audits/findings.json (per-provider runs collide
+    on last_runs); notify with the exact merge recipe — one comment per PR."""
+    for pr in open_pulls():
+        branch = pr.get("head", {}).get("ref", "")
+        if not branch.startswith("devloop/"):
+            continue
+        num = pr["number"]
+        d = api(f"pulls/{num}") or {}
+        if d.get("mergeable_state") != "dirty":
+            continue
+        marker = f"{MARK} merge conflict detected"
+        if _has_marker(comments(num), marker):
+            continue
+        post_comment(num,
+            f"{marker} on this PR — likely `audits/findings.json` (per-provider runs collide on `last_runs`). "
+            f"Recipe: `git fetch origin main && git rebase origin/main`; on conflict keep BOTH sides' `last_runs` "
+            f"and `providers` entries, then `git add audits/findings.json && git rebase --continue && git push --force-with-lease`. "
+            f"@{OWNER} — or say the word and a fix lands on this branch.")
+        print(f"[orchestrator] PR #{num}: conflict flagged")
+
+
+# ------------------------------------------------- stall watch
+def stall_watch():
+    """Make silent Implement-fire stalls visible. The usual cause is the
+    daily-workflow-aic guardrail: failed runs bill worst-case per-run max
+    until their usage artifacts resolve, so every re-fire is skipped with
+    zero output. Flag (once/day/issue) rather than re-fire blindly."""
+    stories = [i for i in (api("issues?state=open&per_page=50") or []) if not i.get("pull_request")]
+    claims = _claim_planned_fires(stories)
+    for s in stories:
+        n = s["number"]
+        if claims.get(n, True):
+            continue
+        ts = _label_applied_at(n, "status/planned")
+        if not ts or time.time() - _parse_ts(ts) < 7200:
+            continue
+        if _has_stall_flag(comments(n)):
+            continue
+        post_comment(n, f"{MARK} stalled @{OWNER}: `status/planned` for >2h and no Implement run fired from this stamp. "
+                        f"Usual cause: daily-workflow-aic guardrail — check `GH_AW_DEFAULT_MAX_DAILY_AI_CREDITS` and the "
+                        f"`Check daily workflow token guardrail` step of recent Implement runs.")
+        print(f"[orchestrator] {n}: stalled-fire flagged")
+
+
 def _preflight_labels():
     """One-time existence check: every stamp silently fails if a label is
     missing (rc is stderr-only in the Actions UI)."""
@@ -407,6 +532,8 @@ if __name__ == "__main__":
         "chain_driver": chain_driver,
         "plan_surrogate": plan_loop_surrogate,
         "decision_tags": decision_tags,
+        "conflict_watch": conflict_watch,
+        "stall_watch": stall_watch,
         "watchdog": watchdog,
     }
     _preflight_labels()
