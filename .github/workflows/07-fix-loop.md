@@ -11,7 +11,13 @@ on:
   slash_command:
     name: repair
     events: [issue_comment, pull_request_review_comment]
-  roles: [admin, maintainer, write]
+  # roles:all (owner decision 2026-10-16, "automate unless a human decision
+  # is needed"): the review author on agent PRs is github-actions[bot]
+  # (permission none) and run approval does not change the actor, so the
+  # default gate silently skipped every review-triggered repair — same
+  # defect fixed in 06-review. Repairs stay bounded: push-to-pull-request
+  # max 3, cycle cap + status/fixing-stuck escalation to the human.
+  roles: all
   cooldown: 10m
 imports:
   - .github/workflows/shared/engine-lane.md
