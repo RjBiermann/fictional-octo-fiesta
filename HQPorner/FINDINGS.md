@@ -99,3 +99,38 @@ it as a fallback would show another video's poster. Verified on 124908/127787/12
 - streams: script's stream check doesn't resolve the mydaddy two-hop (its fallback is
   filmcdm-only). Manual end-to-end: mydaddy iframe `//mydaddy.cc/video/0fa7a6046f45fddfcb/`
   → `//s13.bigcdn.cc/pubs/6aa209bfb398a2.02348091/1080.mp4` → `206 video/mp4` ✓.
+
+## Deep pass — issue #642, 2026-10-16 (plain-curl tier, full run)
+
+Second attempt (attempt 1, run 38852774999, finished the work but its PR hit the
+base-branch gate — tree never updated). Full transcript: `FINDINGS-642.md`.
+
+- **Video-page grammar changed (fixed, v14 → 15, TDD):** the year block
+  (`div.extra span.C a`) and rating span (`span.dt_rating_vgs`) are gone from the live
+  body on every probed page — dead selectors removed. `load()` now goes through
+  `VideoPageParse.from(Document)` (title/plot/tags/actors/durationText), developed
+  red → green (`VideoPageParseTest`, 7 tests, live fixture
+  `src/test/resources/issue642/128207-special_request.html`, incl. a grammar-pin test
+  asserting the stale selectors match nothing). No user-visible breakage: both fields had
+  been null no-ops. Site exposes no year substitute (new `fa-calendar` relative-age stamp
+  is unmapped).
+- **Everything else healthy:** tags `section h3 + p a` (6–12/page, incl. `shaved pussy` —
+  #527 stays closed NOT REPRODUCED, re-verified live), duration `fa-clock-o`, actors
+  `fa-star-o`, plot `meta[name=description]`, h1 `main-h1`, related `div.4u section`
+  44–47/page. Search p1/p2 disjoint; top/1+top/2 main grids disjoint with a shared
+  **rotating tail** (0–3 items at fixed positions 47–48, varies per fetch — site-native,
+  same benign condition as the 2026-09-29 note; category/amateur pair used as the verify
+  home family, fully disjoint). Quick search `/search/suggest/` → 404, absent surface,
+  unchanged.
+- **Streams:** mydaddy embed → bigcdn `pubs/<key>/1080.mp4`, **key ephemeral** (rotates per
+  embed fetch, minutes TTL — old key 404s on all shards). Shared `MyDaddyExtractor`
+  re-fetches the embed per call and matches live markup — unchanged. Fresh 1080.mp4 ×4 →
+  `206 video/mp4` (verify.sh stream overrides, position-matched).
+- **Referer artifact (documented):** video pages intermittently 404 **without**
+  `Referer: https://hqporner.com/`, consistently 200 with it (×3 on the same URLs). The
+  provider pins `referer = "$mainUrl/"` on all requests — no change. Naive no-referer
+  probes will read healthy pages as dead links.
+- Gates: `gradlew HQPorner:test` 67 green; clean `--no-build-cache :HQPorner:make` green;
+  verify.sh **PASS** (search 2, home 2, 4 video pages, 4 fresh streams, agreement clean);
+  check-findings PASS. Verdict `ok` (unchanged), drift_confirmed 0 → 1, last_deep
+  2026-10-16.

@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 14 // issue #518: player-derived poster fallback for plain/library loads
+version = 15 // issue #642: video-page grammar dropped year/rating blocks — dead selectors removed, detail parse behind VideoPageParse
 
 cloudstream {
     authors     = listOf("kraptor")
