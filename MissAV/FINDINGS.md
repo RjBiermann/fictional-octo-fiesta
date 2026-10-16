@@ -108,3 +108,36 @@ parseActors selector now `div.text-secondary:has(> span:containsOwn(actress)) a,
 - verify.sh check 5/6 FAILs are tooling (pydom field/cards can't read Alpine-flavored search
   cards; load-response string passed whole = "unknown field") — code half asserted manually:
   poster/year/tags/plot/duration/recommendations/addActors all populated in load().
+
+## Appendix (issue #641 — deep pass 2026-10-16)
+
+### Probe (tier plain-curl on every surface; canaries 3/3; runner US)
+- All surfaces 200. weekly-hot + uncensored-leak rows p1/p2 disjoint (12+12 each); search
+  milf p1/p2 disjoint; home dm-redirect preserves `?page=N` (NiceHttp follows, unchanged).
+- **/en/new p1∩p2 = 5 cards, stable across refetches (~20 min), p2∩p3 = p1∩p3 = p10∩p11 = 0
+  — p1 tail = p2 head** (site-side stale-cache skew; the `?sort=published_at` variant that
+  duplicated in #327 is now clean). MissAV has 4+ closed drift/broken issues → hardening
+  rule applied: no URL swap.
+- Card grammar refined (FINDINGS-641): real listing grid always inside
+  `div.content-without-search`; the provider's coarser selector also matches a nav grid
+  (`new`/`contact`) whose shells never pass the poster-null/blacklist filters — unchanged,
+  not a defect.
+- Video ×3 (mudr-407 /new, milf-091 /search, mimk-288 /weekly-hot): h1, og:image,
+  og:video:duration seconds (7341/7285/7285), og:description, year, Actress/Genre rows where
+  the site has them; packed eval ×2/page.
+- Streams: unpack → surrit UUID playlists, 3 distinct UUIDs; **surrit 403 Cloudflare from
+  runner on plain AND TLS tiers (playlist + 64kbps-mono, ±Referer) — same IP gate as
+  #302/#328/#327. Verify stream playback in-app.**
+- recombee recommendations 200 / 12 recomms. No unlock/cookie anywhere.
+
+### Fixes (v18 → 19, TDD)
+- **Cross-page home dedup**: `MissAVParse.filterSeen` (pure) + per-row seen-set in
+  `getMainPage` — page 1 re-seeds, deeper pages drop already-served URLs (480 cap). Red →
+  green against live captures `src/test/resources/en-new-page{1,2}.html`.
+- **quickSearch added**: `/en/search/suggest?q=` is a distinct site surface ("Search result
+  of suggest", 13 cards, disjoint ?page=2) — previously unrecorded/unimplemented; now parsed
+  through the same card pipeline (`parseCardElements` shared seam).
+
+### Verify evidence
+- verify.sh main gate (home = weekly-hot row, boundary-clean) + /en/new evidence run — see
+  PR for transcripts. surrit stream 403s recorded as the standing runner-IP gate.

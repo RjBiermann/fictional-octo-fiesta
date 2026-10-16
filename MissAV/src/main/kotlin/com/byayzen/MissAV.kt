@@ -26,6 +26,20 @@ object MissAVParse {
     /** og:video:duration is seconds on missav.live; CloudStream duration is minutes
      *  (issue #302) — the conversion lives in the shared DurationParse module. */
     fun parseDuration(seconds: String?): Int? = DurationParse.fromSeconds(seconds)
+
+    /** Card shells for home rows and search: each card lives in a grid cell that also
+     *  nests a div.thumbnail.group, so both halves of the selector match one card —
+     *  callers must dedupe by URL (distinctBy). */
+    fun parseCardElements(document: Document): List<Element> =
+        document.select("div.grid.grid-cols-2 > div, div.thumbnail.group").toList()
+
+    /** Cross-page dedup (issue #641): the site's listing caches can skew, repeating the
+     *  tail of page N at the head of page N+1 (/en/new — 5 cards live 2026-10-16).
+     *  Given the current page's card URLs and the URLs already served on earlier pages
+     *  of the same row, returns only the unseen ones, in order. The caller is
+     *  responsible for adding the result to `seen` afterwards. */
+    fun filterSeen(urls: List<String>, seen: Set<String>): List<String> =
+        urls.filterNot { it in seen }
 }
 
 class MissAV : MainAPI() {
@@ -35,6 +49,16 @@ class MissAV : MainAPI() {
     override var lang = "jp"
     override val supportedTypes = setOf(TvType.NSFW)
     val subtitleCatUrl = "https://www.subtitlecat.com"
+
+    /** Per-row set of card URLs served on earlier pages (issue #641 hardening).
+     *  Plain HashMap + @Synchronized: API 21-safe, contention-free for distinct rows. */
+    private val seenByRow = HashMap<String, HashSet<String>>()
+
+    @Synchronized
+    private fun rowSeen(row: String): HashSet<String> {
+        if (!seenByRow.containsKey(row)) seenByRow[row] = HashSet()
+        return seenByRow.getValue(row)
+    }
 
     override val mainPage = mainPageOf(
         "$mainUrl/dm169/en/weekly-hot?sort=weekly_views" to "Weekly Hot",
@@ -66,9 +90,18 @@ class MissAV : MainAPI() {
 
         val document = app.get(url).document
 
-        val home = document.select("div.grid.grid-cols-2 > div, div.thumbnail.group")
+        val cards = MissAVParse.parseCardElements(document)
             .mapNotNull { it.toMainPageResult() }
             .distinctBy { it.url }
+
+        // Cross-page dedup (issue #641): the site can repeat page N's tail at the head of
+        // page N+1 (stale listing cache). Page 1 re-seeds the row's seen-set; deeper pages
+        // drop already-served URLs. Hardening rule: this row already drifted twice (#327).
+        val seen = rowSeen(request.data)
+        if (page == 1 || seen.size > 480) seen.clear()
+        val freshUrls = MissAVParse.filterSeen(cards.map { it.url }, seen).toSet()
+        val home = cards.filter { it.url in freshUrls }
+        home.forEach { seen.add(it.url) }
 
         return newHomePageResponse(
             list = listOf(
@@ -127,6 +160,16 @@ class MissAV : MainAPI() {
 
 
         return newSearchResponseList(aramaCevap, hasNext = true)
+    }
+
+    /** Distinct site suggest surface (issue #641 probe): "/en/search/suggest?q=" serves a
+     *  "Search result of suggest" page with the same card grammar as search (13 cards live
+     *  2026-10-16); the ?page=2 form is disjoint but quick search is single-call by contract. */
+    override suspend fun quickSearch(query: String): List<SearchResponse>? {
+        val document = app.get("$mainUrl/en/search/suggest?q=$query").document
+        return MissAVParse.parseCardElements(document)
+            .mapNotNull { it.toMainPageResult() }
+            .distinctBy { it.url }
     }
 
 
