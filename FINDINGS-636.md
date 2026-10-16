@@ -144,6 +144,6 @@ Fix policy: no confirmed condition → **no code change, no version bump** (Cat3
 - `./gradlew Cat3Film:test` **PASS** (15/15)
 - clean `./gradlew Cat3Film:make` **PASS** (BUILD SUCCESSFUL)
 - `bash .pi/skills/audit-providers/scripts/check-findings.sh` **PASS** (semantic diff only:
-  Cat3Film entry + run20 append)
+  Cat3Film entry + run23 append)
 - `verify.sh` — every provider-relevant check PASS (single FAIL line = documented
   FAIL-by-tool site shape, above)
