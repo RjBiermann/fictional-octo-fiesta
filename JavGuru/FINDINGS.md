@@ -174,3 +174,36 @@ NOTE: verify.sh `field` bar cannot express `h1.titl` (mini-selector regex `[a-zA
   recommendations/tags/year/actors): checks 1/1a confirmed 24 cards each, matching the PR
   body. Check 2/3 stream bars not assertable from static HTML (multi-hop chain) —
   documented limitation, unchanged.
+
+## Deep re-probe 2026-10-17 (issue #647 spec #631 round 2, attempt 2)
+- Attempt 1 (run 38957959480) completed the same audit but its PR push was rejected
+  (explicit base=master vs the safe-output default) and lost; this attempt re-probed every
+  surface fresh. Full transcript: FINDINGS-647.md. Verdict ok, tier plain-curl throughout,
+  **no code change, version stays 28**.
+- Surfaces: home p1/p2 + search p1/p2 200 ×24 `div.inside-article`, 0 overlap;
+  `/search/q/` ≡ `/page/1/?s=q` (identical card lists); quickSearch still absent (static
+  GET `s=` form; admin-ajax = wp-ulike votes → 400 on search actions; wp-json =
+  popular-posts). most-watched rank row = `<article class="rank-item">` cards (provider's
+  `article` selector catches them).
+- Video ×3 (home /1065162, category-amateur /1060015, most-watched /1064700): `h1.titl`,
+  `div.large-screenshot img` (cdn.javmiku **still 403** → jav.guru rewrite 200 — the #424
+  rewrite is load-bearing, not vestigial), Release Date ownText → year 2026, `li.w1`
+  Tags/Series/Actor/Actress rows, `div.wp-content` **empty ×3** (site ships no plot text),
+  related block present 2/3 (site natively omits it on some posts — YMDS-322 precedent).
+- **javclan packed-eval is BACK** — the 2026-09-07 hg-function.js-only window above has
+  ended: `/e/<hash>` again packs `eval(p,a,c,k,e,d)`; shared `Javclan` extractor matches
+  (verified with a python replica of `PackedJs.unpack` + the hls2/hls4 pairing).
+  premilkyway `hls2/.../master.m3u8` → 200/200/206 `application/vnd.apple.mpegurl`, also
+  referer-free. **Vidara still live** (cd tile on all 3 → POST /api/stream → 97bf1.com m3u8
+  200). Every sampled video ≥2 working mirrors.
+- Mirror tiles rotate per run (attempt 1: td→megankiddifference, ed→streamhihi,
+  hd→playmogo, od→maxstream; this attempt: vo/lu/dd/jk unhandled tiles, no `ud` tube, one
+  `gd` tile) — watch item; xd + cd tiles are the stable pair.
+- verify.sh: listing run RESULT PASS; 3-video run all green with fresh chain-resolved
+  stream overrides (200/200/206, distinct paths, agreement + check 6 clean) — one
+  adjudicated FAIL (plot `-` placeholder collision in `dups` on empty-`wp-content` posts;
+  FINDINGS-635 disposition precedent). jav.guru emits transient 429s under probe bursts;
+  spaced re-runs resolve (rate-limit, not drift).
+- Gates: `check-findings.sh` PASS. `gradlew test/make` not executable from this sandbox
+  (egress policy 404s Maven Central; no pre-provisioned Gradle cache) — zero code change
+  means the build surface is unchanged from the last green CI build.

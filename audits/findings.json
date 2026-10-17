@@ -286,6 +286,14 @@
       "pr": null,
       "findings": [],
       "false_positives": [],
+      "note": "run26 (issue #647, attempt 2 \u2014 attempt 1 / run 38957959480 completed the same audit and posted its report, but died at PR creation: it set an explicit base=master which the safe-output layer rejects (allowed default filled instead); the artifacts never landed, so this run re-probed everything fresh and delivers): JavGuru full-surface deep pass, tier plain-curl on every surface (browser step never reached \u2014 no challenge anywhere; jav.guru serves transient 429s under probe bursts, spaced re-runs resolved, not drift). Canaries 3/3 (film1k plain 403, eporner 200, pandamovies 302->200@.org). Home p1/p2 and search teacher p1/p2 all 200 x24 div.inside-article cards, 0 href overlap; /search/q/ identical card list to /page/1/?s=q; quickSearch confirmed absent (static GET form action=/ name=s; admin-ajax is wp-ulike votes \u2014 search action 400; wp-json is wordpress-popular-posts) \u2014 recorded, not drift. 3 video pages (home /1065162 DLDSS-556, category-amateur /1060015 DNPS-005, most-watched-rank /1064700 PPPE-447 \u2014 the rank row is article.rank-item cards, caught by the provider's article selector): 200 with h1.titl, div.large-screenshot img (cdn.javmiku 403 -> jav.guru rewrite 200 still required), Release Date ownText -> year 2026, li.w1 Tags/Series/Actor/Actress rows; related block present 2/3 \u2014 the site natively omits it on some posts (YMDS-322 precedent), not drift; div.wp-content empty 3/3 (site ships no plot text; provider fallback stands). Streams (deep-pass focus): loadLinks chain replicated end-to-end on all 3 videos \u2014 javclan packed-eval is BACK (the 2026-09 hg-function.js-only window ended; shared Javclan extractor matches again): searcho cfg token -> ?xr= 302 -> javclan.com/e/<hash> -> unpacked hls2 premilkyway master.m3u8 -> 200/200/206 application/vnd.apple.mpegurl, referer-free, on all 3; vidara POST /api/stream also live (97bf1.com streaming_url m3u8) on all 3 cd tiles \u2014 every sampled video carries >=2 working mirrors. Per-post mirror tiles rotate between runs (attempt 1 sampled td/ed/hd/od pairs; this run saw vo/lu/dd/jk unhandled tiles, no ud/emturbovid tile, one gd tile) \u2014 watch item, not drift. verify.sh: listing run RESULT PASS (search p1/p2 disjoint, home p1/p2 disjoint, video 200, fresh stream 200); 3-video run \u2014 all videos 200, fresh chain-resolved stream overrides 200/200/206 application/vnd.apple.mpegurl with distinct paths, tags+year on all 3, search<->load title agreement clean, check 6 all fields \u2014 one FAIL line adjudicated: plot '-' placeholder collides in dups on empty-wp-content posts (instrument cannot express site-absent plot; FINDINGS-635 disposition precedent); related selector kept out of the mechanical bar for the same site-shape reason (natively omitted on some posts). GATES DEVIATION (honest): gradlew JavGuru:test / JavGuru:make are not executable in this sandbox \u2014 the egress policy 404s all of Maven Central (repo.maven.apache.org and repo1.maven.org return 404 for known-good artifacts, e.g. jsoup 1.23.2, junit 4.13.2) and no pre-provisioned Gradle cache exists (3.8 MB partial); the firewall is a policy boundary, not bypassed. The tree carries ZERO code changes (verdict ok, no confirmed condition -> no code change, version stays 28), so the built surface is byte-identical to the last green CI build of 52b8166; check-findings.sh PASS; build.yml validates compilation at merge. 0 findings filed (nothing confirmed), 0 false positives, 0 dedup targets (no standing or recently-closed JavGuru issues). Ground truth: FINDINGS-647.md, JavGuru/FINDINGS.md."
+    },
+    {
+      "id": "run26",
+      "date": "2026-10-17",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
       "note": "run26 (issue #643, self-contained re-run after lost 38957946527): FreePornVideos deep pass, full surfaces TLS-impersonated (plain curl 403 CF canary-consistent), verdict ok \u2014 no drift, no new findings, no code change (version stays 13); #536 confirmed live and fixed on master. FINDINGS.md rewritten."
     }
   ],
@@ -545,7 +553,9 @@
       "surfaces": {
         "home": "200",
         "search": "200",
-        "video": "200"
+        "video": "200",
+        "stream": "ok",
+        "quicksearch": "absent"
       },
       "issue": null,
       "standing_issue": null,
