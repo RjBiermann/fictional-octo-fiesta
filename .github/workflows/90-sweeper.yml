@@ -55,7 +55,7 @@ jobs:
           BUDGET_PREFIX: ${{ env.BUDGET_PREFIX }}
         run: |
           python3 - <<'EOF'
-          import json, os, subprocess, datetime, collections
+          import json, os, subprocess, datetime
           repo, stuck_h = os.environ["REPO"], int(os.environ["STUCK_HOURS"])
           cap_d, cap_max, pref = (int(os.environ["DAILY_ATTEMPT_CAP"]),
                                   int(os.environ["MAX_ATTEMPTS"]),
@@ -63,39 +63,59 @@ jobs:
           states = {"status/planned","status/in-review","status/fixing",
                     "status/fixing-stuck","status/ready-to-merge"}
           day = datetime.datetime.utcnow().strftime("%Y-%m-%d")
-          def gh(*a): subprocess.run(["gh",*a],check=True)
-          for it in json.load(open("issues.json")):
-              n, labels = it["number"], {l["name"] for l in it["labels"]}
-              st = labels & states
-              upd = datetime.datetime.fromisoformat(it["updated_at"].replace("Z","+00:00"))
-              idle_h = (datetime.datetime.now(datetime.timezone.utc)-upd).total_seconds()/3600
-              # Ledger: count today's (or lifetime) stamps from the issue comments
-              out = subprocess.run(["gh","api",f"repos/{repo}/issues/{n}/comments",
-                                    "--paginate","--jq",".[].body"],
-                                   capture_output=True,text=True).stdout
-              stamps = [l for l in out.splitlines() if l.strip().startswith(pref)]
-              today  = sum(day in s for s in stamps)          # daily budget
-              life   = sum("attempt=" in s for s in stamps)   # max_attempts
-              reset  = any("reset" in s for s in stamps)
-              budget = 0 if reset else life
-              # 1) Attempt caps -> escalate
-              if st and budget >= cap_max:
-                  if "status/fixing-stuck" not in labels:
-                      gh("issue","edit",str(n),"--repo",repo,
-                         "--add-label","status/fixing-stuck")
+          def gh(*a):
+              r = subprocess.run(["gh",*a], capture_output=True, text=True)
+              if r.returncode != 0:
+                  raise RuntimeError(f"gh {' '.join(a[:3])}: {r.stderr.strip()[:160]}")
+          # --paginate emits one JSON value per page concatenated — NOT one
+          # document. json.load dies with "Extra data" from the 2nd value.
+          # Tolerant parse: stream-decode every whitespace-separated value.
+          raw = open("issues.json").read()
+          dec, i, items = json.JSONDecoder(), 0, []
+          while i < len(raw):
+              while i < len(raw) and raw[i] in " \n\r\t":
+                  i += 1
+              if i >= len(raw):
+                  break
+              obj, i = dec.raw_decode(raw, i)
+              items.extend(obj if isinstance(obj, list) else [obj])
+          for it in items:  # fail soft per issue: one bad call must not kill the sweep
+              try:
+                  n = it["number"]
+                  labels = {l["name"] for l in it["labels"]}
+                  st = labels & states
+                  upd = datetime.datetime.fromisoformat(it["updated_at"].replace("Z","+00:00"))
+                  idle_h = (datetime.datetime.now(datetime.timezone.utc)-upd).total_seconds()/3600
+                  out = subprocess.run(["gh","api",f"repos/{repo}/issues/{n}/comments",
+                                        "--paginate","--jq",".[].body"],
+                                       capture_output=True,text=True).stdout
+                  stamps = [l for l in out.splitlines() if l.strip().startswith(pref)]
+                  # A historical `reset` must re-arm escalation: counts resume
+                  # from the last reset stamp, not from zero-forever.
+                  reset_idx = max((i for i, l in enumerate(stamps) if "reset" in l), default=-1)
+                  tail = stamps[reset_idx + 1:]
+                  today  = sum(day in l for l in tail)          # daily budget
+                  budget = sum("attempt=" in l for l in tail)   # max_attempts
+                  # 1) Attempt caps -> escalate
+                  if st and budget >= cap_max:
+                      if "status/fixing-stuck" not in labels:
+                          gh("issue","edit",str(n),"--repo",repo,
+                             "--add-label","status/fixing-stuck")
+                          gh("issue","comment",str(n),"--repo",repo,
+                             "--body",f"{pref} escalated: {budget} attempts; needs human.")
+                      continue
+                  # 2) Daily cap -> skip this round
+                  if today >= cap_d:
+                      continue
+                  # 3) Stuck -> re-fire by remove+re-add of the state label
+                  if st and idle_h > stuck_h:
+                      for lb in sorted(st):
+                          gh("issue","edit",str(n),"--repo",repo,"--remove-label",lb)
+                          gh("issue","edit",str(n),"--repo",repo,"--add-label",lb)
                       gh("issue","comment",str(n),"--repo",repo,
-                         "--body",f"{pref} escalated: {budget} attempts; needs human.")
-                  continue
-              # 2) Daily cap -> skip this round (cooldown can't accumulate)
-              if today >= cap_d:
-                  continue
-              # 3) Stuck -> re-fire by remove+re-add of the state label
-              if st and idle_h > stuck_h:
-                  for lb in sorted(st):
-                      gh("issue","edit",str(n),"--repo",repo,"--remove-label",lb)
-                      gh("issue","edit",str(n),"--repo",repo,"--add-label",lb)
-                  gh("issue","comment",str(n),"--repo",repo,
-                     "--body",f"{pref} re-fired: `{lb}` idle {int(idle_h)}h.")
+                         "--body",f"{pref} re-fired: `{lb}` idle {int(idle_h)}h.")
+              except Exception as e:
+                  print(f"issue {it.get('number','?')} skipped: {e}")
           EOF
 
       - name: Weekly status report (devloop status successor)
