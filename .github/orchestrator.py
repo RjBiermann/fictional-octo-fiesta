@@ -580,62 +580,6 @@ def _conflict_files(branch):
 VERSION_RE = re.compile(r"^\s*version\s*=\s*(\d+)\s*(?://.*)?$", re.M)
 
 
-MARKER_OURS, MARKER_SEP, MARKER_THEIRS = "<<<<<<< HEAD", "=======", ">>>>>>>"
-
-
-def _brace_balanced(text):
-    """True when braces/parens balance — a self-contained appended block
-    (a whole test function, say), not a half-edited fragment."""
-    depth = 0
-    for c in text:
-        if c in "{(":
-            depth += 1
-        elif c in "})":
-            depth -= 1
-            if depth < 0:
-                return False
-    return depth == 0
-
-
-def _union_conflict_markers(blob):
-    """Keep-both resolution for test-file conflicts (delta 16-f12).
-    The recurring wave shape: each provider branch appends its own
-    registry-row test methods to the same shared test file, so git sees
-    two side-by-side appended blocks. Concatenating both sides is then
-    exactly correct — but ONLY when every conflict hunk has both sides
-    brace-balanced and non-empty (self-contained blocks). Anything else
-    (shared-line edits, deletions, unbalanced fragments) -> None: the
-    conflict stays human. Returns the union text or None."""
-    lines = blob.splitlines(keepends=True)
-    out, i, hunks = [], 0, 0
-    while i < len(lines):
-        if lines[i].startswith(MARKER_OURS):
-            j = i + 1
-            while j < len(lines) and not lines[j].startswith(MARKER_SEP):
-                j += 1
-            k = j + 1
-            while k < len(lines) and not lines[k].startswith(MARKER_THEIRS):
-                k += 1
-            if j >= len(lines) or k >= len(lines):
-                return None
-            ours = "".join(lines[i + 1:j])
-            theirs = "".join(lines[j + 1:k])
-            if not ours.strip() or not theirs.strip():
-                return None
-            if not (_brace_balanced(ours) and _brace_balanced(theirs)):
-                return None
-            out.append(ours.rstrip("\n") + "\n\n")
-            out.append(theirs.rstrip("\n") + "\n")
-            hunks += 1
-            i = k + 1
-        else:
-            out.append(lines[i])
-            i += 1
-    if not hunks:
-        return None
-    return "".join(out)
-
-
 def _resolve_version_pair(a, b):
     """Deterministic version-bump resolution (round-2 review hardening).
     Safe only when the two bodies differ solely in the `version = N` line
@@ -667,7 +611,9 @@ def _auto_resolve_conflict(branch):
       -> union-merge (records append, main wins scalars)
     - configurable version-file (default */build.gradle.kts)
       -> higher version wins when bodies differ solely there
-    Anything else -> False; the PR degrades to the human-notify path.
+    Anything else (incl. Kotlin test files — 14-rebase owns those under
+    its gradlew gate) -> False; conflict_watch hands off to the AI rebase
+    workflow, and ambiguity ends at the human.
     Plumbing only: merge-tree tree + swapped blobs via a throwaway index
     (GIT_INDEX_FILE); pushes a normal merge commit — no force, no rebase,
     review history preserved; the synchronize event re-fires review."""
@@ -702,13 +648,6 @@ def _auto_resolve_conflict(branch):
                 if body is None:
                     return False
                 payload = body if body.endswith("\n") else body + "\n"
-            elif path.endswith("Test.kt"):
-                # conflicted blob with markers comes from the merge-tree tree
-                _, marked = _pl(["git", "show", f"{tree}:{path}"])
-                body = _union_conflict_markers(marked)
-                if body is None:
-                    return False
-                payload = body
             else:
                 return False
             blob = subprocess.run(["git", "hash-object", "-w", "--stdin"], input=payload,
@@ -747,9 +686,10 @@ def _auto_resolve_conflict(branch):
 
 
 def conflict_watch():
-    """Merge conflicts on agent PRs: auto-resolve the known mechanical
-    classes (findings.json union-merge, gradle version bumps), else notify
-    with the recipe — one comment per PR."""
+    """Merge conflicts on agent PRs: auto-resolve the mechanical classes
+    (registry union, version bumps); everything else is handed to the AI
+    rebase workflow (14-rebase) via the status/conflict label — with the
+    owner ping kept on the thread as the last-resort call to action."""
     # merge-tree + plumbing need up-to-date refs; branch fetches happen per-PR
     _pl(["git", "fetch", "origin", "main"])
     for pr in open_pulls():
@@ -762,17 +702,11 @@ def conflict_watch():
             continue
         _pl(["git", "fetch", "origin", branch])
         files = _conflict_files(branch)
-        files = _conflict_files(branch)
-        mechanical = files and all(
-            f == FINDINGS_PATH
-            or any(f.endswith(suf) for suf in REGISTRY_VERSION_SUFFIXES)
-            or f.endswith("Test.kt") for f in files)
-        if mechanical:
+        if files and all(f == FINDINGS_PATH
+                         or any(f.endswith(suf) for suf in REGISTRY_VERSION_SUFFIXES)
+                         for f in files):
             if _auto_resolve_conflict(branch):
                 continue
-        # Not mechanical (or mechanical resolve failed): hand to the AI
-        # rebase workflow (14-rebase, delta 16-f12) as the owner actor —
-        # the labeled event fires it; its prompt guards anything ambiguous.
         if not PROXY_PAT:
             print("[orchestrator] GH_AW_PROXY_PAT unset — conflict stays manual")
             continue
@@ -780,11 +714,12 @@ def conflict_watch():
         if not _has_marker(comments(num), marker):
             names = ", ".join(sorted(files)) if files else "unresolvable via merge-tree"
             post_comment(num,
-                f"{marker} on this PR — files: `{names}`. "
-                f"Mechanical classes didn't cover it — rebase workflow handed this one.")
+                f"{marker} on this PR — files: `{names}`. Mechanical classes didn't cover it; "
+                f"the rebase workflow (14-rebase) picks this up via the status/conflict label. "
+                f"If the rebase bot stalls, @{OWNER} — needs a human decision.")
         run(["gh", "api", "-X", "POST", f"repos/{REPO}/issues/{num}/labels",
              "-f", "labels[]=status/conflict"])
-        print(f"[orchestrator] PR #{num}: conflict flagged ({len(files) if files else 0} files) — status/conflict applied for AI rebase")
+        print(f"[orchestrator] PR #{num}: status/conflict applied ({len(files) if files else 0} files) — AI rebase handoff")
 
 
 # ------------------------------------------------- stall watch
@@ -905,9 +840,16 @@ def _preflight_labels():
     missing (rc is stderr-only in the Actions UI)."""
     labels = api("labels?per_page=100") or {}
     names = {l.get("name") for l in (labels if isinstance(labels, list) else [])}
-    for need in ("status/planned", "status/ready-to-merge", "status/queued", "status/in-review"):
+    for need in ("status/planned", "status/ready-to-merge", "status/queued",
+                 "status/in-review", "status/conflict"):
         if need not in names:
-            print(f"[orchestrator] ::warning::label missing on repo: '{need}' — stamps will no-op silently")
+            # Create it — a missing label 404s the POST silently and the
+            # workflow it triggers never fires (round-1 review blocker).
+            rc = run(["gh", "label", "create", need,
+                      "--description", "orchestrator conveyor state (auto-provisioned)",
+                      "--color", "ededed"])
+            print(f"[orchestrator] ::warning::label '{need}' missing — "
+                  f"{'auto-provisioned' if not rc else 'CREATE FAILED — stamps will no-op'}")
 
 
 if __name__ == "__main__":

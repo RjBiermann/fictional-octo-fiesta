@@ -65,7 +65,9 @@ test blocks). You handle what it can't — with rules, not vibes:
 4. Commit ALL resolutions (`git add` only the files you resolved) and
    push via `push_to_pull_request_branch` — never direct `git push` (the
    sandbox holds no write token).
-5. `remove-labels status/conflict`, then stamp via `add_comment`:
+5. `remove-labels status/conflict`, then stamp via `add_comment` — the
+   FIRST line of the stamp MUST be the `gh-aw budget:` line (the sweeper's
+   attempt-ledger parses it), followed by:
    rebase done at `<sha>`, conflicts resolved (`<files>`), tests `<n/n>`.
 6. **Blocked?** (ambiguity, red tests you can't resolve): do NOT push,
    DO NOT remove the label, and stamp the exact blocker — the human
