@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "note": "Machine source of truth for the provider fleet audit. drift_confirmed counts only closed issues CONFIRMED as drift/broken (Suspected findings closed as false positives are exclusions, never occurrences). Audits update this file; the lint (scripts/check-findings.sh) must pass before delivery.",
-  "updated": "2026-10-16",
+  "updated": "2026-10-17",
   "last_runs": [
     {
       "id": "run1",
@@ -249,6 +249,14 @@
       "findings": [],
       "false_positives": [],
       "note": "run23 (issue #652, self-contained run of approved #631 spec): EPorner deep pass, tier plain-curl on every surface (no challenge anywhere \u2014 escalation ladder never needed). Canaries 3/3 on the plain tier (film1k 403, eporner 200, pandamovies 302; TLS-impersonation tool unavailable this run \u2014 plain decisive since no surface was blocked). Home p1/p2 64/66 overlap 3 (rail-placement class, identical to #598); search /search/cowgirl/1/ 301\u2192tag base unchanged, /tag/cowgirl/ p1/p2 65+65 with 1 boundary repeat of 65; video x3 200 (h1/og:image/related 30, actor data absent site-side = standing #537 side record); stream chain end-to-end (xhr available:true \u2192 720p mp4 206 + HLS master 200 on ca nodes; the fr CDN cluster of one sample unreachable at connect level from the datacenter runner \u2014 node flakiness, not drift). CONFIRMED DRIFT fixed in-run (version 18\u219219, TDD): watch-page h1 nests vid-length/vid-quality chip spans \u2192 h1.text() glued duration+quality onto every title (verify.sh check 5 caught it against live card titles); EPornerParse.videoTitle(ownText) + guarded fallback; fixture = verbatim live h1 markup; 11 tests green, clean make green. verify.sh: all content checks green (streams 206, related, tags, duration, recommendations); 4 instrument-limited FAIL lines adjudicated in FINDINGS-652 (search/home cross-page rank-churn repeats 1+3 \u2014 same site-native class as #598/#635; check-5 title mismatch = the fixed h1-chip glue as seen by the regex-DOM instrument which has no own-text semantics; poster frame-variant 5_240 vs 14_240 = site-side thumb variant). Verdict ok-drift, drift_confirmed 1\u21922, last_deep 2026-10-16. 0 findings filed (fixed in-run), 0 false positives."
+    },
+    {
+      "id": "run24",
+      "date": "2026-10-17",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run24 (issue #653, self-contained run of approved #631 spec): XMoviesForYou deep pass, tier tls-impersonated on every surface (plain curl 403 on home + query-dropping 302 on path-form search; canaries 3/3 - film1k plain 403/TLS 200, eporner 200, pandamovies 302->200@.org). Home p1/p2: 30 a[data-video-card] p1-only (10 unique hrefs, carousel dedupe holds) + 24 a.group.flex.flex-col each, 0 overlap p1-p2; search /search?q=red -> /new-search?q=red 200 x24 a.card p1+p2 disjoint (probe note: bare /search/red path form 302s to a query-dropping /new-search shell - provider uses ?q=, no drift); 5 video pages 200 (carousel x2, grid, search, category/anal listings: h1/og:postId/JSON-LD/runtime chip/prose/category+pornstar anchors intact); /api/related/<postId> 5/5 200. Stream chain fully green end-to-end this run: v-page expires/ip/token (ip now an obfuscated non-numeric string - shared StreamTAPE regex already tolerant) -> get_video 302 -> tapecontent/radosgw 206 video/mp4; the Oct-14 host-side get_video {status:500} dc-IP exclusion did NOT reproduce -> per-token transient, ok-suspected exclusion class, not refiled. quickSearch absent (api/search + api/suggest 404). Verdict ok retained (0 drift since 2026-10-14), last_deep=2026-10-17. 0 confirmed findings -> no code change, no version bump (stays 14), 0 false positives, nothing refiled (history #37/#103/#450/#467/#473/#535 all closed, 3 suspected_excluded). Gates: bootstrapCloudstream, gradlew XMoviesForYou:test 8/8 green, gradlew XMoviesForYou:make green, check-findings.sh PASS."
     }
   ],
   "providers": {
@@ -308,13 +316,14 @@
     "XMoviesForYou": {
       "site": "xmoviesforyou.com",
       "verdict": "ok",
-      "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #535 fix (#547, v14) live-verified \u2014 all three live card shapes parse on XMoviesForYouParse.CARD: home 30 a[data-video-card] + 24 a.group.flex.flex-col (30/30, 24/24 parseable with h3/href/img), search p1/p2 24 a.card each disjoint; video page 200 (h1/og:postId/JSON-LD/runtime chip), /api/related/<postId> 200, streamtape filehost anchor present (shared adapter registered). streamtape get_video answers {status:500} from the datacenter IP on fresh tokens \u2014 host-side on probe IP, not provider grammar. No quick-search endpoint on site; provider has no quickSearch override (absent surface, not drift). Historical drift record #535 closed; migrated ok-drift \u2192 ok.",
       "tier": "tls-impersonated",
+      "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #535 fix (#547, v14) live-verified - all three live card shapes parse on XMoviesForYouParse.CARD. Re-confirmed 2026-10-17 deep pass (issue #653, run 38995069882): home p1/p2 30 carousel (10 unique, p1-only) + 24 grid, search q=red p1/p2 24 a.card disjoint (bare /search/<q> path form 302s into a query-dropping /new-search shell - provider always used ?q=: recorded, no drift), video x5 200 (h1/og:postId/JSON-LD/runtime chip/prose), /api/related 5/5 200, streamtape chain fully green end-to-end this run (v-page expires/ip/token -> get_video 302 -> tapecontent 206 video/mp4; Oct-14 host-side get_video 500 dc-IP exclusion did not reproduce - per-token transient, ok-suspected class, not refiled). quickSearch absent (api/search + api/suggest 404), no provider override. Nothing to reopen: standing_issue null, suspected_excluded intact.",
       "surfaces": {
-        "home": "200 TLS (30 carousel + 24 grid, all parseable)",
-        "search": "200 TLS p1+p2 disjoint 24 a.card",
-        "video": "200 TLS",
-        "stream": "filehost anchor present; final get_video 500 host-side on dc IP"
+        "home": "200 TLS p1+p2 (30 carousel p1-only + 24 grid, disjoint, all parseable)",
+        "search": "200 TLS q=red p1/p2, 24 a.card disjoint",
+        "video": "200 TLS x5",
+        "stream": "v-page -> get_video 302 -> tapecontent 206 video/mp4 (chain fully green this run)",
+        "quick_search": "absent (api 404s, no provider override)"
       },
       "issue": 535,
       "standing_issue": null,
@@ -325,7 +334,7 @@
         473
       ],
       "chronic": false,
-      "last_deep": "2026-10-14"
+      "last_deep": "2026-10-17"
     },
     "Film1k": {
       "site": "www.film1k.com",
