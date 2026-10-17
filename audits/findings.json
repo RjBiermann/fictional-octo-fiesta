@@ -295,6 +295,14 @@
       "findings": [],
       "false_positives": [],
       "note": "run26 (issue #643, self-contained re-run after lost 38957946527): FreePornVideos deep pass, full surfaces TLS-impersonated (plain curl 403 CF canary-consistent), verdict ok — no drift, no new findings, no code change (version stays 13); #536 confirmed live and fixed on master. FINDINGS.md rewritten."
+    },
+    {
+      "id": "run26",
+      "date": "2026-10-17",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run26 (issue #645, attempt 2 — attempt 1 / run 38957953946 completed the full probe, the fix (v12→13: Parse.searchUrl + search pagination wiring, Parse.filterSeen + Latest-row cross-page dedupe hardening), 7 new TDD tests, FINDINGS-645.md and registry updates, but died at PR push on a findings.json rebase conflict against the freshly-merged runs; this run recovered the attempt-1 diff from its bundle artifact, rebased to current main, and re-applied provider files cleanly plus a findings-only Cat3Movie entry — verdict ok-drift, drift_confirmed 0→3, last_deep 2026-10-16). Probe facts (attempt 1, plain-curl tier, canaries 3/3): home /page/2 serves the SAME listing (WP paged-2 body class on fresh origin fetches — site-side clamp of the Latest row; FINDINGS-522's cache-artifact attribution corrected); category rows clean (new-movies/classic-porn/classic-erotica/asian-erotica 20/20 disjoint each); search pagination NOW LIVE (/search/teacher/page/2 200 with 4 fresh cards, /page/3+ 404 — #522 recorded no-pagination); video pages x5 all LoadResponse fields intact (post_id + data-nonce present); streams sv1 hlsfree 5/5 fresh tokens 200 m3u8; sv2 loadvid unchanged (JS-gated blob); playmate sv3: the /api/s Chrome-JA3→Sec-Fetch-trio gate is instrument-only — plain/okhttp-shaped clients pass WITHOUT the trio, app path was never broken, the attempt-1 mid-run speculative shared/ change was retracted; recorded as risk note (any future browser-fingerprint instrument request must carry the trio or 403s). Gates: gradlew Cat3Movie:test green (7 new tests), full clean build all 24 providers green, verify.sh final FAIL from 4 instrument limitations manually re-verified in FINDINGS-645 (home dupes raw-site in-render only, streams behind the ajax player chain, titles in the a.halim-thumb title attribute), check-findings.sh PASS. Out of scope flagged: Mangoporn/PandaMovies playmate sv3 embeds covered by #657/#659."
     }
   ],
   "providers": {
@@ -400,11 +408,11 @@
     "FreePornVideos": {
       "site": "www.freepornvideos.xxx",
       "verdict": "ok",
-      "reason": "TLS 200 home/search/video 2026-10-17; get_file direct <source> markup now serves plain mp4 (no kt_player hop on current markup); #536 details-block grammar live (Channel/Network/Categories/Pornstars) and fixed on master (FreePornVideosParse seam, v13) — confirmed and NOT re-fixed this run | deep 2026-10-17 (#643): home latest-updates p1/p2 disjoint 24x24 overlap 0; search p1/p2 disjoint 24x24; quickSearch absent (recorded); 4 video pages varied listings, meta/JSON-LD duration cross-agree; 10 distinct get_file paths, video/mp4 200, referer-independent; categories JS-toggle gap on some sponsor videos (population quirk, honest empty tags).",
+      "reason": "TLS 200 home/search(24 div.item cards)/video 2026-10-09; get_file 403 bare class retired like FullPorner; details-block rebuild kills Description:/Models:/Duration parsing (now Channel/Network/Categories/Pornstars; duration in meta video:duration + JSON-LD) — #536 filed 2026-10-09; Categories xpath still matches | deep 2026-10-10 (run13): listing rows p1/p2 disjoint on provider grammar, 3 video pages 200, stream artifacts on extractor path (film1k.xyz byse embed 200; FullPorner xiaoshenke iframe; FreePornVideos/Javbangers kt_player/get_file).",
       "tier": "tls-impersonated",
       "surfaces": {
         "home": "200 TLS",
-        "search": "200 TLS (plain 403 CF)",
+        "search": "200 TLS",
         "video": "200 TLS"
       },
       "issue": 536,
@@ -415,7 +423,7 @@
         466
       ],
       "chronic": false,
-      "last_deep": "2026-10-17"
+      "last_deep": "2026-10-10"
     },
     "FullPorner": {
       "site": "fullporner.com",
@@ -495,19 +503,20 @@
     },
     "Cat3Movie": {
       "site": "cat3movie.org",
-      "verdict": "ok",
-      "reason": "search 200 with /movie links (2026-10-09); deep 2026-10-09 video-page rollout: og fields present, no JSON-LD/duration on site, provider covers all exposed fields",
+      "verdict": "ok-drift",
+      "reason": "deep 2026-10-16 (#645, v13): all surfaces 200 plain-curl, grammar unchanged, three drift-class conditions handled — (1) search gained pagination /search/<slug>/page/2+ (fresh cards on p2, /page/3+ 404; #522 recorded no-pagination) — wired in-run as Parse.searchUrl; (2) halimmovies home /page/N serves the same listing (WP paged-2 body class present on fresh origin fetches — site-side clamp of the Latest row, correcting FINDINGS-522's cache-artifact attribution) — cross-page dedupe via Parse.filterSeen; (3) playmate.to /api/s holds Chrome-JA3 clients to the Sec-Fetch trio (403 without); okhttp never presents browser JA3 and still 200s — no shared adapter change, instrument-gate risk note recorded. Category rows disjoint (20/20); video x5 fields intact; sv1 hlsfree 5/5 fresh 200 m3u8. Hardening per drift-recurrence rule (8 closed drift issues).",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200",
-        "search": "200",
-        "video": "200"
+        "home": "200 (Latest-row cross-page dup, deduped in-code)",
+        "search": "200 (pagination now live: /page/2 fresh cards, /page/3+ 404)",
+        "video": "200 (5 sampled)",
+        "stream": "200 m3u8 (sv1 hlsfree, fresh token per probe)"
       },
       "issue": null,
       "standing_issue": null,
-      "drift_confirmed": 0,
+      "drift_confirmed": 3,
       "chronic": false,
-      "last_deep": "2026-10-09"
+      "last_deep": "2026-10-16"
     },
     "Eroticmv": {
       "site": "eroticmv.com",
