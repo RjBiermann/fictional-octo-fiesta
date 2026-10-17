@@ -845,11 +845,11 @@ def _preflight_labels():
         if need not in names:
             # Create it — a missing label 404s the POST silently and the
             # workflow it triggers never fires (round-1 review blocker).
-            rc = run(["gh", "label", "create", need,
-                      "--description", "orchestrator conveyor state (auto-provisioned)",
-                      "--color", "ededed"])
+            rc = subprocess.run(["gh", "label", "create", need,
+                                 "--description", "orchestrator conveyor state (auto-provisioned)",
+                                 "--color", "ededed"], capture_output=True, text=True).returncode
             print(f"[orchestrator] ::warning::label '{need}' missing — "
-                  f"{'auto-provisioned' if not rc else 'CREATE FAILED — stamps will no-op'}")
+                  f"{'auto-provisioned' if rc == 0 else 'CREATE FAILED (%d) — stamps will no-op' % rc}")
 
 
 if __name__ == "__main__":
@@ -879,8 +879,11 @@ if __name__ == "__main__":
                  if name not in mutation_steps or _owner_configured()}
     only = [a for a in sys.argv[1:] if a in steps]
     for name, fn in {**available, "approvals": steps["approvals"]}.items():
-        # approvals self-gates on PROXY_PAT inside; conflict_watch pushes via
-        # the checked-out token (contents: write) and needs no owner identity
+        # approvals self-gates inside; conflict_watch resolves mechanical
+        # classes via the checked-out token, BUT its non-mechanical handoff
+        # (label POST → 14-rebase fire) only works with GH_AW_PROXY_PAT —
+        # the status/conflict labeled event must carry the owner actor or
+        # gh-aw activation rejects the fire. Do not drop this guard.
         if only and name not in only:
             continue
         try:

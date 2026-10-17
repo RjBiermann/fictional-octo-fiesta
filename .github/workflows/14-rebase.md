@@ -40,9 +40,10 @@ safe-outputs:
 # Rebase on conflict
 
 The AI fallback for merge conflicts (ADR-0008 amendment, delta 16-f12): the
-orchestrator's mechanical resolver handles the deterministic classes
-(append-only registry union, version-bump higher-wins, keep-both appended
-test blocks). You handle what it can't — with rules, not vibes:
+orchestrator's mechanical resolver handles the two deterministic classes
+(append-only registry union, version-bump higher-wins). You own everything
+else — including test files, under your own compile gate — with rules,
+not vibes:
 
 1. Confirm the conflict: `git fetch origin main` then
    `git merge-tree --write-tree --name-only origin/main HEAD` (rc=1 lists
@@ -65,9 +66,10 @@ test blocks). You handle what it can't — with rules, not vibes:
 4. Commit ALL resolutions (`git add` only the files you resolved) and
    push via `push_to_pull_request_branch` — never direct `git push` (the
    sandbox holds no write token).
-5. `remove-labels status/conflict`, then stamp via `add_comment` — the
-   FIRST line of the stamp MUST be the `gh-aw budget:` line (the sweeper's
-   attempt-ledger parses it), followed by:
+5. `remove-labels status/conflict`, then stamp via `add_comment`. The
+   FIRST line MUST be `gh-aw budget: attempt=<n> kind=fix run=<this run URL>`
+   (kind=fix — the ledger has no rebase kind; a rebase attempt rides the
+   parent work item so the sweeper's max_attempts counts it), followed by:
    rebase done at `<sha>`, conflicts resolved (`<files>`), tests `<n/n>`.
 6. **Blocked?** (ambiguity, red tests you can't resolve): do NOT push,
    DO NOT remove the label, and stamp the exact blocker — the human
@@ -75,3 +77,8 @@ test blocks). You handle what it can't — with rules, not vibes:
    is visible.
 
 Never finish silently — the stamp (or the push) is the terminal action.
+
+Blocked or wall-died? Retry is remove+re-add of `status/conflict` (an
+already-present label emits no second `labeled` event) — human action on
+the PR; cooldown 20m applies. The stamp above is how the ledger records
+each attempt against that lever.
