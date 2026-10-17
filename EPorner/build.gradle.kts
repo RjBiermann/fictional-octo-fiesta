@@ -1,5 +1,5 @@
 // ! Bu araç @ByAyzen tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 18 // FINDINGS-537: search pages 2+ route through the tag pagination surface
+version = 19 // 2026-10-16 deep pass: h1 carries vid-length/vid-quality chip spans — videoTitle() keeps own text only (title glue fix); #537 tag-route pagination re-verified live
 
 cloudstream {
     authors     = listOf("ByAyzen")

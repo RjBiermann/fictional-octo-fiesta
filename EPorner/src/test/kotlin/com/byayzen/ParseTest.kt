@@ -1,5 +1,6 @@
 package com.byayzen
 
+import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -36,6 +37,37 @@ class ParseTest {
 
     @Test fun `search page one is the request url untouched`() =
         assertEquals("https://www.eporner.com/search/sex/", EPornerParse.pageUrl("https://www.eporner.com/search/sex/", 1))
+
+    // --- video title (2026-10-16 deep pass): h1 carries nested vid-length/vid-quality chip
+    // --- spans, so h1.text() glued duration+quality onto every in-app title
+    // --- ("Tobrut Enak 9min 720p"). videoTitle keeps only the h1's own text.
+    private val h1Fixture =
+        javaClass.getResourceAsStream("/video-1Gh6mVaDndG-h1.html")!!.readBytes().decodeToString()
+
+    @Test fun `video title strips quality chip spans`() {
+        val doc = Jsoup.parse(h1Fixture)
+        val h1s = doc.select("h1")
+        assertEquals("Tobrut Enak", EPornerParse.videoTitle(h1s[0]))
+        assertEquals("3xxx", EPornerParse.videoTitle(h1s[1]))
+    }
+
+    @Test fun `video title plain h1 shape still works`() {
+        val doc = Jsoup.parse("<h1>Stepsons</h1>")
+        assertEquals("Stepsons", EPornerParse.videoTitle(doc.selectFirst("h1")))
+    }
+
+    @Test fun `video title null when h1 absent or empty`() {
+        assertNull(EPornerParse.videoTitle(null))
+        assertNull(EPornerParse.videoTitle(Jsoup.parse("<h1></h1>").selectFirst("h1")))
+    }
+
+    @Test fun `video title falls back to full text when only chip span holds text`() {
+        // legacy guard: if a future template moves the whole title into a child element,
+        // keep the old h1.text() behavior instead of returning null
+        val doc = Jsoup.parse("<h1><span>Only Title</span><span class=q>720p</span></h1>")
+        val t = EPornerParse.videoTitle(doc.selectFirst("h1"))
+        assertEquals(true, t != null && t.contains("Only Title"))
+    }
 
     // --- search pagination (issue #537): /search/<q>/<n>/ 301s to /tag/<q>/ (base, page 1),
     // --- while /tag/<q>/<n>/ paginates correctly — route search through the tag path.

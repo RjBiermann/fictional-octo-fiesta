@@ -28,6 +28,19 @@ import java.math.BigInteger
 object EPornerParse {
     private val swapSegments = setOf("most-viewed", "longest")
 
+    /**
+     * Video title from the watch page's h1 (2026-10-16 deep pass): the live template
+     * nests span.vid-length / span.vid-quality chips inside the h1, so h1.text()
+     * glued duration+quality onto every title ("Tobrut Enak 9min 720p"). The title
+     * is the h1's own text; if a future template moves the title into a child
+     * element, fall back to the old text() behavior instead of dropping the title.
+     */
+    fun videoTitle(h1: org.jsoup.nodes.Element?): String? {
+        val own = h1?.ownText()?.trim()
+        return own?.takeIf { it.isNotEmpty() }
+            ?: h1?.text()?.trim()?.takeIf { it.isNotEmpty() }
+    }
+
     fun pageUrl(baseUrl: String, page: Int): String {
         if (page <= 1) return baseUrl
         val trimmed = baseUrl.trimEnd('/')
@@ -81,7 +94,7 @@ class EPorner : MainAPI() {
 
     override suspend fun load(url: String): LoadResponse? {
         val document = app.get(url).document
-        val title = document.selectFirst("h1")?.text()?.trim() ?: return null
+        val title = EPornerParse.videoTitle(document.selectFirst("h1")) ?: return null
         val poster = fixUrlNull(
             document.selectFirst("meta[property=og:image]")?.attr("content")
                 ?: document.selectFirst("video#EPvideo")?.attr("poster")

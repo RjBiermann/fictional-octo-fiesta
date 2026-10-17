@@ -148,17 +148,57 @@
   `li.vit-category a`, related `div#relateddiv div.mb` (17/ev quals counted 10–20 cards via
   verify.sh DOM method), JSON-LD actor array — all present.
 
-## Verdict (final): OK
+## Update (2026-10-16, #652 deep pass): title glue fix + full-surface re-check
 
-- Acceptance-critical: most-viewed + longest page 2 now return fresh cards (overlap 4–5 of
-  ~67) instead of duplicating page 1 (68/79 shared). Search pagination needs no code change
-  (0 within-page / ≤1 boundary duplicate across pages, matching the site's own canonical
-  page, not a cache artifact).
-- verify.sh-mechanical residual NOTE (script ceiling, recorded in #294-era FINDINGS too):
-  quality-chip `div.mb` sub-cards inside the search page (and triv catalog pages) surface as
-  empty-title/href-only cards in the regex DOM; verify.sh flags "empty title" cards that
-  the provider's `searchCard` (title selector `p.mbtit a`, non-null title only) already
-  drops via `mapNotNull`. Documented; no provider code change.
-- Age-verification gate from this runner's geo affects HTML surfaces with Firefox UA only;
-  Googlebot UA + curl reproduce all surfaces live and the stream chain end-to-end. Listed as
-  blocked-from-CI-not-needed: evidence complete, gate PASS via full mechanical path.
+**CONFIRMED DRIFT (fixed in-run, TDD): the h1 quality-chip glue.** The live watch-page
+h1 now nests chips inside the title element:
+
+```html
+<h1 >Tobrut Enak <span class="vid-length">9min</span><span class="vid-quality">720p</span></h1>
+```
+
+`load()` used `selectFirst("h1").text()`, which concatenates descendants —
+jsoup escapes verified live: every in-app title rendered "Tobrut Enak 9min 720p".
+Caught by verify.sh check 5 (search card `tobrut enak` / `3xxx` vs glue-title). Fix:
+pure `EPornerParse.videoTitle(h1)` = `ownText()` (title text only, chips excluded),
+fallback to `text()` when own text is empty (guarded by unit test so a future
+"title inside a child span" template degrades to the old behavior, not to null).
+Fixture `src/test/resources/video-1Gh6mVaDndG-h1.html` = the verbatim live h1
+markup (Tobrut Enak + 3xxx pages). Test written first (compile-red unresolved
+reference) → 11/11 green. `version` 18 → 19; clean `EPorner:make` green.
+
+**Surfaces (plain-curl tier throughout — no challenge anywhere; escalation ladder
+never needed). Canaries 3/3 on the plain tier: film1k 403, eporner 200,
+pandamovies.pw 302. The TLS-impersonation step had no impersonation tool
+available this run; plain was decisive because no surface was blocked.**
+
+| Surface | Result |
+| --- | --- |
+| Home p1/p2 | 200, 64/66 video-card ids, overlap 3 of ~65 — the exact 3-overlap rail-placement class recorded 2026-10-14 (#598), site-native, not provider grammar |
+| Search | `/search/cowgirl/1/` 301 → `/tag/cowgirl/` (the documented #537 collapse, unchanged); `/tag/cowgirl/` + `/2/` 200, 65+65, p1∩p2 = 1 boundary repeat; `/tag/cowgirl/1/` followed still collapses to the tag base (never route p1 there) |
+| Video pages ×3 | `/video-0DbLLO1LU5O/`, `/video-1Gh6mVaDndG/`, `/video-1iQ9VveNRaR/` (bare id 301s to the slug URL — always fetch the slug form): h1, og:image, `span.vid-length`, `div#video-info-tags li.vit-category a`, `div#relateddiv` (30 blocks each), ×3 JSON-LD `script[type=application/ld+json]` blocks |
+| Actor data | Still absent site-side on every probed page: 0 `li.vit-pornstar`, 0 `span.valor`, no JSON-LD `actor` key, og:description has no "Starring:" or " , Name. Duration" clause (vid1 og exactly "Watch <title>. Duration: …, available in: …") → provider no-ops to empty list. Standing #537 side record; not refiled, not drift. |
+| Year | JSON-LD `VideoObject.uploadDate` intact (live samples 2025/2026 dates → JsonLdParse.year has real input again) |
+| Stream chain | embed 200 → `EP.video.player.hash` present → 8-chunk base36 → `/xhr/video/<id>?hash=…` 200 `available: true` → `labelShort` ladder (720/480/360/240p mp4, no `/dload/`) + `srcFallback` HLS where shipped → 720p mp4 range check **206 video/mp4** video2+video3; video2 HLS master **200 vnd.apple.mpegurl** |
+| fr-CDN cluster | video1's entire cluster (`vid-s1-s50-fr-cdn.eporner.com` + `dash-s1-s50-fr-cdn`) unreachable from the datacenter runner at connect level (000 retries 45–60s, bare host too) while the same run's ca-node streams serve 206 — single-cluster node flakiness, known class (same as #181-era nl note); sample is a recent upload whose stream URLs bind to that one cluster. Not a provider condition; the player re-resolves and picks a serving cluster on the client side. |
+| Quick search | No distinct endpoint on the site surface; `quickSearch` still delegates to `search(query, 1)` (#569). |
+
+**verify.sh mechanical run (search+home+video+stream+related+load-fields):** all
+content checks green (streams 206, related 30, tags/`duration` present on all
+pages, LoadResponse assignments all green). 4 FAIL lines adjudicated instrument/site-side:
+
+1. `duplicate search cards` — 1 of 65 tag cards repeats across fresh p1/p2 fetches (rank
+   re-injection at fetch time, same class Xhamster #635 documented) + 1 same-title pair of
+   distinct hrefs on p1 (two re-uploads share a title; href identity distinct).
+2. `duplicate home cards` — 3 of ~65 repeat across p1/p2 (the rail-placement class of #598,
+   identical overlap count as the 2026-10-14 record).
+3. `title mismatch` ×2 in check 5 — the regex-DOM instrument has no own-text semantics, so
+   its `h1 text` sees the same chip glue the provider did before the fix ('tobrut enak 9min
+   720p'); the producer fix is fixture-tested (11/11) and the mismatch text is precisely
+   what it removes.
+4. `poster mismatch` (3xxx) — search-card img `5_240.jpg` vs og:image `14_240.jpg`: different
+   thumb frames from the same per-video `/17832634/` set (site-side variant; og:image is the
+   metadata source of truth the provider mirrors).
+
+**Verdict: ok-drift** (drift fixed in-run; no standing condition). `audits/findings.json`
+updated (EPorner row + run23); drift_confirmed 1 → 2.
