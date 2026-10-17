@@ -79,8 +79,7 @@ not vibes:
 4. Commit ALL resolutions (`git add` only the files you resolved) and
    push via `push_to_pull_request_branch` — never direct `git push` (the
    sandbox holds no write token).
-5. After the push lands: stamp via `add_comment`, then
-   `remove-labels status/conflict` — this same order (rule 5b). The
+5. `remove-labels status/conflict`, then stamp via `add_comment`. The
    stamp MUST land on the LINKED SPEC ISSUE (itemNumber = the `issue-<n>`
    in the branch name / the PR's closing issue) — NOT this PR: the
    sweeper's ledger scans issues only, PR-linked threads are excluded.
@@ -94,14 +93,12 @@ not vibes:
    merge decision stays with the owner. A lost push is silent; a stamp
    is visible.
 
-5b. **The push is a TOOL CALL, never implicit.** `git commit` does not
-   deliver anything — the sandbox is discarded after your final turn
-   (observed run 39061496996: full merge + green tests, then the safe
-   output layer processed ZERO messages because no tool was invoked).
-   Before finishing: invoke `push_to_pull_request_branch` (explicit
-   tool call), then the stamp comment, then the label removal.
-   Confirm the push tool call was actually issued before ending
-     the turn — the orchestrator sees the committed code, never your notes.
+5b. **The push is the CLI call above — never implicit.** `git commit`
+   delivers nothing — the sandbox is discarded after your final turn
+   (observed runs 39061496996 and 39066050579: full merge + green tests,
+   then the safe-output layer processed ZERO messages because the CLI
+   call never went out). Say out loud the exact CLI line from rule 5
+   before your final turn; do not paraphrase it as a plan.
 
 Never finish silently — the stamp (or the push) is the terminal action.
 
