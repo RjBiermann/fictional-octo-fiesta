@@ -611,7 +611,9 @@ def _auto_resolve_conflict(branch):
       -> union-merge (records append, main wins scalars)
     - configurable version-file (default */build.gradle.kts)
       -> higher version wins when bodies differ solely there
-    Anything else -> False; the PR degrades to the human-notify path.
+    Anything else (incl. Kotlin test files — 14-rebase owns those under
+    its gradlew gate) -> False; conflict_watch hands off to the AI rebase
+    workflow, and ambiguity ends at the human.
     Plumbing only: merge-tree tree + swapped blobs via a throwaway index
     (GIT_INDEX_FILE); pushes a normal merge commit — no force, no rebase,
     review history preserved; the synchronize event re-fires review."""
@@ -631,15 +633,17 @@ def _auto_resolve_conflict(branch):
         if _pl(["git", "read-tree", tree], env=ienv)[0] != 0:
             return False
         for path in sorted(files):
-            _, ours_body = _pl(["git", "show", f"origin/main:{path}"])
-            _, side_body = _pl(["git", "show", f"origin/{branch}:{path}"])
             if path == FINDINGS_PATH:
+                _, ours_body = _pl(["git", "show", f"origin/main:{path}"])
+                _, side_body = _pl(["git", "show", f"origin/{branch}:{path}"])
                 try:
                     payload = json.dumps(_union_findings(json.loads(side_body),
                                                          json.loads(ours_body)), indent=2) + "\n"
                 except Exception:
                     return False
             elif any(path.endswith(suf) for suf in REGISTRY_VERSION_SUFFIXES):
+                _, ours_body = _pl(["git", "show", f"origin/main:{path}"])
+                _, side_body = _pl(["git", "show", f"origin/{branch}:{path}"])
                 body = _resolve_version_pair(ours_body, side_body)
                 if body is None:
                     return False
@@ -682,9 +686,10 @@ def _auto_resolve_conflict(branch):
 
 
 def conflict_watch():
-    """Merge conflicts on agent PRs: auto-resolve the known mechanical
-    classes (findings.json union-merge, gradle version bumps), else notify
-    with the recipe — one comment per PR."""
+    """Merge conflicts on agent PRs: auto-resolve the mechanical classes
+    (registry union, version bumps); everything else is handed to the AI
+    rebase workflow (14-rebase) via the status/conflict label — with the
+    owner ping kept on the thread as the last-resort call to action."""
     # merge-tree + plumbing need up-to-date refs; branch fetches happen per-PR
     _pl(["git", "fetch", "origin", "main"])
     for pr in open_pulls():
@@ -697,19 +702,24 @@ def conflict_watch():
             continue
         _pl(["git", "fetch", "origin", branch])
         files = _conflict_files(branch)
-        if FINDINGS_PATH and files and all(
-                f == FINDINGS_PATH or any(f.endswith(suf) for suf in REGISTRY_VERSION_SUFFIXES)
-                for f in files):
+        if files and all(f == FINDINGS_PATH
+                         or any(f.endswith(suf) for suf in REGISTRY_VERSION_SUFFIXES)
+                         for f in files):
             if _auto_resolve_conflict(branch):
                 continue
-        marker = f"{MARK} merge conflict detected"
-        if _has_marker(comments(num), marker):
+        if not PROXY_PAT:
+            print("[orchestrator] GH_AW_PROXY_PAT unset — conflict stays manual")
             continue
-        names = ", ".join(sorted(files)) if files else "unresolvable via merge-tree"
-        post_comment(num,
-            f"{marker} on this PR — files: `{names}`. "
-            f"@{OWNER} — outside the mechanical findings.json auto-merge scope; needs a human merge decision.")
-        print(f"[orchestrator] PR #{num}: conflict flagged ({names})")
+        marker = f"{MARK} merge conflict detected"
+        if not _has_marker(comments(num), marker):
+            names = ", ".join(sorted(files)) if files else "unresolvable via merge-tree"
+            post_comment(num,
+                f"{marker} on this PR — files: `{names}`. Mechanical classes didn't cover it; "
+                f"the rebase workflow (14-rebase) picks this up via the status/conflict label. "
+                f"If the rebase bot stalls, @{OWNER} — needs a human decision.")
+        run(["gh", "api", "-X", "POST", f"repos/{REPO}/issues/{num}/labels",
+             "-f", "labels[]=status/conflict"])
+        print(f"[orchestrator] PR #{num}: status/conflict applied ({len(files) if files else 0} files) — AI rebase handoff")
 
 
 # ------------------------------------------------- stall watch
@@ -830,9 +840,16 @@ def _preflight_labels():
     missing (rc is stderr-only in the Actions UI)."""
     labels = api("labels?per_page=100") or {}
     names = {l.get("name") for l in (labels if isinstance(labels, list) else [])}
-    for need in ("status/planned", "status/ready-to-merge", "status/queued", "status/in-review"):
+    for need in ("status/planned", "status/ready-to-merge", "status/queued",
+                 "status/in-review", "status/conflict"):
         if need not in names:
-            print(f"[orchestrator] ::warning::label missing on repo: '{need}' — stamps will no-op silently")
+            # Create it — a missing label 404s the POST silently and the
+            # workflow it triggers never fires (round-1 review blocker).
+            rc = subprocess.run(["gh", "label", "create", need,
+                                 "--description", "orchestrator conveyor state (auto-provisioned)",
+                                 "--color", "ededed"], capture_output=True, text=True).returncode
+            print(f"[orchestrator] ::warning::label '{need}' missing — "
+                  f"{'auto-provisioned' if rc == 0 else 'CREATE FAILED (%d) — stamps will no-op' % rc}")
 
 
 if __name__ == "__main__":
@@ -862,8 +879,11 @@ if __name__ == "__main__":
                  if name not in mutation_steps or _owner_configured()}
     only = [a for a in sys.argv[1:] if a in steps]
     for name, fn in {**available, "approvals": steps["approvals"]}.items():
-        # approvals self-gates on PROXY_PAT inside; conflict_watch pushes via
-        # the checked-out token (contents: write) and needs no owner identity
+        # approvals self-gates inside; conflict_watch resolves mechanical
+        # classes via the checked-out token, BUT its non-mechanical handoff
+        # (label POST → 14-rebase fire) only works with GH_AW_PROXY_PAT —
+        # the status/conflict labeled event must carry the owner actor or
+        # gh-aw activation rejects the fire. Do not drop this guard.
         if only and name not in only:
             continue
         try:
