@@ -155,3 +155,28 @@ href-less Tags-row anchors into one LinkedHashSet (dedupe) and drops the title-e
 Unit tests: `Javbangers/src/test/kotlin/.../JavbangersParseTest.kt` (fixture
 `javbangers_details.html`). verify.sh: PASS (3 videos; streams 206 video/mp4; Tags-row
 anchors 18/2/1 by grep on the saved pages).
+
+## Deep pass (2026-10-17, issue #656 / run25 — full-surface re-check)
+
+Verdict `ok` retained, tier plain-curl on every surface (canaries 3/3 instrument healthy;
+escalation ladder never escalated). Evidence: `FINDINGS-656.md`.
+
+- **Surfaces:** latest-updates p1/p2 30+30 disjoint; most-popular/milf/uncensored p1/p2
+  24+24 disjoint; top-rated/creampie/teen 1/4/2 overlap (site-side last-page wrap-pad on
+  small catalogs — mirrors every client, not drift); cosplay/hentai/chinese 200; search p1
+  japanese/anal 75, mdyd 3 (unchanged query-shape); search p2 404 on japanese and mdyd
+  (#475 standing contract re-confirmed — provider hasNext=false, do not refile);
+  quickSearch still absent (form `data-url` is an on-submit redirect template; async block
+  probe returns 0 links); card markup unchanged (`a.thumb`/`img.cover[data-original]`,
+  absolute URLs).
+- **Video pages (5, varied):** 3 latest-updates + 1 p2 + 1 milf-category — all 200, all
+  carry flashvars with plain `video_url` (480p) + `video_alt_url` (720p); details surfaces
+  unchanged (h1, og:image, block-details categories, related block, Submitted badges
+  `N hours/months/years ago`). 0 placeholders in this sample (2026-10-16 pass observed
+  ~40% site-wide — site-side, varies by sample; `loadLinks` correctly returns false for
+  them).
+- **Stream chain:** flashvars `video_url` → get_file → 302 → `origin13-direct.cdntrex.com`
+  → 206 video/mp4 **with** the site referer; **403 without it** (re-probed 3/3). Provider
+  ships `referer = mainUrl` — unchanged. Origin id rotates across probe dates
+  (origin11/origin25 older, origin13 now) — chain stays host-agnostic in code.
+- **No code change, version stays 7** (no confirmed condition on any surface).
