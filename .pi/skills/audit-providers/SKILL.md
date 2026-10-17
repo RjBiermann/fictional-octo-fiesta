@@ -35,6 +35,14 @@ Per provider, one pass: homepage → search → one video page → one stream ch
 (follow the site-probe transcript discipline; record instrument tier used per
 surface). Verdict per provider into findings.json: `ok`, `ok-drift`, `ok-suspected`, `blocked`, `suspected`.
 
+Plus one API-conformance scan per provider (grep-only, cheap): pre-DSL raw
+constructors (`ExtractorLink(...)`, `DrmExtractorLink(...)`, `Episode(...)`,
+`HomePageResponse(...)` — flat/ERROR-deprecated upstream, compile-only-because
+the vendored jar predates the level), and legacy plugin shape
+(`Plugin.load(context)` instead of `plugins.BasePlugin.load()` +
+`registerHostExtractors()`). File as `api-conformance` findings; migrate when
+the provider is next touched for any fix.
+
 ## Phase 2 — deep tier (rotating)
 
 Deep-audit the next N providers (N from the audit issue spec; default 4):

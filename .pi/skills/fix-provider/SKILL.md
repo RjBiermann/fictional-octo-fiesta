@@ -23,7 +23,14 @@ seen live is a guess.
    there with its Parse test red → green, and bump the version of every affected provider.
    Otherwise update selectors/URLs/parsing per the evidence inside the provider's directory.
    Follow the new-provider skill's implementation rules (real API signatures,
-   per-item try/catch, extractor ladder). **Also restore missing data** the fresh FINDINGS
+   per-item try/catch, extractor ladder). **API-conformance probe (cheap, during
+   diagnosis):** grep the provider for pre-DSL constructors (`ExtractorLink(...)`,
+   `DrmExtractorLink(...)`, `Episode(...)`, `HomePageResponse(...)`, ...
+   — flat-ERROR-deprecated upstream) and the legacy app-side plugin shape
+   (`Plugin.load(context)` instead of `plugins.BasePlugin`'s parameterless `load()`);
+   migrate the class to the `new*` DSL when the fix touches the file. And preserve the
+   loadLinks contract in any stream-loading fix: guard each fetch, return a real
+   success bool (`sources.isNotEmpty()`), never a bare `true`. **Also restore missing data** the fresh FINDINGS
    exposes: if the provider doesn't populate `recommendations` (or other `LoadResponse` fields)
    or doesn't emit sources FINDINGS shows the site serving, fix that too — a fix PR must leave
    the provider data-complete, not just unbroken. **Bump `version` in `build.gradle.kts` — repo
