@@ -279,6 +279,14 @@
       "date": "2026-10-17",
       "note": "run24 (issue #655, attempt 2 \u2014 attempt 1 / run 38994351736 completed the full probe and filed finding #709 but died at PR push on a findings.json rebase conflict against the freshly-merged #652; this run delivered): ixiporn deep pass, plain-curl tier throughout (canaries 3/3: film1k 403, eporner 200, pandamovies 302; no challenge anywhere, escalation ladder never needed). DECIDING FACT unchanged: ixiporn.org double-redirects (.org -> 301 ixiporn.info -> 301 ixiporn.live -> 200) \u2014 exactly the #468 closed-record chain (2026-09-24, 2026-10-14) -> standing update, no re-filed condition, no reopen. All 10 mainPage rows x p1/p2 200 x30 cards disjoint, search /page/N?s=amateur p1-p3 disjoint, quickSearch absent, 6 shape-A video pages x (contentUrl meta 206 video/mp4 + raw .live referer), related 12/page, tags(year/duration) all sampled. NEW tier documented (independent probe confirms the failed attempt's #709, hub varies by video: xvideos then, redtube here): 2021-2023-era shape-B pages have no contentUrl \u2014 b64 player-x.php iframe around an external hub embed. CONFIRMED hazard fixed in-run TDD-first: loadLinks emitted fixUrl(\"null\") garbage links for shape-B pages (`?.toString()` over null); IxiPornParse.contentUrl Parse function (fixtures verbatim from live blocks) + shape-guard, version 26->27. Gates: gradlew ixiporn:test PASS (126 test executions incl. 6 new, red->green), clean ixiporn:make green (.cs3 produced), check-findings.sh PASS, verify.sh RESULT: PASS (28 listing pages, 6 videos, streams 206, agreement, LoadResponse complete; NOTEs: quickSearch absent per FINDINGS, actors not asserted = site does not expose per #127, img data-src lazyload poster not instrument-visible). 0 findings filed this run (embed tier lives in #709), 0 false positives. Ground truth: FINDINGS-655.md, ixiporn/FINDINGS.md.",
       "false_positives": []
+    },
+    {
+      "id": "run26",
+      "date": "2026-10-17",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run26 (issue #643, self-contained re-run after lost 38957946527): FreePornVideos deep pass, full surfaces TLS-impersonated (plain curl 403 CF canary-consistent), verdict ok \u2014 no drift, no new findings, no code change (version stays 13); #536 confirmed live and fixed on master. FINDINGS.md rewritten."
     }
   ],
   "providers": {
@@ -384,11 +392,11 @@
     "FreePornVideos": {
       "site": "www.freepornvideos.xxx",
       "verdict": "ok",
-      "reason": "TLS 200 home/search(24 div.item cards)/video 2026-10-09; get_file 403 bare class retired like FullPorner; details-block rebuild kills Description:/Models:/Duration parsing (now Channel/Network/Categories/Pornstars; duration in meta video:duration + JSON-LD) \u2014 #536 filed 2026-10-09; Categories xpath still matches | deep 2026-10-10 (run13): listing rows p1/p2 disjoint on provider grammar, 3 video pages 200, stream artifacts on extractor path (film1k.xyz byse embed 200; FullPorner xiaoshenke iframe; FreePornVideos/Javbangers kt_player/get_file).",
+      "reason": "TLS 200 home/search/video 2026-10-17; get_file direct <source> markup now serves plain mp4 (no kt_player hop on current markup); #536 details-block grammar live (Channel/Network/Categories/Pornstars) and fixed on master (FreePornVideosParse seam, v13) \u2014 confirmed and NOT re-fixed this run | deep 2026-10-17 (#643): home latest-updates p1/p2 disjoint 24x24 overlap 0; search p1/p2 disjoint 24x24; quickSearch absent (recorded); 4 video pages varied listings, meta/JSON-LD duration cross-agree; 10 distinct get_file paths, video/mp4 200, referer-independent; categories JS-toggle gap on some sponsor videos (population quirk, honest empty tags).",
       "tier": "tls-impersonated",
       "surfaces": {
         "home": "200 TLS",
-        "search": "200 TLS",
+        "search": "200 TLS (plain 403 CF)",
         "video": "200 TLS"
       },
       "issue": 536,
@@ -399,7 +407,7 @@
         466
       ],
       "chronic": false,
-      "last_deep": "2026-10-10"
+      "last_deep": "2026-10-17"
     },
     "FullPorner": {
       "site": "fullporner.com",
