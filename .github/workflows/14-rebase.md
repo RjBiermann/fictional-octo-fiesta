@@ -77,9 +77,15 @@ not vibes:
    affected modules (Android repo: `./gradlew <module>:test`). Red = do
    not push; fix or abort per rule 2.
 4. Commit ALL resolutions (`git add` only the files you resolved) and
-   push via `push_to_pull_request_branch` — never direct `git push` (the
-   sandbox holds no write token).
-5. `remove-labels status/conflict`, then stamp via `add_comment`. The
+   invoke the safe-output push as an EXACT bash CLI line (delta-15
+   contract, single quoted inline argument, one call):
+
+       safeoutputs push_to_pull_request_branch --body '{"pull-request-count": <N>, "summary": "rebase complete"}'
+
+   — never direct `git push` (the sandbox holds no write token).
+5. After the safe-output push call lands: stamp via `add_comment`
+   (stamp FIRST, label removal LAST — auditability), then
+   `remove-labels status/conflict`. The
    stamp MUST land on the LINKED SPEC ISSUE (itemNumber = the `issue-<n>`
    in the branch name / the PR's closing issue) — NOT this PR: the
    sweeper's ledger scans issues only, PR-linked threads are excluded.
@@ -93,12 +99,15 @@ not vibes:
    merge decision stays with the owner. A lost push is silent; a stamp
    is visible.
 
-5b. **The push is the CLI call above — never implicit.** `git commit`
-   delivers nothing — the sandbox is discarded after your final turn
-   (observed runs 39061496996 and 39066050579: full merge + green tests,
-   then the safe-output layer processed ZERO messages because the CLI
-   call never went out). Say out loud the exact CLI line from rule 5
-   before your final turn; do not paraphrase it as a plan.
+5b. **The push is the rule-4 CLI call, exactly as written — never
+   implicit, never paraphrased.** `git commit` delivers nothing — the
+   sandbox is discarded after your final turn (observed runs
+   39061496996 and 39066050579: full merge, green tests, then the
+   safe-output layer processed ZERO messages because the literal CLI
+   call was never issued). The `safeoutputs push_to_pull_request_branch
+   --body '...'` line recited in the prompt must be the very invocation
+   executed in bash — a recitation with no issued call is the identical
+   failure with better narration.
 
 Never finish silently — the stamp (or the push) is the terminal action.
 
