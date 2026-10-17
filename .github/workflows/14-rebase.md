@@ -67,9 +67,13 @@ not vibes:
    push via `push_to_pull_request_branch` — never direct `git push` (the
    sandbox holds no write token).
 5. `remove-labels status/conflict`, then stamp via `add_comment`. The
-   FIRST line MUST be `gh-aw budget: attempt=<n> kind=fix run=<this run URL>`
+   stamp MUST land on the LINKED SPEC ISSUE (itemNumber = the `issue-<n>`
+   in the branch name / the PR's closing issue) — NOT this PR: the
+   sweeper's ledger scans issues only, PR-linked threads are excluded.
+   The FIRST line of the comment MUST be
+   `gh-aw budget: attempt=<n> kind=fix run=<this run URL>`
    (kind=fix — the ledger has no rebase kind; a rebase attempt rides the
-   parent work item so the sweeper's max_attempts counts it), followed by:
+   parent work item so max_attempts counts it), followed by:
    rebase done at `<sha>`, conflicts resolved (`<files>`), tests `<n/n>`.
 6. **Blocked?** (ambiguity, red tests you can't resolve): do NOT push,
    DO NOT remove the label, and stamp the exact blocker — the human
