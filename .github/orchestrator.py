@@ -580,6 +580,62 @@ def _conflict_files(branch):
 VERSION_RE = re.compile(r"^\s*version\s*=\s*(\d+)\s*(?://.*)?$", re.M)
 
 
+MARKER_OURS, MARKER_SEP, MARKER_THEIRS = "<<<<<<< HEAD", "=======", ">>>>>>>"
+
+
+def _brace_balanced(text):
+    """True when braces/parens balance — a self-contained appended block
+    (a whole test function, say), not a half-edited fragment."""
+    depth = 0
+    for c in text:
+        if c in "{(":
+            depth += 1
+        elif c in "})":
+            depth -= 1
+            if depth < 0:
+                return False
+    return depth == 0
+
+
+def _union_conflict_markers(blob):
+    """Keep-both resolution for test-file conflicts (delta 16-f12).
+    The recurring wave shape: each provider branch appends its own
+    registry-row test methods to the same shared test file, so git sees
+    two side-by-side appended blocks. Concatenating both sides is then
+    exactly correct — but ONLY when every conflict hunk has both sides
+    brace-balanced and non-empty (self-contained blocks). Anything else
+    (shared-line edits, deletions, unbalanced fragments) -> None: the
+    conflict stays human. Returns the union text or None."""
+    lines = blob.splitlines(keepends=True)
+    out, i, hunks = [], 0, 0
+    while i < len(lines):
+        if lines[i].startswith(MARKER_OURS):
+            j = i + 1
+            while j < len(lines) and not lines[j].startswith(MARKER_SEP):
+                j += 1
+            k = j + 1
+            while k < len(lines) and not lines[k].startswith(MARKER_THEIRS):
+                k += 1
+            if j >= len(lines) or k >= len(lines):
+                return None
+            ours = "".join(lines[i + 1:j])
+            theirs = "".join(lines[j + 1:k])
+            if not ours.strip() or not theirs.strip():
+                return None
+            if not (_brace_balanced(ours) and _brace_balanced(theirs)):
+                return None
+            out.append(ours.rstrip("\n") + "\n\n")
+            out.append(theirs.rstrip("\n") + "\n")
+            hunks += 1
+            i = k + 1
+        else:
+            out.append(lines[i])
+            i += 1
+    if not hunks:
+        return None
+    return "".join(out)
+
+
 def _resolve_version_pair(a, b):
     """Deterministic version-bump resolution (round-2 review hardening).
     Safe only when the two bodies differ solely in the `version = N` line
@@ -631,19 +687,28 @@ def _auto_resolve_conflict(branch):
         if _pl(["git", "read-tree", tree], env=ienv)[0] != 0:
             return False
         for path in sorted(files):
-            _, ours_body = _pl(["git", "show", f"origin/main:{path}"])
-            _, side_body = _pl(["git", "show", f"origin/{branch}:{path}"])
             if path == FINDINGS_PATH:
+                _, ours_body = _pl(["git", "show", f"origin/main:{path}"])
+                _, side_body = _pl(["git", "show", f"origin/{branch}:{path}"])
                 try:
                     payload = json.dumps(_union_findings(json.loads(side_body),
                                                          json.loads(ours_body)), indent=2) + "\n"
                 except Exception:
                     return False
             elif any(path.endswith(suf) for suf in REGISTRY_VERSION_SUFFIXES):
+                _, ours_body = _pl(["git", "show", f"origin/main:{path}"])
+                _, side_body = _pl(["git", "show", f"origin/{branch}:{path}"])
                 body = _resolve_version_pair(ours_body, side_body)
                 if body is None:
                     return False
                 payload = body if body.endswith("\n") else body + "\n"
+            elif path.endswith("Test.kt"):
+                # conflicted blob with markers comes from the merge-tree tree
+                _, marked = _pl(["git", "show", f"{tree}:{path}"])
+                body = _union_conflict_markers(marked)
+                if body is None:
+                    return False
+                payload = body
             else:
                 return False
             blob = subprocess.run(["git", "hash-object", "-w", "--stdin"], input=payload,
@@ -697,19 +762,29 @@ def conflict_watch():
             continue
         _pl(["git", "fetch", "origin", branch])
         files = _conflict_files(branch)
-        if FINDINGS_PATH and files and all(
-                f == FINDINGS_PATH or any(f.endswith(suf) for suf in REGISTRY_VERSION_SUFFIXES)
-                for f in files):
+        files = _conflict_files(branch)
+        mechanical = files and all(
+            f == FINDINGS_PATH
+            or any(f.endswith(suf) for suf in REGISTRY_VERSION_SUFFIXES)
+            or f.endswith("Test.kt") for f in files)
+        if mechanical:
             if _auto_resolve_conflict(branch):
                 continue
-        marker = f"{MARK} merge conflict detected"
-        if _has_marker(comments(num), marker):
+        # Not mechanical (or mechanical resolve failed): hand to the AI
+        # rebase workflow (14-rebase, delta 16-f12) as the owner actor —
+        # the labeled event fires it; its prompt guards anything ambiguous.
+        if not PROXY_PAT:
+            print("[orchestrator] GH_AW_PROXY_PAT unset — conflict stays manual")
             continue
-        names = ", ".join(sorted(files)) if files else "unresolvable via merge-tree"
-        post_comment(num,
-            f"{marker} on this PR — files: `{names}`. "
-            f"@{OWNER} — outside the mechanical findings.json auto-merge scope; needs a human merge decision.")
-        print(f"[orchestrator] PR #{num}: conflict flagged ({names})")
+        marker = f"{MARK} merge conflict detected"
+        if not _has_marker(comments(num), marker):
+            names = ", ".join(sorted(files)) if files else "unresolvable via merge-tree"
+            post_comment(num,
+                f"{marker} on this PR — files: `{names}`. "
+                f"Mechanical classes didn't cover it — rebase workflow handed this one.")
+        run(["gh", "api", "-X", "POST", f"repos/{REPO}/issues/{num}/labels",
+             "-f", "labels[]=status/conflict"])
+        print(f"[orchestrator] PR #{num}: conflict flagged ({len(files) if files else 0} files) — status/conflict applied for AI rebase")
 
 
 # ------------------------------------------------- stall watch
