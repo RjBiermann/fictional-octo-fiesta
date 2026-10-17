@@ -1,5 +1,6 @@
 package com.rjbiermann
 
+import com.kraptor.CardFields
 import com.kraptor.SearchCard
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
@@ -151,5 +152,74 @@ class Cat3MovieYearTest {
 
     @Test fun `no year in title yields null`() {
         assertEquals(null, Parse.yearFromTitle("Watch Some Untitled Movie"))
+    }
+}
+
+/** Issue #645 deep pass: search gained pagination (`/search/<slug>/page/<N>` — page 2 of a
+ *  2026-10-16 live re-probe returned 4 fresh cards after 20 on page 1; /page/3+ is 404,
+ *  past-the-last-page). The URL is built by the pure [Parse.searchUrl]. */
+class Cat3MovieSearchPageTest {
+
+    @Test fun `page 1 uses the bare search path`() {
+        assertEquals("https://cat3movie.org/search/teacher",
+            Parse.searchUrl("https://cat3movie.org", "teacher", 1))
+    }
+
+    @Test fun `page 2+ appends the page suffix`() {
+        assertEquals("https://cat3movie.org/search/teacher/page/2",
+            Parse.searchUrl("https://cat3movie.org", "teacher", 2))
+        assertEquals("https://cat3movie.org/search/watermelon/page/7",
+            Parse.searchUrl("https://cat3movie.org", "Watermelon", 7))
+    }
+
+    @Test fun `query slug-ifies exactly as the old inline filter`() {
+        assertEquals("https://cat3movie.org/search/3d-sex-and-zen",
+            Parse.searchUrl("https://cat3movie.org", "3-D Sex & and  Zen", 1))
+    }
+}
+
+/** Issue #645 deep pass, hardening (drift-recurrence rule: provider has 8 closed drift
+ *  issues — #143/#180/#203/#250/#411/#417/#488/#522). The halimmovies theme serves the SAME
+ *  homepage listing on /page/N — the 2026-10-16 live re-probe fetched / and /page/2 fresh
+ *  from origin (cf-cache-status EXPIRED/MISS, not cache artifacts; WP `paged-2` body class
+ *  present) and both returned the same 44 unique cards. Without a cross-page seen-set the
+ *  Latest row re-serves page-1 cards forever. [Parse.filterSeen] keeps only hrefs not yet
+ *  served for the row; the MainAPI re-seeds on page 1. */
+class Cat3MovieRowDedupeTest {
+
+    private val page1 = listOf(
+        CardFields("A", "https://cat3movie.org/a-2014", null),
+        CardFields("B", "https://cat3movie.org/b-1979", null),
+        CardFields("C", "https://cat3movie.org/c-1983", null),
+    )
+
+    @Test fun `first page keeps every card and seeds the seen set`() {
+        val seen = mutableSetOf<String>()
+        assertEquals(page1, Parse.filterSeen(page1, seen))
+        assertEquals(3, seen.size)
+    }
+
+    @Test fun `same listing served on page 2 drops everything`() {
+        val seen = mutableSetOf<String>()
+        Parse.filterSeen(page1, seen)
+        assertEquals(emptyList<CardFields>(), Parse.filterSeen(page1, seen))
+    }
+
+    @Test fun `overlapping page keeps only the new tail`() {
+        val seen = mutableSetOf<String>()
+        Parse.filterSeen(page1, seen)
+        val page2 = listOf(
+            CardFields("B", "https://cat3movie.org/b-1979", null),
+            CardFields("D", "https://cat3movie.org/d-1965", null),
+        )
+        assertEquals(listOf(CardFields("D", "https://cat3movie.org/d-1965", null)),
+            Parse.filterSeen(page2, seen))
+    }
+
+    @Test fun `a cleared set (page 1 re-seed) admits everything again`() {
+        val seen = mutableSetOf<String>()
+        Parse.filterSeen(page1, seen)
+        seen.clear()
+        assertEquals(page1, Parse.filterSeen(page1, seen))
     }
 }

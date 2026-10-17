@@ -303,3 +303,28 @@ player.php 200 per server sv1/sv2/sv3, hlsfree + hlsfast legs unchanged per #247
 Fix shipped: every fetch routed through `CloudflareKiller` via a wrapper interceptor; the
 challenge predicate is the interstitial markers only (`Parse.isChallengePage`, fixture
 `cf-challenge.html`). Runner-side fingerprints pass — method same as the #410 Cat3Film probe.
+
+## 2026-10-16 re-probe (issue #645 — deep pass of the #631 spec)
+
+Canary 3/3; all surfaces 200 plain-curl. See `FINDINGS-645.md` for full evidence.
+
+- Search gained pagination: `/search/teacher/page/2` = 200 (4 fresh cards; page 3+ 404
+  past the last page) — #522 recorded no-pagination. Wired as `Parse.searchUrl(mainUrl,
+  query, page)` seam + `hasNext = list.isNotEmpty()`; version 12→13 (this file's header
+  runs untouched).
+- Latest-row home clamp re-confirmed on fresh origin fetches (WP `paged-2` body class,
+  CF EXPIRED/MISS): site-side, not the cache artifact FINDINGS-522 guessed. Hardening
+  (drift-recurrence rule, 8 closed issues): per-row seen-set keyed on request.data,
+  page ≤ 1 re-seeds — `Parse.filterSeen` seam with 4 tests. Category rows confirmed
+  clean (20/20 disjoint x4).
+- playmate.to `/api/s` holds Chrome-JA3 clients to the Sec-Fetch trio (403 without,
+  200 with); okhttp shape (no browser JA3) 200 — app path never broken; speculative
+  shared-adapter change shipped mid-run was **reverted** (ADR-0005). Risk note only:
+  any future browser-fingerprint-instrument request must carry the trio.
+- Streams: sv1 hlsfree 5/5 fresh tokens → 200 mpegurl (segments s2.cat3hls.com); sv2
+  loadvid unchanged JS-gated; sv3 playmate unchanged (see above). Token-per-video, so
+  verify.sh's "stream path shared" note is its query-stripping artifact.
+- verify.sh final FAIL from 4 instrument limitations, manually re-verified green:
+  raw-page in-render card repeat 2×/3× (provider dedupes in-code), iframe=0 + stream
+  path shape (streams behind ajax), attribute car titles (`title` attr vs inner text;
+  manual title/poster agreement exact), none new vs #522 run.

@@ -151,7 +151,9 @@ class HostRegistryTest {
                 "(loadExtractor drops their anchors): $missing",
             missing.isEmpty()
         )
+    }
 
+    /**
      * (e) Mangoporn's default data-servers host moved to vidara.so (#657 FINDINGS:
      * live capture 2026-10-17, video-1 data-default="0" → vidara.so/e/…). The
      * shared Vidara adapter answers vidara.to; without an explicit .so row
@@ -167,7 +169,7 @@ class HostRegistryTest {
         // same adapter family as the .to row — one API contract (POST /api/stream)
         assertTrue(soRows.single() is Vidara)
         // the .to row stays reachable for .to embeds (jav.guru searcho "cd")
-        assertTrue(rows.any { host(it.mainUrl) == "vidara.to" }) (Mangoporn deep audit #657 (run 38995071420): 3 confirmed drifts fixed TDD-first)
+        assertTrue(rows.any { host(it.mainUrl) == "vidara.to" })
     }
 
     /**
