@@ -1,4 +1,4 @@
-version = 7 // #650 CloudWish promoted to shared HostRegistry (Javseen parity)
+version = 8 // #657 deep audit: main-grid card grammar (widget row out), vidara.so shared row, load-page row bindings fixed
 
 cloudstream {
     authors     = listOf("kraptor", "ByAyzen", "HindiProvider")
