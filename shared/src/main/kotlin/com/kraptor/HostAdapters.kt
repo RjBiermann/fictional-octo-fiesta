@@ -66,9 +66,10 @@ open class MyDaddyExtractor : ExtractorApi() {
     }
 }
 
-// vidara.to embed (jav.guru searcho mirror "cd"): POST /api/stream with the
+// vidara embed (jav.guru searcho mirror "cd"): POST /api/stream with the
 // filecode from /e/<filecode> returns {"streaming_url": "<m3u8>", ...}
-class Vidara : ExtractorApi() {
+// open: the .so mirror row (#657) subclasses it for loadExtractor's mainUrl dispatch
+open class Vidara : ExtractorApi() {
     override var name = "Vidara"
     override var mainUrl = "https://vidara.to"
     override val requiresReferer = true
@@ -89,6 +90,14 @@ class Vidara : ExtractorApi() {
             }
         )
     }
+}
+
+// vidara.so — Mangoporn's default data-servers host since 2026 (#657 FINDINGS:
+// video-1 data-default="0" → vidara.so/e/<filecode>; the API contract is the
+// same POST /api/stream). A distinct TLD needs its own row or loadExtractor's
+// startsWith(mainUrl) dispatch drops the link (multi-host fallback rule).
+class VidaraSo : Vidara() {
+    override var mainUrl = "https://vidara.so"
 }
 
 // javhdz.today embed host — primary data-embed target on javseen.tv.
