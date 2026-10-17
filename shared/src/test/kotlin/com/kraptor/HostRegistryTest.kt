@@ -151,6 +151,23 @@ class HostRegistryTest {
                 "(loadExtractor drops their anchors): $missing",
             missing.isEmpty()
         )
+
+     * (e) Mangoporn's default data-servers host moved to vidara.so (#657 FINDINGS:
+     * live capture 2026-10-17, video-1 data-default="0" → vidara.so/e/…). The
+     * shared Vidara adapter answers vidara.to; without an explicit .so row
+     * loadExtractor drops the site's primary embed (multi-host fallback rule).
+     */
+    @Test
+    fun `vidara so mirror row serves the vidara family`() {
+        val soRows = rows.filter { host(it.mainUrl) == "vidara.so" }
+        assertTrue(
+            "no row answers vidara.so — Mangoporn's default embed host(dispatch drops it)",
+            soRows.isNotEmpty()
+        )
+        // same adapter family as the .to row — one API contract (POST /api/stream)
+        assertTrue(soRows.single() is Vidara)
+        // the .to row stays reachable for .to embeds (jav.guru searcho "cd")
+        assertTrue(rows.any { host(it.mainUrl) == "vidara.to" }) (Mangoporn deep audit #657 (run 38995071420): 3 confirmed drifts fixed TDD-first)
     }
 
     /**
@@ -198,6 +215,7 @@ class HostRegistryTest {
             "Player4Me" to 8,        // Player4Me class + player4me mirrors
             "Streamtape" to 7,       // custom StreamTAPE + streamtapeMirror rows
             "Streamwish" to 2,       // Streamwish base + Filesim-pathed swhoi row
+            "Vidara" to 2,           // Vidara (.to, jav.guru "cd") + VidaraSo mirror — Mangoporn default host (issue #657)
             "VidHidePro" to 7,       // VidHidePro class + vidHidePro mirrors
             "Voe" to 4,              // Voe base + voeMirror rows
         )

@@ -180,6 +180,7 @@ internal fun sharedHostRegistry(): List<ExtractorApi> = listOf(
         CloudWish(),
         MyDaddyExtractor(),
         Vidara(),
+        VidaraSo(),
         Javhdz(),
         Javhdz2(),
         PerverZijaExtractor(),

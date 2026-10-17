@@ -99,4 +99,48 @@ object MangopornParse {
     } catch (e: Exception) {
         emptyList()
     }
+
+    // ---- issue #657 (hardening round — drift 3): the theme family renders a rotating
+    // front-page featured widget (section.sec) whose cards overlap later pagination
+    // pages; whole-page `article.card` parsing recreated them across pages (home p1 ∩
+    // p2 ≠ ∅ on the live capture — 4 widget cards rotate onto p2's main grid). The
+    // MAIN listing — home pN and search results alike — is `div.grid--mc article.card`;
+    // scope to it: structural matching, not a point-in-time selector swap.
+
+    /** Issue #657: the main-listing card grammar, one home for home + search
+     *  (SearchCard covers title-tag variance + lazy/duplicate-card guards).
+     *  Live-verified 2026-10-17 (three shapes): multi-result grids carry
+     *  `class="grid grid--mc"`, 1-result search renders bare `class="grid"`,
+     *  and the home featured widget row renders `class="grid grid--blk"` —
+     *  one `:not(.grid--blk)` exclusion binds all three while keeping the
+     *  widget row out of the row (chain with SearchCard guards). */
+    fun mainCards(document: org.jsoup.nodes.Document): List<CardFields> =
+        SearchCard.homeCards(
+            document,
+            "div.grid:not(.grid--blk) article.card",
+            ".card__t a",
+            hrefSel = "a.card__th",
+            posterSel = "img.card__img"
+        )
+
+    /** Issue #657: actors live in the semantic Pornstars row (`div.row--stars >
+     *  div.chips > a.chip.chip--star`) — the old `div.dp__panel[data-panel=details]`
+     *  wrapper no longer renders (page-wide `a.chip--star` anchors exist, the
+     *  wrapper-scoped select matched none). Scoped to the row:
+     *  director/studio/genre chips stay out. Absent row → empty, never a throw. */
+    fun actors(document: org.jsoup.nodes.Document): List<String> =
+        document.select("div.row--stars a.chip--star")
+            .map { it.text().trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+
+    /** Issue #657: the plot moved from `div.vid__txt p` to `div.desc` paragraphs
+     *  (multi-`<p>` synopses). All paragraphs joined with blank lines; absent →
+     *  null, never a throw. */
+    fun plot(document: org.jsoup.nodes.Document): String? =
+        document.select("div.desc p")
+            .map { it.text().trim() }
+            .filter { it.isNotEmpty() }
+            .takeIf { it.isNotEmpty() }
+            ?.joinToString("\n\n")
 }
