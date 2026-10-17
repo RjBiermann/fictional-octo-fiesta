@@ -719,7 +719,17 @@ def conflict_watch():
                 f"If the rebase bot stalls, @{OWNER} — needs a human decision.")
         run(["gh", "api", "-X", "POST", f"repos/{REPO}/issues/{num}/labels",
              "-f", "labels[]=status/conflict"])
-        print(f"[orchestrator] PR #{num}: status/conflict applied ({len(files) if files else 0} files) — AI rebase handoff")
+        # Explicit dispatch: pull_request.labeled events proved flaky here
+        # (2 applications, 0 runs). workflow_dispatch guarantees the fire.
+        # aw_context is the gh-aw internal shape for restoring the PR
+        # target from a dispatched run (item_type/item_number).
+        import urllib.parse as _up
+        _ctx = json.dumps({"item_type": "pull_request", "item_number": num})
+        run(["gh", "workflow", "run", "14-rebase.lock.yml",
+             "--ref", "main", "-R", REPO,
+             "-f", f"pr_number={num}",
+             "-f", f"aw_context={_up.quote(_ctx)}"])
+        print(f"[orchestrator] PR #{num}: status/conflict applied + 14-rebase dispatched")
 
 
 # ------------------------------------------------- stall watch
