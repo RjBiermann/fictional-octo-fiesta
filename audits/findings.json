@@ -597,20 +597,20 @@
     "Javtiful": {
       "site": "javtiful.com",
       "verdict": "ok",
-      "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #534 fix (#548, v13) live-verified on the provider's actual rows: /videos, /videos?sort=most_viewed, /videos?sort=top_rated, /category/milf \u2014 all 200 with 23 article.video-card per page, p1/p2 disjoint, LIVE a.pagination__link Next anchors with real hrefs (home and category p2 Next \u2192 page=3 verified); search ?q= p1/p2 disjoint with live Next; a.video-card__title carries title as inner text AND title attr on every listing face; 4 video pages 200 with JSON-LD VideoObject + watch-detail year path; related 20/20 parseable; embed script#watch-config playerSources fast-stream.jav.si/p/<token> verified 200 + 206 video/mp4. Root / is an SPA infinite feed (page=2 duplicates p1) but is NOT a provider row \u2014 run13's dead-pagination impression probed the SPA root. Historical drift record #534 closed; migrated ok-drift \u2192 ok.",
+      "reason": "RE-CLEARED 2026-10-17 (deep pass, #658 sub-issue of #631): #534 fix (#548, v13) still holding on every face, tier plain-curl throughout (browser step never reached). Canaries 3/3 (film1k plain 403 / TLS 200 expected, eporner 200, pandamovies 302->200@.org). All 5 main-page rows (videos, sort=most_viewed, sort=top_rated, /uncensored, /category/milf) 200 x23 non-partner cards p1+p2, 0 href overlap p1-p2 on every row, live a.pagination__link Next anchors (Previous carries is-disabled on p1). Search ?q=kana p1/p2 23+23 disjoint. quickSearch absent (search/suggest, /suggest, /quick-search, /api/search all 404; search input autocomplete empty) - recorded, not drift. 9 video pages 200 (newest/most_viewed/related/search/category faces) with full load fields: div.watch-title h1, og:image (path-identical to card lazy thumbs), og:description, JSON-LD VideoObject duration, watch-detail Added-on year, chips, actor cards (some releases are actor-less - site reality, optional-actor handling correct); related-grid 12-21 cards/page. Stream chain end-to-end re-verified: script#watch-config playerSources fast-stream.jav.si/p/<token> 3/3 fresh tokens 206 video/mp4, no referer/cookies needed, bare okhttp UA also 206. Search<->load agreement exact (IESP-763). Site-shape notes: (1) sort key top_rated RENAMED most_liked site-wide - the old key now serves the most_liked listing as a live alias (23/23 overlap, pagination anchors canonicalize to most_liked); row fully functional via alias, recorded as resilience watch, not drift; (2) same-page same-title variant rows (censored + reducing-mosaic of one code, different hrefs) - pre-documented quirk, provider dedupes by title (distinctBy, test-covered); (3) commented-out top_favorites/being_watched keys now serve the default newest listing (alias); (4) root / now 301s to /main SPA - SPA-root distinction stands (not a provider row). Historical drift record #534 closed; no new confirmed condition.",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200 rows p1+p2 disjoint (23 cards) with live Next anchors",
-        "search": "200 p1+p2 disjoint",
+        "home": "5 rows 200 x23 cards p1/p2 disjoint, live Next anchors",
+        "search": "200 p1/p2 23+23 disjoint",
         "quickSearch": "absent (4 suggest probes 404, autocomplete empty) - recorded, not drift",
-        "video": "200 x3 + embed",
-        "stream": "watch-config playerSources 200/206 mp4"
+        "video": "200 x9, full load fields, related 12-21/page",
+        "stream": "watch-config playerSources 3/3 fresh 206 mp4 (no referer, okhttp UA ok)"
       },
       "issue": 534,
       "standing_issue": null,
       "drift_confirmed": 1,
       "chronic": false,
-      "last_deep": "2026-10-14"
+      "last_deep": "2026-10-17"
     },
     "MissAV": {
       "site": "missav.live",
