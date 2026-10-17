@@ -133,6 +133,27 @@ class HostRegistryTest {
     }
 
     /**
+     * (e) Issue #653 deep pass (2026-10-16): xmoviesforyou.com serves FOUR filehost
+     * families on its video pages — streamtape.com, mixdrop.ag, dood.to, bigwarp.io
+     * (probe: 4 sampled pages; streamtape on 3, dood.to on 1, bigwarp.io + mixdrop.ag
+     * on 1). loadExtractor dispatches by registered-mainUrl prefix, so a served family
+     * with no registry row means its anchors are silently dropped — zero links from
+     * every page that carries only that family. Run 8 (FINDINGS-535) verified only the
+     * streamtape row; the rotating deep pass surfaced the other two.
+     */
+    @Test
+    fun `xmfy-served filehost families have registered rows`() {
+        val hosts = rows.map { host(it.mainUrl) }.toSet()
+        val served = listOf("streamtape.com", "mixdrop.ag", "dood.to", "bigwarp.io")
+        val missing = served.filter { it !in hosts }
+        assertTrue(
+            "filehost families xmoviesforyou.com serves have no registry row " +
+                "(loadExtractor drops their anchors): $missing",
+            missing.isEmpty()
+        )
+    }
+
+    /**
      * (c) Naming collisions across code paths (issue #347 P0-11) are
      * intentional — but only the documented ones. Names are user-facing in
      * CloudStream's source list; mirror families legitimately share a display
@@ -167,7 +188,7 @@ class HostRegistryTest {
         private val INTENTIONAL_NAME_COLLISIONS = mapOf(
             "AbyssPlayer" to 2,       // AbyssPlayer apex (issue #233) + player. subdomain row (#613)
             "Byse" to 16,            // filemoon byse*.com mirror family
-            "DoodStream" to 9,       // DoodStream class (myvidplay.com override) + dood factory default
+            "DoodStream" to 10,      // DoodStream class (myvidplay.com override) + dood factory default + DoodToExtractor row (#653)
             "EarnVids" to 5,         // vidHidePro mirrors
             "Filemoon" to 7,         // filemoon factory default
             "HlsFree" to 2,          // HlsFree class + HlsFreeWww www. variant
