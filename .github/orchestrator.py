@@ -723,12 +723,17 @@ def conflict_watch():
         # (2 applications, 0 runs). workflow_dispatch guarantees the fire.
         # aw_context is the gh-aw internal shape for restoring the PR
         # target from a dispatched run (item_type/item_number).
-        import urllib.parse as _up
         _ctx = json.dumps({"item_type": "pull_request", "item_number": num})
-        run(["gh", "workflow", "run", "14-rebase.lock.yml",
-             "--ref", "main", "-R", REPO,
-             "-f", f"pr_number={num}",
-             "-f", f"aw_context={_up.quote(_ctx)}"])
+        # list form, no shell: pass the JSON verbatim (no percent-encoding —
+        # the lock's fromJSON expects raw JSON, round-2 review blocker).
+        _out = run(["gh", "workflow", "run", "14-rebase.lock.yml",
+                    "--ref", "main", "-R", REPO,
+                    "-f", f"pr_number={num}",
+                    "-f", f"aw_context={_ctx}"])
+        if _out.strip():
+            print(f"[orchestrator] PR #{num}: 14-rebase dispatched ({_out[:90]})")
+        else:
+            print(f"[orchestrator] PR #{num}: 14-rebase dispatched")
         print(f"[orchestrator] PR #{num}: status/conflict applied + 14-rebase dispatched")
 
 
