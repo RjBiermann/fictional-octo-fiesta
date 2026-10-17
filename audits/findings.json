@@ -187,6 +187,14 @@
       "note": "run19 (issue #635, sub-issue of #631 spec): Xhamster full-surface deep pass, tier plain-curl on every surface. Home p1/p2 46+46 cards disjoint; search 46+46 via searchResult.videoThumbProps (cross-page rank re-injection of 7/46 cards on fresh fetches \u2014 site-native, within-page always unique); quickSearch absent (no suggest API, unchanged #275); video x5 200; streams 5/5 206 vnd.apple.mpegurl via decodeXhUrl (algos 1-7 all observed live). Year/UploadDate open question RESOLVED: template re-expanded, videoModel.created = epoch upload timestamp (cross-checked against videoEntity.dateAgo x3) \u2014 fixed in-run TDD-first (yearFromCreated UTC, version 22->23, 16/16 tests green). verify.sh: 5/5 streams serve, 3 FAIL lines instrument-limited (rank re-injection / og:image 16px artifact #427 / attr-only SSR titles) \u2014 evidence-backed in FINDINGS-635. Verdict ok"
     },
     {
+      "id": "run23",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run23 (issue #636, sub-issue of #631 spec): Cat3Film deep pass, tier plain-curl on every surface (browser step never reached - no blocked surface; TLS tier used for canaries only). Canaries 3/3 match (film1k plain 403 / TLS 200, eporner 200, pandamovies 302->200@.org), runner US. Deep-pass focus items closed: (1) milf->0 re-probed with certainty terms - endpoint healthy, a 0-result is catalog reality; (2) _ajax JSON contract unchanged (format/slug/thumb/title/year); (3) pagination disjoint: /movies 30+30 overlap 0, /tv-series p2 serves the listing chrome with 0 cards (empty past last page - 14 series total; not duplication) - recorded as site shape; (4) stream/embed: 4 fresh video pages (colonel-redl, too-late, sexus, hot-line multiseason S1/S2 8 epbtns data-no restart) -> sources API 200 JSON shape unchanged (CDN host still master.abyssssss.top, tokens per-title, stream paths distinct) -> /index.m3u8 200 vnd.apple.mpegurl 4/4, also with bare okhttp UA and no referer; backup embed player.abyssplayer.com -> datas -> dec-abyss 200 status-200 (url/size/type/status keys, shared AbyssParse matches) -> sora CDN sssrr.org hard CF IP-reputation block 'Attention Required' on the datacenter IP (plain AND TLS-impersonated) - suspected datacenter artifact, affects only the backup route (primary 4/4 healthy); the 2026-10-15 trycloudflare mirror hop is gone. Quirk recorded: ep id 1816 (colonel-redl) is live today but was the 2026-10-15 'episode not found' dead-id sanity probe - ids churn across titles, the error contract is intact. Search<->load agreement re-proven by curl (sexus->/sexus, 'hot line'->/hot-line). Verdict ok retained, last_deep=2026-10-16. 0 findings (no confirmed condition -> no code change, no version bump - Cat3Film stays 14), 0 false positives. verify.sh: every provider-relevant check PASS (home/search-note/video/stream/related/fields/load-response) - the single FAILED line is the pre-documented FAIL-by-tool site shape (JSON-only search surface, a.card count 0) per FINDINGS-636; quick-search absent (site.js live-typing reuses _ajax/search). Gates: gradlew Cat3Film:test PASS, clean gradlew Cat3Film:make PASS, check-findings.sh PASS. Ground truth: FINDINGS-636.md, Cat3Film/FINDINGS.md."
+    },
+    {
       "id": "run20",
       "date": "2026-10-16",
       "pr": null,
@@ -388,17 +396,19 @@
     "Cat3Film": {
       "site": "cat3film.com",
       "verdict": "ok",
-      "reason": "_ajax/search JSON alive: sex->8, teen->8, anal->2 (milf->0 = no matching titles on niche site); home 200 (2026-09-29)",
+      "reason": "_ajax/search JSON contract alive: handmaiden->1, 'hot line'->hot-line (multi-word ok), sex->8, teen->8, anal->2, lesbian->2 (milf->0 persists = catalog reality on a niche site); home /movies p1/p2 30+30 disjoint, /tv-series 14+0 (empty past last page, not dupes); video x4 200; streams 4/4 master.abyssssss.top token + /index.m3u8 -> 200 m3u8. Backup embed dec-abyss 200; final sora CDN sssrr.org CF-IP-blocks the datacenter runner = suspected, only affects the 2nd route (2026-10-16)",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200",
-        "search": "200 (_ajax JSON)"
+        "home": "200 (/movies p1/p2 disjoint; /tv-series empty past last page, site shape)",
+        "search": "200 (_ajax JSON)",
+        "video": "200 x4",
+        "streams": "200 m3u8 4/4"
       },
       "issue": null,
       "standing_issue": null,
       "drift_confirmed": 0,
       "chronic": false,
-      "last_deep": "2026-09-26"
+      "last_deep": "2026-10-16"
     },
     "Cat3Movie": {
       "site": "cat3movie.org",

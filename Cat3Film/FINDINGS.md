@@ -275,3 +275,32 @@ callbacks), and the explicit `AbyssPlayerEmbed` dispatch row in shared `HostRegi
 #621) so the backup embed resolves under the framework's prefix-match dispatch instead of
 the fuzzy fallback. Nothing further is broken against the live site from this probe
 context; PR delivers the validated state for maintainer review/merge.
+
+## 2026-10-16 deep pass (issue #636 — sub-issue of the approved #631 spec)
+
+Full-surface re-walk, plain-curl tier everywhere (browser step unreached — no blocked
+surface), canaries 3/3 match, runner US. Verdict **`ok` retained, 0 confirmed conditions,
+no code change, no version bump (stays 14)**. Transcript: `FINDINGS-636.md`.
+
+- **Search contract** (`/_ajax/search?q=` → JSON `format/slug/thumb/title/year`) unchanged;
+  `milf→0` persists with healthy certainty terms (handmaiden→1, the→8, teen→8, anal→2,
+  lesbian→2, multi-word `hot line`→hot-line) — 0-result is catalog reality on a niche site,
+  closed, not drift. Quick-search: still none — site.js live-typing reuses `_ajax/search`.
+- **Home**: `/movies` p1/p2 30+30, overlap 0; `/tv-series` p2 = 200 listing chrome with 0
+  cards (empty past last page, 14 series total) — site shape, not duplication.
+- **Video ×4 fresh slugs** (colonel-redl 1816, too-late 1780, hot-line S1/S2 1009–1016,
+  sexus 1781): all 200, badges/og-image/plot/Cast/related(4) live; `Parse.episodes` shape
+  confirmed on the multi-season sample (`data-no` restart per season).
+- **Streams**: sources API shape unchanged, CDN host still `master.abyssssss.top`;
+  `<token>/index.m3u8` → 200 m3u8 4/4 (okhttp UA, no referer ok).
+- **Backup embed leg**: `player.abyssplayer.com` → `datas` → dec-abyss 200
+  (`url/size/type/codec/status` keys — shared `AbyssParse.sourcesFromResult` matches).
+  The final sora CDN `*.sssrr.org` hard-blocks datacenter IPs at Cloudflare ("Attention
+  Required", plain AND TLS tiers; the 2026-10-15 trycloudflare mirror hop is gone).
+  Suspected probe-IP artifact per the residential-differential rule — **not filed**; it can
+  only affect the 2nd route (primary token→m3u8 4/4 healthy).
+- **Sanity-probe quirk**: episode id 1816, recorded dead (`episode not found`) on 2026-10-15,
+  is live today (colonel-redl) — ids churn across titles; fixed dead-id sentinels go stale.
+- verify.sh: provider-relevant checks all PASS; the single FAILED line remains the
+  pre-documented check-1 FAIL-by-tool (JSON-only search surface), third consecutive record.
+
