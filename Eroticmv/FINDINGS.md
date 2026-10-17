@@ -25,3 +25,42 @@ Config: search `/?s=amateur` `article.post-item` (+h3.entry-title), home `/page/
 - check 4 related: pydom chained selectors count the last part GLOBALLY over the page (23 "matches") and regex `<article...>(.*?)</article>` truncation inflates blocks → false self-hit + false duplicates. Raw extraction of `.single-related-posts` section: 6 distinct recs, no self (Foreplay (1982), Little Shop of Erotica (2001), Teenage Bride (1975), The Mount of Venus (1975), Angel Above and the Devil Below (1975), Naughty Seduction Of Wife (2019)).
 - check 5 poster: search card serves `.../creampie-165x248.jpg` (data-src lazy crop) while video page og:image is full `.../creampie.jpg` — same image, size-crop variant; video page has no 165x248 variant so path equality is impossible. Search markup matches provider code exactly. Title agreement passes with `h3.entry-title` (inner-text titles).
 - actors exposure is inconsistent on-site (`.actor-element.single-element` present on creampie-2026, absent on gorgeous-curvy-milf-cuckold) — site shape variance, not parser drift; selector omitted from 2a, FINDINGS notes it.
+
+---
+
+# FINDINGS — eroticmv.com — 2026-10-16 deep pass (issue #646, run20)
+
+## Headlight: new Cloudflare challenge on plain curl
+- Plain curl (any UA/referer) → 403 `cf-mitigated: challenge` "Just a moment..." since the
+  2026-10-09 deep; consistent 3/3. Escalation tier 2 (`impersonate.sh`, curl_cffi chrome
+  TLS) → 200 on every surface. Fingerprint gate (canary film1k pair matches 3/3), not IP.
+  Device OkHttp effect unadjudicated (no residential differential) → `ok-suspected`.
+
+## Full-surface evidence (tier-2)
+- **Home**: `/` 24 cards, `/page/2/` 24 cards, disjoint. Card grammar unchanged
+  (`a.blog-img` href+title, lazy `data-src` poster).
+- **Facets**: classic-erotica p1/p2 24+24 disjoint; 1970s 24 (10 shared with home p1 =
+  cross-section recency, not drift).
+- **Search**: `/?s=erotica` 17 cards; `/page/2/?s=` 404 (no pagination — provider matches).
+- **Quick search**: `/search/suggest/` serves the theme's full HTML search page (269 KB,
+  text/html) — no distinct suggest endpoint; `hasQuickSearch=false` stays correct.
+- **Video ×5** (home/facet/search listings): og:title/image/description live; tags
+  `.categories-elm a.category-item` 3–6/page (1980s/Classic Erotica/Spain/Violence style
+  values); actors `.actor-element.single-element a[href*='/actor/']` 1–14/page (title attr);
+  related `.single-related-posts article.post-item` 12/page distinct.
+- **articleSection (#538)**: standalone VideoObject carries none 5/5; yoast `@graph`
+  Article node carries it 5/5. Provider parses anchors → covers both faces. Record stays
+  closed (fixed).
+- **Streams**: b64 `og:video:url` → `data.eroticmvs.com/dat1/<slug>/<slug>.m3u8`
+  (2026-10-16, **migrated from vidcdn2.eroticmv.com** — payload-hosted, zero provider
+  impact); 206 `application/vnd.apple.mpegurl` `#EXTM3U` 5/5, serves with AND without
+  referer, all distinct.
+
+## verify.sh 2026-10-16 (tier-2 instrument: curl_cffi chrome shim) — PASS
+Main family (search+home p1/p2+5 videos) + facet family (classic-erotica p1/p2). Checks
+1/1a/2/3/4/6 + 2a tags PASS. Instrument-limited lines (adjudicated, not site drift):
+3 poster-agreement FAILs (WP crop-rendition/pipeline artifact class from 2026-09-11 —
+search card `…-165x248.jpg` or re-based crop vs full og:image, both 200 image/jpeg);
+actors NOTE (pydom `field text` first-anchor artifact — provider reads `title` attr).
+Gates: `Eroticmv:test` 72/0, clean `Eroticmv:make`, `check-findings.sh` PASS.
+No provider change (verdict `ok-suspected`, stays version 11).

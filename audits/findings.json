@@ -200,6 +200,14 @@
       "pr": null,
       "findings": [],
       "false_positives": [],
+      "note": "run20 (issue #646, self-contained run of approved #631 spec): Eroticmv full-surface deep pass, tier tls-impersonated \u2014 the site fronts a new Cloudflare challenge against plain curl (cf-mitigated 403 'Just a moment', consistent x3, new since the 2026-10-09 last_deep); chrome-fingerprint TLS passes every surface and the film1k-challenge-pair canary matches 3/3 (instrument healthy). Escalation never reached browser tier. All faces healthy: home p1/p2 24+24 disjoint; facet classic-erotica p1/p2 24+24 disjoint; 1970s 24 (10 shared with home p1 = cross-section recency, not drift); search 17 cards, p2 404 (no pagination \u2014 provider matches); quickSearch absent (/search/suggest/ = theme search-page fallback \u2014 hasQuickSearch=false stays correct); video x5 (home/facet/search listings) 200, tags 3-6 (.categories-elm a.category-item live), actors 1-14 (/actor/ title attrs), related 12/page distinct, og:title/image/description live; articleSection present only in the yoast @graph Article node 5/5 (VideoObject carries none) \u2014 the #538 merged fix parses the anchors, covers both faces, record stays closed. Stream chain re-resolved end-to-end: b64 og:video:url -> data.eroticmvs.com m3u8 206 vnd.apple.mpegurl 5/5 distinct, serves with and without referer \u2014 the CDN host migrated vidcdn2.eroticmv.com -> data.eroticmvs.com since 2026-10-09; the provider carries no hardcoded CDN host (payload-driven decode), zero code impact. verify.sh PASS through a curl_cffi-chrome curl shim (tier-2 instrument; 3 poster-agreement FAILs = WP crop-rendition artifact class adjudicated 2026-09-11, actors NOTE = pydom first-anchor-empty-text artifact, provider reads title attr). Gates: gradlew Eroticmv:test 72/0, clean Eroticmv:make. 0 findings (fix policy: no confirmed condition, no version bump \u2014 stays 11), 0 false positives. Verdict ok-suspected (challenge wall vs device OkHttp unadjudicated); standing_issue 497 -> null. Ground truth: FINDINGS-646.md + Eroticmv/FINDINGS.md."
+    },
+    {
+      "id": "run20",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
       "note": "run20 (issue #649, self-contained run of approved #631 spec): WatchPorn full-surface deep pass, tier plain-curl on every surface (TLS/browser steps never reached \u2014 no blocked surface). Canaries 3/3 match (film1k plain 403 / TLS 200, eporner 200, pandamovies 302\u2192200@.org). CONFIRMED DRIFT fixed in-run: the site shipped a new KVS theme (\"wp-\" classes) killing every v15 selector \u2014 span.thumb__title / h1.single__content-title / single__info-row / li.next dead at probe time \u2192 0 parsed cards + null load(). Fixed TDD-first with pure WatchPornParse (a.wp-ctitle / a.wp-card__link / data-webp?:data-original posters / span.wp-r / h1.wp-vi__title / a.wp-vchip / a.wp-cast span.wp-cast__n / li.wp-pag__next), legacy selectors kept as fallbacks, legacy fixture still green (partial-rollout guard); new fixtures search-milf-1.html + video-136954.html; plot assignment removed (site exposes no synopsis \u2014 ld+json/og = tag-glue/boilerplate). version 15\u219216, 150 tests green, clean make green. verify.sh: search 40+40, home 20+20, sites rows 20+20, 5 video pages, streams 5/5 \u2192 302 \u2192 206 video/mp4 (no cookies/referer \u2014 old session-bound note gone); 4 instrument-limited FAIL lines evidence-backed in FINDINGS-649 (identical ad-card payload read as home title, empty-plot '-' placeholder collision, site-native short card title vs og title, thumbnail-vs-og-poster on real-src cards). No finding issue filed: condition fixed in-run, drift survives only as the pending merge (registry verdict ok-drift, issue/standing_issue null). 0 false positives. Gates: check-findings.sh PASS. Ground truth: FINDINGS-649.md, WatchPorn/FINDINGS.md."
     },
     {
@@ -433,9 +441,11 @@
       "tier": "plain-curl",
       "surfaces": {
         "home": "200 (24 cards)",
+        "facet": "200 (classic-erotica p1/p2 disjoint; 1970s 24 cards)",
         "search": "200",
         "video": "200 x3",
-        "stream": "200 m3u8 #EXTM3U"
+        "stream": "200 m3u8 #EXTM3U",
+        "quickSearch": "absent (/search/suggest/ = full HTML search page; hasQuickSearch=false correct)"
       },
       "issue": 538,
       "standing_issue": 497,
