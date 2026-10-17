@@ -243,6 +243,14 @@
       "note": "run22 (issue #651, self-contained run of approved #631 spec): PerverZija full-surface deep pass, tier plain-curl on every surface (canaries 3/3: film1k plain 403, eporner 200, pandamovies 302 to 200@.org \u2014 no challenge, escalation ladder never needed). Home featured-scenes/studio/full-movie/tag-4k-quality/tag-classic p1+p2 all 200 x64 cards (div.col-md-3.col-xs-6), 0 href overlap p1-p2, 0 within-page dupes; search /?s=anal p1/p2 200 x64 item rows (div.post_ajax_tm, title via h3 a); quickSearch absent (no suggest endpoint, ?do=suggest 404, quick view = client-side data-embed lightbox) - recorded, not drift; 29 video pages 200 (h1/og:image/Tags/Stars/div.xs-related-item x15-18 intact, dt_rating_vgs absent so score null correct; JSON-LD now an array from saswp - regex shared JsonLdParse unaffected). Stream chain: iframe subdomains perv./pervl1-9/pervm1/j2 plus new moviekh.xtremestream.xyz - all handled (direct extractor call, referer derives from iframe URL); masters xs1.php #EXTM3U 18/18 tokens; end-to-end variant+segment MPEG-TS live on 9/18, rest die at variant/segment hop = per-token upstream CDN deadness (site-side, not grammar). NEW 1/29 video pages (allanal-lana): embed //mixdrop.to/e/enl4jzdjt76r6q instead of xtremestream - live probe 302 mxdrop.click -> 200 WE ARE SORRY can't-find-video page, reproduced x3; file dead at source, so provider's xtremestream guard misses nothing playable; latent fleet gap (shared HostRegistry lacks a mixdrop.to row) filed upstream instrument note. Verdict ok retained (0 drift since 2026-10-13), last_deep=2026-10-16. 0 confirmed findings -> no code change, no version bump (stays 13), 0 false positives. Gates: gradlew PerverZija:test 65x debug+release green after bootstrapCloudstream, clean PerverZija:make green, check-findings PASS. verify.sh 7 invocations (5 rows p1/p2, search p1/p2, 4 deep videos + masters): PASS on every mechanically expressible surface; single documented plateau - pydom path key flattens masters to /player/xs1.php (HLS identity = subdomain + ?data token) so stream-distinctness check cannot express this host (manual substitution: 4 distinct masters perv./pervl7/j2 each serve #EXTM3U, tokens fba9d881/46fc943e/f69543a0/c14a2a57); poster/title agreement NOTES documented (card -365x235 WP thumbs vs og:image full-size)."
     },
     {
+      "id": "run24",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run24 (issue #653, self-contained run of approved #631 spec): XMoviesForYou full-surface deep pass, tier tls-impersonated (plain-curl 403 CF challenge consistent with canaries; escalation stopped at tier 2). Canaries 3/3 match (film1k 403/200 TLS, eporner 200, pandamovies 302->200@.org). All listing faces healthy: home p1 30 a[data-video-card] + 24 a.group.flex.flex-col (32 unique hrefs), p2 24, 0 overlap; search 2 queries x (p1,p2) 24 a.card each disjoint; quickSearch absent (/api/search,/api/suggest 404 TLS; /search/suggest = full-page fallback) - recorded, not drift; video x4 200 with intact load fields; /api/related 200 x4. Streams: streamtape chain HEALED (302 -> tapecontent 206 x3 fresh tokens, STATUS:500-era caveat gone); mixdrop.ag -> mxcontent mp4 206; dood.to Turnstile captcha shell + bigwarp.io CF 403 from runner IP = suspected probe-IP class, recorded, not grammar findings. CONFIRMED condition fixed in-run TDD-first: shared HostRegistry missing dood.to + bigwarp.io rows while the provider's loadLinks selector targets those fragile anchors - loadExtractor silently dropped their anchors; fix = framework DoodToExtractor()/BigwarpIO() registry rows (red->green HostRegistryTest, allowlist DoodStream 9->10), XMoviesForYou version 14->15. Gates: gradlew XMoviesForYou:test 66/0, clean :XMoviesForYou:make, verify.sh PASS (curl_cffi-chrome curl shim; 4th video sample outside verify invocation - pydom cannot express its two-family selector; mixdrop 206 manual). Verdict ok-drift (in-run fix pending merge), drift_confirmed 1->2, last_deep 2026-10-16, issue/standing_issue null. Ground truth: FINDINGS-653.md, XMoviesForYou/FINDINGS.md, XMoviesForYou/VERIFICATION.md."
+    },
+    {
       "id": "run23",
       "date": "2026-10-16",
       "pr": null,
@@ -314,7 +322,8 @@
         "home": "200 TLS (30 carousel + 24 grid, all parseable)",
         "search": "200 TLS p1+p2 disjoint 24 a.card",
         "video": "200 TLS",
-        "stream": "filehost anchor present; final get_video 500 host-side on dc IP"
+        "stream": "filehost anchor present; final get_video 500 host-side on dc IP",
+        "related": "/api/related/<postId> 200 x4 (JSON data[])"
       },
       "issue": 535,
       "standing_issue": null,

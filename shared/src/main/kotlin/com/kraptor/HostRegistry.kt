@@ -11,6 +11,8 @@ import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.extractors.EmturbovidExtractor
 import com.lagradost.cloudstream3.extractors.VidStack
 import com.lagradost.cloudstream3.extractors.Voe
+import com.lagradost.cloudstream3.extractors.BigwarpIO
+import com.lagradost.cloudstream3.extractors.DoodToExtractor
 import com.lagradost.cloudstream3.extractors.MixDropAg
 import com.lagradost.cloudstream3.utils.ExtractorApi
 
@@ -61,6 +63,12 @@ internal fun sharedHostRegistry(): List<ExtractorApi> = listOf(
         vidHidePro("https://vidhidehub.com"),
         vidHidePro("https://vidhidevip.com", "VidhideVIP"),
         dood("https://dooood.com"),
+        // #653: xmoviesforyou.com serves dood.to anchors on its video pages — the
+        // registered DoodStream rows all target pass_md5-style pages, and dood.to's
+        // modern /d/ page from this IP is a captcha shell anyway, so row selection is
+        // not live-verifiable from here: the framework's own DoodToExtractor (Dood
+        // family, upstream-maintained) is the row — same choice a default app gets.
+        DoodToExtractor(),
         dood("https://dood.ws"),   // javmost.ws g41 server row returns dood.ws embeds (issue #376)
         vidHidePro("https://javlion.xyz", "Javlion"),
         vidHidePro("https://dhcplay.com", "DHC Play"),
@@ -75,6 +83,7 @@ internal fun sharedHostRegistry(): List<ExtractorApi> = listOf(
         filesimMirror("https://swhoi.com", "Streamwish"),
         filesimMirror("https://javmoon.me", "FileMoon"),
         mixdropMirror("https://mixdrop.is"),
+        BigwarpIO(),   // #653: xmoviesforyou.com serves bigwarp.io anchors; framework extractor (bigwarp.io → bigwarp.pro redirect is host-side)
         Javclan(),
         Javggvideo(),
         EmturbovidExtractor(),
