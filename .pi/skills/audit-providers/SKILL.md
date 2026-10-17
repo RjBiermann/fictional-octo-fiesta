@@ -38,10 +38,13 @@ surface). Verdict per provider into findings.json: `ok`, `ok-drift`, `ok-suspect
 Plus one API-conformance scan per provider (grep-only, cheap): pre-DSL raw
 constructors (`ExtractorLink(...)`, `DrmExtractorLink(...)`, `Episode(...)`,
 `HomePageResponse(...)` — flat/ERROR-deprecated upstream, compile-only-because
-the vendored jar predates the level), and legacy plugin shape
+the vendored jar predates the level), legacy plugin shape
 (`Plugin.load(context)` instead of `plugins.BasePlugin.load()` +
-`registerHostExtractors()`). File as `api-conformance` findings; migrate when
-the provider is next touched for any fix.
+`registerHostExtractors()`), and data-completeness: helper-backed fields
+(`addPoster`, `addQuality`, `addScore`, `addDuration`, `addActors`,
+`recommendations`) the site provably exposes but the provider never populates.
+File as `api-conformance` findings; migrate when the provider is next touched
+for any fix.
 
 ## Phase 2 — deep tier (rotating)
 

@@ -29,11 +29,13 @@ seen live is a guess.
    — flat-ERROR-deprecated upstream) and the legacy app-side plugin shape
    (`Plugin.load(context)` instead of `plugins.BasePlugin`'s parameterless `load()`);
    migrate the class to the `new*` DSL when the fix touches the file. And preserve the
-   loadLinks contract in any stream-loading fix: guard each fetch, return a real
-   success bool (`sources.isNotEmpty()`), never a bare `true`. **Also restore missing data** the fresh FINDINGS
-   exposes: if the provider doesn't populate `recommendations` (or other `LoadResponse` fields)
-   or doesn't emit sources FINDINGS shows the site serving, fix that too — a fix PR must leave
-   the provider data-complete, not just unbroken. **Bump `version` in `build.gradle.kts` — repo
+   loadLinks contract in any stream-loading fix: guard each fetch, count successful emissions
+   (`var sources = 0` + `sources++` per fired callback/`loadExtractor`) and return
+   `sources > 0`, never a bare `true`. **Also restore missing data** the fresh FINDINGS
+   exposes: if the provider doesn't populate helper-backed fields the site provides
+   (`addPoster`, `addQuality`, `addScore`, `addDuration`, `addActors`, `recommendations`
+   — see cloudstream-api.md Helpers) or doesn't emit sources FINDINGS shows the site
+   serving, fix that too — a fix PR must leave the provider data-complete, not just unbroken. **Bump `version` in `build.gradle.kts` — repo
    rule, no exceptions.** When the fix changes parsing, update the Fixture from fresh FINDINGS
    and take the Parse-function test red → green before touching the provider (TDD-first,
    ADR-0005).

@@ -12,7 +12,7 @@ class ProviderName : MainAPI() {
     override val hasMainPage    = true
     override var lang           = "en"
     override val supportedTypes = setOf(TvType.NSFW)
-    override val vpnStatus = VPNStatus.MightBeNeeded  // repo consensus (19/26 providers); drop only with FINDINGS evidence the site is unambiguous
+    override val vpnStatus = VPNStatus.MightBeNeeded  // repo majority (10/26 providers); drop only with FINDINGS evidence the site is unambiguous
 
     // FINDINGS: listing sections. Homepage usually paginates as "$mainUrl/{page}/".
     override val mainPage = mainPageOf(
@@ -52,6 +52,7 @@ class ProviderName : MainAPI() {
             val poster = selectFirst("img[src*=\"/t/\"]")?.attr("src")     // FINDINGS: poster selector
             return newMovieSearchResponse(title, url, TvType.NSFW) {
                 posterUrl = fixUrlNull(poster)
+                // FINDINGS: quality string if the card/homepage exposes one → addQuality("1080p")
             }
         } catch (e: Exception) {
             Log.d(name, "toSearchResult: ${e.message}")
@@ -84,9 +85,11 @@ class ProviderName : MainAPI() {
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = fixUrlNull(poster)
             plot?.let { this.plot = it }
-            duration?.let { this.duration = it }
+            duration?.let { addDuration("$duration min") }   // FINDINGS: raw string → addDuration("1h 20min")
             if (tags.isNotEmpty()) this.tags = tags
             if (related.isNotEmpty()) this.recommendations = related
+            // Data-complete: populate what the site exposes via the helpers — addActors(listOf(...))
+            // (cast), addScore(text) (rating) — see cloudstream-api.md Helpers.
         }
     }
 
@@ -111,12 +114,14 @@ class ProviderName : MainAPI() {
                         this.quality = getQualityFromName(quality)
                     }
                 )
+                sources++                                                  // count real emissions
             } catch (e: Exception) {
                 Log.d(name, "loadLinks: ${e.message}")
             }
         }
         // Embed-hosted stream URL instead → replace the block and end the ladder with
         // loadExtractor(url, mainUrl, subtitleCallback, callback) — see HostRegistry adapters.
+        // Increment sources there too (or return loadExtractor(...) directly).
         return sources > 0
     }
 }

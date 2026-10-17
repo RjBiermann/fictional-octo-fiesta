@@ -54,8 +54,8 @@ in" (comment in MainAPI.kt). One thrown exception kills the whole call; wrap per
 - `loadLinks(data, …)`: `data` is the **dataUrl** you set in `newMovieLoadResponse(…, dataUrl)`
   (or, for series, the `Episode.data` of the chosen episode). Anything non-blank works — a URL,
   a JSON blob, an id. Blank dataUrl sets `comingSoon = true` → video never plays.
-  `callback` fires per `ExtractorLink` found, `subtitleCallback` per subtitle; return `true` on
-  success.
+  `callback` fires per `ExtractorLink` found, `subtitleCallback` per subtitle; return a counted
+  `sources > 0` on success — never a bare `true`.
 
 ### Secondary overrides (rarely needed — skip unless the site forces it)
 
@@ -72,7 +72,7 @@ override val getMainPageTimeoutMs: Long? = null
 override val searchTimeoutMs: Long? = null
 override val quickSearchTimeoutMs: Long? = null
 override val loadTimeoutMs: Long? = null
-override val vpnStatus = VPNStatus.MightBeNeeded   // repo consensus: 19/26 providers set this
+override val vpnStatus = VPNStatus.MightBeNeeded   // repo majority: 10/26 providers set this
 override suspend fun extractorVerifierJob(extractorData: String?)  // background job while playing
 override fun getVideoInterceptor(link: ExtractorLink): Interceptor? // okhttp interceptor at playback
 override val supportedSyncNames = setOf<SyncIdName>() + override suspend fun getLoadUrl(name, id) // sync deep links
@@ -145,10 +145,13 @@ class XPlugin : BasePlugin() {                  // app-side: abstract class Plug
 filename` — registration IS discovery; nothing happens without it.
 
 **Canonical shape: extend `plugins.BasePlugin` and override the parameterless `load()`.** The
-app-side `Plugin : BasePlugin` shape has its own `load(context)` — two legacy providers
-(FullPorner, WatchPorn) extend it; do NOT copy that in new or fixed code.
+app-side `Plugin : BasePlugin` shape has its own `load(context)` — three legacy providers
+(FullPorner, Mangoporn, WatchPorn) extend it; do NOT copy that in new or fixed code.
 `registerVideoClickAction` does not exist in the library at all (app-module API) — not an
-option for providers. `beforeUnload()` exists for cleanup; NSFW providers don't need it. The
+option for providers. App-side `Plugin`-only members: `registerVideoClickAction`, `resources`
+(only when gradle `requiresResources` is set — no provider uses it),
+`openSettings` (custom settings dialog; only Mangoporn uses it). `beforeUnload()` exists
+for cleanup; NSFW providers don't need it. The
 repo routes ALL extractor registration through `shared/` HostRegistry's
 `BasePlugin.registerHostExtractors()` (ADR-0002) — a provider's plugin `load()` calls that
 instead of hand-registering extractors; the `first: List<ExtractorApi> = emptyList()`
@@ -257,7 +260,8 @@ comingSoon, syncData, contentRating, uniqueUrl` — helpers: `addActors(List<Str
 - `@Prerelease` APIs (e.g. `splitUrlParameters`, the Kotlin-`Uuid` `newDrmExtractorLink`
   overload) compile but crash CloudStream **stable** at runtime — avoid unless targeting
   prerelease-only.
-- `loadLinks` is `suspend`; the `callback` fires per link found; return `true` on success.
+- `loadLinks` is `suspend`; the `callback` fires per link found; return `sources > 0`
+  (counted emissions), never a bare `true`.
 - `newExtractorLink` is `suspend` — call it inside `loadLinks`, don't await anything.
 - `hasNext` defaults to `list.isNotEmpty()` when omitted — set `true` for paginated sites.
 - JSON-LD parsing: Jackson `ObjectMapper` is available (`com.fasterxml`); values may be
