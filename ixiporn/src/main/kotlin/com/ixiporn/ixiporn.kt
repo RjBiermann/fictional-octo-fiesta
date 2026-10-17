@@ -83,20 +83,43 @@ class ixiporn : MainAPI() {
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
         val document = app.get(data).document
 
-        document.select("div.video-player").map { res ->
+        var emitted = false
+        document.select("div.video-player").forEach { res ->
+            // shape-B pages (hub-embed era, #709) carry no contentUrl meta — emit nothing,
+            // never the old fixUrl("null") garbage link (IxiPornParse.contentUrl, #655)
+            val url = IxiPornParse.contentUrl(res) ?: return@forEach
             callback.invoke(
                 newExtractorLink(
                     source = this.name,
                     name = this.name,
-                    url = fixUrl(res.selectFirst("meta[itemprop=contentUrl]")?.attr("content")?.trim().toString())
+                    url = fixUrl(url)
                 ) {
                     this.referer = data
                     this.quality = Qualities.Unknown.value
                 }
             )
+            emitted = true
         }
 
-        return true
+        return emitted
+    }
+}
+
+/**
+ * Pure Parse function (TDD seam, #655 deep pass 2026-10-17): the direct stream URL from a
+ * `div.video-player` block — `meta[itemprop=contentUrl]` (casing `contentUrl` is #120's
+ * jsoup case-sensitivity fix), trimmed, jsoup-decoded. The site also serves shape-B pages
+ * (2021–2023 hub-embed era, #709): a base64 `clean-tube-player/player-x.php` iframe wrapping
+ * an external hub embed (xvideos/redtube, hub varies per video) with NO contentUrl meta.
+ * For those the function returns null and the provider emits nothing — never a "null"
+ * garbage URL (the old `?.toString()` hazard). Embed-resolver work belongs to #709.
+ */
+object IxiPornParse {
+    fun contentUrl(block: org.jsoup.nodes.Element?): String? {
+        if (block == null) return null
+        return block.selectFirst("meta[itemprop=contentUrl]")
+            ?.attr("content")?.trim()
+            ?.takeUnless { it.isEmpty() || it.equals("null", ignoreCase = true) }
     }
 }
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
