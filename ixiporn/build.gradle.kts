@@ -1,4 +1,4 @@
-version = 26 // #533: search is page-field paginated (was legacy self-looping 1..10)
+version = 27 // #655 deep pass: loadLinks shape-B guard — hub-embed pages (no contentUrl meta, #709) emit no stream instead of a "null" garbage URL
 
 cloudstream {
     authors     = listOf("Phisher98")
