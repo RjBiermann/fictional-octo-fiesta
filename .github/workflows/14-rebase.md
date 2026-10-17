@@ -10,6 +10,16 @@ on:
   pull_request:
     types: [labeled]
     names: [status/conflict]
+  # explicit dispatch: the orchestrator fires this directly after applying
+  # the label — pull_request.labeled events proved unreliable here
+  # (2 label applications, 0 runs, 2026-10-17); the PR context is restored
+  # via pr_number input when labeled did not fire.
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to rebase (conveyor passes it explicitly)"
+        required: true
+        type: string
   roles: [admin, maintainer, write]
   cooldown: 20m
 imports:
@@ -38,6 +48,9 @@ safe-outputs:
 ---
 
 # Rebase on conflict
+
+PR context (labeled or dispatched as `pr_number`): the PR whose branch
+the mechanical resolver couldn't un-stick.
 
 The AI fallback for merge conflicts (ADR-0008 amendment, delta 16-f12): the
 orchestrator's mechanical resolver handles the two deterministic classes
