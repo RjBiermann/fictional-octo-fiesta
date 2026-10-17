@@ -55,11 +55,14 @@ class Mangoporn : MainAPI() {
         } catch (_: Exception) {
             null
         }
-        // Card grammar (issue #564): article.card BEM cards (a.card__th link +
-        // .card__t a title + img.card__img poster) shared by every listing surface
-        val home = document?.select("article.card")?.mapNotNull {
-            searchCard(it, ".card__t a", hrefSel = "a.card__th", posterSel = "img.card__img")
-        } ?: emptyList()
+        // Card grammar (issue #657, drift 3 hardening): the MAIN listing is
+        // `div.grid--mc article.card` — the front page's rotating section.sec featured
+        // widget stays out of the row so pagination never re-shows widget cards.
+        val home = if (document != null) MangopornParse.mainCards(document).map { f ->
+            newMovieSearchResponse(f.title, fixUrl(f.href), TvType.NSFW) {
+                this.posterUrl = fixUrlNull(f.poster)
+            }
+        } else emptyList()
 
         return newHomePageResponse(
             list = HomePageList(
@@ -73,10 +76,13 @@ class Mangoporn : MainAPI() {
     }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
-        // Same article.card card grammar as home (shared SearchCard)
+        // Same main-grid grammar as home (issue #657) — search results sit directly
+        // in div.grid--mc, so one Parse function serves both surfaces
         val document = app.get("$mainUrl/page/$page/?s=$query").document
-        val results = document.select("article.card").mapNotNull {
-            searchCard(it, ".card__t a", hrefSel = "a.card__th", posterSel = "img.card__img")
+        val results = MangopornParse.mainCards(document).map { f ->
+            newMovieSearchResponse(f.title, fixUrl(f.href), TvType.NSFW) {
+                this.posterUrl = fixUrlNull(f.poster)
+            }
         }
 
         return newSearchResponseList(results, hasNext = MangopornParse.hasNextPage(document))
@@ -98,22 +104,23 @@ class Mangoporn : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val document = app.get(url).document
 
-        // issue #564: article.vid grammar — breadcrumb title (h1.vid__t fallback),
-        // JSON-LD VideoObject carries duration + thumbnailUrl (now array-form)
+        // issue #564 grammar: breadcrumb title (h1.vid__t fallback), JSON-LD VideoObject
+        // carries duration + thumbnailUrl (now array-form). Issue #657: the dp__panel
+        // / vid__txt wrappers no longer render — year/tags fall back to the document-wide
+        // taxonomy anchors, actors + plot bind to the semantic rows (div.row--stars /
+        // div.desc) via the MangopornParse functions.
         val title = document.selectFirst("span.bc__c")?.text()?.trim()
             ?: document.selectFirst("h1.vid__t")?.text()?.trim()
             ?: ""
         val poster = MangopornParse.thumbnail(MangopornParse.videoLdJson(document))
 
-        val details = document.selectFirst("div.dp__panel[data-panel=details]")
-        val year = (details ?: document).select("a[href*=/year/]")
+        val year = document.select("a[href*=/year/]")
             .firstOrNull()?.text()?.trim()?.toIntOrNull()
         val duration = MangopornParse.videoLdJson(document)?.let { JsonLdParse.minutes(it) }
-        val description = document.selectFirst("div.vid__txt p")?.text()
-        val actors = details?.select("a.chip--star")?.map { Actor(it.text()) } ?: emptyList()
+        val description = MangopornParse.plot(document)
+        val actors = MangopornParse.actors(document).map { Actor(it) }
 
-        val tags = details?.select("a[href*=/genre/]")?.map { it.text() }
-            ?: document.select("a[href*=/genre/]").map { it.text() }
+        val tags = document.select("a[href*=/genre/]").map { it.text() }
 
         val recommendations = document.select("section.sec article.card").mapNotNull {
             searchCard(it, ".card__t a", hrefSel = "a.card__th", posterSel = "img.card__img")
