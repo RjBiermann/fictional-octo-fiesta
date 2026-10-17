@@ -1,5 +1,6 @@
 package com.rjbiermann
 
+import com.kraptor.registerHostExtractors   // shared/ HostRegistry adapters (spliced sourceSets)
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
@@ -11,11 +12,22 @@ class ProviderName : MainAPI() {
     override val hasMainPage    = true
     override var lang           = "en"
     override val supportedTypes = setOf(TvType.NSFW)
+    override val vpnStatus = VPNStatus.MightBeNeeded  // repo majority (10/26 providers); drop only with FINDINGS evidence the site is unambiguous
 
     // FINDINGS: listing sections. Homepage usually paginates as "$mainUrl/{page}/".
     override val mainPage = mainPageOf(
         "$mainUrl/" to "Recent",
     )
+
+    // FINDINGS: real quick-search endpoint only (site-probe pins it; never stated as unstated).
+    // No distinct endpoint → leave these commented, the default keeps hasQuickSearch = false.
+    // override val hasQuickSearch = true
+    // override suspend fun quickSearch(query: String): List<SearchResponse> {
+    //     val document = app.get("$mainUrl/QUICK_SEARCH_PATH/?q=$query").document  // FINDINGS
+    //     return document.select("a.VIDEOCARD_SELECTOR").mapNotNull {              // FINDINGS
+    //         try { it.toSearchResult() } catch (e: Exception) { null }
+    //     }
+    // }
 
     private fun pageUrl(base: String, page: Int, query: String? = null): String {
         val q = query?.let { "?s=$it" } ?: ""
@@ -40,6 +52,7 @@ class ProviderName : MainAPI() {
             val poster = selectFirst("img[src*=\"/t/\"]")?.attr("src")     // FINDINGS: poster selector
             return newMovieSearchResponse(title, url, TvType.NSFW) {
                 posterUrl = fixUrlNull(poster)
+                // FINDINGS: quality string if the card/homepage exposes one → addQuality("1080p")
             }
         } catch (e: Exception) {
             Log.d(name, "toSearchResult: ${e.message}")
@@ -72,9 +85,11 @@ class ProviderName : MainAPI() {
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = fixUrlNull(poster)
             plot?.let { this.plot = it }
-            duration?.let { this.duration = it }
+            duration?.let { addDuration("$duration min") }   // FINDINGS: raw string → addDuration("1h 20min")
             if (tags.isNotEmpty()) this.tags = tags
             if (related.isNotEmpty()) this.recommendations = related
+            // Data-complete: populate what the site exposes via the helpers — addActors(listOf(...))
+            // (cast), addScore(text) (rating) — see cloudstream-api.md Helpers.
         }
     }
 
@@ -84,7 +99,11 @@ class ProviderName : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val document = app.get(data).document
+        val document = try { app.get(data).document } catch (e: Exception) {
+            Log.d(name, "loadLinks: fetch failed: ${e.message}")
+            return false                                                   // never crash or lie with a bare true
+        }
+        var sources = 0
         document.select("source[src]").forEach { src ->                   // FINDINGS: stream selector
             try {
                 val url = src.attr("src")
@@ -95,11 +114,15 @@ class ProviderName : MainAPI() {
                         this.quality = getQualityFromName(quality)
                     }
                 )
+                sources++                                                  // count real emissions
             } catch (e: Exception) {
                 Log.d(name, "loadLinks: ${e.message}")
             }
         }
-        return true
+        // Embed-hosted stream URL instead → replace the block and end the ladder with
+        // loadExtractor(url, mainUrl, subtitleCallback, callback) — see HostRegistry adapters.
+        // Increment sources there too (or return loadExtractor(...) directly).
+        return sources > 0
     }
 }
 
@@ -107,5 +130,7 @@ class ProviderName : MainAPI() {
 class ProviderNamePlugin : com.lagradost.cloudstream3.plugins.BasePlugin() {
     override fun load() {
         registerMainAPI(ProviderName())
+        registerHostExtractors()   // shared HostRegistry adapters (ADR-0002) — pass provider-local
+                                   // ExtractorApi list as `first` only for a host HostRegistry lacks
     }
 }
