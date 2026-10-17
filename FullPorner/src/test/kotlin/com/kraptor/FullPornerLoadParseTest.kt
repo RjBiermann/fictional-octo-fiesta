@@ -43,6 +43,50 @@ class FullPornerLoadParseTest {
         assertTrue(FullPorner.parseActors(doc("watch_page_busty_blonde.html")).isEmpty())
     }
 
+    /* ── #644 (2026-10-16 probe): the embed is now a fluidPlayer page — no jwplayer
+       configs. Sources are statically derivable: var id = "<videoId>" (reversed by site
+       JS) and var quality = parseInt("N") masking 1=360/2=480/4=720/8=1080.
+       Fixtures: live embeds /video/0739433/14 and /video/e98d5f2ef1da6/2 (FINDINGS-644). */
+    @Test fun `embed mask 0b1110 yields 480 720 1080 sources for the reversed id`() {
+        val sources = FullPornerParse.parseEmbedSources(doc("embed_page_mask14.html").outerHtml())
+        assertEquals(listOf(480, 720, 1080), sources.map { it.quality })
+        val videoId = "0739433".reversed() // 3349370 — same reversal the site JS does
+        assertEquals(
+            listOf(480, 720, 1080).map { "https://xiaoshenke.net/vid/$videoId/$it" },
+            sources.map { it.url }
+        )
+    }
+
+    /** Alphanumeric ids reverse glyph-by-glyph exactly like the numeric ones. */
+    @Test fun `embed mask 2 on an alphanumeric id yields only 480`() {
+        val sources = FullPornerParse.parseEmbedSources(doc("embed_page_mask2.html").outerHtml())
+        assertEquals(listOf(480), sources.map { it.quality })
+        assertEquals("https://xiaoshenke.net/vid/6ad1fe2f5d89e/480", sources.single().url)
+    }
+
+    @Test fun `embed without id or quality mask parses to no sources`() {
+        assertTrue(FullPornerParse.parseEmbedSources("<html><body>gone</body></html>").isEmpty())
+    }
+
+    /** #644: div.video-info exposes the duration clock ("36:24") and the span.create
+        upload epoch (1791526312 = 2026-10-09 UTC; 1792160596 on watch_page_lacey =
+        2026-10-16Z) — both on fixtures already in-tree. */
+    @Test fun `video-info duration clock parses to floored minutes`() {
+        assertEquals(36, FullPornerParse.durationMinutes(doc("watch_page_busty_blonde.html")))
+        assertEquals(50, FullPornerParse.durationMinutes(doc("watch_page_lacey.html")))
+    }
+
+    @Test fun `video-info create epoch parses to a UTC year`() {
+        assertEquals(2026, FullPornerParse.year(doc("watch_page_busty_blonde.html")))
+        assertEquals(2026, FullPornerParse.year(doc("watch_page_lacey.html")))
+    }
+
+    @Test fun `absent video-info yields null duration and year`() {
+        val d = org.jsoup.Jsoup.parse("<html></html>")
+        assertEquals(null, FullPornerParse.durationMinutes(d))
+        assertEquals(null, FullPornerParse.year(d))
+    }
+
     @Test fun `populated pornstar list parses, whitespace rows filtered`() {
         // 6abf9d0d probe shape: pornstar cell anchors carry the names; a blank
         // row (whitespace-only anchor) present exactly like the live cell.

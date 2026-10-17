@@ -26,6 +26,61 @@ import kotlin.text.ifEmpty
 import kotlin.text.isNotEmpty
 import kotlin.text.startsWith
 
+/** FullPornerParse — pure Parse functions (glossary) for #644; HTTP/UI stays
+    with load()/loadLinks(). TDD-tested in FullPornerLoadParseTest. */
+object FullPornerParse {
+    /** One statically derivable stream source from the xiaoshenke embed page. */
+    data class EmbedSource(val quality: Int, val url: String)
+
+    /** ISSUE #644: the embed is now a fluidPlayer page — the old jwplayer
+        `configs` hook no longer matches. The whole playlist is derivable from two
+        static JS locals: `var id = "<videoId>".split('').reverse().join('')` and
+        `var quality = parseInt("<mask>")`, where the mask bits are
+        1=360 / 2=480 / 4=720 / 8=1080 (the embed's own `btq()`). Returns the
+        qualities low→high with `https://xiaoshenke.net/vid/<reversedId>/<q>`;
+        empty when the grammar is absent (caller falls back to the WebView path). */
+    fun parseEmbedSources(html: String): List<EmbedSource> {
+        val idRe = Regex("var id\\s*=\\s*\"([^\"]+)\"")
+        val id = idRe.find(html)?.groupValues?.get(1) ?: return emptyList()
+        val maskRe = Regex("var quality\\s*=\\s*parseInt\\(\\s*\"([^\"]+)\"\\s*\\)")
+        val mask = maskRe.find(html)?.groupValues?.get(1)?.trim()?.toIntOrNull()
+            ?: return emptyList()
+        val reversedId = id.reversed()
+        val qualities = buildList {
+            if (mask and 1 != 0) add(360)
+            if (mask and 2 != 0) add(480)
+            if (mask and 4 != 0) add(720)
+            if (mask and 8 != 0) add(1080)
+        }
+        return qualities.map { EmbedSource(it, "https://xiaoshenke.net/vid/$reversedId/$it") }
+    }
+
+    /** ISSUE #644: div.video-info exposes the duration as an h:m:s-clock
+        `<div>36:24</div>` and the upload date as `<span class="create"><epoch></span>.
+        Duration routes through the shared DurationParse (repo convention: minutes,
+        floored). Parses the first-info div inside single-video-title. */
+    fun durationMinutes(document: org.jsoup.nodes.Document): Int? =
+        DurationParse.minutes(
+            document.selectFirst(
+                "div.video-block div.single-video-left div.single-video-title div.video-info > div:last-child"
+            )?.text()
+        )
+
+    /** UTC year from the span.create epoch (seconds). LocalDate needs java.time on
+        some API levels; Calendar+SimpleDateFormat pinned to UTC is minSdk-21 safe
+        and TZ-deterministic for the JUnit runs. */
+    fun year(document: org.jsoup.nodes.Document): Int? {
+        val raw = document.selectFirst(
+            "div.video-block div.single-video-left div.single-video-title div.video-info span.create"
+        )?.text()?.trim() ?: return null
+        val epochSeconds = raw.toLongOrNull() ?: return null
+        val cal = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
+        cal.timeInMillis = epochSeconds * 1000L
+        return cal.get(java.util.Calendar.YEAR)
+    }
+}
+
+
 class FullPorner(private val context: Context) : MainAPI() {
     override var mainUrl              = "https://fullporner.com"
     override var name                 = "FullPorner"
@@ -270,6 +325,8 @@ class FullPorner(private val context: Context) : MainAPI() {
             this.plot            = parsePlot(document)
             this.tags            = tags
             this.recommendations = recommendations
+            this.duration        = FullPornerParse.durationMinutes(document)
+            this.year            = FullPornerParse.year(document)
             addActors(parseActors(document))
         }
     }
@@ -286,6 +343,27 @@ class FullPorner(private val context: Context) : MainAPI() {
         Log.d("kraptor_$name","iframeurl = $iframeUrl")
 
         val iframeText = app.get(iframeUrl, interceptor = interceptor).text
+
+        /* #644: streams are statically derivable from the embed's id/mask locals —
+            pure Parse, verified live as 206 video/mp4 with a referer (FINDINGS-644).
+            The WebView path stays behind as the fallback for a future grammar shift. */
+        val direct = FullPornerParse.parseEmbedSources(iframeText)
+        if (direct.isNotEmpty()) {
+            for (s in direct) {
+                callback.invoke(
+                    newExtractorLink(
+                        source = "FullPorner",
+                        name = "FullPorner ${s.quality}p",
+                        url = s.url,
+                        type = ExtractorLinkType.VIDEO,
+                        {
+                            this.referer = "${mainUrl}/"
+                            this.quality = getQualityFromName("${s.quality}p")
+                        }
+                    ))
+            }
+            return@withContext true
+        }
 
         val configJson = suspendCoroutine<String?> { continuation ->
             runBlocking {

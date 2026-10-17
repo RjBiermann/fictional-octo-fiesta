@@ -208,6 +208,14 @@
       "pr": null,
       "findings": [],
       "false_positives": [],
+      "note": "run20 (issue #644, self-contained run of approved #631 spec): FullPorner deep pass, tier tls-impersonated (plain curl cf-mitigated: challenge on fullporner.com AND xiaoshenke.net from runner; #461 suspected class, no residential differential from CI). Canaries 3/3. Embed-grammar drift confirmed (jwplayer->fluidPlayer, dead-typed inline scripts) and FIXED in-run TDD-first (FullPornerParse.parseEmbedSources, red->green, live embed fixtures); videos re-proven 206 video/mp4 per quality-mask. Duration/year data-completeness gap closed in-run (div.video-info + span.create epoch, shared DurationParse). #526 tags gap live-confirmed fixed; no finding issues filed (both conditions fixed in-diff). verify.sh RESULT: PASS over TLS-tier curl shim (unmodified script; shim = escalation step 2 transport). Search-page title collision on one query = site-side near-duplicate uploads, recorded not filed."
+    },
+    {
+      "id": "run20",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
       "note": "run20 (issue #649, self-contained run of approved #631 spec): WatchPorn full-surface deep pass, tier plain-curl on every surface (TLS/browser steps never reached \u2014 no blocked surface). Canaries 3/3 match (film1k plain 403 / TLS 200, eporner 200, pandamovies 302\u2192200@.org). CONFIRMED DRIFT fixed in-run: the site shipped a new KVS theme (\"wp-\" classes) killing every v15 selector \u2014 span.thumb__title / h1.single__content-title / single__info-row / li.next dead at probe time \u2192 0 parsed cards + null load(). Fixed TDD-first with pure WatchPornParse (a.wp-ctitle / a.wp-card__link / data-webp?:data-original posters / span.wp-r / h1.wp-vi__title / a.wp-vchip / a.wp-cast span.wp-cast__n / li.wp-pag__next), legacy selectors kept as fallbacks, legacy fixture still green (partial-rollout guard); new fixtures search-milf-1.html + video-136954.html; plot assignment removed (site exposes no synopsis \u2014 ld+json/og = tag-glue/boilerplate). version 15\u219216, 150 tests green, clean make green. verify.sh: search 40+40, home 20+20, sites rows 20+20, 5 video pages, streams 5/5 \u2192 302 \u2192 206 video/mp4 (no cookies/referer \u2014 old session-bound note gone); 4 instrument-limited FAIL lines evidence-backed in FINDINGS-649 (identical ad-card payload read as home title, empty-plot '-' placeholder collision, site-native short card title vs og title, thumbnail-vs-og-poster on real-src cards). No finding issue filed: condition fixed in-run, drift survives only as the pending merge (registry verdict ok-drift, issue/standing_issue null). 0 false positives. Gates: check-findings.sh PASS. Ground truth: FINDINGS-649.md, WatchPorn/FINDINGS.md."
     },
     {
@@ -352,7 +360,8 @@
       "surfaces": {
         "home": "200 TLS",
         "search": "200 TLS",
-        "video": "200 TLS"
+        "video": "200 TLS",
+        "quick_search": "absent (/search/suggest?q= is the search page for the literal word; /api/search 404)"
       },
       "issue": 526,
       "standing_issue": null,
