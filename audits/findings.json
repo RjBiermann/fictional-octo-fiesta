@@ -279,6 +279,14 @@
       "date": "2026-10-17",
       "note": "run24 (issue #655, attempt 2 \u2014 attempt 1 / run 38994351736 completed the full probe and filed finding #709 but died at PR push on a findings.json rebase conflict against the freshly-merged #652; this run delivered): ixiporn deep pass, plain-curl tier throughout (canaries 3/3: film1k 403, eporner 200, pandamovies 302; no challenge anywhere, escalation ladder never needed). DECIDING FACT unchanged: ixiporn.org double-redirects (.org -> 301 ixiporn.info -> 301 ixiporn.live -> 200) \u2014 exactly the #468 closed-record chain (2026-09-24, 2026-10-14) -> standing update, no re-filed condition, no reopen. All 10 mainPage rows x p1/p2 200 x30 cards disjoint, search /page/N?s=amateur p1-p3 disjoint, quickSearch absent, 6 shape-A video pages x (contentUrl meta 206 video/mp4 + raw .live referer), related 12/page, tags(year/duration) all sampled. NEW tier documented (independent probe confirms the failed attempt's #709, hub varies by video: xvideos then, redtube here): 2021-2023-era shape-B pages have no contentUrl \u2014 b64 player-x.php iframe around an external hub embed. CONFIRMED hazard fixed in-run TDD-first: loadLinks emitted fixUrl(\"null\") garbage links for shape-B pages (`?.toString()` over null); IxiPornParse.contentUrl Parse function (fixtures verbatim from live blocks) + shape-guard, version 26->27. Gates: gradlew ixiporn:test PASS (126 test executions incl. 6 new, red->green), clean ixiporn:make green (.cs3 produced), check-findings.sh PASS, verify.sh RESULT: PASS (28 listing pages, 6 videos, streams 206, agreement, LoadResponse complete; NOTEs: quickSearch absent per FINDINGS, actors not asserted = site does not expose per #127, img data-src lazyload poster not instrument-visible). 0 findings filed this run (embed tier lives in #709), 0 false positives. Ground truth: FINDINGS-655.md, ixiporn/FINDINGS.md.",
       "false_positives": []
+    },
+    {
+      "id": "run26",
+      "date": "2026-10-17",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run26 (issue #656, attempt 2 \u2014 attempt 1 is run 38994383950/run23: full probe, verdict ok retained, push died rebasing findings.json onto moved main; fallback record #712): Javbangers full-surface deep pass, tier plain-curl on every surface, verdict ok retained \u2014 no code change, version stays 7, drift_confirmed stays 1. Confirmed surfaces: latest-updates p1/p2 30+30 disjoint; most-popular/milf/uncensored 24+24 disjoint; top-rated/creampie/teen 1/4/2 wrap-pad overlap (site-side last-page grid padding, recorded not filed); search p1 75/75/3 + search p2 404 (#475 standing contract re-confirmed, not refiled); quickSearch absent; 5 varied video pages all flashvars video_url+video_alt_url; chain get_file \u2192 302 \u2192 origin13-direct.cdntrex.com \u2192 206 mp4 with site referer (403 without). Gates: bootstrap+test green after shared repair, make clean, verify.sh PASS (streams 5/5 206 mp4), check-findings PASS. Shared repair: HostRegistryTest.kt syntax corruption from the #713 merge (missing close-brace/KDoc opener, stray un-commented fragment) had every provider's unit-test compile red while make stayed green \u2014 syntax-only fix, assertions/rows unchanged, no version bumps (zero runtime change)."
     }
   ],
   "providers": {
@@ -548,19 +556,20 @@
     "Javbangers": {
       "site": "www.javbangers.com",
       "verdict": "ok",
-      "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #475 record closed standing \u2014 condition (search p2 404) confirmed unchanged and matches the provider contract exactly (search declares hasNext=false; the site has no search pagination). Live: /latest-updates p1/p2 30 div.video-item cards each disjoint, /categories/milf 24, search p1 24, 2 video pages 200 with div.block-details/Tags/related, flashvars video_url/video_alt_url resolve: get_file \u2192 302 \u2192 origin11-direct.cdntrex.com \u2192 206 video/mp4 on the site referer. Historical record #475 closed; migrated ok-drift \u2192 ok.",
+      "reason": "CLEARED re-confirmed 2026-10-17 (deep pass, #656 run26): full-surface re-check on plain-curl everywhere (canaries 3/3). latest-updates p1/p2 30+30 disjoint; most-popular/milf/uncensored 24+24 disjoint; top-rated/creampie/teen 1/4/2 wrap-pad overlap (site-side last-page grid padding, deterministic \u2014 recorded, not drift, not filed). search p1 japanese/anal 75, mdyd 3; search p2 404 (#475 standing contract re-confirmed, do not refile); quickSearch absent. 5 varied video pages 200, all flashvars video_url+video_alt_url (480p+720p); chain get_file \u2192 302 \u2192 origin13-direct.cdntrex.com \u2192 206 video/mp4 WITH site referer, 403 without (origin id rotates across probes; provider ships referer=mainUrl). No code change, version stays 7. Run also repaired #713-merged shared HostRegistryTest.kt syntax corruption (missing close-brace/KDoc opener) that had every provider's unit-test compile red while make stayed green.",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200 p1+p2 disjoint 30 cards",
-        "search": "200 p1 (p2 404 standing; provider hasNext=false by design)",
-        "video": "200 x2",
-        "stream": "get_file 302 \u2192 cdntrex origin 206 mp4"
+        "home": "200 p1+p2 disjoint 30 (latest-updates) / 24 (rows; 1-4 wrap-pad overlap on small cats)",
+        "search": "200 p1 75/75/3 (p2 404 standing; provider hasNext=false by design)",
+        "quickSearch": "absent (form data-url is on-submit redirect; async block probe 0 links)",
+        "video": "200 x5 varied (3 latest + 1 p2 + 1 milf); flashvars plain 480p+720p",
+        "stream": "get_file 302 \u2192 cdntrex origin 206 mp4 w/ site referer (403 without; origin id rotates)"
       },
       "issue": 475,
       "standing_issue": 475,
       "drift_confirmed": 1,
       "chronic": false,
-      "last_deep": "2026-10-14"
+      "last_deep": "2026-10-17"
     },
     "Javmost": {
       "site": "www.javmost.ws",
