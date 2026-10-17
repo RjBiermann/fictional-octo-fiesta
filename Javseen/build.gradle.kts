@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 19
+version = 20 // #650: cloudwish.xyz embed host now extracts (shared CloudWish row)
 
 cloudstream {
     authors     = listOf("byayzen")

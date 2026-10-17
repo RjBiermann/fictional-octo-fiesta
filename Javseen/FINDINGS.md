@@ -89,3 +89,13 @@ Displacement: Javhdz/Javhdz2 adapters moved to `shared/` `com.kraptor.HostAdapte
   verify.sh HTML selectors; stream URLs are base64 in `data-embed` → decode + live checks done
   manually, 10 embed URLs across 4 videos, all HTTP 200. Final m3u8 extraction is
   shared-extractor behavior, unchanged by this fix.
+
+## Deep pass 2026-10-16 (#650, #631 spec) — verdict `ok-drift`: cloudwish registry gap fixed in-run
+
+Full surfaces re-probed (tier plain-curl; canaries 3/3):
+
+- **Home recent/category/tag p1/p2**: 30+30 cards each, numeric-ID overlap 0 on all four axes; search AJAX p1/p2 30+30 disjoint; quickSearch correctly absent (no suggest endpoint, unchanged since #145).
+- **Video pages ×6** (287978, 287981, 287984, 286955, 287527, 287983): 200, choice rows 4–9/page, og fields present; **#539 healed state holds** — real durations everywhere (7800/14640/12000/7380/7200), the known `/287527/` sentinel-`0` page stays correct under the shipped `DurationParse` guard. Related videos still absent (commented placeholder) — not drift.
+- **Confirmed condition (fixed)**: the primary embed host `cloudwish.xyz` (on every fresh page) had **no row in `shared/HostRegistry`** — a `CloudWish` extractor existed only in Mangoporn (shipped #443). Promoted to `shared/…/CloudWish.kt` (pure `CloudWishParse.unpack/links/preferred` + extractor class) TDD-first with real fixture `shared/src/test/resources/cloudwish_embed.html`; Mangoporn's duplicate deleted. Version 19 → 20. Note: the original packer-argument regex's capturing-group alternation StackOverflows JVM java.util.regex on a real ~16 KB page — the promoted unpack uses strict greedy groups requiring `'.split('|')`; output byte-identical to the known-good node unpacker.
+- **Live streams**: hls2 masters 200 `vnd.apple.mpegurl` (287981/287984/286955/287983); hls4 `/stream/…/master.m3u8` relative → `https://cloudwish.xyz/stream/…` 200 (287978/287527). verify.sh: 6/6 override streams served; 6 instrument-limited FAIL lines (JSON-escaped AJAX listing payloads invisible to the CSS harness — same as recorded at #145; manual transcripts cover them).
+- **#477 re-checked live**: mycloudz family unpacks fine, `dramiyos-cdn.com` CDN 502 from datacenter IP — unchanged standing site-side gate; not refiled. `Javhdz`/`Javhdz2` rows registered but unused on fresh pages today (legacy, harmless).

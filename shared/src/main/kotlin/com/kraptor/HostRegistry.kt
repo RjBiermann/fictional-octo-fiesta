@@ -165,6 +165,10 @@ internal fun sharedHostRegistry(): List<ExtractorApi> = listOf(
         filemoon("https://byseqekaho.com", "Byse"),
         Playmate(),
         // Formerly per-provider adapters, now host families available to all:
+        // CloudWish promoted from Mangoporn's provider-local Extractors.kt (#443)
+        // — evidence (#650): Javseen's fresh pages carry cloudwish as their
+        // primary fallback host and no row answered cloudwish.xyz.
+        CloudWish(),
         MyDaddyExtractor(),
         Vidara(),
         Javhdz(),

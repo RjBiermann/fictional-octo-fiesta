@@ -1,4 +1,4 @@
-version = 6 // #564 BEM card/data-servers grammar migration (markup = panda theme)
+version = 7 // #650 CloudWish promoted to shared HostRegistry (Javseen parity)
 
 cloudstream {
     authors     = listOf("kraptor", "ByAyzen", "HindiProvider")
