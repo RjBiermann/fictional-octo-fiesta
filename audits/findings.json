@@ -295,26 +295,35 @@
       "findings": [],
       "false_positives": [],
       "note": "run26 (issue #643, self-contained re-run after lost 38957946527): FreePornVideos deep pass, full surfaces TLS-impersonated (plain curl 403 CF canary-consistent), verdict ok — no drift, no new findings, no code change (version stays 13); #536 confirmed live and fixed on master. FINDINGS.md rewritten."
+    },
+    {
+      "id": "run27",
+      "date": "2026-10-17",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run27 (issue #659, self-contained run of the #631 spec): PandaMovies deep pass, verdict ok retained — 0 confirmed conditions, no code change (version stays 5). Full surfaces plain-curl (TLS tier unavailable in sandbox; browser-diagnosis rung used for the two CF-challenged embed hosts); canaries 3/3 match plain expectations. Site quick-search endpoint migrated searchwp->turbo-search REST (no provider impact, hasQuickSearch=false by design). Chronic flag untouched."
     }
   ],
   "providers": {
     "PandaMovies": {
       "site": "pandamovies.pw",
       "verdict": "ok",
-      "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #555 fix (#563, v5) live-verified — search p1/p2 27+27 card__th cards disjoint, home /page/2 27 disjoint on the .org origin, quickSearch turbosearch 200 (@.org), video grammar (span.bc__c, section.hlm[data-servers]) matches with embeds playmogo/luluvido/mixdrop on the shared adapter set. Card counts (27) differ from fix-time 49/35 — surface sizes changed, grammar did not. #463 origin-down stays cleared. Historical drift record #555 closed; migrated ok-drift → ok per the round-14 re-verdict rule.",
+      "reason": "Re-confirmed 2026-10-17 (deep pass #659 of #631): verdict ok retained, 0 confirmed conditions. Home/search/genre p1+p2 all 27+27 article.card cards fully disjoint (raw view too — no widget rotation; the Featured section.sec row stays home-p1-only and the provider's closest()-exclusion absorbs its one same-page shadow). Video grammar intact x4 (bc__c title, hlm-screen__poster, dp__panel details, hlm[data-servers] embeds); st--duration chip absent on some fresh-release pages (null-safe Parse, not drift). Embeds playmogo/luluvido 403 = datacenter-IP CF challenge class (Suspected per spec, browser tier auto-passes with correct player content; TLS-tier m3u8 proof from round-14 FINDINGS-598 carries); mixdrop chain resolved 206 video/mp4 x3; voe normal shell. Site quick-search migrated searchwp admin-ajax (dead 400) to turbo-search REST wp-json/turbosearch/v1/suggest (200) — no provider impact (no quickSearch override by design). #555 grammar record holds; #463 stays cleared. Chronic flag unchanged — removal decision stays with maintainers.",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200 (.pw 302→.org; p2 disjoint)",
-        "search": "200 p1+p2 disjoint",
-        "video": "200 x2",
-        "stream": "embeds enumerated (playmogo/luluvido/mixdrop)",
-        "quick_search": "turbosearch 200"
+        "home": "200 (.pw 302->.org; p1 main grid 27 + section.sec widget 9; p2 27; disjoint)",
+        "search": "200 p1+p2 27+27 disjoint",
+        "genre": "200 p1+p2 27+27 disjoint",
+        "video": "200 x4",
+        "stream": "mixdrop chain 206 video/mp4 x3; playmogo/luluvido CF-challenge to datacenter IP (Suspected class; browser tier serves; TLS m3u8 proof round-14); voe shell 200",
+        "quick_search": "turbo-search REST wp-json/turbosearch/v1/suggest?q= 200 (searchwp admin-ajax dead 400); provider has no quickSearch override (by-design absent surface)"
       },
       "issue": 555,
       "standing_issue": 463,
       "drift_confirmed": 4,
       "chronic": true,
-      "last_deep": "2026-10-14"
+      "last_deep": "2026-10-17"
     },
     "Mangoporn": {
       "site": "mangoporn.net",
