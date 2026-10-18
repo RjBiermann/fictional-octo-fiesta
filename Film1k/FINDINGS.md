@@ -164,3 +164,29 @@ slug (`{slug}-{year}.html`). Provider maps `this.year` from it (issue #233 gap 3
 - verify.sh could not reach the site from this runner (CF challenge 403 on every URL, same
   as the 2026-09-10 PR note): the checks above were gathered with browser-TLS probing.
   **Live verification via verify.sh is OUTSTANDING for the maintainer.**
+
+## Refresh 2026-10-17 (issue #654 — audit + fix deep pass, verdict ok)
+
+Full evidence: `FINDINGS-654.md` (repo root). Summary:
+
+- **Search pagination restored on the site** — the #408 contract is observed reversed:
+  `/page/{N}/?s=` serves real disjoint results again (taboo → "Page 2 of 3", p1/p2/p3
+  disjoint, canonical WP pagination). `search()` paginates again (v13) with a new
+  `isNotFoundTemplate` Parse gate: the exhausted-search 404-wrap is NOT empty — it
+  seeds 8 `article.loop-post` cards — so a bare has-articles hasNext would paginate
+  the 404s forever. Fresh fixtures `film1k_search_taboo_p2.html` /
+  `film1k_search_notfound_p4.html` (red → green, Film1kParseTest).
+- Host mix rebalanced: 3/4 sampled video pages now abyssplayer (enc-dec chain live,
+  all tokens decode), 1/4 byse (tick-tock, same code — PoW chain replayed green,
+  master.m3u8 200). Both branches implemented; not drift.
+- The exhausted-search 404-wrap piggybacks 8 article cards (new surface quirk); the
+  no-results page is still 200/0-articles; empty `?s=` now serves the home fallback
+  (previous "No articles" template gone from `?s=`) — benign, recorded.
+- Metadata info-block (Runtime/Genres/Actors) present on some pages only (FAQ block
+  replaces it on others); provider optional-field parsing is null-safe — noted for
+  the verify.sh 2a bar, not drift.
+- verify.sh from this runner: FAIL×4 = datacenter CF block (instrument), same as
+  #558/#593-S2; equivalent mechanical bar over the TLS-impersonated sanctioned
+  instrument ALL PASS. Live verify.sh outside the block stays outstanding for the
+  maintainer.
+- quickSearch endpoint: absent (recorded absent, not drift).

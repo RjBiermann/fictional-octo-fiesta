@@ -1,4 +1,4 @@
-version = 12 // #613: shared HostRegistry player.abyssplayer.com row (TDD)
+version = 13 // #654: search pagination restored (TDD) — paginated URL + 404-wrap Parse gate
 // fetches guarded (uncaught DNS exception), turbovid-only pages fall through cleanly
 
 cloudstream {

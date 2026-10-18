@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "note": "Machine source of truth for the provider fleet audit. drift_confirmed counts only closed issues CONFIRMED as drift/broken (Suspected findings closed as false positives are exclusions, never occurrences). Audits update this file; the lint (scripts/check-findings.sh) must pass before delivery.",
-  "updated": "2026-10-17",
+  "updated": "2026-10-18",
   "last_runs": [
     {
       "id": "run1",
@@ -303,6 +303,21 @@
       "findings": [],
       "false_positives": [],
       "note": "run27 (issue #659, self-contained run of the #631 spec): PandaMovies deep pass, verdict ok retained — 0 confirmed conditions, no code change (version stays 5). Full surfaces plain-curl (TLS tier unavailable in sandbox; browser-diagnosis rung used for the two CF-challenged embed hosts); canaries 3/3 match plain expectations. Site quick-search endpoint migrated searchwp->turbo-search REST (no provider impact, hasQuickSearch=false by design). Chronic flag untouched."
+    },
+    {
+      "id": "run28",
+      "date": "2026-10-18",
+      "pr": null,
+      "findings": [
+        {
+          "issue": 654,
+          "provider": "Film1k",
+          "verdict": "ok",
+          "confirmed_drift_fixed": "#408 search-pagination contract observed reversed; v13 rewrite (searchPageUrl + isNotFoundTemplate 404-wrap gate) same run"
+        }
+      ],
+      "false_positives": [],
+      "note": "run28 (issue #654, fix-in-run per approved #631 spec round 2): Film1k deep pass, full surfaces TLS-impersonated (plain curl 403 CF, escalation ladder healthy), verdict ok. One confirmed condition: #408 'search no longer paginates' contract observed reversed — site serves real disjoint p1/p2/p3 again; fixed same run v13 TDD red->green (searchPageUrl + isNotFoundTemplate 404-wrap gate; the 404 wrap seeds 8 loop-post cards). Host mix rebalance (3/4 abyss, 1/4 byse) not drift; abyss enc-dec chain live, byse PoW chain replayed green master.m3u8 200. Suspected-only: sora CDN tunnel 403/404 datacenter artifact, not filed. Empty ?s= home-fallback surface change recorded. verify.sh FAILx4 = CF block, equivalent TLS-impersonated mechanical bar ALL PASS. findings.json Film1k entry updated, drift_confirmed=1; #496 stays closed/harmless; fixtures film1k_search_taboo_p2/_notfound_p4 committed."
     }
   ],
   "providers": {
@@ -388,23 +403,23 @@
     "Film1k": {
       "site": "www.film1k.com",
       "verdict": "ok",
-      "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #500/#501 fix (v11) live-verified — home p1/p2 24 article.loop-post each disjoint (same-URL doc-wide hrefs are the Top-10 sidebar <ul>, outside articles; parseList selects articles only); search ?s= 200 24-article template on real hits, empty term legitimately returns No articles; /page/2/?s= 200-wraps a Page-not-found template matching the provider's p>1→empty contract; video page 200 with player strip #aa-videos-op carrying both abyssplayer occurrences (source tag + lazy iframe) inside the strip — #558 scoping holds; film1k.xyz/api/videos/<code>/embed/captcha/ 200 JSON (PoW-protected byse chain live; final stream gated behind the server-side challenge, not bypassed); turbovid family still DNS-dead (historical #496) but harmless — the fix removed the branch so no dead path remains. Historical record #496 closed; migrated ok-drift → ok.",
+      "reason": "CLEARED 2026-10-17 (deep pass #654, v13 fix): surfaces re-probed TLS-impersonated (plain curl 403 CF, tier tls-impersonated) — home p1/p2 24 article.loop-post each disjoint (article-scoped); SEARCH CONTRACT REVERSED vs the #408 note: /page/{N}/?s= serves real disjoint results again (taboo -> Page 2 of 3, p1/p2/p3 disjoint) — fixed this run (v13, TDD red->green): search() paginates via new Film1kParse.searchPageUrl, and the exhausted-search 404-wrap — which is NOT empty, it seeds 8 article.loop-post cards — is gated by new Film1kParse.isNotFoundTemplate so pagination terminates; no-results page stays 200/0-articles. Empty ?s= now serves the home fallback (previous No-articles template gone from ?s=) — benign, recorded. Player strip #aa-videos-op scoping holds (strip == doc-wide hits on all sampled pages); host mix rebalanced 3/4 abyssplayer (enc-dec chain live, all tokens decode 360p-1080p) vs 1/4 byse (tick-tock same code; PoW chain replayed green, master.m3u8 200) — both branches implemented, not drift. Metadata info-block (Runtime/Genres) now present on some pages only (null-safe parsing) — site characteristic, not drift. sora CDN 404/403 rotating-tunnel artifact from datacenter IP = Suspected-only, not filed (no residential differential). Historical #496 stays closed/harmless. verify.sh from this runner FAILx4 = CF block (same as #558/#593-S2); equivalent TLS-impersonated mechanical bar ALL PASS; live verify.sh outside the block outstanding for the maintainer. Historical record #496 closed; verdict stays ok.",
       "tier": "tls-impersonated",
       "surfaces": {
-        "home": "200 TLS p1+p2 disjoint (24 loop-post each)",
-        "search": "200 TLS (page-1 only; p2 200-wraps 404 template)",
+        "home": "200 TLS p1+p2 disjoint (24 loop-post each, article-scoped 0 overlap)",
+        "search": "200 TLS page1+2+3 real results (disjoint; /page/N/?s= canon); exhausted = 404 wrap (8 seed cards, Parse gate); no-results 200/0; quickSearch absent",
         "video": "200 TLS",
-        "stream": "byse captcha API 200 (challenge-gated); abyssplayer embed in player strip"
+        "stream": "byse captcha/PoW chain replayed green (master.m3u8 200); abyssplayer enc-dec chain live (tokens decode); sora CDN datacenter 403/404 = Suspected probe-IP only"
       },
       "issue": 496,
       "standing_issue": 496,
-      "drift_confirmed": 0,
+      "drift_confirmed": 1,
       "suspected_excluded": [
         448,
         465
       ],
       "chronic": false,
-      "last_deep": "2026-10-14"
+      "last_deep": "2026-10-17"
     },
     "FreePornVideos": {
       "site": "www.freepornvideos.xxx",
