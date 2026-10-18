@@ -9,6 +9,21 @@ object Film1kParse {
      *  handed to the scoped (player-strip) overloads of byseCode/abyssUrl. */
     fun doc(html: String): Document = org.jsoup.Jsoup.parse(html)
 
+    /** Search pagination — issue #654: the #408 contract ("search no longer paginates,
+     *  /page/2/?s= is a hard 404") is observed reversed 2026-10-17: the site serves real
+     *  disjoint result pages again (taboo → "Page 2 of 3", p2/p3 disjoint, verified live).
+     *  Page 1 is the plain `/?s=`; deeper pages use the WP canonical `/page/{N}/?s=`. */
+    fun searchPageUrl(baseUrl: String, queryEncoded: String, page: Int): String =
+        if (page <= 1) "$baseUrl/?s=$queryEncoded"
+        else "$baseUrl/page/$page/?s=$queryEncoded"
+
+    /** WordPress 404-wrap detector — issue #654: an exhausted search returns a
+     *  `<title>Page not found | ...` page (HTTP 404) that is NOT query-empty: it seeds
+     *  8 `article.loop-post` cards, so `parseList` alone cannot distinguish exhaustion
+     *  from results. Happily-detected pages must stop search pagination, never run it. */
+    fun isNotFoundTemplate(doc: Document): Boolean =
+        doc.title().contains("Page not found", ignoreCase = true)
+
     /** Related-videos block: scoped to <main>, the section after the `Related Videos` header.
      *  Card markup is identical to listings (`article.loop-post`), so the caller reuses the
      *  same card parser as parseList. Sidebar sections live outside <main> and are skipped. */
