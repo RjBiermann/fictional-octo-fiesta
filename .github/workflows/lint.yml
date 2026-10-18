@@ -38,7 +38,10 @@ jobs:
           # actionlint schema lag: concurrency.queue is a real Actions feature
           # (actions/languageservices#355; actionlint support pending #654).
           # Ignore both; real findings still surface.
-          actionlint_flags: "-ignore SC20(86|16):info -ignore unexpected.key.*queue.*for.*concurrency"
+          # regexes use bare dots for spaces/quotes — the reviewdog entrypoint
+          # shell-evals these flags: parens/asterisks break eval with
+          # "syntax error: unexpected (" (run 39084360811 on main)
+          actionlint_flags: -ignore SC2...:info -ignore unexpected.key..queue..for..concurrency
 
   jackson:
     if: github.event_name == 'pull_request'
