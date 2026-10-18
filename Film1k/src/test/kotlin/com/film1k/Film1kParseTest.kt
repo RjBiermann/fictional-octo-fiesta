@@ -3,6 +3,7 @@ package com.film1k
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** TDD for issue #233: related videos, year mapping. Fixtures from live film1k.com pages. */
@@ -49,6 +50,45 @@ class Film1kParseTest {
     @Test fun `empty related section yields empty list`() {
         assertEquals(0, Film1kParse.relatedOf(Jsoup.parse("<html></html>")).size)
         assertEquals(0, Film1kParse.relatedOf(Jsoup.parse("<main><section><h3>Other</h3></section></main>")).size)
+    }
+
+    /** issue #654: fresh 2026-10-17 search-page-2 (taboo) — pagination restored on the site. */
+    private val searchTabooP2Doc by lazy {
+        javaClass.classLoader.getResource("film1k_search_taboo_p2.html")!!.readText()
+    }
+
+    /** issue #654: the exhausted-search 404 wrap (/page/4/?s=taboo) — NOT empty: it seeds
+     *  8 article.loop-post cards, so a bare has-articles hasNext would paginate the 404s. */
+    private val searchNotFoundP4Doc by lazy {
+        javaClass.classLoader.getResource("film1k_search_notfound_p4.html")!!.readText()
+    }
+
+    @Test fun `search pagination url builds page 1 as plain s`() {
+        assertEquals("https://www.film1k.com/?s=taboo",
+            Film1kParse.searchPageUrl("https://www.film1k.com", "taboo", 1))
+    }
+
+    @Test fun `search pagination url builds page n as page-path`() {
+        assertEquals("https://www.film1k.com/page/2/?s=taboo",
+            Film1kParse.searchPageUrl("https://www.film1k.com", "taboo", 2))
+        assertEquals("https://www.film1k.com/page/3/?s=taboo%201",
+            Film1kParse.searchPageUrl("https://www.film1k.com", "taboo%201", 3))
+    }
+
+    @Test fun `search page 2 fixture parses real result cards`() {
+        val cards = Film1kParse.doc(searchTabooP2Doc).select("article.loop-post")
+        assertEquals(24, cards.size)
+        val titles = cards.select("h2.entry-title").map { it.text() }
+        assert(titles.any { it.contains("Taboo 14") })
+    }
+
+    @Test fun `page-not-found template detected on the 404 wrap`() {
+        assertTrue(Film1kParse.isNotFoundTemplate(Film1kParse.doc(searchNotFoundP4Doc)))
+    }
+
+    @Test fun `real search results and video pages are not the 404 template`() {
+        assertTrue(!Film1kParse.isNotFoundTemplate(Film1kParse.doc(searchTabooP2Doc)))
+        assertTrue(!Film1kParse.isNotFoundTemplate(Film1kParse.doc(video558Doc)))
     }
 
     @Test fun `year parses from og title`() {

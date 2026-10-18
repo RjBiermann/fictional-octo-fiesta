@@ -54,4 +54,8 @@ Full-peer review, like a human senior reviewer would:
 - If the diff passes your review AND CI (`verify`) is green AND no
   `security/blocked` label is present, add `status/ready-to-merge` —
   the human decides the merge itself.
+- Zero findings is still an output: if you have nothing to report, end
+  with `safeoutputs noop '{"message":"review: no findings"}'` — never exit
+  silently (an empty safe-output record files a false `[aw]` warning issue,
+  observed 2026-10-17, #739).
 - Close with one work-attempt stamp.

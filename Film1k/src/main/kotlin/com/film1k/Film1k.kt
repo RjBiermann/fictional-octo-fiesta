@@ -64,11 +64,16 @@ class Film1k : MainAPI() {
     }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
-        // FINDINGS 2026-09-13 (issue #408): search no longer paginates — /page/2/?s= is a
-        // hard 404 on the live site (and ?paged=2 does not help). Only page 1 has results.
-        if (page > 1) return newSearchResponseList(emptyList(), hasNext = false)
+        // FINDINGS 2026-10-17 (issue #654): search pagination is restored on the site —
+        // /page/{N}/?s= serves real disjoint results again (the #408 hard-404 contract is
+        // observed reversed). Exhausted pages return the WP 404-wrap, which is NOT empty
+        // (it seeds 8 loop-post cards) — the isNotFoundTemplate Parse gate keeps it from
+        // paginating the 404s forever.
         val q = java.net.URLEncoder.encode(query.trim(), "UTF-8").replace("+", "%20")
-        val doc = app.get("$mainUrl/?s=$q").document
+        val doc = app.get(Film1kParse.searchPageUrl(mainUrl, q, page)).document
+        if (Film1kParse.isNotFoundTemplate(doc)) {
+            return newSearchResponseList(emptyList(), hasNext = false)
+        }
         val items = parseList(doc)
         return newSearchResponseList(items, items.isNotEmpty())
     }

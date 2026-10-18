@@ -37,5 +37,7 @@ Cheap, focused pass over the PR diff only:
   in the diff.
 - `security/blocked` for definite findings with the line reference in a
   single comment; `security/flagged` for suspicion worth human review.
-- No findings → say nothing, label nothing. This workflow exists to be
-  boring; every run is cheap by cap design.
+- No findings → label nothing, but DO NOT exit silently: end with
+  `safeoutputs noop '{"message":"security scan: no findings"}'`. An empty
+  safe-output record files a false `[aw]` warning issue (observed 2026-10-17,
+  #734). This workflow exists to be boring; every run is cheap by cap design.

@@ -197,3 +197,28 @@ Two script-limitation NOTEs (honest recording, selectors are FINDINGS-proven, un
   reads `content` attrs and the page has no og:image; og/JSON-LD `thumbnailUrl` carries the same URL).
 - plot: selector `div.desc` holds the plot but not in a `content` attr; og:description exists and reads back
   the same plot (transcript: `<meta property="og:description" content="We Live Together Vol. 31 …"`).
+
+## Deep-pass addendum 2026-10-17 (#659 of #631) — supersedes the sections above where they conflict
+
+This file's September grammar (`div.ml-item`, `#pettabs`, searchwp quick-search) is historical — the
+#555 BEM grammar (FINDINGS-555.md) is live and re-confirmed. Run ground truth: `/FINDINGS-659.md`.
+
+- **quickSearch doc above is STALE**: `admin-ajax.php action=searchwp_live_search` is dead (400 `0` —
+  plugin removed). The site now runs Turbo Search v1.6.2:
+  `GET /wp-json/turbosearch/v1/suggest?q=<q>` → 200 JSON `{q, posts:[{id,title,url,thumb,meta}], terms, total}`.
+  No provider impact — the quickSearch override stays absent by design (endpoint duplicates search's shape).
+- **Listing faces**: home/search/genre p1+p2 = 27+27 `article.card` cards, fully disjoint (raw unfiltered
+  view included — no widget rotation). The home Featured widget (`section.sec`, 9 cards) is home-p1-only
+  and shadows one main-grid card on the same page; `Parse.cards`' `closest("section.sec")` exclusion +
+  href dedupe absorb it. Card counts keep drifting (49→35→27), grammar does not.
+- **Video pages**: `span.bc__c` / `img.hlm-screen__poster` / `div.vid__txt p` /
+  `div.dp__panel[data-panel=details]` (`a[href*=/genre/]`, `a.chip--star`, `a[href*=/release-year/]`)
+  intact ×4. `span.st--duration` is **omitted on some fresh-release pages** (e.g. a 2026-10-17 release
+  renders views/date/year only) — `clockMinutes(null)` handles it; not drift.
+- **Embeds**: `section.hlm[data-servers]` serves luluvido.com/e, playmogo.com/e, voe.sx/e, mixdrop.ag/e —
+  all registered (`lulu("https://luluvido.com")`, `dood("https://playmogo.com")`, `Voe()`, `MixDropAg()`).
+  playmogo/luluvido 403 = datacenter-IP CF challenge (`cf-mitigated: challenge`); browser tier (headless
+  Chromium) auto-passes and serves the correct player (playmogo title-matched the movie) — Suspected
+  class, residential differential decides. MixDrop chain resolved end-to-end from plain curl: packed
+  script → `wurl` → `*.mxcontent.net/v2/<code>.mp4` → 206 `video/mp4` ×3, distinct per video.
+- `/page/2/` (trailing slash) 301-normalizes to `/page/2` — both 200; no provider impact.
