@@ -297,12 +297,12 @@
       "note": "run26 (issue #643, self-contained re-run after lost 38957946527): FreePornVideos deep pass, full surfaces TLS-impersonated (plain curl 403 CF canary-consistent), verdict ok \u2014 no drift, no new findings, no code change (version stays 13); #536 confirmed live and fixed on master. FINDINGS.md rewritten."
     },
     {
-      "id": "run26",
+      "id": "run26c",
       "date": "2026-10-17",
       "pr": null,
       "findings": [],
       "false_positives": [],
-      "note": "run26 (issue #645, attempt 2 \u2014 attempt 1 / run 38957953946 completed the full probe, the fix (v12\u219213: Parse.searchUrl + search pagination wiring, Parse.filterSeen + Latest-row cross-page dedupe hardening), 7 new TDD tests, FINDINGS-645.md and registry updates, but died at PR push on a findings.json rebase conflict against the freshly-merged runs; this run recovered the attempt-1 diff from its bundle artifact, rebased to current main, and re-applied provider files cleanly plus a findings-only Cat3Movie entry \u2014 verdict ok-drift, drift_confirmed 0\u21923, last_deep 2026-10-16). Probe facts (attempt 1, plain-curl tier, canaries 3/3): home /page/2 serves the SAME listing (WP paged-2 body class on fresh origin fetches \u2014 site-side clamp of the Latest row; FINDINGS-522's cache-artifact attribution corrected); category rows clean (new-movies/classic-porn/classic-erotica/asian-erotica 20/20 disjoint each); search pagination NOW LIVE (/search/teacher/page/2 200 with 4 fresh cards, /page/3+ 404 \u2014 #522 recorded no-pagination); video pages x5 all LoadResponse fields intact (post_id + data-nonce present); streams sv1 hlsfree 5/5 fresh tokens 200 m3u8; sv2 loadvid unchanged (JS-gated blob); playmate sv3: the /api/s Chrome-JA3\u2192Sec-Fetch-trio gate is instrument-only \u2014 plain/okhttp-shaped clients pass WITHOUT the trio, app path was never broken, the attempt-1 mid-run speculative shared/ change was retracted; recorded as risk note (any future browser-fingerprint instrument request must carry the trio or 403s). Gates: gradlew Cat3Movie:test green (7 new tests), full clean build all 24 providers green, verify.sh final FAIL from 4 instrument limitations manually re-verified in FINDINGS-645 (home dupes raw-site in-render only, streams behind the ajax player chain, titles in the a.halim-thumb title attribute), check-findings.sh PASS. Out of scope flagged: Mangoporn/PandaMovies playmate sv3 embeds covered by #657/#659."
+      "note": "run26c (issue #645, attempt 2 — attempt 1 / run 38957953946 completed the full probe, the fix (v12→13: Parse.searchUrl + search pagination wiring, Parse.filterSeen + Latest-row cross-page dedupe hardening), 7 new TDD tests, FINDINGS-645.md and registry updates, but died at PR push on a findings.json rebase conflict against the freshly-merged runs; attempt 2 (run 39002324793) recovered the attempt-1 diff from its bundle artifact but shipped a findings-only diff — review blockers (run 39092188760) caught that no provider file was on the branch and that this entry contradicted the provider verdict below; the attempt-3 repair (run 39103872812) re-applied the provider files, tests and FINDINGS docs from the attempt-1 bundle patch onto the rebased branch, reconciled this entry with the provider entry, and deduped the id run26→run26c — verdict ok-drift, drift_confirmed 0→3, last_deep 2026-10-16). Probe facts (attempt 1, plain-curl tier, canaries 3/3): home /page/2 serves the SAME listing (WP paged-2 body class on fresh origin fetches \u2014 site-side clamp of the Latest row; FINDINGS-522's cache-artifact attribution corrected); category rows clean (new-movies/classic-porn/classic-erotica/asian-erotica 20/20 disjoint each); search pagination NOW LIVE (/search/teacher/page/2 200 with 4 fresh cards, /page/3+ 404 \u2014 #522 recorded no-pagination); video pages x5 all LoadResponse fields intact (post_id + data-nonce present); streams sv1 hlsfree 5/5 fresh tokens 200 m3u8; sv2 loadvid unchanged (JS-gated blob); playmate sv3: the /api/s Chrome-JA3\u2192Sec-Fetch-trio gate is instrument-only \u2014 plain/okhttp-shaped clients pass WITHOUT the trio, app path was never broken, the attempt-1 mid-run speculative shared/ change was retracted; recorded as risk note (any future browser-fingerprint instrument request must carry the trio or 403s). Gates: gradlew Cat3Movie:test green (7 new tests), full clean build all 24 providers green, verify.sh final FAIL from 4 instrument limitations manually re-verified in FINDINGS-645 (home dupes raw-site in-render only, streams behind the ajax player chain, titles in the a.halim-thumb title attribute), check-findings.sh PASS. Out of scope flagged: Mangoporn/PandaMovies playmate sv3 embeds covered by #657/#659."
     },
     {
       "id": "run27",
@@ -527,20 +527,20 @@
     },
     "Cat3Movie": {
       "site": "cat3movie.org",
-      "verdict": "ok",
-      "reason": "search 200 with /movie links (2026-10-09); deep 2026-10-09 video-page rollout: og fields present, no JSON-LD/duration on site, provider covers all exposed fields",
+      "verdict": "ok-drift",
+      "reason": "deep 2026-10-16 (issue #645): all surfaces 200 plain-curl, grammar unchanged, but 3 confirmed drift-class conditions — (1) search gained pagination /search/<slug>/page/2+ past 404 (#522 recorded no-pagination; wired in-run as Parse.searchUrl), (2) halimmovies home /page/N serves the same listing (dead Latest-row; cross-page dedupe now via Parse.filterSeen) — offset legacy post renders 2-3x within one page, (3) playmate.to /api/s holds Chrome-JA3 clients to the Sec-Fetch trio (403 forbidden without, 200 with) — okhttp/NonThrowingClient does NOT present browser JA3, still 200 — no shared adapter change; recorded as instrument-gate risk note; streams 5/5 fresh 200 m3u8",
       "tier": "plain-curl",
       "surfaces": {
         "home": "200",
-        "search": "200",
-        "video": "200",
+        "search": "200 (pagination now live: /page/2 has 4 fresh cards, /page/3+ is 404 — page1 20 pages)",
+        "video": "200 (5 sampled)",
         "stream": "200 m3u8 (sv1 hlsfree, fresh token per probe)"
       },
-      "issue": null,
+      "issue": 645,
       "standing_issue": null,
-      "drift_confirmed": 0,
+      "drift_confirmed": 3,
       "chronic": false,
-      "last_deep": "2026-10-09"
+      "last_deep": "2026-10-16"
     },
     "Eroticmv": {
       "site": "eroticmv.com",

@@ -1,4 +1,4 @@
-version = 12 // issue #522: sv3 embeds moved to playmate.to/watch/<code> — shared Playmate regex fixed
+version = 13 // issue #645 deep pass: search pagination wired (site gained /page/N); Latest-row cross-page dedupe hardening
 
 cloudstream {
     authors     = listOf("RjBiermann")

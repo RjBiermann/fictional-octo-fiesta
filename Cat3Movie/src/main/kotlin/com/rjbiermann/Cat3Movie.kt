@@ -47,15 +47,29 @@ class Cat3Movie : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = if (page <= 1) request.data else "${request.data}/page/$page"
         val document = app.get(url, interceptor = cfInterceptor).document
-        val home = SearchCard.homeCards(
-            document, "article.thumb",
-            titleSel = "a.halim-thumb", titleAttr = "title", posterSel = "img[data-src]",
+        // issue #645 hardening (drift-recurrence rule): the halimmovies theme serves the same
+        // listing on /page/N for the homepage row (live origin fetches, cf-cache-status
+        // EXPIRED/MISS — WP `paged-2` body class present, not a cache artifact) — without a
+        // cross-page seen-set the Latest row re-serves page-1 cards forever. Category rows
+        // paginate cleanly (verified disjoint on this run) and are unaffected: their page-2
+        // content is all-new. Page 1 re-seeds the set (fresh listing renders on each visit).
+        val seen = seenHrefs.getOrPut(request.data) { HashSet() }
+        if (page <= 1) seen.clear()
+        val cards = Parse.filterSeen(
+            SearchCard.homeCards(
+                document, "article.thumb",
+                titleSel = "a.halim-thumb", titleAttr = "title", posterSel = "img[data-src]",
+            ), seen
         ).map { it.toSearchResult() }
         return newHomePageResponse(
-            list = HomePageList(name = request.name, list = home, isHorizontalImages = false),
+            list = HomePageList(name = request.name, list = cards, isHorizontalImages = false),
             hasNext = true
         )
     }
+
+    /** Cross-page seen-hrefs per main-page row ([SearchCard.homeCards] output dedupes within
+     *  a page; this set is what re-seeds on page 1 and filters deeper pages). */
+    private val seenHrefs = HashMap<String, HashSet<String>>()
 
     /** Emission adapter for the shared SearchCard module (halimmovies hrefs are absolute). */
     private fun CardFields.toSearchResult(): SearchResponse =
@@ -64,17 +78,18 @@ class Cat3Movie : MainAPI() {
         }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
-        // /search/<slug> — no pagination on this site (page 2 is 404)
-        val slug = query.trim().lowercase()
-            .filter { it.isLetterOrDigit() || it.isWhitespace() }
-            .replace(Regex("\\s+"), "-")
-        val document = app.get("$mainUrl/search/$slug", interceptor = cfInterceptor).document
+        // /search/<slug> — the site gained pagination on this surface (issue #645: page 2
+        // serves fresh cards; /page/3+ is 404 past-the-last-page, which parses to an empty
+        // list so the row terminates). Slug-ification moved behind Parse.searchUrl.
+        val document = app.get(
+            Parse.searchUrl(mainUrl, query, page), interceptor = cfInterceptor
+        ).document
         // search keeps every element (dedupe is homepage-only); the shared Parse function
         // drops only cards without a real title/link, exactly like the old local copy
         val list = Parse.searchCards(document)
             .mapNotNull { SearchCard.parse(it, "a.halim-thumb", posterSel = "img[data-src]", titleAttr = "title") }
             .map { it.toSearchResult() }
-        return newSearchResponseList(list, hasNext = false)
+        return newSearchResponseList(list, hasNext = list.isNotEmpty())
     }
 
     override suspend fun load(url: String): LoadResponse {
@@ -261,6 +276,25 @@ object Parse {
      *  current watch pages — issue #250 re-probe). */
     fun yearFromTitle(title: String): Int? =
         Regex("\\((\\d{4})\\)").find(title)?.groupValues?.get(1)?.toIntOrNull()
+
+    /** Issue #645: search page URL — the site gained pagination on /search (page 2 returns
+     *  fresh cards, /page/3+ is 404 past the last page). Page 1 keeps the bare path; deeper
+     *  pages append the /page/N suffix the WP theme serves. Slug-ification here:
+     *  lowercase, whitespace → '-', everything but letters/digits dropped (the exact filter
+     *  the search() override carried before this run). */
+    fun searchUrl(mainUrl: String, query: String, page: Int): String {
+        val slug = query.trim().lowercase()
+            .filter { it.isLetterOrDigit() || it.isWhitespace() }
+            .replace(Regex("\\s+"), "-")
+        return if (page > 1) "$mainUrl/search/$slug/page/$page" else "$mainUrl/search/$slug"
+    }
+
+    /** Issue #645 hardening: cross-page row filter — keeps only cards whose href has not
+     *  been served for the row yet, recording the ones it keeps (the halimmovies homepage
+     *  /page/N serves the same listing). MutableSet.add's return value is the membership
+     *  test; page-1 re-seed is the caller clearing the set. */
+    fun filterSeen(cards: List<CardFields>, seen: MutableSet<String>): List<CardFields> =
+        cards.filter { seen.add(it.href) }
 
     /** Embed src from the player.php response, double or single quotes. */
     fun embedIframe(html: String): String? =
