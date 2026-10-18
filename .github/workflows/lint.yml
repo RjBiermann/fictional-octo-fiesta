@@ -30,6 +30,15 @@ jobs:
         with:
           reporter: github-check
           fail_level: error
+          # gh-aw's generated .lock.yml harness line trips shellcheck
+          # SC2086/SC2016 (info) in every lock file — ~28 results overflow
+          # reviewdog's 20-annotation cap and crash the reporter
+          # ("Too many results (annotations) in diff", runs on 2026-10-17
+          # main). The 13 "unexpected key queue for concurrency" findings are
+          # actionlint schema lag: concurrency.queue is a real Actions feature
+          # (actions/languageservices#355; actionlint support pending #654).
+          # Ignore both; real findings still surface.
+          actionlint_flags: "-ignore SC20(86|16):info -ignore unexpected.key.*queue.*for.*concurrency"
 
   jackson:
     if: github.event_name == 'pull_request'
