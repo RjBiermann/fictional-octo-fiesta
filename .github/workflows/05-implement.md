@@ -27,7 +27,10 @@ safe-outputs:
   threat-detection: false
   add-comment:
     target: "*"
-    max: 1
+    # 2 slots: one work-attempt budget stamp + one work-report narration.
+    # max:1 deadlocked the ledger protocol — the narration comment consumed
+    # the slot and the required stamp could never be posted (issue #716).
+    max: 2
    # engine:pi detection runs on Copilot CLI — not available (no Copilot); structural guardrails + human merge carry the boundary
   create-pull-request:
     max: 1
