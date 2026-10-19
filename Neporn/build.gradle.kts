@@ -1,4 +1,4 @@
-version = 7 // shared KvsFlashvars (audit applied)
+version = 8 // DSL newExtractorLink migration (issue #735)
 
 cloudstream {
     authors     = listOf("cloudstream")

@@ -105,14 +105,15 @@ class Neporn : MainAPI() {
         val sources = KvsFlashvars.videoSources(html)
         for (src in sources) {
             callback(
-                ExtractorLink(
+                newExtractorLink(
                     source = name,
                     name = name,
                     url = src,
-                    referer = mainUrl,
-                    quality = if (src.contains("_720p")) Qualities.P720.value else Qualities.Unknown.value,
                     type = ExtractorLinkType.VIDEO
-                )
+                ) {
+                    this.referer = mainUrl
+                    this.quality = if (src.contains("_720p")) Qualities.P720.value else Qualities.Unknown.value
+                }
             )
         }
         return sources.isNotEmpty()
