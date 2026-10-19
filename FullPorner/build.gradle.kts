@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 16 // FINDINGS-644: fluidPlayer embed Parse (#644 drift fix); video-info duration/year
+version = 17 // FINDINGS-736: BasePlugin + registerHostExtractors migration (legacy Plugin.load(context) dropped)
 
 cloudstream {
     authors     = listOf("kraptor")
