@@ -111,7 +111,7 @@ A capped parallel batch of an armed epic's independent kids: the conveyor stamps
 _Avoid_: batch, blast (the cap is the point)
 
 **Armed epic**:
-A spec epic the conveyor may run waves on: kids linked via `epic #N` in their bodies and the epic carrying an approval-of-record (owner one-worder or the plan loop's round-3 marker). Delivered-but-open kids get re-stamped by an armed epic — close them before re-arming.
+A spec epic the conveyor may run waves on: kids linked via `epic #N` in their bodies and the epic carrying an approval-of-record (owner one-worder, or the plan loop's round-3 marker — which the workflow posts as `github-actions[bot]` after your in-thread approval). Delivered-but-open kids get re-stamped by an armed epic — close them before re-arming.
 _Avoid_: enabled epic, active epic (arming is state on the epic, not the machine)
 
 **Ack**:
