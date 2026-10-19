@@ -1,7 +1,6 @@
 package com.kraptor
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.webkit.WebView
@@ -81,7 +80,9 @@ object FullPornerParse {
 }
 
 
-class FullPorner(private val context: Context) : MainAPI() {
+// #736: no constructor Context — the plugin entrypoint is BasePlugin now, whose
+// load() passes none; the WebView fallback resolves the app context at use time.
+class FullPorner : MainAPI() {
     override var mainUrl              = "https://fullporner.com"
     override var name                 = "FullPorner"
     override val hasMainPage          = true
@@ -163,11 +164,19 @@ class FullPorner(private val context: Context) : MainAPI() {
     }
 
     suspend fun createWebViewAndExtract(
-        context: Context,
         baseUrl: String,
         html: String,
         onResult: (String?) -> Unit
-    ): WebView = withContext(Dispatchers.Main) {
+    ): WebView? = withContext(Dispatchers.Main) {
+        // #736: BasePlugin.load() passes no Context — read the framework's app
+        // context global at use time (CloudStreamApp.context, set in
+        // attachBaseContext, i.e. always present while a plugin runs). Null is a
+        // degenerate non-app case (JVM tests): yield no result, same as a timeout.
+        val appContext = CloudStreamApp.context
+        if (appContext == null) {
+            onResult(null)
+            return@withContext null
+        }
 
         val modifiedHtml = html.replace(
             Regex("""jwplayer\s*\(\s*["']player["']\s*\)\s*\.setup\s*\(\s*configs\s*\)\s*;"""),
@@ -178,7 +187,7 @@ class FullPorner(private val context: Context) : MainAPI() {
         """.trimIndent()
         )
 
-        val wv = WebView(context.applicationContext).apply {
+        val wv = WebView(appContext.applicationContext).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.allowFileAccess = true
@@ -367,7 +376,7 @@ class FullPorner(private val context: Context) : MainAPI() {
 
         val configJson = suspendCoroutine<String?> { continuation ->
             runBlocking {
-                createWebViewAndExtract(context = context, iframeUrl, iframeText) { result ->
+                createWebViewAndExtract(iframeUrl, iframeText) { result ->
                     continuation.resume(result)
                 }
             }
@@ -412,8 +421,10 @@ return@withContext true
 }
 
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-class FullPornerPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
-    override fun load(context: android.content.Context) {
-        registerMainAPI(FullPorner(context))
+class FullPornerPlugin: com.lagradost.cloudstream3.plugins.BasePlugin() {
+    override fun load() {
+        registerMainAPI(FullPorner())
+        registerHostExtractors()   // shared HostRegistry adapters (ADR-0002) — the loadExtractor
+                                   // fallback dispatch was matching framework built-ins only
     }
 }
