@@ -11,6 +11,7 @@ import android.webkit.WebViewClient
 import com.lagradost.api.Log
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.CloudStreamApp
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -18,7 +19,7 @@ import org.json.JSONArray
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
-class WatchPorn(context: Context) : MainAPI() {
+class WatchPorn : MainAPI() {
     override var mainUrl = "https://watchporn.to"
     override var name = "WatchPorn"
     override val hasMainPage = true
@@ -26,7 +27,9 @@ class WatchPorn(context: Context) : MainAPI() {
     override var lang = "en"
     override val supportedTypes = setOf(TvType.NSFW)
 
-    private val context = context
+    // App context for the WebView extractor — resolved on use via the pinned
+    // library accessor (issue #737): the legacy load(context) constructor is gone.
+    private val context: Context get() = CloudStreamApp.context ?: error("Application context not initialized")
 
     override val mainPage = mainPageOf(
         "${mainUrl}/top-rated/" to "Top Rated",
@@ -280,9 +283,10 @@ class WatchPorn(context: Context) : MainAPI() {
     }
 }
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
-class WatchPornPlugin: com.lagradost.cloudstream3.plugins.Plugin() {
-    override fun load(context: android.content.Context) {
-        registerMainAPI(WatchPorn(context))
+class WatchPornPlugin: com.lagradost.cloudstream3.plugins.BasePlugin() {
+    override fun load() {
+        registerMainAPI(WatchPorn())
+        registerHostExtractors()   // shared HostRegistry adapters (ADR-0002)
     }
 }
 
