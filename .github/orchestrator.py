@@ -411,9 +411,20 @@ def _reconcile_pass(stories, claims):
 
 
 def _chain_approved(pnum):
+    """Approval-of-record, two receipts (ADR-0014):
+    - exact one-word owner verdict (approved/approve/lgtm/yes/ok), or
+    - the plan loop's round-3 marker (ROUND_ANCH[3]) — 04-plan posts it
+      only after a human wrote `approved` in the thread, so it is the
+      machine-checkable receipt of the same human decision. Both are
+      owner-actor comments; prose is never parsed (no fuzzy 'approved'
+      inside sentences). Each round of the /plan loop incl. the marker is
+      deduped by the plan workflow, so re-reading is idempotent."""
     for c in comments(pnum):
-        if c.get("user", {}).get("login") == OWNER and \
-                (c.get("body") or "").strip().lower() in ("approved", "approve", "lgtm", "yes", "ok"):
+        if c.get("user", {}).get("login") != OWNER:
+            continue
+        if (c.get("body") or "").strip().lower() in ("approved", "approve", "lgtm", "yes", "ok"):
+            return True
+        if ROUND_ANCH[3] in (c.get("body") or ""):
             return True
     return False
 

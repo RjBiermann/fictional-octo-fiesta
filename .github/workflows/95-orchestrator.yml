@@ -48,6 +48,10 @@ jobs:
           GH_AW_ORCH_PLAN: ${{ vars.GH_AW_ORCH_PLAN }}
           GH_AW_ORCH_TAG_OWNER: ${{ vars.GH_AW_ORCH_TAG_OWNER }}
           GH_AW_ORCH_OWNER: ${{ vars.GH_AW_ORCH_OWNER }}
+          # wave driver parallelism — previously unwired (code default 8
+          # was the only effective value); adopters set the repo variable
+          # to throttle concurrent Implement runs (ADR-0014).
+          GH_AW_ORCH_WAVE_CAP: ${{ vars.GH_AW_ORCH_WAVE_CAP }}
           # repo-agnostic adopter config: the append-only JSON registry
           # enables the mechanical findings/registry conflict auto-merge;
           # comma list of version-file suffixes (default build.gradle.kts).
