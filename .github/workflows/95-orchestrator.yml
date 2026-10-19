@@ -1,6 +1,6 @@
 name: Orchestrator (mechanical conveyor — approvals, readiness, chain, surrogate)
 
-# ADR-0008 (amended 2026-10-15): non-AI plain Actions, sibling of
+# ADR-0017 (amended 2026-10-15): non-AI plain Actions, sibling of
 # 90-sweeper. Automates mechanics; surfaces decisions as @mentions;
 # humans still merge PRs by default (GH_AW_AUTO_MERGE=false).
 

@@ -118,6 +118,14 @@ _Avoid_: enabled epic, active epic (arming is state on the epic, not the machine
 The workflow-posted comment on the issue when an Agent run starts — a guaranteed narration floor produced by machinery, never by the agent. Agent-issued comments are counted beyond the Ack.
 _Avoid_: progress comment (that is the agent's own narration), bot comment
 
+**Machine-authored**:
+Content the secret-guard may redact: authored by `github-actions[bot]`, or carrying the `[orchestrator]` marker — the conveyor posts through the owner PAT because gh-aw's activation gate rejects bot-actor events and `GITHUB_TOKEN` events fire no workflows (ADR-0017). Human-authored content is never touched.
+_Avoid_: bot-authored (marker posts carry a human identity)
+
+**Secret-guard**:
+The mechanical redaction layer (91-secret-guard.yml): credential-shaped strings in machine-authored issue/PR content are replaced with a redaction marker and logged to one rolling notification issue. Post-hoc by design — safe-outputs are the only write path an agent has, and the guard watches it.
+_Avoid_: threat detection (the gh-aw feature this lane disables), secret scanning (a GitHub push-time feature)
+
 **Registry**:
 The append-only audit verdict record (`audits/findings.json`): provider verdicts, run history, scalar metadata. Conveyor-owned (ADR-0013) — the orchestrator's `registry_sync` applies entries the agent posts on the issue thread; the registry never travels inside an Agent diff. Distinct from **FINDINGS**, which is per-site evidence committed with the PR.
 _Avoid_: findings file (FINDINGS is the per-issue evidence), state file

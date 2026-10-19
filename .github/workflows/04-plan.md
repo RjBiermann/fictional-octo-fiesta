@@ -37,7 +37,7 @@ advance a round yourself.
 
 **Heading convention (delta 16 follow-up):** every round post MUST begin
 with `Plan round N — ` (N ∈ {1,2,3}) exactly — e.g. "Plan round 1 — clarify
-questions". The mechanical conveyor (95-orchestrator, ADR-0008) detects
+questions". The mechanical conveyor (95-orchestrator, ADR-0017) detects
 the loop's state by that anchor; a differently-phrased heading makes the
 surrogate miss the round and stall the chain.
 

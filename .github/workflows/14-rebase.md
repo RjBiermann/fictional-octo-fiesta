@@ -52,7 +52,7 @@ safe-outputs:
 PR context (labeled or dispatched as `pr_number`): the PR whose branch
 the mechanical resolver couldn't un-stick.
 
-The AI fallback for merge conflicts (ADR-0008 amendment, delta 16-f12): the
+The AI fallback for merge conflicts (ADR-0017 amendment, delta 16-f12): the
 orchestrator's mechanical resolver handles the two deterministic classes
 (append-only registry union, version-bump higher-wins). You own everything
 else — including test files, under your own compile gate — with rules,
