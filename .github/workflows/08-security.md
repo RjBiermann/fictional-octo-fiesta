@@ -8,7 +8,13 @@ description: Security scan + secret-leak check merged (one PR-triggered pass)
 on:
   pull_request:
     types: [opened, synchronize]
-  roles: [admin, maintainer, write]
+    # roles:all (same defect class fixed in 06-review/07-fix-loop): the PR
+    # author/actor here is github-actions[bot] (permission none), so the
+    # default roles gate skipped every security scan on agent PRs — PRs
+    # could reach status/ready-to-merge with no security/blocked label
+    # simply because this workflow never ran. Findings-only and cheap by
+    # cap design; it can never merge (ADR-0001).
+  roles: all
 imports:
   - .github/workflows/shared/engine-lane.md
   - .github/workflows/shared/gate.md

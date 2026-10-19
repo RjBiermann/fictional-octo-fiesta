@@ -99,7 +99,7 @@ not vibes:
    merge decision stays with the owner. A lost push is silent; a stamp
    is visible.
 
-5b. **The push is the rule-4 CLI call, exactly as written — never
+7. **The push is the rule-4 CLI call, exactly as written — never
    implicit, never paraphrased.** `git commit` delivers nothing — the
    sandbox is discarded after your final turn (observed runs
    39061496996 and 39066050579: full merge, green tests, then the

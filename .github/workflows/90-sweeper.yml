@@ -112,8 +112,9 @@ jobs:
                       for lb in sorted(st):
                           gh("issue","edit",str(n),"--repo",repo,"--remove-label",lb)
                           gh("issue","edit",str(n),"--repo",repo,"--add-label",lb)
+                      names = ", ".join(sorted(st))
                       gh("issue","comment",str(n),"--repo",repo,
-                         "--body",f"{pref} re-fired: `{lb}` idle {int(idle_h)}h.")
+                         "--body",f"{pref} re-fired: `{names}` idle {int(idle_h)}h.")
               except Exception as e:
                   print(f"issue {it.get('number','?')} skipped: {e}")
           EOF
