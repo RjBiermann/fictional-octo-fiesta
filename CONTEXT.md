@@ -102,6 +102,18 @@ _Avoid_: region lock, geo block (implies refusal; a Geo-gate varies content)
 The mechanical commit-and-PR step performed by the workflow (the `deliver-pr` action), never by the agent: commit the working tree to `ai/issue-N`, force-push, create-or-update the PR. A run that produces changes but no Delivery is a failed run.
 _Avoid_: push, publish, ship
 
+**Chain**:
+The story-ordered execution of an approved spec: the conveyor stamps `status/planned` on story N only once story N−1 closed — dependencies flow forward through closeout, not simultaneity.
+_Avoid_: pipeline (that is the whole loop), sequence of PRs
+
+**Wave**:
+A capped parallel batch of an armed epic's independent kids: the conveyor stamps `status/planned` up to `GH_AW_ORCH_WAVE_CAP` while fewer kids are in flight — parallelism with a spend ceiling (ADR-0014).
+_Avoid_: batch, blast (the cap is the point)
+
+**Armed epic**:
+A spec epic the conveyor may run waves on: kids linked via `epic #N` in their bodies and the epic carrying an approval-of-record (owner one-worder or the plan loop's round-3 marker). Delivered-but-open kids get re-stamped by an armed epic — close them before re-arming.
+_Avoid_: enabled epic, active epic (arming is state on the epic, not the machine)
+
 **Ack**:
 The workflow-posted comment on the issue when an Agent run starts — a guaranteed narration floor produced by machinery, never by the agent. Agent-issued comments are counted beyond the Ack.
 _Avoid_: progress comment (that is the agent's own narration), bot comment
