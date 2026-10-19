@@ -119,6 +119,8 @@ gh-aw's steering extension can crash under pi v1.1.0 (`reading 'steer'`) —
 when that happens the "5 minutes left / 2 minutes left" warnings never
 surface, and long audit sweeps die with **zero safe-outputs**. Contract:
 keep partial results in `audits/` / `FINDINGS-` writes current enough that
-a wall-terminate still leaves a usable tree; opportunistic
+a wall-terminate still leaves a usable tree (per-issue files only — never
+`audits/findings.json`, the conveyor-owned registry, ADR-0013);
+opportunistic
 `safeoutputs add_comment` at each phase boundary (calibration; sweep;
 write-up) is the preferred partial-result carrier.
