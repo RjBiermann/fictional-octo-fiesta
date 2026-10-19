@@ -414,17 +414,22 @@ def _chain_approved(pnum):
     """Approval-of-record, two receipts (ADR-0014):
     - exact one-word owner verdict (approved/approve/lgtm/yes/ok), or
     - the plan loop's round-3 marker (ROUND_ANCH[3]) — 04-plan posts it
-      only after a human wrote `approved` in the thread, so it is the
-      machine-checkable receipt of the same human decision. Both are
-      owner-actor comments; prose is never parsed (no fuzzy 'approved'
-      inside sentences). Each round of the /plan loop incl. the marker is
-      deduped by the plan workflow, so re-reading is idempotent."""
+      only after a human wrote `approved` in the thread, i.e. the
+      machine-checkable receipt of the same human decision. The marker is
+      authored by the workflow identity (safe-output add-comment posts as
+      github-actions[bot], observed live 2026-10-18), NOT by OWNER — so
+      the marker is accepted from either OWNER or the known machinery
+      identity; the one-worder stays owner-only. Prose is never parsed
+      (no fuzzy 'approved' inside sentences); the plan workflow dedupes
+      its own markers, so re-reading is idempotent.
+    (Review #760 blocker 4317230076: the first cut required owner-authored
+    markers, which made this receipt unreachable on live data.)"""
     for c in comments(pnum):
-        if c.get("user", {}).get("login") != OWNER:
-            continue
-        if (c.get("body") or "").strip().lower() in ("approved", "approve", "lgtm", "yes", "ok"):
+        login = (c.get("user") or {}).get("login") or ""
+        body = c.get("body") or ""
+        if login == OWNER and body.strip().lower() in ("approved", "approve", "lgtm", "yes", "ok"):
             return True
-        if ROUND_ANCH[3] in (c.get("body") or ""):
+        if login in (OWNER, "github-actions[bot]") and ROUND_ANCH[3] in body:
             return True
     return False
 
@@ -889,7 +894,15 @@ def wave_driver():
     status/planned (owner actor). Verdicts, chronic-provider removals and
     policy calls stay human — this only schedules audits the epic already
     approved."""
-    cap = int(os.environ.get("GH_AW_ORCH_WAVE_CAP", "8") or 8)
+    # ADR-0014 knob: a stray unit suffix or typo in the repo var must not
+    # silently disable the wave driver for the pass (review #760 finding
+    # 4317230094) — warn and fall back to the code default.
+    cap_raw = os.environ.get("GH_AW_ORCH_WAVE_CAP", "8") or "8"
+    try:
+        cap = int(cap_raw)
+    except ValueError:
+        print(f"[orchestrator] ::warning::GH_AW_ORCH_WAVE_CAP='{cap_raw}' not an integer — using default 8")
+        cap = 8
     openi = api("issues?state=open&per_page=60") or []
     by_epic = {}
     for i in openi:

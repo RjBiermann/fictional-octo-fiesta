@@ -7,12 +7,18 @@ round-3 marker as its approval-of-record (`_chain_approved`, ADR-0014).
 Two exact receipts — an owner one-worder or the round-3 marker. Prose is
 never parsed.
 
-Context: the wave rounds of 2026-10-16 (24/26 providers, plan rounds 5–7)
-could not be recognized by today's exact-match `_chain_approved`, and the
-epic itself (#631) carried no body linkage — so after the waves landed,
-the queue went quiet with automation armed but gates unreachable. The
-round-3 receipt closes that seam without authorizing anything the human
-did not already approve in-thread.
+Context (corrected per review finding 4317230085): the wave rounds of
+2026-10-16 (24/26 providers, plan rounds 5–7) were NOT orphaned by the
+exact-match `_chain_approved` — epic #631 already carried an owner
+one-worder `approved` (2026-10-16T03:33:51Z) *before* the waves, so the
+gate was satisfied throughout. The real post-wave stall is the **kid
+inflow seam**: the wave consumed the plan loop's kids to exhaustion and
+nothing generates fresh spec kids without a human `/plan`. The round-3
+marker receipt (this ADR's code change) is future-proofing, not a
+resurrection: it covers approval records that live only in prose or in
+the plan thread (e.g. the marker posted as `github-actions[bot]`, the
+workflow identity — owner-authored markers are unreachable by
+construction, see the blocker on PR #760).
 
 Decided:
 - **Level 1**: arming an epic is an owner action in the UI (approval
