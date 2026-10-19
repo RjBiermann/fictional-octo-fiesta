@@ -58,7 +58,7 @@ network:
     - opencode.ai
 ---
 
-# Engine lane: pi + OpenCode Go (ADR-0007 — single model, single provider)
+# Engine lane: pi + OpenCode Go (ADR-0016 — single model, single provider)
 
 Model: **`openai/glm-5.3-flash`** for every workflow in this pipeline —
 the `openai/` prefix routes through gh-aw's credential-isolated gateway

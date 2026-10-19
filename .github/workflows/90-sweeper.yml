@@ -2,8 +2,12 @@ name: 90-sweeper
 # Plain NON-AI Actions workflow (ADR-0006): self-healing survives the Sweep.
 # Re-fires stuck state labels, parses budget stamps, posts the weekly
 # status report. Probability reducer, not a guarantee (Actions may skip
-# cron under load). Runs with the workflow token; the Actions bot is a
-# trusted labeler by design (migration-design §2 gate table).
+# cron under load). Label mutations run as the OWNER actor via
+# GH_AW_PROXY_PAT (ADR-0017): GITHUB_TOKEN events fire no workflows, and
+# gh-aw activation rejects bot-actor labels — without it a re-add is
+# bookkeeping only and never re-triggers Implement/Fix/Rebase. The
+# Actions bot is a trusted labeler by design (migration-design §2 gate
+# table).
 on:
   schedule:
     - cron: "17 */4 * * *"   # 4h, off-the-hour minute to dodge Actions load
@@ -48,6 +52,7 @@ jobs:
         if: inputs.mode != 'report'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_AW_PROXY_PAT: ${{ secrets.GH_AW_PROXY_PAT }}
           REPO: ${{ github.repository }}
           STUCK_HOURS: ${{ env.STUCK_HOURS }}
           DAILY_ATTEMPT_CAP: ${{ env.DAILY_ATTEMPT_CAP }}
@@ -63,6 +68,14 @@ jobs:
           states = {"status/planned","status/in-review","status/fixing",
                     "status/fixing-stuck","status/ready-to-merge"}
           day = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+          # Re-fires and escalations act as the OWNER actor (ADR-0017):
+          # a GITHUB_TOKEN label event neither fires a workflow nor passes
+          # gh-aw activation. Soft fallback: without the PAT the sweep
+          # stays bookkeeping-only (visible via this warning).
+          if os.environ.get("GH_AW_PROXY_PAT"):
+              os.environ["GH_TOKEN"] = os.environ["GH_AW_PROXY_PAT"]
+          else:
+              print("::warning::GH_AW_PROXY_PAT unset — re-fires will not re-trigger agent workflows")
           def gh(*a):
               r = subprocess.run(["gh",*a], capture_output=True, text=True)
               if r.returncode != 0:
@@ -112,8 +125,9 @@ jobs:
                       for lb in sorted(st):
                           gh("issue","edit",str(n),"--repo",repo,"--remove-label",lb)
                           gh("issue","edit",str(n),"--repo",repo,"--add-label",lb)
+                      names = ", ".join(sorted(st))
                       gh("issue","comment",str(n),"--repo",repo,
-                         "--body",f"{pref} re-fired: `{lb}` idle {int(idle_h)}h.")
+                         "--body",f"{pref} re-fired: `{names}` idle {int(idle_h)}h.")
               except Exception as e:
                   print(f"issue {it.get('number','?')} skipped: {e}")
           EOF

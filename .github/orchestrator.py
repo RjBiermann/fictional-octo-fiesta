@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mechanical conveyor for the gh-aw pipeline (ADR-0008, amended 2026-10-15).
+"""Mechanical conveyor for the gh-aw pipeline (ADR-0017, amended 2026-10-15).
 
 Non-AI, fails closed. Automates the mechanics of an already-approved chain
 and surfaces every real decision as an @mention. It never decides a round,
@@ -11,7 +11,10 @@ diagnostics only when a later Implement/Plan run has succeeded.
   - merge readiness: default contract is HUMAN MERGES — label
     `status/ready-to-merge` + ping the owner with the head sha. If the
     adopter sets GH_AW_AUTO_MERGE=true, queue auto-merge instead
-    (branch protection remains the real gate either way).
+    (branch protection remains the real gate either way). Owner
+    decision 2026-10: keep it FALSE — if ever enabled, harden the
+    gate first: the approval receipt may predate the PR, so it proves
+    the chain was approved, not that this diff was reviewed.
   - chain driver: stamp `status/planned` on story N when story N-1's
     sub-issue closed; stamp story 1 from the chain's round-3 approval;
     close the parent spec issue once every story is closed.
@@ -274,7 +277,7 @@ def merge_readiness():
             print(f"[orchestrator] PR #{num}: mergeable_state={mstate} — not ready")
             continue
         if AUTO_MERGE:
-            # ADR-0008 gate decision (post-merge review): auto-merge may only
+            # ADR-0017 gate decision (post-merge review): auto-merge may only
             # act on chains whose round-3 approval comment exists on the
             # parent spec issue (parsing "[spec] Story" detour not needed —
             # the gate is evidence-level: the owner decision comment must
@@ -482,7 +485,7 @@ def plan_loop_surrogate():
         if fresh_trigger and not r1:
             mk = _fire_marker(1)
             if not _has_marker(cs, mk):
-                post_comment(n, mk + " (fresh trigger; ADR-0008 surrogate)")
+                post_comment(n, mk + " (fresh trigger; ADR-0017 surrogate)")
                 print(f"[orchestrator] {n}: /plan round 1 fired")
             continue
         if not r1:
@@ -492,7 +495,7 @@ def plan_loop_surrogate():
             if not _has_marker(cs, _fire_marker(2)):
                 human_after = [c for c in cs if c.get("user", {}).get("login") == OWNER and c["created_at"] > r1["created_at"]]
                 if human_after:
-                    post_comment(n, _fire_marker(2) + " (round-1 answers received; ADR-0008 surrogate)")
+                    post_comment(n, _fire_marker(2) + " (round-1 answers received; ADR-0017 surrogate)")
                     print(f"[orchestrator] {n}: /plan round 2 fired")
         # round 3: owner approved after round 2
         if r2 and not kid_stories and not r3:
@@ -501,7 +504,7 @@ def plan_loop_surrogate():
                         and c["created_at"] > r2["created_at"]
                         and (c.get("body") or "").strip().lower() in ("approved", "approve", "lgtm", "yes", "ok")]
                 if appr:
-                    post_comment(n, _fire_marker(3) + " (finalize; round-2 approved; ADR-0008 surrogate)")
+                    post_comment(n, _fire_marker(3) + " (finalize; round-2 approved; ADR-0017 surrogate)")
                     print(f"[orchestrator] {n}: /plan round 3 fired")
 
 
@@ -554,7 +557,7 @@ def watchdog():
     for num, created in ml:
         if any(t > created for t in later if t.strip()):
             close_issue(num, "not planned",
-                        "Transient-class `[aw]` signal: at least one later Implement/Plan run succeeded after this diagnostic's timestamp (orchestrator watchdog, ADR-0008). If the underlying work is still missing, reopen with the specific evidence.")
+                        "Transient-class `[aw]` signal: at least one later Implement/Plan run succeeded after this diagnostic's timestamp (orchestrator watchdog, ADR-0017). If the underlying work is still missing, reopen with the specific evidence.")
             print(f"[orchestrator] closed transient diag #{num}")
 
 

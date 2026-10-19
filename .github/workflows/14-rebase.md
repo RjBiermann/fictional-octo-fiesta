@@ -52,7 +52,7 @@ safe-outputs:
 PR context (labeled or dispatched as `pr_number`): the PR whose branch
 the mechanical resolver couldn't un-stick.
 
-The AI fallback for merge conflicts (ADR-0008 amendment, delta 16-f12): the
+The AI fallback for merge conflicts (ADR-0017 amendment, delta 16-f12): the
 orchestrator's mechanical resolver handles the two deterministic classes
 (append-only registry union, version-bump higher-wins). You own everything
 else — including test files, under your own compile gate — with rules,
@@ -99,7 +99,7 @@ not vibes:
    merge decision stays with the owner. A lost push is silent; a stamp
    is visible.
 
-5b. **The push is the rule-4 CLI call, exactly as written — never
+7. **The push is the rule-4 CLI call, exactly as written — never
    implicit, never paraphrased.** `git commit` delivers nothing — the
    sandbox is discarded after your final turn (observed runs
    39061496996 and 39066050579: full merge, green tests, then the
