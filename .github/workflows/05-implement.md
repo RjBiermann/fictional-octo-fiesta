@@ -27,10 +27,11 @@ safe-outputs:
   threat-detection: false
   add-comment:
     target: "*"
-    # 2 slots: one work-attempt budget stamp + one work-report narration.
+    # 3 slots: one work-attempt budget stamp + one work-report narration +
+    # one anchored registry entry when the run audits a provider (ADR-0013).
     # max:1 deadlocked the ledger protocol — the narration comment consumed
     # the slot and the required stamp could never be posted (issue #716).
-    max: 2
+    max: 3
    # engine:pi detection runs on Copilot CLI — not available (no Copilot); structural guardrails + human merge carry the boundary
   create-pull-request:
     max: 1
@@ -69,6 +70,12 @@ never fix inline.
    `remove-labels status/planned` (one state label at a time; partial
    failure is healed by the daily sweep).
 5. Post one work-attempt stamp (`add-comment`) closing out what you did.
+6. **Registry entries never travel in your diff** (ADR-0013): never edit
+   `audits/findings.json` — a registry blob here dies rebasing onto moved
+   main (#723 stranded-delivery class). If this run produced a registry
+   update, post it as an `add-comment` whose body starts with
+   `<!-- findings-registry-entry -->` followed by a fenced ```json
+   object; the orchestrator unions it into main on its next sweep.
 
 Never: apply trigger labels, label `status/planned`, merge, approve, or
 close anything.

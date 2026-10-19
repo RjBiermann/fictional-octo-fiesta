@@ -106,6 +106,18 @@ _Avoid_: push, publish, ship
 The workflow-posted comment on the issue when an Agent run starts — a guaranteed narration floor produced by machinery, never by the agent. Agent-issued comments are counted beyond the Ack.
 _Avoid_: progress comment (that is the agent's own narration), bot comment
 
+**Registry**:
+The append-only audit verdict record (`audits/findings.json`): provider verdicts, run history, scalar metadata. Conveyor-owned (ADR-0013) — the orchestrator's `registry_sync` applies entries the agent posts on the issue thread; the registry never travels inside an Agent diff. Distinct from **FINDINGS**, which is per-site evidence committed with the PR.
+_Avoid_: findings file (FINDINGS is the per-issue evidence), state file
+
+**Stranded delivery**:
+An Agent run whose work died on the way to a Delivery — success verdict recorded, state transition applied, but no PR exists (observed: the run's registry edit dying on the rebase onto moved main). Loudest when the trigger issue cycles `planned → in-review` on re-fires; diagnose by checking whether a PR actually carries the work.
+_Avoid_: lost run, silent failure (the strand is visible: fallback issue + run log)
+
+**Fallback review issue**:
+The gh-aw carrier created when the run's safe-output PR cannot be produced (e.g. protected-file `request-review` mode or a delivery failure): the bundle artifact and manual-landing instructions park on an issue instead. It is a holding pen, not a Delivery — a human must land it, and the trigger issue's state stays reconciled by the sweeper afterwards.
+_Avoid_: review issue (that is the Review verdict thread), stale issue
+
 **Gate**:
 The mechanical post-run check that issues an Agent run's verdict. Delivery is the verdict: a run whose Delivery succeeded is a success even if the agent narrated nothing. Missing agent narration (zero comments beyond the Ack) is a loud warning, never verdict-flipping.
 _Avoid_: CI gate, quality gate

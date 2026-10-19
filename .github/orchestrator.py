@@ -542,6 +542,106 @@ def watchdog():
             print(f"[orchestrator] closed transient diag #{num}")
 
 
+# ------------------------------------------------- registry sync
+# The append-only registry never travels in an agent diff: a registry
+# blob in an implement branch dies rebasing onto moved main (the
+# stranded-delivery class documented in #723, ADR-0013). The verdict
+# channel is the issue thread — this step is the only registry writer.
+REGISTRY_ANCHOR = "<!-- findings-registry-entry -->"
+
+
+def _registry_entry(cs):
+    """Latest anchored fenced-```json``` object in an issue thread."""
+    for c in reversed(cs or []):
+        body = c.get("body") or ""
+        if REGISTRY_ANCHOR not in body:
+            continue
+        m = re.search(r"```json\s*(\{.*?\})\s*```", body, re.S)
+        if not m:
+            continue
+        try:
+            return json.loads(m.group(1))
+        except Exception as e:
+            sys.stderr.write(f"[orchestrator] anchored registry entry unparsable: {e}\n")
+    return None
+
+
+def registry_sync():
+    """ADR-0013: agent diffs carry no registry. The agent posts its
+    would-be registry entry as an add-comment starting with
+    REGISTRY_ANCHOR and a fenced ```json``` object; this step unions it
+    into GH_AW_REGISTRY_PATH on main (owner actor) and dedupes per
+    issue. A same-issue later entry needs the marker cleared by a human
+    or a fresh issue — union makes the common retry a no-op anyway."""
+    if not REGISTRY_PATH:
+        return  # feature off for this adopter
+    if not PROXY_PAT:
+        print("[orchestrator] GH_AW_PROXY_PAT unset — registry_sync needs the owner actor, skipping")
+        return
+    pend = []
+    for i in api("issues?state=open&per_page=60") or []:
+        if i.get("pull_request"):
+            continue
+        cs = comments(i["number"])
+        if _has_marker(cs, f"{MARK} registry entry applied"):
+            continue
+        e = _registry_entry(cs)
+        if e:
+            pend.append((i["number"], e))
+    if not pend:
+        return
+    if _pl(["git", "fetch", "origin", "main"])[0] > 1:
+        return
+    _, cur_body = _pl(["git", "show", f"origin/main:{REGISTRY_PATH}"])
+    try:
+        merged = json.loads(cur_body or "{}")
+    except Exception as e:
+        sys.stderr.write(f"[orchestrator] {REGISTRY_PATH} unparsable on main: {e}\n")
+        return
+    applied = [n for n, e in pend]
+    for _, e in pend:
+        # entry's list items append, entry's scalars win (draft 16-f6b shape)
+        merged = _union_findings(merged, e)
+    payload = json.dumps(merged, indent=2) + "\n"
+    idx = f"{os.environ.get('RUNNER_TEMP', '/tmp')}/orch-regidx.{os.getpid()}"
+    ienv = {"GIT_INDEX_FILE": idx}
+    try:
+        if _pl(["git", "read-tree", "origin/main"], env=ienv)[0] != 0:
+            return
+        blob = subprocess.run(["git", "hash-object", "-w", "--stdin"], input=payload,
+                              capture_output=True, text=True)
+        if blob.returncode != 0 or not blob.stdout.strip():
+            sys.stderr.write(f"[orchestrator] hash-object rc={blob.returncode} for {REGISTRY_PATH}\n")
+            return
+        if _pl(["git", "update-index", "--cacheinfo",
+                f"100644,{blob.stdout.strip()},{REGISTRY_PATH}"], env=ienv)[0] != 0:
+            return
+        _, tree = _pl(["git", "write-tree"], env=ienv)
+        if not tree or len(tree) != 40:
+            return
+        _, msha = _pl(["git", "rev-parse", "origin/main"])
+        _, commit = _pl(["git", *GIT_AUTHOR_IDENTITY, "commit-tree", tree,
+                         "-p", msha,
+                         "-m", "registry: apply verdict entries from issues "
+                               f"#{', #'.join(str(n) for n in applied)} "
+                               "(orchestrator registry_sync, ADR-0013)"])
+        ok, _ = _git_push("main", commit)
+        if not ok:
+            ok = _push_ref_via_api("main", commit)
+        if ok:
+            for n in applied:
+                post_comment(n, f"{MARK} registry entry applied to `{REGISTRY_PATH}` on main "
+                                f"(`{commit[:10]}`). The registry never travels in an agent diff (ADR-0013).")
+            print(f"[orchestrator] registry_sync applied entries from {applied} -> {commit[:10]}")
+        else:
+            print("[orchestrator] registry_sync push failed — entries stay pending on their issues")
+    finally:
+        try:
+            os.remove(idx)
+        except OSError:
+            pass
+
+
 # ------------------------------------------------- conflict watch
 def _merge_tree(branch):
     """THE single merge-tree probe (round-3 consolidation: _conflict_files
@@ -885,11 +985,12 @@ if __name__ == "__main__":
         "wave_driver": wave_driver,
         "fix_surrogate": fix_surrogate,
         "watchdog": watchdog,
+        "registry_sync": registry_sync,
     }
     _preflight_labels()
     mutation_steps = {"merge_readiness", "chain_driver", "plan_surrogate",
                       "decision_tags", "stall_watch", "wave_driver",
-                      "fix_surrogate", "watchdog"}
+                      "fix_surrogate", "watchdog", "registry_sync"}
     available = {name: fn for name, fn in steps.items()
                  if name not in mutation_steps or _owner_configured()}
     only = [a for a in sys.argv[1:] if a in steps]
