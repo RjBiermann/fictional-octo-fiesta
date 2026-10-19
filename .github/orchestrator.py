@@ -11,7 +11,10 @@ diagnostics only when a later Implement/Plan run has succeeded.
   - merge readiness: default contract is HUMAN MERGES — label
     `status/ready-to-merge` + ping the owner with the head sha. If the
     adopter sets GH_AW_AUTO_MERGE=true, queue auto-merge instead
-    (branch protection remains the real gate either way).
+    (branch protection remains the real gate either way). Owner
+    decision 2026-10: keep it FALSE — if ever enabled, harden the
+    gate first: the approval receipt may predate the PR, so it proves
+    the chain was approved, not that this diff was reviewed.
   - chain driver: stamp `status/planned` on story N when story N-1's
     sub-issue closed; stamp story 1 from the chain's round-3 approval;
     close the parent spec issue once every story is closed.
