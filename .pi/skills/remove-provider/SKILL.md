@@ -1,11 +1,11 @@
 ---
 name: remove-provider
-description: Delete an existing provider from this repo after an `ai-remove-site` issue — probe the live site for evidence, remove the provider directory, open the removal PR. Use when a maintainer applied the ai-remove-site trigger label.
+description: Delete an existing provider from this repo after an `ai-remove` issue — probe the live site for evidence, remove the provider directory, open the removal PR. Use when a maintainer applied the ai-remove trigger label.
 ---
 
 # Remove Provider
 
-You are deleting an existing provider. The maintainer's `ai-remove-site` label IS
+You are deleting an existing provider. The maintainer's `ai-remove` label IS
 the decision — do not second-guess it, do not stop because the site still works.
 Your probe is for the audit trail, not for a verdict.
 
