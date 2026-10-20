@@ -119,8 +119,12 @@ The workflow-posted comment on the issue when an Agent run starts — a guarante
 _Avoid_: progress comment (that is the agent's own narration), bot comment
 
 **Machine-authored**:
-Content the secret-guard may redact: authored by `github-actions[bot]`, or carrying the `[orchestrator]` marker — the conveyor posts through the owner PAT because gh-aw's activation gate rejects bot-actor events and `GITHUB_TOKEN` events fire no workflows (ADR-0017). Human-authored content is never touched.
-_Avoid_: bot-authored (marker posts carry a human identity)
+Content the secret-guard may redact: authored by `github-actions[bot]`, or carrying the `[orchestrator]` marker. Machinery never holds the owner's identity (ADR-0019 retired the owner PAT); the marker filter remains as defense-in-depth. Human-authored content is never touched.
+_Avoid_: bot-authored (ambiguous — machinery posts are the normal case now)
+
+**Relay**:
+The machinery mechanism that makes one pipeline stage trigger the next: a `workflow_dispatch` carrying an `aw_context` item, fired by the orchestrator under the bot identity. GitHub's only loop-prevention-exempt way for a machine to fire a gh-aw workflow; label and comment *events* by machines fire nothing.
+_Avoid_: surrogate (the retired owner-PAT mechanism), PAT fire
 
 **Secret-guard**:
 The mechanical redaction layer (91-secret-guard.yml): credential-shaped strings in machine-authored issue/PR content are replaced with a redaction marker and logged to one rolling notification issue. Post-hoc by design — safe-outputs are the only write path an agent has, and the guard watches it.

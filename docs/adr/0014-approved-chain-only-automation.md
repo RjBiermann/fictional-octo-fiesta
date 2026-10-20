@@ -35,11 +35,13 @@ Decided:
   Trigger and state labels stay human-decided; the conveyor moves only
   what the human already approved.
 
-Known limitation (deferred): owner-actor label events are anonymous in
-issue timelines — machinery using the PAT and the human web session share
-one identity, so attribution of a stray stamp (observed 2026-10-19,
-#707) depends on event-log reasoning, not a marker. The '[orchestrator]'
-dedupe markers are the only attribution trail.
+Known limitation — RESOLVED 2026-10-20 (ADR-0019): owner-actor label
+events were anonymous in issue timelines (machinery via PAT and the
+human web session shared one identity; attribution of a stray stamp,
+observed 2026-10-19, #707, depended on event-log reasoning). The owner
+PAT is retired — machinery acts as `github-actions[bot]` only, so
+attribution is now structural. The '[orchestrator]' dedupe markers are
+kept as defense-in-depth and as the secret-guard's machine-authored test.
 
 Consequence: closing out an epic's delivered kids is required before
 re-arming — `wave_driver` stamps the lowest-numbered open unclaimed kids

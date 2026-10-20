@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Mechanical conveyor for the gh-aw pipeline (ADR-0017, amended 2026-10-15).
+"""Mechanical conveyor for the gh-aw pipeline (ADR-0017/0018/0019).
 
 Non-AI, fails closed. Automates the mechanics of an already-approved chain
 and surfaces every real decision as an @mention. It never decides a round,
 never merges a PR, never touches ai-* trigger labels, and closes [aw]
 diagnostics only when a later Implement/Plan run has succeeded.
-
-  - approve companion (non-AI) runs stuck in `action_required` on
-    devloop/* PR branches (needs GH_AW_PROXY_PAT; warns + no-ops if unset)
+Machinery acts as github-actions[bot] only (ADR-0019): relays fire by
+workflow_dispatch; GH_AW_PROXY_PAT is retired (set, it's a legacy
+identity override; unset, everything works under GITHUB_TOKEN).
   - merge readiness: default contract is HUMAN MERGES — label
     `status/ready-to-merge` + ping the owner with the head sha. If the
     adopter sets GH_AW_AUTO_MERGE=true, queue auto-merge instead
