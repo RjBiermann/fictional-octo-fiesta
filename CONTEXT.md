@@ -40,7 +40,7 @@ _Avoid_: cancellation, aborted run
 ### Triggers & artifacts
 
 **Trigger label**:
-A maintainer-applied issue label (`ai-fix`, `ai-new-site`, `ai-remove-site`) that starts a build. Issues without one are never processed. Renames live in `config.toml [labels]` and stay inside the reserved `ai-` prefix — the contract the workflow filter matches on, so a rename can never orphan the trigger (upstream devloop ADR-0003).
+A maintainer-applied issue label (`ai-fix`, `ai-new-site`, `ai-remove-site`) that starts a build. Issues without one are never processed. Renames live in `config.toml [labels]` and stay inside the reserved `ai-` prefix — the contract the workflow filter matches on, so a rename can never orphan the trigger (upstream devloop ADR-0003). Since ADR-0018, *machinery* (95-orchestrator) applies `ai-fix` to `status/queued` issues automatically — agents still never touch them.
 _Avoid_: auto label, bot label
 
 **Command**:
