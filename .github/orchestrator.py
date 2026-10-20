@@ -280,7 +280,7 @@ def merge_readiness():
     for pr in open_pulls():
         num = pr["number"]
         branch = pr.get("head", {}).get("ref", "")
-        if pr.get("draft") or not branch.startswith("devloop/issue-"):
+        if not _agent_pr(pr):
             continue
         d = api(f"pulls/{num}") or {}
         mstate = d.get("mergeable_state")
@@ -509,6 +509,20 @@ def _delivered_branch_pat(num):
     never a duplicate PR."""
     import re as _re
     return _re.compile(rf"(?:issue-{num}-|/{num}-)")
+
+
+# Agent PR head-branch prefixes (devloop/issue-N survived the gh-aw pilot
+# as the implement lane's naming; fix/ + ai/issue- are the fix-session and
+# selfcheck-session shapes). machinery identifies agent PRs by these
+# prefixes AND the bot author — a human PR never matches both.
+AGENT_BRANCHES = ("devloop/issue-", "ai/issue-", "fix/")
+
+
+def _agent_pr(pr):
+    """True for agent-authored PRs in a known delivery branch shape."""
+    return (not pr.get("draft")
+            and (pr.get("user") or {}).get("login") == "github-actions[bot]"
+            and pr.get("head", {}).get("ref", "").startswith(AGENT_BRANCHES))
 
 
 def _merged_pr_for_story(num):
@@ -1145,36 +1159,34 @@ def fix_surrogate():
     identity. Dedupe via the marker comment on the issue thread; bounded
     by the fix loop's own cycle cap + status/fixing-stuck."""
     for pr in open_pulls():
-        branch = pr.get("head", {}).get("ref", "")
-        if not branch.startswith("devloop/"):
+        if not _agent_pr(pr):
             continue
         num = pr["number"]
-        revs = api(f"pulls/{num}/reviews?per_page=20") or []
-        bots = [r for r in revs if (r.get("user") or {}).get("login") == "github-actions[bot]"]
-        if not bots:
-            continue
-        last = bots[-1]
-        # Deterministic pass contract first: a ready-to-merge label is the
-        # pipeline's own verdict — never repair those (review bodies are
-        # gh-aw boilerplate; the verdict text lives in the issue thread).
+        # Verdict source: 06-review posts as an ISSUE comment (safe-output
+        # add_comment) — the PR-review submission is optional/absent for
+        # GITHUB_TOKEN-authored verdicts, so no review gate here. The last
+        # bot comment IS the thread state; when it contains a blocker the
+        # fix loop fires, else the PR is pass or already served (the
+        # fire marker itself is a later bot comment without "blocker", so
+        # it is its own dedupe).
         labels = [l["name"] for l in (api(f"issues/{num}") or {}).get("labels", [])]
         if "status/ready-to-merge" in labels:
             continue
-        verdict = ""
+        verdict, vtime = "", ""
         for c in reversed(comments(num)):
             if (c.get("user") or {}).get("login") == "github-actions[bot]":
                 verdict = (c.get("body") or "")
+                vtime = c.get("created_at", "")
                 break
         low = verdict.lower()
         if "blocker" not in low or any(s in low for s in ("0 blockers", "no blockers", "pass, no blockers")):
             continue
-        # dedupe: one fire per bot verdict, recorded as a marker comment
-        fire_marker = f"{MARK} fix-loop re-fired for review {last['id']}"
+        # dedupe: one fire per verdict — a bot comment later than the
+        # verdict carrying the marker means this round is served.
+        fire_marker = f"{MARK} fix-loop re-fired for the verdict at {vtime}"
         cs = comments(num)
-        if any(c.get("created_at", "") > (last.get("submitted_at") or "")
-               and fire_marker in (c.get("body") or "") for c in cs):
-            continue
-        if any(r.get("submitted_at", "") > (last.get("submitted_at") or "") for r in bots[bots.index(last) + 1:]):
+        if any((c.get("created_at", "") > vtime and fire_marker in (c.get("body") or ""))
+               or fire_marker in (c.get("body") or "") for c in cs):
             continue
         post_comment(num, fire_marker + " — dispatch fires 07 (machine relay, ADR-0019)")
         out = run(["gh", "workflow", "run", "07-fix-loop.lock.yml",
