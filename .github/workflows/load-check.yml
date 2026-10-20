@@ -22,7 +22,13 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
+  # ADR-0012: failure-report path needs issues: write (failure-issue.sh
+  # creates/comments/closes; Fire Implement re-labels) and actions: write
+  # (gh workflow run 05-implement relay — ADR-0019/0020). contents: read
+  # covers the checkout fetch + gradle.
   contents: read
+  issues: write
+  actions: write
 
 jobs:
   compile:

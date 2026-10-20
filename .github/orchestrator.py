@@ -147,6 +147,17 @@ def run(cmd, **kw):
     return r.stdout
 
 
+def dispatch_ok(cmd):
+    """True iff a fire-and-forget command exited 0. `gh workflow run` prints
+    nothing to stdout on success and errors only to stderr, so an
+    out.strip()=="" check would report failures as fired — and the pre-posted
+    dedupe marker would then block the retry permanently."""
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        sys.stderr.write(f"[orchestrator] dispatch rc={r.returncode}: {r.stderr.strip()[:300]}\n")
+    return r.returncode == 0
+
+
 def api(path):
     out = run(["gh", "api", f"repos/{REPO}/{path}"])
     if not out.strip():
@@ -496,12 +507,10 @@ def _fire_workflow(lock, item_type, item_number):
     the ADR-0017 owner-PAT comment/label relays: the machinery never acts
     as the owner and needs no PAT secret."""
     ctx = json.dumps({"item_type": item_type, "item_number": item_number})
-    out = run(["gh", "workflow", "run", lock, "--ref", "main", "-R", REPO,
-               "-f", f"aw_context={ctx}"])
-    if out.strip():
-        print(f"[orchestrator] {lock} dispatched for {item_type} #{item_number} ({out[:90]})")
-    else:
-        print(f"[orchestrator] {lock} dispatched for {item_type} #{item_number}")
+    ok = dispatch_ok(["gh", "workflow", "run", lock, "--ref", "main", "-R", REPO,
+                      "-f", f"aw_context={ctx}"])
+    print(f"[orchestrator] {lock} dispatch for {item_type} #{item_number}: "
+          f"{'fired' if ok else 'FAILED'}")
 
 
 def _delivered_branch_pat(num):
@@ -1004,14 +1013,13 @@ def conflict_watch():
         _ctx = json.dumps({"item_type": "pull_request", "item_number": num})
         # list form, no shell: pass the JSON verbatim (no percent-encoding —
         # the lock's fromJSON expects raw JSON, round-2 review blocker).
-        _out = run(["gh", "workflow", "run", "14-rebase.lock.yml",
-                    "--ref", "main", "-R", REPO,
-                    "-f", f"pr_number={num}",
-                    "-f", f"aw_context={_ctx}"])
-        if _out.strip():
-            print(f"[orchestrator] PR #{num}: 14-rebase dispatched ({_out[:90]})")
-        else:
-            print(f"[orchestrator] PR #{num}: 14-rebase dispatched")
+        # list form, no shell: pass the JSON verbatim (no percent-encoding —
+        # the lock's fromJSON expects raw JSON, round-2 review blocker).
+        ok = dispatch_ok(["gh", "workflow", "run", "14-rebase.lock.yml",
+                          "--ref", "main", "-R", REPO,
+                          "-f", f"pr_number={num}",
+                          "-f", f"aw_context={_ctx}"])
+        print(f"[orchestrator] PR #{num}: 14-rebase dispatch {'fired' if ok else 'FAILED'}")
         print(f"[orchestrator] PR #{num}: status/conflict applied + 14-rebase dispatched")
 
 
@@ -1191,10 +1199,9 @@ def fix_surrogate():
                or fire_marker in (c.get("body") or "") for c in cs):
             continue
         post_comment(num, fire_marker + " — dispatch fires 07 (machine relay, ADR-0019)")
-        out = run(["gh", "workflow", "run", "07-fix-loop.lock.yml",
-                   "--ref", "main", "-R", REPO,
-                   "-f", f"aw_context={json.dumps({'item_type': 'pull_request', 'item_number': num})}"])
-        ok = out.strip() == ""
+        ok = dispatch_ok(["gh", "workflow", "run", "07-fix-loop.lock.yml",
+                          "--ref", "main", "-R", REPO,
+                          "-f", f"aw_context={json.dumps({'item_type': 'pull_request', 'item_number': num})}"])
         print(f"[orchestrator] fix surrogate on PR #{num}: {'fired' if ok else 'failed: ' + out[:120]}")
 
 

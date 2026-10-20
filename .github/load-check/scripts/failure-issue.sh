@@ -109,7 +109,7 @@ $(for s in "${sorted[@]}"; do echo "- \`$s\`"; done)
 <details><summary>Log tail (last 120 lines)</summary>
 
 \`\`\`
-$(tail -n 120 "$LOG")
+$(tail -n 120 "$LOG" 2>/dev/null || echo '(log missing — see the linked run)')
 \`\`\`
 </details>"
 

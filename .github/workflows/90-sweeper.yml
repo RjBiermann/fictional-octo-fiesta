@@ -152,7 +152,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
         run: |
-          [ "$INPUT_MODE" = "report" ] || [ "$(date +%u)" = "1" ] || exit 0
+          # Monday fires at the 00:xx run only — the 4h cron runs 6×/day and
+          # every Monday run would otherwise post a duplicate [status-report].
+          [ "$INPUT_MODE" = "report" ] || { [ "$(date +%u)" = "1" ] && [ "$(date +%H)" = "00" ]; } || exit 0
           gh issue list --repo "$REPO" --state open --json number,title,labels > issues-report.json
           python3 -c 'import json;items=json.load(open("issues-report.json"));print("## Open issue state\n"+"\n".join("- #%d %s %s"%(i["number"],i["title"]," ".join(l["name"] for l in i["labels"])) for i in items) or "(none)")' > status-report.md
           gh issue create --repo "$REPO" \
