@@ -333,6 +333,7 @@ def chain_driver():
         else:
             print(f"[orchestrator] story {num_story} (issue {s['number']}): predecessor still {pstate}")
 
+    _demote_out_of_order(stories)
     _reconcile_pass(stories, _claim_planned_fires(stories))
 
     # Parent spec issue: close once every story referencing it is closed.
@@ -346,14 +347,17 @@ def _parse_ts(s):
 
 
 def _implement_fires():
-    """Implement runs triggered by issue events (label fires), newest first."""
+    """Implement runs triggered by issue events (label fires), newest first.
+    Each row: {id, status, createdAt} — id lets the conveyor cancel a run
+    it demotes (out-of-order mass stamps), status filters terminal ones."""
     out = run(["gh", "run", "list", "--workflow", "Implement", "--limit", "60",
-               "--json", "createdAt,event"])
+               "--json", "databaseId,status,createdAt,event"])
     try:
         rows = json.loads(out or "[]")
     except Exception:
         return []
-    return sorted((r.get("createdAt") or "" for r in rows if r.get("event") == "issues"), reverse=True)
+    return sorted((r for r in rows if r.get("event") == "issues"),
+                  key=lambda r: r.get("createdAt") or "", reverse=True)
 
 
 def _claim_planned_fires(stories):
@@ -376,9 +380,9 @@ def _claim_planned_fires(stories):
             continue
         best = None
         for i, rt in enumerate(runs):
-            if i in taken or not rt:
+            if i in taken or not rt.get("createdAt"):
                 continue
-            delta = _parse_ts(rt) - _parse_ts(ts)
+            delta = _parse_ts(rt["createdAt"]) - _parse_ts(ts)
             if 0 <= delta <= 150 and (best is None or delta < best[1]):
                 best = (i, delta)
         if best is not None:
@@ -888,6 +892,70 @@ def stall_watch():
         print(f"[orchestrator] {n}: stalled-fire flagged")
 
 
+def _demote_out_of_order(stories):
+    """Mass 'planned' stamps self-heal (ADR-0018): a story whose predecessor
+    is not closed loses its stamp and the Implement run its label event
+    fired (cancelled via actions:write) — chain_driver re-stamps it when
+    the predecessor closes. Machinery serializes; a human bulk action on
+    the whole spec stays legal."""
+    if not OWNER:
+        return
+    fires = _implement_fires()
+    for s in stories:
+        if str(s.get("state", "")).lower() != "open":
+            continue
+        num_story = story_num(s.get("title", ""))
+        if num_story <= 1:
+            continue
+        labels = [l["name"] for l in s.get("labels", [])]
+        if "status/planned" not in labels:
+            continue
+        if str(_story_state(num_story - 1, stories)).lower() == "closed":
+            continue
+        n = s["number"]
+        ts = _label_applied_at(n, "status/planned")
+        if ts:
+            # cancel the run this label fired (proximity claim, same rule
+            # as _claim_planned_fires) while it is still cancellable
+            for rt in fires:
+                if rt.get("status") not in ("queued", "in_progress"):
+                    continue
+                delta = _parse_ts(rt.get("createdAt") or "") - _parse_ts(ts)
+                if 0 <= delta <= 150:
+                    run(["gh", "run", "cancel", str(rt["databaseId"])])
+                    print(f"[orchestrator] {n}: cancelled out-of-order Implement run {rt['databaseId']}")
+        s["labels"] = [l for l in s.get("labels", []) if l["name"] != "status/planned"]
+        run(["gh", "api", "-X", "DELETE", f"repos/{REPO}/issues/{n}/labels/status%2Fplanned"])
+        print(f"[orchestrator] {n}: demoted (story {num_story-1} not closed) — re-stamps when its predecessor closes")
+
+
+def queue_to_pipeline():
+    """ADR-0018: queue auto-entry — machinery applies ai-fix to status/queued
+    issues (ADR-0006 precedent: machinery, never an agent, applies trigger
+    labels; the human decision is the triage that produced the queue label).
+    Agent-created work (triage/from-agent) and machinery reports stay
+    human-curated: automation must not enlarge agent work on its own."""
+    if not OWNER:
+        return
+    triggers = ("ai-fix", "ai-build", "ai-remove", "ai-new-site")
+    reports = ("[status-report]", "[aw]", "[cost-report]", "[backlog-report]")
+    openi = api("issues?state=open&per_page=50") or []
+    for i in openi:
+        if i.get("pull_request"):
+            continue
+        labels = [l["name"] for l in i.get("labels", [])]
+        if "status/queued" not in labels or any(t in labels for t in triggers):
+            continue
+        if "triage/from-agent" in labels:
+            continue
+        title = i.get("title", "")
+        if any(title.startswith(p) for p in reports):
+            continue
+        n = i["number"]
+        label_issue(n, "ai-fix")
+        print(f"[orchestrator] {n}: ai-fix applied (queue auto-entry; plan round 1 fires on next pass)")
+
+
 # ------------------------------------------------------- epic wave driver
 def _wave_batch(kids, cap):
     """Pure wave selection: kids is [(number, has_inflight_label)].
@@ -1014,6 +1082,7 @@ if __name__ == "__main__":
         "approvals": approve_companion_runs,
         "merge_readiness": merge_readiness,
         "chain_driver": chain_driver,
+        "queue_to_pipeline": queue_to_pipeline,
         "plan_surrogate": plan_loop_surrogate,
         "decision_tags": decision_tags,
         "conflict_watch": conflict_watch,
@@ -1024,8 +1093,8 @@ if __name__ == "__main__":
         "registry_sync": registry_sync,
     }
     _preflight_labels()
-    mutation_steps = {"merge_readiness", "chain_driver", "plan_surrogate",
-                      "decision_tags", "stall_watch", "wave_driver",
+    mutation_steps = {"merge_readiness", "chain_driver", "queue_to_pipeline",
+                      "plan_surrogate", "decision_tags", "stall_watch", "wave_driver",
                       "fix_surrogate", "watchdog", "registry_sync"}
     available = {name: fn for name, fn in steps.items()
                  if name not in mutation_steps or _owner_configured()}

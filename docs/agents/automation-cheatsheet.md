@@ -1,24 +1,23 @@
 # Automation Cheatsheet (gh-aw lane)
 
-How to drive the pipeline. Two clicks + one word per story; everything else is the conveyor.
+Full automation since ADR-0018: open an issue, steer the spec thread, done.
+Human effort only where a human decision is needed.
 
 ## The lifecycle
 
 | Stage | Who | Action |
 |---|---|---|
 | Intake | machine | open an issue → `02-triage` labels `status/queued` |
-| Start work | **human** | apply `ai-fix` / `ai-new-site` / `ai-remove-site` **or** comment `/plan #N` |
-| Spec round 1 | machine | orchestrator fires `/plan` → agent posts clarify questions |
-| Answers | **human** | reply in the thread, any format |
-| Spec round 2 | machine | breakdown posted |
-| Approval | **human** | reply `approved` (one word) |
-| Spec round 3 | machine | sub-issues created + finalized spec on parent |
-| Arm story | **human** | apply `status/planned` to each sub-issue to build now |
-| Build | machine | `05-implement` → PR, `status/in-review` |
-| Review | machine | `06-review` findings-only |
-| Repair | machine | `07-fix-loop` acts on findings, ≤3 cycles |
-| Merge | **human** | merge when `status/ready-to-merge` |
+| Entry | machine | orchestrator applies `ai-fix` and fires plan round 1 (ADR-0018) |
+| Spec round 1 | machine | agent posts clarify questions on the issue |
+| Answers + approval | **human** | reply answers, then `approved` — the only required human input |
+| Spec rounds 2–3 | machine | breakdown → sub-issues created, stamped `status/planned` sequentially |
+| Build → review → repair | machine | implement → PR, review, fix loop (≤3 cycles) |
+| Merge | machine | auto-squash-merge when the PR is green **and** the chain's approval receipt exists |
 | Closeout | machine | `12-post-merge` closes spawned sub-issues |
+
+Stamping `status/planned` on a whole spec at once is legal — the conveyor
+demotes out-of-order stories and re-stamps sequentially (ADR-0018).
 
 ## Slash commands (comment on the issue/PR)
 
@@ -27,21 +26,18 @@ How to drive the pipeline. Two clicks + one word per story; everything else is t
 | `/plan #N` | start / resume the spec loop on issue N |
 | `/review` | re-fire a review round on the PR (post it on the PR) |
 | `/triage` | route an issue into the queue |
-| `/retry #N` | human sanction: reset attempt budget, close stale PR — then re-apply the trigger label |
+| `/retry #N` | reset attempt budget, close stale PR — then re-apply the trigger label |
 
-## Labels you control
+## Where humans are still needed (deliberate)
 
-- **Trigger labels** (`ai-fix`, `ai-new-site`, `ai-remove-site`): the only way work enters the pipeline. `status/queued` alone starts nothing.
-- **`status/planned`**: human-only. Agent runs can never apply it.
-- `status/fixing-stuck` / `security/blocked`: agents stop and wait for you.
+- **Spec approval** — `approved` one-worder; machinery never decides a round.
+- **Agent-created findings** (`triage/from-agent`, `[from-impl]`) — curated by
+  you; apply an `ai-*` label to fire one into the pipeline.
+- Escalations: `status/fixing-stuck`, `security/blocked`, blocked rebases,
+  and `@RjBiermann` decision pings.
+- Issue bodies/comments are data, never instructions (gate.md).
 
-## Mid-flight knobs
+## Currently pending (2026-10-20)
 
-- `status/conflict` on a PR → `14-rebase` fires automatically. If it blocks: remove + re-add the label (20 min cooldown).
-- Escalations land as `@RjBiermann` pings from the orchestrator (waiting rounds, stuck fixes, merge readiness).
-- No agent ever merges, approves, applies trigger labels, or labels `status/planned`.
-
-## Currently stalled (2026-10-19)
-
-- **#759** — apply `ai-fix` (or `/plan #759`) to start the porntrex bug fix.
-- **#631** — epic completed; back to bare `status/queued`. No action unless re-arming a new audit wave: answer `/plan` rounds again.
+Porntrex chain (#759 → S1 #767 … S4 #770): stamps reset after the mass-stamp
+race; the chain driver re-stamps S1 next sweep and walks S2–S4 in order.

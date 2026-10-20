@@ -1,5 +1,9 @@
 # The conveyor automates an approved chain only
 
+> Amended 2026-10-20 by ADR-0018: Level 3 (queue auto-entry) is now
+> adopted via the ADR-0006 machinery carve-out, and mass-planned stamps
+> self-heal via `_demote_out_of_order`. The receipts below are unchanged.
+
 The orchestrator's promotion motors (`chain_driver`, `wave_driver`) only
 ever stamp `status/planned` inside a spec structure a human approved:
 a `/plan` chain that reached round 3, or an epic carrying the plan loop's

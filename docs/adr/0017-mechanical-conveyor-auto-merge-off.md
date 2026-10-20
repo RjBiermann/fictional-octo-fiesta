@@ -1,5 +1,9 @@
 # Mechanical conveyor; auto-merge stays off
 
+> Amended 2026-10-20 by ADR-0018: `GH_AW_AUTO_MERGE` is now **true** —
+> the receipt gate below makes the merge automatic only on chains whose
+> owner approval is on record. Humans merge everything else.
+
 The 95-orchestrator is a non-AI, fails-closed conveyor: it automates the
 mechanics of an already-approved chain (arming stories, firing plan-loop
 rounds, approving companion runs stuck in `action_required`, resolving
