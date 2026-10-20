@@ -1,12 +1,12 @@
 ---
 name: pre-review
-description: Review an agent-built PR against its spec before the human sees it. Findings only — never change code. Use when a devloop PR exists.
+description: Review an agent-built PR against its spec before the human sees it. Findings only — never change code. Use when an agent PR exists.
 ---
 
 # Pre-review
 
 The AI pre-review exists to spare the human from slop, not to replace the human.
-This file overrides devloop's bundled default for this repository.
+This file overrides the bundled agent-review default for this repository.
 
 ## Steps
 

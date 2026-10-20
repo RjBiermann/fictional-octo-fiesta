@@ -6,9 +6,9 @@ name: 90-sweeper
 # token (ADR-0020) so the re-added label event is App-actor — GITHUB_TOKEN
 # label events fire no workflows. Until the relay targets' on.bots
 # allowlists learn the App login, a re-add stays bookkeeping-only and
-# devloop's own schedule sweep heals instead (same degradation as the
-# retired PAT-unset path). The machinery App is a trusted labeler by
-# design (migration-design §2 gate table).
+# the orchestrator's own schedule sweep heals instead (same degradation
+# as the retired PAT-unset path). The machinery App is a trusted labeler
+# by design (migration-design §2 gate table).
 on:
   schedule:
     - cron: "17 */4 * * *"   # 4h, off-the-hour minute to dodge Actions load

@@ -37,7 +37,7 @@ the write-role gate (fail-closed); that is the whole authorization.
 1. Identify the target issue/PR from the command context: the issue or PR
    this comment is on, or the referenced number in the command args.
 2. If the target references an open PR that belongs to this issue's
-   devloop loop, close it with a comment "stale PR closed by /retry
+   agent loop, close it with a comment "stale PR closed by /retry
    (human sanction)" — execution of the command author's judgment, not
    yours.
 3. Post the budget reset stamp (see budget protocol — `gh-aw budget:

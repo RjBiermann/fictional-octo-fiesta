@@ -12,8 +12,8 @@ name: Load check
 
 on:
   schedule:
-    # Off the top of the hour so the Gradle build never collides with devloop /
-    # build.yml crons; queued, never cancelled mid-emulator.
+    # Off the top of the hour so the Gradle build never collides with the
+    # build.yml cron; queued, never cancelled mid-emulator.
     - cron: "37 4 * * *"
   workflow_dispatch:
 

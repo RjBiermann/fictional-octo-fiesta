@@ -8,10 +8,10 @@ description: Repair acts on review findings — separate session, capped, cooldo
 on:
   pull_request_review:
     types: [submitted]
-  # /repair ownership (ADR-0015): the devloop lane owns the /repair
-  # command (devloop.yml's `devloop command` step); this workflow
-  # consumes findings only via review rounds — wiring the slash command
-  # here too fired duplicate repair sessions on the same PR.
+  # /repair ownership (ADR-0015): /repair died with the devloop lane
+  # (pilot #568); repair happens through this workflow's review rounds —
+  # wiring a repair slash command here too fired duplicate repair
+  # sessions on the same PR (kept as a guard note).
   # roles:all (owner decision 2026-10-16, "automate unless a human decision
   # is needed"): the review author on agent PRs is github-actions[bot]
   # (permission none) and run approval does not change the actor, so the
