@@ -501,10 +501,19 @@ def _fire_workflow(lock, item_type, item_number):
         print(f"[orchestrator] {lock} dispatched for {item_type} #{item_number}")
 
 
+def _delivered_branch_pat(num):
+    """Agent-delivery branch shapes: the gh-aw lanes name branches
+    `devloop/issue-N-<hash>`, `ai/issue-N-<slug>-<hash>`, and
+    `fix/N-<slug>-<hash>` (fix sessions). Matches all three; a stray
+    over-match is fail-closed for the delivered-guard (no re-fire),
+    never a duplicate PR."""
+    import re as _re
+    return _re.compile(rf"(?:issue-{num}-|/{num}-)")
+
+
 def _merged_pr_for_story(num):
     """The merged delivery of story `num` — ADR-0007's closeout record."""
-    import re as _re
-    pat = _re.compile(rf"devloop/issue-{num}-")
+    pat = _delivered_branch_pat(num)
     merged = api("pulls?state=closed&per_page=60") or []
     for pr in merged:
         if pat.search(pr.get("head", {}).get("ref", "")) and pr.get("merged_at"):
@@ -539,8 +548,7 @@ def closeout_healer():
 
 
 def _open_pr_for_story(num):
-    import re as _re
-    pat = _re.compile(rf"devloop/issue-{num}-")
+    pat = _delivered_branch_pat(num)
     for pr in open_pulls():
         if pat.search(pr.get("head", {}).get("ref", "")):
             return pr["number"]
