@@ -23,7 +23,11 @@ permissions:
   issues: read
   pull-requests: read
 concurrency:
-  group: impl-${{ github.event.issue.number }}
+  # issue events: the issue number; dispatch relay (ADR-0019): the item
+  # restored from aw_context; anything else: per-run (no shared slot —
+  # the bare group collapsed ALL dispatched implements into one slot,
+  # cancelling sibling chains' builds).
+  group: impl-${{ github.event.issue.number || (github.event.inputs.aw_context && fromJSON(github.event.inputs.aw_context).item_number) || github.run_id }}
 timeout-minutes: 75
 max-turns: 30
 max-ai-credits: 1500
