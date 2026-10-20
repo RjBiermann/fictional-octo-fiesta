@@ -185,12 +185,23 @@ def all_stories():
     if not out.strip():
         return []
     raw = json.loads(out)
+    # gh issue list returns state UPPERCASE (REST api() returns lowercase);
+    # normalize here so every state comparison downstream is one convention
+    for i in raw:
+        i["state"] = str(i.get("state", "")).lower()
     return [i for i in raw if i.get("pull_request") is None and story_num(i.get("title", ""))]
 
 
 def parent_of(story):
-    m = PARENT_RE.search(story.get("body") or "")
-    return int(m.group(1)) if m else None
+    body = story.get("body") or ""
+    # 04-plan writes at least three link shapes across eras:
+    # "approved #759 spec" (old waves), "parent #759, spec finalized…"
+    # (Porntrex-style), "Parent: #664 (spec finalized…)" (spec-loop kids).
+    for rx in (PARENT_RE, EPIC_KID_RE, re.compile(r"[Pp]arent:?\s+#(\d+)")):
+        m = rx.search(body)
+        if m:
+            return int(m.group(1))
+    return None
 
 
 def _round_comment(cs, rnd):
