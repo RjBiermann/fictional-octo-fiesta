@@ -2,13 +2,15 @@
 # ADR-0012 failure-issue writer. ONE issue per failing plugin set; the dedup
 # key is the issue title = SORTED failing-plugin list. Identical set → append
 # daily evidence. Set change → new issue; stale-set issues get closed with a
-# pointer comment. Applies `ai-fix` mechanically (ADR-0006) via AGENT_PAT
-# (GITHUB_TOKEN label events never fire devloop; ADR-0006 post-merge note).
-# Fixes ride devloop's existing caps — no new knobs.
+# pointer comment. Applies `ai-fix` mechanically (ADR-0006) as display state
+# under GITHUB_TOKEN (ADR-0019: label events from GITHUB_TOKEN fire nothing —
+# the caller relays 05-implement via workflow_dispatch; ADR-0020).
+# Fixes ride the gh-aw budget ledger (sweeper-enforced caps) — no new knobs.
 #
 # Usage: failure-issue.sh --plugins <file|FIFO, one failing plugin per line> \
 #            --log <compile.log|logcat.log> [--version <app-version file>]
-# Env: GH_TOKEN (AGENT_PAT), KIND (compile|load), GITHUB_REPOSITORY, JAR_SHA.
+# Env: GH_TOKEN (GITHUB_TOKEN), GITHUB_OUTPUT (issue/created outputs),
+# KIND (compile|load), GITHUB_REPOSITORY, JAR_SHA.
 # Requires: gh, jq.
 set -euo pipefail
 
@@ -65,6 +67,16 @@ Daily runs append evidence below under \`### Run\` headings."
   URL=$(gh issue create --title "$TITLE" --label ai-fix --body "$BODY")
   TARGET=${URL##*/}
   echo "created issue #$TARGET"
+  # ADR-0020: the workflow's Fire step stamps status/planned + dispatches
+  # 05-implement for FRESH sets only (the retired AGENT_PAT label-event
+  # fire had the same create-only semantics); a recurring set just
+  # appends evidence. GITHUB_OUTPUT is absent outside Actions.
+  if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+    {
+      echo "created=true"
+      echo "issue=$TARGET"
+    } >> "$GITHUB_OUTPUT"
+  fi
 fi
 
 # Pointers: other open load-check issues of the SAME KIND (their plugin set

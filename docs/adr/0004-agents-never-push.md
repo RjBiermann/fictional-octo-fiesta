@@ -1,5 +1,11 @@
 # Agents never push; a mechanical delivery action commits and opens PRs
 
+> **PAT clause superseded (ADR-0020, 2026-10-20):** the `AGENT_PAT` secret is
+> retired. The push channel is the machinery GitHub App — an installation
+> token with the Workflows permission CAN push `.github/workflows/` files, so
+> workflow-touching agent delivery needs no human step. See ADR-0020 for the
+> credential set and owner steps.
+>
 > **Historical machinery note:** the mechanism described below — the `deliver-pr`
 > composite action (`.github/actions/deliver-pr/`) committing the working tree and
 > opening PRs from Builder/Task/Reviewer workflow runs — belonged to the removed
