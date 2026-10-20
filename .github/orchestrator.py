@@ -269,7 +269,10 @@ def _effective_ready(num, mstate):
     cr = api(f"commits/{sha}/check-runs?per_page=100") or {}
     bad = ("failure", "timed_out", "cancelled", "action_required", "stale")
     for c in (cr.get("check_runs") or []):
-        if c.get("status") != "COMPLETED":
+        # REST check-run status is lowercase (queued/in_progress/completed);
+        # comparing raw "COMPLETED" never matched, so the blocked/unstable
+        # readiness path always failed and no readiness ping ever fired.
+        if (c.get("status") or "").lower() != "completed":
             return False
         if (c.get("conclusion") or "").lower() in bad:
             return False
