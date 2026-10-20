@@ -885,9 +885,9 @@ def conflict_watch():
                          for f in files):
             if _auto_resolve_conflict(branch):
                 continue
-        if not PROXY_PAT:
-            print("[orchestrator] GH_AW_PROXY_PAT unset — conflict stays manual")
-            continue
+        # ADR-0019: the handoff needs no owner identity — the label is
+        # display state and the fire is a workflow_dispatch (bot lane,
+        # verified live for this trigger shape).
         marker = f"{MARK} merge conflict detected"
         if not _has_marker(comments(num), marker):
             names = ", ".join(sorted(files)) if files else "unresolvable via merge-tree"
