@@ -280,16 +280,18 @@ def dups(colspec):
     """stdin: id TAB …columns…; prints 'field value ids' for values shared by different ids
     (across pages/videos) or repeated within one id (within a page). The '-' placeholder
     (written to keep TSV column counts stable when a field is absent) counts as absent in
-    EVERY column — href/poster/stream via url_path, the rest here — so an all-placeholder
-    column can never collide (#664)."""
+    EVERY column — href/stream via url_path, poster via poster_path (same-artwork cover
+    variants of one video dedupe as one value, #680/#775), the rest here — so an
+    all-placeholder column can never collide (#664)."""
     cols = colspec.split(',')
     rows = [l.rstrip('\n').split('\t') for l in sys.stdin if l.strip()]
     for ci, col in enumerate(cols, start=1):
         seen = {}
         for r in rows:
-            v = url_path(r[ci]) if col in ('href', 'poster', 'stream') else inner_text(r[ci]).lower()
+            v = poster_path(r[ci]) if col == 'poster' else \
+                url_path(r[ci]) if col in ('href', 'stream') else inner_text(r[ci]).lower()
             if v == '-':
-                v = ''  # placeholder = absent column value (same rule url_path applies to href/poster/stream)
+                v = ''  # placeholder = absent column value (same rule url_path applies to href/stream)
             if not v:
                 continue
             seen.setdefault(v, []).append(r[0])
@@ -372,7 +374,11 @@ check_listing() {  # $1=urls-array-name $2=prefix $3=selector $4=title_sel $5=po
     echo "FAIL duplicate $prefix cards (same video twice on a page or across pages):"
     echo "$dups_out"; fail=1
   fi
-  poster_dups=$(py dups 'poster' < "$raw")
+  # colspec is positional over the columns AFTER id: raw rows are id\thref\ttitle\tposter, so
+  # a bare 'poster' colspec reads r[1] = the href column (pre-#775 misalignment — poster_path
+  # never saw poster data here). Positional colspec + the $1 filter keep the NOTE poster-only
+  # (href repeats already FAIL above; title repeats are site content).
+  poster_dups=$(py dups 'href,title,poster' < "$raw" | awk -F'\t' '$1=="poster"')
   if [[ -n "$poster_dups" ]]; then
     echo "NOTE: repeated poster on $prefix across different videos (episodes of one series share the series poster — not a card duplicate):"
     echo "$poster_dups" | head -3
@@ -591,9 +597,15 @@ while IFS=$'\t' read -r vid vpath vtitle vposter vplot; do
   fi
   # '-' = absent column value (placeholder written at line 414 so empty columns survive read)
   # poster equality uses poster_path: per-surface cover-art variant tokens (-t/-n/…) are the
-  # same artwork, not a mismatch (#680) — href/stream paths keep url_path
-  if [[ -n "$cposter" && "$vposter" != '-' && -n "$vposter" && "$(py poster_path "$cposter")" != "$(py poster_path "$vposter")" ]]; then
-    echo "FAIL poster mismatch for $vpath: search='$cposter' load='$vposter'"; fail=1
+  # same artwork, not a mismatch (#680) — href/stream paths keep url_path. When the raw
+  # posters differ but normalized ones agree, keep the raw evidence in the transcript (NOTE
+  # convention) instead of passing silently (#775).
+  if [[ -n "$cposter" && "$vposter" != '-' && -n "$vposter" ]]; then
+    if [[ "$(py poster_path "$cposter")" != "$(py poster_path "$vposter")" ]]; then
+      echo "FAIL poster mismatch for $vpath: search='$cposter' load='$vposter'"; fail=1
+    elif [[ "$cposter" != "$vposter" ]]; then
+      echo "NOTE: poster variant ($cposter vs $vposter) — same artwork"
+    fi
   fi
 done < "$V_TSV"
 if (( agreed == 0 )); then
