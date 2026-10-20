@@ -75,4 +75,21 @@ pp() { python3 "$PYDOM" poster_path "$1"; }
 [[ "$(python3 "$PYDOM" path 'https://c.test/covers/cover-t.jpg')" == '/covers/cover-t.jpg' ]] \
   || { echo "FAIL: url_path must keep variant tokens (href/stream semantics unchanged)"; exit 1; }
 
+# 7. dups poster column groups by poster_path (#775 S2): same-artwork variants (-t/-n) on
+#    different rows collapse to ONE repeated-poster line carrying the NORMALIZED value —
+#    before the fix the two variants were distinct singletons and the collision went unseen.
+dup() { python3 "$PYDOM" dups "$1"; }
+out=$(printf 'r1\thref-a\tTitle A\thttps://c.test/covers/cover-t.jpg\nr2\thref-b\tTitle B\thttps://c.test/covers/cover-n.jpg\n' | dup 'href,title,poster')
+[[ "$out" == $'poster\t/covers/cover.jpg\tr1,r2' ]] \
+  || { echo "FAIL: dups poster column must group same-artwork variants into one normalized line, got: $out"; exit 1; }
+out=$(printf 'r1\thttps://c.test/covers/cover-t.jpg\nr2\thttps://c.test/covers/cover-t.jpg\n' | dup 'poster')
+[[ "$out" == $'poster\t/covers/cover.jpg\tr1,r2' ]] \
+  || { echo "FAIL: dups poster column must report the normalized value even for identical raw posters, got: $out"; exit 1; }
+
+# 8. href/stream columns keep url_path — variant tokens there are real cuts (#775 constraint)
+out=$(printf 'r1\thttps://c.test/v/cover-t.jpg\nr2\thttps://c.test/v/cover-n.jpg\n' | dup 'stream')
+[[ -z "$out" ]] || { echo "FAIL: stream column must NOT collapse variant tokens, got: $out"; exit 1; }
+out=$(printf 'r1\thref-a\tTitle A\thttps://c.test/covers/cover-t.jpg\nr2\thref-b\tTitle B\thttps://c.test/covers/cover-n.jpg\n' | dup 'href')
+[[ -z "$out" ]] || { echo "FAIL: href column must NOT collapse variant tokens, got: $out"; exit 1; }
+
 echo "RESULT: PASS"

@@ -84,8 +84,9 @@ supplies what to check (judgment, from FINDINGS + the provider's Kotlin), the sc
 4. **Streams**: every extracted stream URL (≤5 per page) responds HTTP 200/206 with
    `video/*` or an m3u8 playlist body.
 5. **Agreement**: a sampled video that appears in the search page(s) must agree with its load
-   page — same normalized title, same poster path. (Duplicate `--video-url` inputs are
-   rejected: self-comparison would fake-FAIL distinctness.)
+   page — same normalized title, same normalized poster path (per-surface cover-art variants
+   like `-t`/`-n` are the same artwork; the raw URLs are kept in the transcript via a NOTE).
+   (Duplicate `--video-url` inputs are rejected: self-comparison would fake-FAIL distinctness.)
 6. **Data-complete (code half)**: with `--load-response` + `--provider-src`, every listed field
    has ≥1 population assignment in the provider Kotlin. Whether the site actually exposes each
    field — and the selector proving it — comes from FINDINGS; the agent judges that, the script
