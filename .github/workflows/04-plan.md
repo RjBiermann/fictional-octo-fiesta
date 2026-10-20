@@ -25,6 +25,11 @@ safe-outputs:
   threat-detection: false   # engine:pi detection runs on Copilot CLI — not available (no Copilot); structural guardrails + human merge carry the boundary
   add-comment:
     max: 1
+    # Relay-fired (ADR-0019): workflow_dispatch carries no issue context, so
+    # the default "triggering" target resolves to nothing and gh-aw silently
+    # drops the round comment while reporting success. "*" targets the
+    # payload's explicit item_number (same pattern as 05-implement).
+    target: "*"
   create-issue:
     max: 30
     title-prefix: "[spec] "

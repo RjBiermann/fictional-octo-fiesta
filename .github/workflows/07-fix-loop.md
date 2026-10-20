@@ -45,6 +45,10 @@ safe-outputs:
     max: 1
   add-comment:
     max: 2
+    # Relay-fired (ADR-0019): "*" targets the payload's explicit item_number —
+    # the default "triggering" silently drops comments on workflow_dispatch
+    # (04-plan's round comments were lost this way, 2026-10-20 #804).
+    target: "*"
   create-issue:
     max: 2
     title-prefix: "[from-repair] "
