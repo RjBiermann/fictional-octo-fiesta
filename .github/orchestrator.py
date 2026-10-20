@@ -321,14 +321,14 @@ def chain_driver():
             pnum = parent_of(s)
             approved = pnum and _chain_approved(pnum)
             if approved:
-                label_issue(s["number"], "status/planned")
+                _fire_implement(s["number"])
                 print(f"[orchestrator] story 1 (issue {s['number']}): trigger stamped (chain approved at round 3)")
             else:
                 print(f"[orchestrator] story 1 (issue {s['number']}): no round-3 approval recorded — waiting on human")
             continue
         pstate = _story_state(num_story - 1, stories)
         if str(pstate).lower() == "closed":
-            label_issue(s["number"], "status/planned")
+            _fire_implement(s["number"])
             print(f"[orchestrator] story {num_story} (issue {s['number']}): trigger stamped (story {num_story-1} closed)")
         else:
             print(f"[orchestrator] story {num_story} (issue {s['number']}): predecessor still {pstate}")
@@ -412,9 +412,8 @@ def _reconcile_pass(stories, claims):
         if _has_stall_flag(comments(n)):
             continue
         run(["gh", "api", "-X", "DELETE", f"repos/{REPO}/issues/{n}/labels/status%2Fplanned"])
-        run(["gh", "api", "-X", "POST", f"repos/{REPO}/issues/{n}/labels",
-             "-f", "labels[]=status/planned"])
-        print(f"[orchestrator] {n}: trigger re-fired under owner actor (stamp fired no run)")
+        _fire_implement(n)
+        print(f"[orchestrator] {n}: trigger re-fired (machine relay — stamp fired no run)")
 
 
 def _chain_approved(pnum):
@@ -469,6 +468,50 @@ def _story_state(num, stories):
     return "-"
 
 
+# ------------------------------------------------- event relay (ADR-0019)
+def _fire_workflow(lock, item_type, item_number):
+    """Machine-identity event relay: fire a gh-aw workflow via
+    workflow_dispatch — GitHub's documented GITHUB_TOKEN loop-prevention
+    exception (dispatch/repository_dispatch always create runs). The
+    gh-aw-internal `aw_context` shape restores the target item natively
+    (compiled ctx: item_type ∈ {issue, pull_request, discussion}). Replaces
+    the ADR-0017 owner-PAT comment/label relays: the machinery never acts
+    as the owner and needs no PAT secret."""
+    ctx = json.dumps({"item_type": item_type, "item_number": item_number})
+    out = run(["gh", "workflow", "run", lock, "--ref", "main", "-R", REPO,
+               "-f", f"aw_context={ctx}"])
+    if out.strip():
+        print(f"[orchestrator] {lock} dispatched for {item_type} #{item_number} ({out[:90]})")
+    else:
+        print(f"[orchestrator] {lock} dispatched for {item_type} #{item_number}")
+
+
+def _fire_implement(num):
+    """Stamp status/planned (display state) + fire Implement by dispatch —
+    a bot-applied label event is loop-dead, so the dispatch IS the fire."""
+    label_issue(num, "status/planned")
+    _fire_workflow("05-implement.lock.yml", "issue", num)
+
+
+def _fire_plan(n, rnd):
+    """Record the round marker (dedupe + audit trail; bot identity) and
+    fire the plan loop by dispatch with the round carried by aw_context."""
+    mk = _fire_marker(rnd)
+    if _has_marker(comments(n), mk):
+        return False
+    post_comment(n, mk + _FIRE_SUFFIX.get(rnd, ""))
+    _fire_workflow("04-plan.lock.yml", "issue", n)
+    print(f"[orchestrator] {n}: /plan round {rnd} fired (dispatch)")
+    return True
+
+
+_FIRE_SUFFIX = {
+    1: " (fresh trigger; ADR-0019 machine relay)",
+    2: " (round-1 answers received; ADR-0019 machine relay)",
+    3: " (finalize; round-2 approved; ADR-0019 machine relay)",
+}
+
+
 # ------------------------------------------------- plan-loop surrogate (/plan)
 def plan_loop_surrogate():
     if not FIRE_PLAN:
@@ -487,29 +530,19 @@ def plan_loop_surrogate():
 
         fresh_trigger = any(l in triggers for l in labels)
         if fresh_trigger and not r1:
-            mk = _fire_marker(1)
-            if not _has_marker(cs, mk):
-                post_comment(n, mk + " (fresh trigger; ADR-0017 surrogate)")
-                print(f"[orchestrator] {n}: /plan round 1 fired")
+            _fire_plan(n, 1)
             continue
         if not r1:
             continue
         # round 2: human answered after round 1
         if not r2 and not kid_stories:
             if not _has_marker(cs, _fire_marker(2)):
-                # owner-identity collisions: the machinery's own comments
-                # (decision tags, fire markers) post through GH_AW_PROXY_PAT
-                # and carry OWNER's login — they must never count as the
-                # human's answers (ADR-0014 known limitation, observed live
-                # 2026-10-19: [orchestrator] tags fired round 2 on #759/#712
-                # with no human reply in the thread).
                 human_after = [c for c in cs
                                if c.get("user", {}).get("login") == OWNER
                                and MARK not in (c.get("body") or "")
                                and c["created_at"] > r1["created_at"]]
                 if human_after:
-                    post_comment(n, _fire_marker(2) + " (round-1 answers received; ADR-0017 surrogate)")
-                    print(f"[orchestrator] {n}: /plan round 2 fired")
+                    _fire_plan(n, 2)
         # round 3: owner approved after round 2
         if r2 and not kid_stories and not r3:
             if not _has_marker(cs, _fire_marker(3)):
@@ -517,8 +550,7 @@ def plan_loop_surrogate():
                         and c["created_at"] > r2["created_at"]
                         and (c.get("body") or "").strip().lower() in ("approved", "approve", "lgtm", "yes", "ok")]
                 if appr:
-                    post_comment(n, _fire_marker(3) + " (finalize; round-2 approved; ADR-0017 surrogate)")
-                    print(f"[orchestrator] {n}: /plan round 3 fired")
+                    _fire_plan(n, 3)
 
 
 # -------------------------------------------------------- decision tags
@@ -1001,7 +1033,7 @@ def wave_driver():
         if not _chain_approved(epic):
             continue
         for n in _wave_batch(kids, cap):
-            label_issue(n, "status/planned")
+            _fire_implement(n)
             print(f"[orchestrator] epic #{epic}: wave-stamped #{n} (cap {cap})")
 
 
@@ -1009,12 +1041,11 @@ def wave_driver():
 def fix_surrogate():
     """GitHub's loop-prevention swallows `pull_request_review` events for
     reviews posted with GITHUB_TOKEN — so agent verdicts never trigger the
-    fix loop (observed 2026-10-16: 4 verdicts, zero fix-loop runs). The
-    surrogate re-fires as the owner actor by submitting a stub `/repair`
-    review — a PAT-identity event fires natively. Deduped per review;
-    bounded by the fix loop's own cycle cap + status/fixing-stuck."""
-    if not PROXY_PAT:
-        return
+    fix loop (observed 2026-10-16: 4 verdicts, zero fix-loop runs).
+    ADR-0019: the surrogate fires by workflow_dispatch (GITHUB_TOKEN's
+    documented dispatch exception) — no owner-PAT stub review, no owner
+    identity. Dedupe via the marker comment on the issue thread; bounded
+    by the fix loop's own cycle cap + status/fixing-stuck."""
     for pr in open_pulls():
         branch = pr.get("head", {}).get("ref", "")
         if not branch.startswith("devloop/"):
@@ -1022,8 +1053,6 @@ def fix_surrogate():
         num = pr["number"]
         revs = api(f"pulls/{num}/reviews?per_page=20") or []
         bots = [r for r in revs if (r.get("user") or {}).get("login") == "github-actions[bot]"]
-        stubs = [r for r in revs if (r.get("user") or {}).get("login") == OWNER
-                 and ((r.get("body") or "").startswith("/repair"))]
         if not bots:
             continue
         last = bots[-1]
@@ -1041,16 +1070,19 @@ def fix_surrogate():
         low = verdict.lower()
         if "blocker" not in low or any(s in low for s in ("0 blockers", "no blockers", "pass, no blockers")):
             continue
-        if stubs and (stubs[-1].get("submitted_at") or "") > (last.get("submitted_at") or ""):
+        # dedupe: one fire per bot verdict, recorded as a marker comment
+        fire_marker = f"{MARK} fix-loop re-fired for review {last['id']}"
+        cs = comments(num)
+        if any(c.get("created_at", "") > (last.get("submitted_at") or "")
+               and fire_marker in (c.get("body") or "") for c in cs):
             continue
         if any(r.get("submitted_at", "") > (last.get("submitted_at") or "") for r in bots[bots.index(last) + 1:]):
             continue
-        out = run(["gh", "api", "-X", "POST", f"repos/{REPO}/pulls/{num}/reviews",
-                   "-f", "event=COMMENT",
-                   "-f", f"body=/repair\n\n{MARK} /repair re-fired for {last['id']} "
-                          "(owner-actor stub; agent verdicts with GITHUB_TOKEN do not fire "
-                          "pull_request_review events — GitHub loop prevention)"])
-        ok = out.strip().startswith("{")
+        post_comment(num, fire_marker + " — dispatch fires 07 (machine relay, ADR-0019)")
+        out = run(["gh", "workflow", "run", "07-fix-loop.lock.yml",
+                   "--ref", "main", "-R", REPO,
+                   "-f", f"aw_context={json.dumps({'item_type': 'pull_request', 'item_number': num})}"])
+        ok = out.strip() == ""
         print(f"[orchestrator] fix surrogate on PR #{num}: {'fired' if ok else 'failed: ' + out[:120]}")
 
 

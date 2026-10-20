@@ -21,6 +21,7 @@ on:
         required: true
         type: string
   roles: [admin, maintainer, write]
+  bots: ["github-actions[bot]"] # conflict_watch (95) fires this via dispatch (aw_context)
   cooldown: 20m
 imports:
   - .github/workflows/shared/engine-lane.md

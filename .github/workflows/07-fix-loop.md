@@ -19,6 +19,8 @@ on:
   # defect fixed in 06-review. Repairs stay bounded: push-to-pull-request
   # max 3, cycle cap + status/fixing-stuck escalation to the human.
   roles: all
+  workflow_dispatch:          # ADR-0019: fix surrogate fires via dispatch (aw_context)
+  bots: ["github-actions[bot]"]
   cooldown: 10m
 imports:
   - .github/workflows/shared/engine-lane.md

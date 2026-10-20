@@ -9,6 +9,10 @@ on:
   issues:
     types: [labeled]
     names: [status/planned]
+  workflow_dispatch:          # ADR-0019: machine relay fires via dispatch (aw_context) —
+                              # bot-applied label events are loop-dead, so the
+                              # conveyor dispatches instead of stamping into the void
+  bots: ["github-actions[bot]"]
   roles: [admin, maintainer, write]
 imports:
   - .github/workflows/shared/engine-lane.md

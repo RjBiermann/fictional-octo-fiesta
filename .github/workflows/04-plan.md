@@ -9,6 +9,8 @@ on:
   slash_command:
     name: plan
     events: [issues, issue_comment]
+  workflow_dispatch:          # ADR-0019: machine relay fires rounds via dispatch (aw_context)
+  bots: ["github-actions[bot]"] # the conveyor (95) dispatches this workflow
   roles: [admin, maintainer, write]
 imports:
   - .github/workflows/shared/engine-lane.md
