@@ -40,7 +40,7 @@ _Avoid_: cancellation, aborted run
 ### Triggers & artifacts
 
 **Trigger label**:
-A maintainer-applied issue label (`ai-fix`, `ai-new-site`, `ai-remove-site`) that starts a build. Issues without one are never processed. Renames live in `config.toml [labels]` and stay inside the reserved `ai-` prefix — the contract the workflow filter matches on, so a rename can never orphan the trigger (upstream devloop ADR-0003). Since ADR-0018, *machinery* (95-orchestrator) applies `ai-fix` to `status/queued` issues automatically — agents still never touch them.
+A maintainer-applied issue label (`ai-fix`, `ai-new-site`, `ai-remove`) that starts a build. Issues without one are never processed. Renames live in `config.toml [labels]` and stay inside the reserved `ai-` prefix — the contract the workflow filter matches on, so a rename can never orphan the trigger (upstream devloop ADR-0003). Since ADR-0018, *machinery* (95-orchestrator) applies `ai-fix` to `status/queued` issues automatically — agents still never touch them.
 _Avoid_: auto label, bot label
 
 **Command**:
@@ -56,7 +56,7 @@ Re-running an Agent run for an existing issue or PR, via a Command. The new run 
 _Avoid_: retrigger, retry (retry is the command name, not the concept)
 
 **Removal**:
-A Builder run executing an `ai-remove-site` issue: probe the site for evidence only, delete the provider directory, open a removal PR. The label is the decision — the agent never gates on the probe's outcome; deletion is git-reversible.
+A Builder run executing an `ai-remove` issue: probe the site for evidence only, delete the provider directory, open a removal PR. The label is the decision — the agent never gates on the probe's outcome; deletion is git-reversible.
 _Avoid_: deletion task, teardown (the deliverable is a removal PR, not a direct deletion)
 
 **FINDINGS**:
