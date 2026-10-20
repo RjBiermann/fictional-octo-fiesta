@@ -18,13 +18,18 @@ the parent spec — and the owner decision (2026-10) is to keep it FALSE:
 the receipt proves the *chain* was approved, not that *this diff* was
 reviewed. Branch protection remains the real gate either way.
 
-Surrogate fires act through the owner PAT (`GH_AW_PROXY_PAT`) because
-both native fan-out paths are closed: events triggered by
-`GITHUB_TOKEN` create no workflow runs (GitHub loop prevention), and
-gh-aw's activation gate treats `github-actions[bot]`-actor events as
+Surrogate relay (historical — superseded 2026-10-20 by ADR-0019):
+surrogate fires used to act through the owner PAT (`GH_AW_PROXY_PAT`)
+because both native fan-out paths were closed: events triggered by
+`GITHUB_TOKEN` created no workflow runs (GitHub loop prevention), and
+gh-aw's activation gate treated `github-actions[bot]`-actor events as
 unprivileged. Observed 2026-10-16: 4 agent review verdicts via
-GITHUB_TOKEN, zero fix-loop runs — the surrogate exists because of it.
+GITHUB_TOKEN, zero fix-loop runs — the surrogate existed because of it.
+ADR-0019 replaced the identity trick with the documented
+`workflow_dispatch` exception plus `on.bots`; the constraint above is
+what makes the dispatch relay load-bearing.
 
-Consequence: `[orchestrator]`-marked comments carry the owner's
-identity; the secret-guard's machine-authored test keys off that marker
+Consequence: `[orchestrator]`-marked comments are machinery-authored
+(now `github-actions[bot]`; the owner identity left the machinery in
+ADR-0019); the secret-guard's machine-authored test keys off that marker
 (see CONTEXT.md) — every orchestrator post MUST carry it.

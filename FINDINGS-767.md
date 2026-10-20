@@ -87,9 +87,24 @@ assert against `Qualities` constants / an in-repo mapping function, **not** call
   | `video_alt_url2` | `'1080p FHD'` | the video page URL | no — `redirect: '1'` |
   | `video_alt_url3` | `'2160p 4K'` | the video page URL | no — `redirect: '1'` (+ `4k: '1'`) |
 
+  Verbatim sample (video 3363831, from the parallel S1 delivery merged via #788):
+
+  ```
+  video_url       = 'https://www.porntrex.com/get_file/10/1f12c0c54f99449e3401e0ad9df15f49ccc69ae2bf/3363000/3363831/3363831.mp4/?embed=true'
+  video_url_text  = '480p'
+  video_alt_url   = 'https://www.porntrex.com/video/3363831/lily-lou-4k'
+  video_alt_url_text    = '720p HD'
+  video_alt_url_redirect = '1'
+  video_alt_url2_text   = '1080p FHD'   · video_alt_url2_redirect = '1'
+  video_alt_url3_text   = '2160p 4K'   · video_alt_url3_redirect = '1'
+  video_alt_url_hd = '1' · video_alt_url2_hd = '1' · video_alt_url3_hd = '1' · video_alt_url3_4k = '1'
+  ```
+
 - The three-tier ladder (`720p HD` / `1080p FHD` / `2160p 4K`, all redirect-flagged) appears on
   **every** probed video regardless of actual resolution — embed-shell boilerplate; the
   `_hd: '1'` / `_4k: '1'` flags are present on all of them and do not gate anything.
+  `480p` is the only real guest stream; the three alt tiers are redirect-flagged page URLs,
+  which `PorntrexParse.qualityLinks` already skips correctly (issue #429 behavior — keep it).
 - `get_file` resolution: `302` → `https://pcdn.cdntrex.com/porntrex/.../{id}.mp4?expires=...&md5=...`
   — **no quality component in the served filename**.
 - URL surgery test: rewriting the signed get_file path `{id}.mp4` → `{id}_720p.mp4` returns

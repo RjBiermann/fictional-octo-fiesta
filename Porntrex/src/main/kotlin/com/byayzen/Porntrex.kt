@@ -245,6 +245,20 @@ object PorntrexParse {
     }
 
     /**
+     * S2 RED skeleton (issue #768): pure label/url -> quality Int per the S1 decided mapping
+     * table (FINDINGS-767 section 4): leading resolution number (range-validated) first,
+     * numberless `4K` via getQualityFromName, URL-pattern fallback (e.g. `_1080p.mp4` in the
+     * path) when the text label doesn't map, else Qualities.Unknown (400).
+     *
+     * Deliberately NOT implemented in S2 — returning Unknown (400) is exactly the #759 bug
+     * behavior, so the S2 suite runs red against this skeleton by construction (TDD, ADR-0005;
+     * the null/blank -> Unknown fallback row is the one branch that already holds). S3 (#769)
+     * implements the mapping to turn the suite green and wires loadLinks to it. Nothing calls
+     * this until S3, so runtime behavior is unchanged in S2.
+     */
+    fun qualityOf(label: String?, url: String? = null): Int = Qualities.Unknown.value
+
+    /**
      * Issue #275: on guest-shell video pages the /embed/{id}/ flashvars still expose
      * `video_categories: 'A, B'` and `video_tags: 'x, y'`. Returns categories followed by
      * tags (deduped, order preserved); empty when neither key exists.

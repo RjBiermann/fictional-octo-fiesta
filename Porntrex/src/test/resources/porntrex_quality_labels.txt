@@ -1,0 +1,15 @@
+# Porntrex quality-mapping fixture — the S1 decided table (FINDINGS-767 section 4, #759 chain).
+# One "<label><TAB><expected quality Int>" row per line; lines starting with '#' are comments.
+# S2 (#768) drives PorntrexParse.qualityOf red tests from this data; S3 (#769) turns them green.
+# --- live guest ladder (identical on every /embed/{id}/ probe, FINDINGS-767 section 2) ---
+480p	480
+720p HD	720
+1080p FHD	1080
+2160p 4K	2160
+# --- numberless KVS form (getQualityFromName whole-string "4k" branch) ---
+4K	2160
+# --- bare / suffixed numeric rows (leading number, range-validated) ---
+144p	144
+240p	240
+540p	540
+1440p	1440

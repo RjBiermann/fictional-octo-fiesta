@@ -40,7 +40,7 @@ _Avoid_: cancellation, aborted run
 ### Triggers & artifacts
 
 **Trigger label**:
-A maintainer-applied issue label (`ai-fix`, `ai-new-site`, `ai-remove-site`) that starts a build. Issues without one are never processed. Renames live in `config.toml [labels]` and stay inside the reserved `ai-` prefix — the contract the workflow filter matches on, so a rename can never orphan the trigger (upstream devloop ADR-0003). Since ADR-0018, *machinery* (95-orchestrator) applies `ai-fix` to `status/queued` issues automatically — agents still never touch them.
+A maintainer-applied issue label (`ai-fix`, `ai-new-site`, `ai-remove`) that starts a build. Issues without one are never processed. Renames live in `config.toml [labels]` and stay inside the reserved `ai-` prefix — the contract the workflow filter matches on, so a rename can never orphan the trigger (upstream devloop ADR-0003). Since ADR-0018, *machinery* (95-orchestrator) applies `ai-fix` to `status/queued` issues automatically — agents still never touch them.
 _Avoid_: auto label, bot label
 
 **Command**:
@@ -56,7 +56,7 @@ Re-running an Agent run for an existing issue or PR, via a Command. The new run 
 _Avoid_: retrigger, retry (retry is the command name, not the concept)
 
 **Removal**:
-A Builder run executing an `ai-remove-site` issue: probe the site for evidence only, delete the provider directory, open a removal PR. The label is the decision — the agent never gates on the probe's outcome; deletion is git-reversible.
+A Builder run executing an `ai-remove` issue: probe the site for evidence only, delete the provider directory, open a removal PR. The label is the decision — the agent never gates on the probe's outcome; deletion is git-reversible.
 _Avoid_: deletion task, teardown (the deliverable is a removal PR, not a direct deletion)
 
 **FINDINGS**:
@@ -119,8 +119,12 @@ The workflow-posted comment on the issue when an Agent run starts — a guarante
 _Avoid_: progress comment (that is the agent's own narration), bot comment
 
 **Machine-authored**:
-Content the secret-guard may redact: authored by `github-actions[bot]`, or carrying the `[orchestrator]` marker — the conveyor posts through the owner PAT because gh-aw's activation gate rejects bot-actor events and `GITHUB_TOKEN` events fire no workflows (ADR-0017). Human-authored content is never touched.
-_Avoid_: bot-authored (marker posts carry a human identity)
+Content the secret-guard may redact: authored by `github-actions[bot]`, or carrying the `[orchestrator]` marker. Machinery never holds the owner's identity (ADR-0019 retired the owner PAT); the marker filter remains as defense-in-depth. Human-authored content is never touched.
+_Avoid_: bot-authored (ambiguous — machinery posts are the normal case now)
+
+**Relay**:
+The machinery mechanism that makes one pipeline stage trigger the next: a `workflow_dispatch` carrying an `aw_context` item, fired by the orchestrator under the bot identity. GitHub's only loop-prevention-exempt way for a machine to fire a gh-aw workflow; label and comment *events* by machines fire nothing.
+_Avoid_: surrogate (the retired owner-PAT mechanism), PAT fire
 
 **Secret-guard**:
 The mechanical redaction layer (91-secret-guard.yml): credential-shaped strings in machine-authored issue/PR content are replaced with a redaction marker and logged to one rolling notification issue. Post-hoc by design — safe-outputs are the only write path an agent has, and the guard watches it.

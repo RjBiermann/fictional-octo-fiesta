@@ -55,4 +55,24 @@ out=$(python3 "$PYDOM" cards 'div.card' 'a.title' - "$FIX2")
 grep -q '/one/' <<<"$out" || { echo "FAIL: nested wrapper card /one/ not found"; exit 1; }
 grep -q '/two/' <<<"$out" || { echo "FAIL: nested wrapper card /two/ not found"; exit 1; }
 
+# 5. poster_path (issue #680): strip at most ONE trailing -<alnum 1-3> variant token from
+#    the filename stem (before the extension) — MissAV's card img data-src serves
+#    cover-t.jpg while the load page's og:image serves cover-n.jpg; same artwork.
+pp() { python3 "$PYDOM" poster_path "$1"; }
+[[ "$(pp 'https://c.test/covers/cover-t.jpg')" == '/covers/cover.jpg' ]] \
+  || { echo "FAIL: poster_path should strip one variant token, got: $(pp 'https://c.test/covers/cover-t.jpg')"; exit 1; }
+[[ "$(pp 'https://c.test/covers/cover-t.jpg')" == "$(pp 'https://c.test/covers/cover-n.jpg')" ]] \
+  || { echo "FAIL: cover-t.jpg vs cover-n.jpg must compare equal after poster_path"; exit 1; }
+[[ "$(pp 'https://c.test/covers/cover-t.jpg')" != "$(pp 'https://c.test/covers/other-n.jpg')" ]] \
+  || { echo "FAIL: cover-t.jpg vs other-n.jpg must stay unequal after poster_path"; exit 1; }
+[[ "$(pp 'https://c.test/covers/cover-t-2.jpg')" == '/covers/cover-t.jpg' ]] \
+  || { echo "FAIL: poster_path must strip at most ONE token, got: $(pp 'https://c.test/covers/cover-t-2.jpg')"; exit 1; }
+[[ "$(pp 'https://c.test/covers/cover-x2.jpg')" == "$(pp 'https://c.test/covers/cover-n.jpg')" ]] \
+  || { echo "FAIL: multi-char variant scheme (-x2) must collapse like -t/-n"; exit 1; }
+
+# 6. url_path semantics unchanged — href/stream variant tokens are real (distinct cuts),
+#    so `path` must NOT lose -t
+[[ "$(python3 "$PYDOM" path 'https://c.test/covers/cover-t.jpg')" == '/covers/cover-t.jpg' ]] \
+  || { echo "FAIL: url_path must keep variant tokens (href/stream semantics unchanged)"; exit 1; }
+
 echo "RESULT: PASS"

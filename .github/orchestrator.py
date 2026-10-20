@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Mechanical conveyor for the gh-aw pipeline (ADR-0017, amended 2026-10-15).
+"""Mechanical conveyor for the gh-aw pipeline (ADR-0017/0018/0019).
 
 Non-AI, fails closed. Automates the mechanics of an already-approved chain
 and surfaces every real decision as an @mention. It never decides a round,
 never merges a PR, never touches ai-* trigger labels, and closes [aw]
 diagnostics only when a later Implement/Plan run has succeeded.
-
-  - approve companion (non-AI) runs stuck in `action_required` on
-    devloop/* PR branches (needs GH_AW_PROXY_PAT; warns + no-ops if unset)
+Machinery acts as github-actions[bot] only (ADR-0019): relays fire by
+workflow_dispatch; GH_AW_PROXY_PAT is retired (set, it's a legacy
+identity override; unset, everything works under GITHUB_TOKEN).
   - merge readiness: default contract is HUMAN MERGES — label
     `status/ready-to-merge` + ping the owner with the head sha. If the
     adopter sets GH_AW_AUTO_MERGE=true, queue auto-merge instead
@@ -337,7 +337,7 @@ def chain_driver():
             else:
                 print(f"[orchestrator] story 1 (issue {s['number']}): no round-3 approval recorded — waiting on human")
             continue
-        pstate = _story_state(num_story - 1, stories)
+        pstate = _story_state(num_story - 1, stories, parent_of(s))
         if str(pstate).lower() == "closed":
             _fire_implement(s["number"])
             print(f"[orchestrator] story {num_story} (issue {s['number']}): trigger stamped (story {num_story-1} closed)")
@@ -472,9 +472,13 @@ def _latest_workflow_run_at(name):
     hits = [r["createdAt"] for r in rows if r.get("event") in ("issues", "issue_comment")]
     return max(hits) if hits else None
 
-def _story_state(num, stories):
+def _story_state(num, stories, parent=None):
+    """State of story `num` — scoped to `parent`'s chain when given.
+    Unscoped lookups leak across chains: two chains each having a
+    Story 1 made Porntrex S2 fire while its own S1 was open (#790)."""
     for s in stories:
-        if story_num(s.get("title", "")) == num:
+        if story_num(s.get("title", "")) == num \
+                and (parent is None or parent_of(s) == parent):
             return s.get("state", "?")
     return "-"
 
@@ -497,9 +501,25 @@ def _fire_workflow(lock, item_type, item_number):
         print(f"[orchestrator] {lock} dispatched for {item_type} #{item_number}")
 
 
+def _open_pr_for_story(num):
+    import re as _re
+    pat = _re.compile(rf"devloop/issue-{num}-")
+    for pr in open_pulls():
+        if pat.search(pr.get("head", {}).get("ref", "")):
+            return pr["number"]
+    return None
+
+
 def _fire_implement(num):
     """Stamp status/planned (display state) + fire Implement by dispatch —
-    a bot-applied label event is loop-dead, so the dispatch IS the fire."""
+    a bot-applied label event is loop-dead, so the dispatch IS the fire.
+    Delivered-guard: an open PR for this story means it's already
+    delivered and awaiting merge — never re-fire (the duplicate-PR class,
+    ADR-0014's 'cannot tell delivered from next-in-line')."""
+    delivered = _open_pr_for_story(num)
+    if delivered:
+        print(f"[orchestrator] {num}: already delivered via PR #{delivered} — not re-fired")
+        return
     label_issue(num, "status/planned")
     _fire_workflow("05-implement.lock.yml", "issue", num)
 
@@ -650,9 +670,8 @@ def registry_sync():
     or a fresh issue — union makes the common retry a no-op anyway."""
     if not REGISTRY_PATH:
         return  # feature off for this adopter
-    if not PROXY_PAT:
-        print("[orchestrator] GH_AW_PROXY_PAT unset — registry_sync needs the owner actor, skipping")
-        return
+    # ADR-0019: no PAT needed — the push rides the checkout's actions token
+    # (contents: write); the commit author is the conveyor identity.
     pend = []
     for i in api("issues?state=open&per_page=60") or []:
         if i.get("pull_request"):
@@ -882,9 +901,9 @@ def conflict_watch():
                          for f in files):
             if _auto_resolve_conflict(branch):
                 continue
-        if not PROXY_PAT:
-            print("[orchestrator] GH_AW_PROXY_PAT unset — conflict stays manual")
-            continue
+        # ADR-0019: the handoff needs no owner identity — the label is
+        # display state and the fire is a workflow_dispatch (bot lane,
+        # verified live for this trigger shape).
         marker = f"{MARK} merge conflict detected"
         if not _has_marker(comments(num), marker):
             names = ", ".join(sorted(files)) if files else "unresolvable via merge-tree"
@@ -953,7 +972,7 @@ def _demote_out_of_order(stories):
         labels = [l["name"] for l in s.get("labels", [])]
         if "status/planned" not in labels:
             continue
-        if str(_story_state(num_story - 1, stories)).lower() == "closed":
+        if str(_story_state(num_story - 1, stories, parent_of(s))).lower() == "closed":
             continue
         n = s["number"]
         ts = _label_applied_at(n, "status/planned")

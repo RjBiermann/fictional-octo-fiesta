@@ -51,7 +51,7 @@ CI (`.github/workflows/build.yml`) builds all providers on push to `master`/`mai
   there, test red → green, and bump every affected provider. Root `build.gradle.kts` changes
   affect every provider — make them only when required by all.
 - **TDD-first** (ADR-0005): extract parsing into pure Parse functions and test them first (red → green, JUnit4) against fixtures in `src/test/resources/`; `shared/src/test/kotlin` runs with every provider's `test` task. No HTTP mocking — `MainAPI`/HTTP flows stay covered by pipeline Verification, not unit tests.
-- **Drift recurrence means brittleness, not bad luck.** A provider with three or more closed drift / broken-provider issues gets a hardening fix on its next `ai-fix` — structural matching, multi-host fallback, or a shared/ extension when evidence shows the root cause there — never another point-in-time selector swap. At four or more, the provider is **Chronic** (see CONTEXT.md): a removal candidate, which stays a maintainer decision (`ai-remove-site`).
+- **Drift recurrence means brittleness, not bad luck.** A provider with three or more closed drift / broken-provider issues gets a hardening fix on its next `ai-fix` — structural matching, multi-host fallback, or a shared/ extension when evidence shows the root cause there — never another point-in-time selector swap. At four or more, the provider is **Chronic** (see CONTEXT.md): a removal candidate, which stays a maintainer decision (`ai-remove`).
 
 ## Agent skills
 
@@ -69,7 +69,7 @@ full mode active: caveman compresses run narration only — PR bodies, issue
 text, verify reports, and commits stay normal prose (caveman's own Boundaries
 rule). rtk filters bash output before the agent reads it (ADR-0009).
 
-- **Trigger labels**: `ai-fix`, `ai-new-site`, `ai-remove-site` —
+- **Trigger labels**: `ai-fix`, `ai-new-site`, `ai-remove` —
   mutually exclusive (devloop's pre-flight, `Config.kind_for`, raises
   on an issue carrying more than one), applied by humans only. Without a
   label nothing runs. Non-build work is specified as a normal trigger like
