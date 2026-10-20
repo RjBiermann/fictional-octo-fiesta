@@ -75,4 +75,26 @@ pp() { python3 "$PYDOM" poster_path "$1"; }
 [[ "$(python3 "$PYDOM" path 'https://c.test/covers/cover-t.jpg')" == '/covers/cover-t.jpg' ]] \
   || { echo "FAIL: url_path must keep variant tokens (href/stream semantics unchanged)"; exit 1; }
 
+# 7. dups 'poster' normalization (issue #680 S2): per-surface cover-art variants of one
+#    artwork dedupe to a single poster value — variant-named shared artwork across
+#    different ids must be reported; genuinely different artwork must not collide.
+D=$(printf '1\thttps://c.test/a/cover-t.jpg\n2\thttps://c.test/a/cover-n.jpg\n' | python3 "$PYDOM" dups 'poster')
+[[ "$D" == $'poster\t/a/cover.jpg\t1,2' ]] \
+  || { echo "FAIL: same-artwork variants (cover-t vs cover-n) must dedupe into one poster value, got: $D"; exit 1; }
+D=$(printf '1\thttps://c.test/a/cover-t.jpg\n2\thttps://c.test/b/other-n.jpg\n' | python3 "$PYDOM" dups 'poster')
+[[ -z "$D" ]] \
+  || { echo "FAIL: distinct artwork (a/cover vs b/other) must not collide, got: $D"; exit 1; }
+D=$(printf '1\t-\n2\thttps://c.test/a/cover.jpg\n' | python3 "$PYDOM" dups 'poster')
+[[ -z "$D" ]] \
+  || { echo "FAIL: '-' placeholder must count as absent in the poster column, got: $D"; exit 1; }
+
+# 8. cross-video COLSPEC (href,title,poster — check 2's identity collision test): the
+#    poster column normalizes like check_listing's; href/title columns stay raw.
+D=$(printf 'v1\t/en/one\tTitle One\thttps://c.test/a/cover-t.jpg\nv2\t/en/two\tTitle Two\thttps://c.test/a/cover-n.jpg\n' | python3 "$PYDOM" dups 'href,title,poster')
+[[ "$D" == $'poster\t/a/cover.jpg\tv1,v2' ]] \
+  || { echo "FAIL: COLSPEC poster column must dedupe variant artwork (and href/title must not fire), got: $D"; exit 1; }
+D=$(printf '1\thttps://c.test/v-t\n2\thttps://c.test/v-n\n' | python3 "$PYDOM" dups 'href')
+[[ -z "$D" ]] \
+  || { echo "FAIL: href variant tokens are distinct cuts and must not dedupe, got: $D"; exit 1; }
+
 echo "RESULT: PASS"
