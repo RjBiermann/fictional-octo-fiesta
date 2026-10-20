@@ -501,9 +501,25 @@ def _fire_workflow(lock, item_type, item_number):
         print(f"[orchestrator] {lock} dispatched for {item_type} #{item_number}")
 
 
+def _open_pr_for_story(num):
+    import re as _re
+    pat = _re.compile(rf"devloop/issue-{num}-")
+    for pr in open_pulls():
+        if pat.search(pr.get("head", {}).get("ref", "")):
+            return pr["number"]
+    return None
+
+
 def _fire_implement(num):
     """Stamp status/planned (display state) + fire Implement by dispatch —
-    a bot-applied label event is loop-dead, so the dispatch IS the fire."""
+    a bot-applied label event is loop-dead, so the dispatch IS the fire.
+    Delivered-guard: an open PR for this story means it's already
+    delivered and awaiting merge — never re-fire (the duplicate-PR class,
+    ADR-0014's 'cannot tell delivered from next-in-line')."""
+    delivered = _open_pr_for_story(num)
+    if delivered:
+        print(f"[orchestrator] {num}: already delivered via PR #{delivered} — not re-fired")
+        return
     label_issue(num, "status/planned")
     _fire_workflow("05-implement.lock.yml", "issue", num)
 
