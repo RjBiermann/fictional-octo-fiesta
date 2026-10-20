@@ -654,9 +654,8 @@ def registry_sync():
     or a fresh issue — union makes the common retry a no-op anyway."""
     if not REGISTRY_PATH:
         return  # feature off for this adopter
-    if not PROXY_PAT:
-        print("[orchestrator] GH_AW_PROXY_PAT unset — registry_sync needs the owner actor, skipping")
-        return
+    # ADR-0019: no PAT needed — the push rides the checkout's actions token
+    # (contents: write); the commit author is the conveyor identity.
     pend = []
     for i in api("issues?state=open&per_page=60") or []:
         if i.get("pull_request"):
