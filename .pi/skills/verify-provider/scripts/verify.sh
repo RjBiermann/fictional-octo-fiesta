@@ -216,6 +216,16 @@ def url_path(u):
     p = urlsplit(u).path.rstrip('/') or u
     return '' if p == '-' else p  # '-' placeholder = absent column value
 
+def poster_path(u):
+    # poster-equality variant normalizer (issue #680, story S1): sites serve the same cover
+    # art under per-surface filenames (MissAV card img data-src cover-t.jpg vs load page
+    # og:image cover-n.jpg). url_path + strip of at most ONE trailing -<alnum 1-3> token
+    # from the filename stem (before the extension) — generic rule, not a per-site
+    # allowlist; apply on BOTH sides of the poster equality. url_path keeps variant
+    # tokens for href/stream paths, where they distinguish real cuts.
+    p = url_path(u)
+    return re.sub(r'^(.*/)?([^/.]+)-([A-Za-z0-9]{1,3})(\.[^./]+)$', r'\1\2\4', p)
+
 def cards_html(html, selector, title_sel, poster_sel):
     """TSV href/title/poster per card. Default title = card text; default poster = first img."""
     for attrs, inner in blocks(html, selector):
@@ -311,6 +321,8 @@ elif cmd == 'streams':  # file → up to 5 unique absolute stream URLs
         print(u)
 elif cmd == 'path':  # url → normalized path (scheme/query stripped)
     print(url_path(sys.argv[2]))
+elif cmd == 'poster_path':  # url → poster-equality path (variant token stripped)
+    print(poster_path(sys.argv[2]))
 elif cmd == 'normcards':  # id href title poster TSV → id path title poster
     for l in sys.stdin:
         f = (l.rstrip('\n').split('\t') + [''] * 4)[:4]
