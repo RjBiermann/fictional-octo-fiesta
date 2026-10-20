@@ -374,7 +374,11 @@ check_listing() {  # $1=urls-array-name $2=prefix $3=selector $4=title_sel $5=po
     echo "FAIL duplicate $prefix cards (same video twice on a page or across pages):"
     echo "$dups_out"; fail=1
   fi
-  poster_dups=$(py dups 'poster' < "$raw")
+  # colspec is positional over the columns AFTER id: raw rows are id\thref\ttitle\tposter, so
+  # a bare 'poster' colspec reads r[1] = the href column (pre-#775 misalignment — poster_path
+  # never saw poster data here). Positional colspec + the $1 filter keep the NOTE poster-only
+  # (href repeats already FAIL above; title repeats are site content).
+  poster_dups=$(py dups 'href,title,poster' < "$raw" | awk -F'\t' '$1=="poster"')
   if [[ -n "$poster_dups" ]]; then
     echo "NOTE: repeated poster on $prefix across different videos (episodes of one series share the series poster — not a card duplicate):"
     echo "$poster_dups" | head -3

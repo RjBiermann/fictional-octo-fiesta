@@ -75,13 +75,16 @@ pp() { python3 "$PYDOM" poster_path "$1"; }
 [[ "$(python3 "$PYDOM" path 'https://c.test/covers/cover-t.jpg')" == '/covers/cover-t.jpg' ]] \
   || { echo "FAIL: url_path must keep variant tokens (href/stream semantics unchanged)"; exit 1; }
 
-# 7. dups 'poster' column is normalized (issue #775, S2 wiring): same-artwork cover variants
-#    of one video dedupe as ONE poster value — check_listing's poster NOTE and the cross-video
-#    COLSPEC poster column both run through dups().
-dups_out=$(printf 'v1\thttps://c.test/covers/cover-t.jpg\nv2\thttps://c.test/covers/cover-n.jpg\n' \
-  | python3 "$PYDOM" dups 'poster')
+# 7. check_listing's poster NOTE runs the REAL 4-field row shape (id\thref\ttitle\tposter)
+#    through the positional colspec 'href,title,poster' and keeps only the poster line (the
+#    call-site $1 filter). Mirroring the real shape guards the colspec↔stdin alignment: a
+#    bare 'poster' colspec on this shape reads r[1] = the href column — the #775-review
+#    misalignment a 2-field fixture masked. The repeated title proves the filter drops
+#    non-poster lines (the NOTE stays poster-only).
+dups_out=$(printf 'v1\t/a/cool-video\tTitle A\thttps://c.test/covers/cover-t.jpg\nv2\t/b/other-video\tTitle A\thttps://c.test/covers/cover-n.jpg\n' \
+  | python3 "$PYDOM" dups 'href,title,poster' | awk -F'\t' '$1=="poster"')
 [[ "$dups_out" == "$(printf 'poster\t/covers/cover.jpg\tv1,v2')" ]] \
-  || { echo "FAIL: dups 'poster' must collapse variant tokens to one artwork value, got: $dups_out"; exit 1; }
+  || { echo "FAIL: dups poster column must collapse variant tokens to one artwork value on the real check_listing row shape, got: $dups_out"; exit 1; }
 
 # 8. different artwork with variant tokens must NOT collide in the poster column
 dups_out=$(printf 'v1\thttps://c.test/covers/aaa-t.jpg\nv2\thttps://c.test/covers/bbb-n.jpg\n' \
