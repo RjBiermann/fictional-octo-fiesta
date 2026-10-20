@@ -16,8 +16,9 @@ on:
 permissions:
   # contents: write — 16-f6b pushes union-merge commits to resolve the
   # findings.json conflict class mechanically (checkout embeds the actions
-  # token for git transport). All other mutations still act as the owner
-  # via GH_AW_PROXY_PAT.
+  # token for git transport). All other mutations act as the machinery App
+  # (ADR-0020) when registered, else github-actions[bot] via GITHUB_TOKEN
+  # (ADR-0019).
   contents: write
   issues: write
   pull-requests: write
@@ -41,9 +42,21 @@ jobs:
           # "refusing to merge unrelated histories")
           fetch-depth: 0
 
+      # ADR-0020: the machinery GitHub App replaces the retired owner PAT
+      # (GH_AW_PROXY_PAT as a legacy env name — orchestrator.py consumes it
+      # generically). Unset (App unregistered) degrades per ADR-0019:
+      # everything runs under GITHUB_TOKEN; PAT-era extras stay manual.
+      - name: Machinery App token
+        id: machinery_token
+        if: vars.MACHINERY_APP_ID != ''
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.MACHINERY_APP_ID }}
+          private-key: ${{ secrets.MACHINERY_APP_KEY }}
+
       - name: Run the mechanical conveyor
         env:
-          GH_AW_PROXY_PAT: ${{ secrets.GH_AW_PROXY_PAT }}
+          GH_AW_PROXY_PAT: ${{ steps.machinery_token.outputs.token }}
           GH_AW_AUTO_MERGE: ${{ vars.GH_AW_AUTO_MERGE }}
           GH_AW_ORCH_PLAN: ${{ vars.GH_AW_ORCH_PLAN }}
           GH_AW_ORCH_TAG_OWNER: ${{ vars.GH_AW_ORCH_TAG_OWNER }}

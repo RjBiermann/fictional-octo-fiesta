@@ -269,7 +269,10 @@ def _effective_ready(num, mstate):
     cr = api(f"commits/{sha}/check-runs?per_page=100") or {}
     bad = ("failure", "timed_out", "cancelled", "action_required", "stale")
     for c in (cr.get("check_runs") or []):
-        if c.get("status") != "COMPLETED":
+        # REST check-run status is lowercase (queued/in_progress/completed);
+        # comparing raw "COMPLETED" never matched, so the blocked/unstable
+        # readiness path always failed and no readiness ping ever fired.
+        if (c.get("status") or "").lower() != "completed":
             return False
         if (c.get("conclusion") or "").lower() in bad:
             return False
@@ -280,7 +283,7 @@ def merge_readiness():
     for pr in open_pulls():
         num = pr["number"]
         branch = pr.get("head", {}).get("ref", "")
-        if pr.get("draft") or not branch.startswith("devloop/issue-"):
+        if not _agent_pr(pr):
             continue
         d = api(f"pulls/{num}") or {}
         mstate = d.get("mergeable_state")
@@ -501,25 +504,107 @@ def _fire_workflow(lock, item_type, item_number):
         print(f"[orchestrator] {lock} dispatched for {item_type} #{item_number}")
 
 
-def _open_pr_for_story(num):
+def _delivered_branch_pat(num):
+    """Agent-delivery branch shapes: the gh-aw lanes name branches
+    `devloop/issue-N-<hash>`, `ai/issue-N-<slug>-<hash>`, and
+    `fix/N-<slug>-<hash>` (fix sessions). Matches all three; a stray
+    over-match is fail-closed for the delivered-guard (no re-fire),
+    never a duplicate PR."""
     import re as _re
-    pat = _re.compile(rf"devloop/issue-{num}-")
+    return _re.compile(rf"(?:issue-{num}-|/{num}-)")
+
+
+# Agent PR head-branch prefixes (devloop/issue-N survived the gh-aw pilot
+# as the implement lane's naming; fix/ + ai/issue- are the fix-session and
+# selfcheck-session shapes). machinery identifies agent PRs by these
+# prefixes AND the bot author — a human PR never matches both.
+AGENT_BRANCHES = ("devloop/issue-", "ai/issue-", "fix/")
+
+
+def _agent_pr(pr):
+    """True for agent-authored PRs in a known delivery branch shape."""
+    return (not pr.get("draft")
+            and (pr.get("user") or {}).get("login") == "github-actions[bot]"
+            and pr.get("head", {}).get("ref", "").startswith(AGENT_BRANCHES))
+
+
+def _merged_pr_for_story(num):
+    """The merged delivery of story `num` — ADR-0007's closeout record."""
+    pat = _delivered_branch_pat(num)
+    merged = api("pulls?state=closed&per_page=60") or []
+    for pr in merged:
+        if pat.search(pr.get("head", {}).get("ref", "")) and pr.get("merged_at"):
+            return pr["number"]
+    return None
+
+
+def closeout_healer():
+    """ADR-0007 closeout, healed by the conveyor (ADR-0019): an open story
+    whose devloop/issue-N PR is merged to main IS delivered — close it.
+    Heals 12-post-merge safe-output failures AND ends the re-stamp loop:
+    merged stories must never re-arm (the [aw] post-merge re-stamp
+    pattern, backlog-report #797). The merge itself is the human/machinery
+    verdict; closing here executes it, same carve-out as 12-post-merge."""
+    if not OWNER:
+        return
+    stories = all_stories()
+    for s in stories:
+        if str(s.get("state", "")).lower() != "open":
+            continue
+        n = s["number"]
+        merged = _merged_pr_for_story(n)
+        if not merged:
+            continue
+        if _stamped_after_merge(n, (api(f"pulls/{merged}") or {}).get("merged_at")):
+            print(f"[orchestrator] {n}: deliberately re-armed after merge — closeout skipped")
+            continue
+        post_comment(n, f"{MARK} delivered — PR #{merged} merged; closing out (ADR-0007, "
+                        f"closeout-healed after the 12-post-merge miss recorded in #797).")
+        close_issue(n, "completed", f"delivered via PR #{merged}")
+        print(f"[orchestrator] {n}: closed out (PR #{merged} merged)")
+
+
+def _open_pr_for_story(num):
+    pat = _delivered_branch_pat(num)
     for pr in open_pulls():
         if pat.search(pr.get("head", {}).get("ref", "")):
             return pr["number"]
     return None
 
 
+def _stamped_after_merge(num, merged_at):
+    """Deliberate human re-arm: status/planned applied by the OWNER after
+    the story's delivery merged. A human stamp overrides the merged-guard
+    ("run the work again") — machinery re-stamps never do."""
+    if not merged_at:
+        return False
+    latest = None
+    for e in api(f"issues/{num}/events?per_page=100") or []:
+        if e.get("event") == "labeled" and (e.get("label") or {}).get("name") == "status/planned":
+            latest = e
+    if not latest:
+        return False
+    return ((latest.get("created_at") or "") > merged_at
+            and (latest.get("actor") or {}).get("login") == OWNER)
+
+
 def _fire_implement(num):
     """Stamp status/planned (display state) + fire Implement by dispatch —
     a bot-applied label event is loop-dead, so the dispatch IS the fire.
-    Delivered-guard: an open PR for this story means it's already
-    delivered and awaiting merge — never re-fire (the duplicate-PR class,
-    ADR-0014's 'cannot tell delivered from next-in-line')."""
+    Delivered-guard: a story delivered via an open OR merged PR is never
+    re-fired (the duplicate-PR class, ADR-0014's 'cannot tell delivered
+    from next-in-line'; the merged case drove the re-stamp loop of #797)."""
     delivered = _open_pr_for_story(num)
     if delivered:
         print(f"[orchestrator] {num}: already delivered via PR #{delivered} — not re-fired")
         return
+    merged = _merged_pr_for_story(num)
+    if merged:
+        if _stamped_after_merge(num, api(f"pulls/{merged}").get("merged_at")):
+            print(f"[orchestrator] {num}: human re-arm after merged PR #{merged} — re-delivering")
+        else:
+            print(f"[orchestrator] {num}: already delivered via merged PR #{merged} — not re-fired")
+            return
     label_issue(num, "status/planned")
     _fire_workflow("05-implement.lock.yml", "issue", num)
 
@@ -1077,36 +1162,34 @@ def fix_surrogate():
     identity. Dedupe via the marker comment on the issue thread; bounded
     by the fix loop's own cycle cap + status/fixing-stuck."""
     for pr in open_pulls():
-        branch = pr.get("head", {}).get("ref", "")
-        if not branch.startswith("devloop/"):
+        if not _agent_pr(pr):
             continue
         num = pr["number"]
-        revs = api(f"pulls/{num}/reviews?per_page=20") or []
-        bots = [r for r in revs if (r.get("user") or {}).get("login") == "github-actions[bot]"]
-        if not bots:
-            continue
-        last = bots[-1]
-        # Deterministic pass contract first: a ready-to-merge label is the
-        # pipeline's own verdict — never repair those (review bodies are
-        # gh-aw boilerplate; the verdict text lives in the issue thread).
+        # Verdict source: 06-review posts as an ISSUE comment (safe-output
+        # add_comment) — the PR-review submission is optional/absent for
+        # GITHUB_TOKEN-authored verdicts, so no review gate here. The last
+        # bot comment IS the thread state; when it contains a blocker the
+        # fix loop fires, else the PR is pass or already served (the
+        # fire marker itself is a later bot comment without "blocker", so
+        # it is its own dedupe).
         labels = [l["name"] for l in (api(f"issues/{num}") or {}).get("labels", [])]
         if "status/ready-to-merge" in labels:
             continue
-        verdict = ""
+        verdict, vtime = "", ""
         for c in reversed(comments(num)):
             if (c.get("user") or {}).get("login") == "github-actions[bot]":
                 verdict = (c.get("body") or "")
+                vtime = c.get("created_at", "")
                 break
         low = verdict.lower()
         if "blocker" not in low or any(s in low for s in ("0 blockers", "no blockers", "pass, no blockers")):
             continue
-        # dedupe: one fire per bot verdict, recorded as a marker comment
-        fire_marker = f"{MARK} fix-loop re-fired for review {last['id']}"
+        # dedupe: one fire per verdict — a bot comment later than the
+        # verdict carrying the marker means this round is served.
+        fire_marker = f"{MARK} fix-loop re-fired for the verdict at {vtime}"
         cs = comments(num)
-        if any(c.get("created_at", "") > (last.get("submitted_at") or "")
-               and fire_marker in (c.get("body") or "") for c in cs):
-            continue
-        if any(r.get("submitted_at", "") > (last.get("submitted_at") or "") for r in bots[bots.index(last) + 1:]):
+        if any((c.get("created_at", "") > vtime and fire_marker in (c.get("body") or ""))
+               or fire_marker in (c.get("body") or "") for c in cs):
             continue
         post_comment(num, fire_marker + " — dispatch fires 07 (machine relay, ADR-0019)")
         out = run(["gh", "workflow", "run", "07-fix-loop.lock.yml",
@@ -1144,6 +1227,7 @@ if __name__ == "__main__":
         "approvals": approve_companion_runs,
         "merge_readiness": merge_readiness,
         "chain_driver": chain_driver,
+        "closeout_healer": closeout_healer,
         "queue_to_pipeline": queue_to_pipeline,
         "plan_surrogate": plan_loop_surrogate,
         "decision_tags": decision_tags,
@@ -1155,7 +1239,7 @@ if __name__ == "__main__":
         "registry_sync": registry_sync,
     }
     _preflight_labels()
-    mutation_steps = {"merge_readiness", "chain_driver", "queue_to_pipeline",
+    mutation_steps = {"merge_readiness", "chain_driver", "closeout_healer", "queue_to_pipeline",
                       "plan_surrogate", "decision_tags", "stall_watch", "wave_driver",
                       "fix_surrogate", "watchdog", "registry_sync"}
     available = {name: fn for name, fn in steps.items()

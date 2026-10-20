@@ -3,15 +3,17 @@ name: Load check
 # ADR-0012 — scheduled fleet-wide compile + emulator load check.
 # Zero AI steps: bootstrap, compile, emulator, logcat grep are pure bash/Gradle/adb.
 # A failing plugin set opens ONE issue (dedup key = sorted failing-plugin list,
-# see .github/load-check/) with a mechanical `ai-fix` label (ADR-0006, AGENT_PAT —
-# a GITHUB_TOKEN label event would not fire devloop, and AGENT_PAT is what makes
-# the unattended failure → next fix run work). Emulator results are never
-# Geo-gated evidence (same runner IP).
+# see .github/load-check/) with a mechanical `ai-fix` label (ADR-0006). The
+# labels are display state (ADR-0019: GITHUB_TOKEN label events fire nothing);
+# the fire is the orchestrator's `_fire_implement` relay shape — stamp
+# status/planned + workflow_dispatch of 05-implement (dispatch always
+# creates a run). Emulator results are never Geo-gated evidence (same
+# runner IP).
 
 on:
   schedule:
-    # Off the top of the hour so the Gradle build never collides with devloop /
-    # build.yml crons; queued, never cancelled mid-emulator.
+    # Off the top of the hour so the Gradle build never collides with the
+    # build.yml cron; queued, never cancelled mid-emulator.
     - cron: "37 4 * * *"
   workflow_dispatch:
 
@@ -87,9 +89,12 @@ jobs:
           if-no-files-found: warn
 
       - name: Failure issue (compile)
+        id: failure_compile
         if: failure()
         env:
-          GH_TOKEN: ${{ secrets.AGENT_PAT }}
+          # ADR-0020: plain GITHUB_TOKEN — the labels are display state; the
+          # Fire Implement step below is the fire.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           KIND: compile
           JAR_SHA: ${{ steps.bootstrap.outputs.jar_sha }}
         run: |
@@ -99,6 +104,16 @@ jobs:
                 echo 'unknown-attribution (root-level failure: no per-provider FAILED task line)' > failing-plugins.txt; }; \
               cat failing-plugins.txt ) \
             --log compile.log
+
+      - name: Fire Implement (ADR-0020 — dispatch is the fire, labels are state)
+        if: failure() && steps.failure_compile.outcome == 'success' && steps.failure_compile.outputs.created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE: ${{ steps.failure_compile.outputs.issue }}
+        run: |
+          gh issue edit "$ISSUE" --add-label status/planned
+          ctx=$(jq -cn --argjson n "$ISSUE" '{item_type:"issue",item_number:$n}')
+          gh workflow run 05-implement.lock.yml --ref main -f "aw_context=$ctx"
 
   load:
     needs: compile
@@ -144,9 +159,10 @@ jobs:
           retention-days: 14
 
       - name: Failure issue (load)
+        id: failure_load
         if: failure()
         env:
-          GH_TOKEN: ${{ secrets.AGENT_PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           KIND: load
         run: |
           export JAR_SHA=$(cat artifact/jar-sha.txt 2>/dev/null || echo unknown)
@@ -154,3 +170,13 @@ jobs:
             --plugins <(sort -u loadcheck-evidence/failing-plugins.txt) \
             --log loadcheck-evidence/logcat.log \
             --version loadcheck-evidence/app-version.txt
+
+      - name: Fire Implement (ADR-0020 — dispatch is the fire, labels are state)
+        if: failure() && steps.failure_load.outcome == 'success' && steps.failure_load.outputs.created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE: ${{ steps.failure_load.outputs.issue }}
+        run: |
+          gh issue edit "$ISSUE" --add-label status/planned
+          ctx=$(jq -cn --argjson n "$ISSUE" '{item_type:"issue",item_number:$n}')
+          gh workflow run 05-implement.lock.yml --ref main -f "aw_context=$ctx"

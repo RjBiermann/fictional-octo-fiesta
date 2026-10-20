@@ -40,11 +40,11 @@ _Avoid_: cancellation, aborted run
 ### Triggers & artifacts
 
 **Trigger label**:
-A maintainer-applied issue label (`ai-fix`, `ai-new-site`, `ai-remove`) that starts a build. Issues without one are never processed. Renames live in `config.toml [labels]` and stay inside the reserved `ai-` prefix — the contract the workflow filter matches on, so a rename can never orphan the trigger (upstream devloop ADR-0003). Since ADR-0018, *machinery* (95-orchestrator) applies `ai-fix` to `status/queued` issues automatically — agents still never touch them.
+A maintainer-applied issue label (`ai-fix`, `ai-new-site`, `ai-remove`) that starts a build. Issues without one are never processed. Renames stay inside the reserved `ai-` prefix — the contract the lane filters match on (`startsWith(label, 'ai-')`), so a rename can never orphan the trigger. Since ADR-0018, *machinery* (95-orchestrator) applies `ai-fix` to `status/queued` issues automatically — agents still never touch them.
 _Avoid_: auto label, bot label
 
 **Command**:
-A maintainer comment on an issue or PR (`/retry`, `/review`, `/repair`) that the pipeline dispatches. A Command can only re-fire work a Trigger label already created — it never creates work, never spends a Round itself. Issues and PRs alike accept Commands; trigger labels live on issues only. `/repair` re-fires Repair on a delivered PR — Review re-derives the findings against the current diff, Repair acts on them; it refuses non-devloop PRs and never counts against the attempt budget.
+A maintainer comment on an issue or PR (`/retry`, `/review`) that the pipeline dispatches. A Command can only re-fire work a Trigger label already created — it never creates work, never spends a Round itself. Issues and PRs alike accept Commands; trigger labels live on issues only. (Historical: `/repair` re-fired Repair on a delivered PR — it died with the devloop lane, pilot #568; repair now happens through review → fix-loop rounds.)
 _Avoid_: slash command, bot command, retrigger
 
 **Rebuild**:

@@ -30,7 +30,7 @@ jobs:
           set -o pipefail
           if [ ! -f .github/verify.sh ]; then
             echo "99-ci: no .github/verify.sh — this repo's gate script is missing." >&2
-            echo "Add one that runs your repo's real check (e.g. delegate to config.toml pipeline.verify)." >&2
+            echo "Add one that runs your repo's real check (see .github/verify.sh)." >&2
             exit 1
           fi
           bash .github/verify.sh 2>&1 | tee evidence/verify.log

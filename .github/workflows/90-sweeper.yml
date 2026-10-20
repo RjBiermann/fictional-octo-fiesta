@@ -2,12 +2,13 @@ name: 90-sweeper
 # Plain NON-AI Actions workflow (ADR-0006): self-healing survives the Sweep.
 # Re-fires stuck state labels, parses budget stamps, posts the weekly
 # status report. Probability reducer, not a guarantee (Actions may skip
-# cron under load). Label mutations run as the OWNER actor via
-# GH_AW_PROXY_PAT (ADR-0017): GITHUB_TOKEN events fire no workflows, and
-# gh-aw activation rejects bot-actor labels — without it a re-add is
-# bookkeeping only and never re-triggers Implement/Fix/Rebase. The
-# Actions bot is a trusted labeler by design (migration-design §2 gate
-# table).
+# cron under load). Label mutations act through the machinery GitHub App
+# token (ADR-0020) so the re-added label event is App-actor — GITHUB_TOKEN
+# label events fire no workflows. Until the relay targets' on.bots
+# allowlists learn the App login, a re-add stays bookkeeping-only and
+# the orchestrator's own schedule sweep heals instead (same degradation
+# as the retired PAT-unset path). The machinery App is a trusted labeler
+# by design (migration-design §2 gate table).
 on:
   schedule:
     - cron: "17 */4 * * *"   # 4h, off-the-hour minute to dodge Actions load
@@ -48,11 +49,23 @@ jobs:
             --paginate --jq '.[] | select(has("pull_request") | not)' > issues.json
           wc -l < issues.json
 
+      # ADR-0020: the machinery GitHub App provides the mutation identity
+      # (GITHUB_TOKEN label events fire no workflows). Legacy env name
+      # GH_AW_PROXY_PAT is kept — the sweep script consumes it generically;
+      # unset (App unregistered) degrades to bookkeeping-only, below.
+      - name: Machinery App token
+        id: machinery_token
+        if: inputs.mode != 'report' && vars.MACHINERY_APP_ID != ''
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.MACHINERY_APP_ID }}
+          private-key: ${{ secrets.MACHINERY_APP_KEY }}
+
       - name: Parse ledger + heal stuck labels
         if: inputs.mode != 'report'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_AW_PROXY_PAT: ${{ secrets.GH_AW_PROXY_PAT }}
+          GH_AW_PROXY_PAT: ${{ steps.machinery_token.outputs.token }}
           REPO: ${{ github.repository }}
           STUCK_HOURS: ${{ env.STUCK_HOURS }}
           DAILY_ATTEMPT_CAP: ${{ env.DAILY_ATTEMPT_CAP }}
@@ -68,14 +81,14 @@ jobs:
           states = {"status/planned","status/in-review","status/fixing",
                     "status/fixing-stuck","status/ready-to-merge"}
           day = datetime.datetime.utcnow().strftime("%Y-%m-%d")
-          # Re-fires and escalations act as the OWNER actor (ADR-0017):
-          # a GITHUB_TOKEN label event neither fires a workflow nor passes
-          # gh-aw activation. Soft fallback: without the PAT the sweep
-          # stays bookkeeping-only (visible via this warning).
+          # Label mutations act as the machinery App (ADR-0020): a
+          # GITHUB_TOKEN label event neither fires a workflow nor passes
+          # gh-aw activation. Soft fallback: without the App token the
+          # sweep stays bookkeeping-only (visible via this warning).
           if os.environ.get("GH_AW_PROXY_PAT"):
               os.environ["GH_TOKEN"] = os.environ["GH_AW_PROXY_PAT"]
           else:
-              print("::warning::GH_AW_PROXY_PAT unset — re-fires will not re-trigger agent workflows")
+              print("::warning::machinery App token unavailable — re-fires will not re-trigger agent workflows")
           def gh(*a):
               r = subprocess.run(["gh",*a], capture_output=True, text=True)
               if r.returncode != 0:

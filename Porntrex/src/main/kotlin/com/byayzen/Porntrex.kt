@@ -9,7 +9,6 @@ import com.lagradost.api.Log
 import org.jsoup.nodes.Element
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
-import com.lagradost.cloudstream3.utils.getQualityFromName
 
 class Porntrex : MainAPI() {
     override var mainUrl = "https://www.porntrex.com"
@@ -205,9 +204,12 @@ class Porntrex : MainAPI() {
                     type   = ExtractorLinkType.VIDEO
                 ) {
                     this.referer = mainUrl
-                    // issue #429: the app reads ExtractorLink.quality, not the name label;
-                    // map the parsed flashvar label ('480p', '1080p FHD', ...) to the quality value.
-                    this.quality = getQualityFromName(label ?: "")
+                    // issue #759/#769: getQualityFromName mapped every suffix-bearing KVS label
+                    // ('720p HD', '1080p FHD', '2160p 4K') to Qualities.Unknown (400), which the
+                    // app renders as an empty quality tag and cannot quality-sort. Map through
+                    // PorntrexParse.qualityOf (S1 decided table, FINDINGS-767 section 4); the
+                    // display label stays — the app renders its own tag from the Int.
+                    this.quality = PorntrexParse.qualityOf(label, url)
                 }
             )
         }
@@ -244,19 +246,43 @@ object PorntrexParse {
         return out
     }
 
-    /**
-     * S2 RED skeleton (issue #768): pure label/url -> quality Int per the S1 decided mapping
-     * table (FINDINGS-767 section 4): leading resolution number (range-validated) first,
-     * numberless `4K` via getQualityFromName, URL-pattern fallback (e.g. `_1080p.mp4` in the
-     * path) when the text label doesn't map, else Qualities.Unknown (400).
+    /** Issue #429 → #759 chain: pure label/url -> quality Int, the S1 decided mapping table
+     *  (FINDINGS-767 section 4), implemented in S3 (#769, green step):
      *
-     * Deliberately NOT implemented in S2 — returning Unknown (400) is exactly the #759 bug
-     * behavior, so the S2 suite runs red against this skeleton by construction (TDD, ADR-0005;
-     * the null/blank -> Unknown fallback row is the one branch that already holds). S3 (#769)
-     * implements the mapping to turn the suite green and wires loadLinks to it. Nothing calls
-     * this until S3, so runtime behavior is unchanged in S2.
+     *  1. leading resolution number from the flashvar `<key>_text` label, range-validated to
+     *     144..4320 — the canonical KVS signal on this site (`480p`, `720p HD`, `1080p FHD`,
+     *     `2160p 4K`; `getQualityFromName` degrades every suffix-bearing label to Unknown);
+     *  2. numberless `4K`/`4k` — the decompiled getQualityFromName grammar (bytecode-verified
+     *     in S1), inlined here: calling the real function would drag ExtractorApiKt's <clinit>
+     *     — the full extractor registry — onto the unit-test classpath (S1 constraint);
+     *  3. URL-pattern fallback (`_NNNp.mp4` in the path, same range validation) when the text
+     *     label carries no usable signal;
+     *  4. else Qualities.Unknown (400) — the #759 empty-quality-tag behavior.
+     *
+     *  Label first, per the S1 evidence: Porntrex filenames (`<id>.mp4`, signed /get_file/ URLs)
+     *  carry no resolution — the URL pattern is a defensive fallback only. Range bound 4320
+     *  covers current consumer cap (2160) with headroom for 4320p/8K ladders without letting
+     *  garbage digits (timestamps, ids) pass as a resolution.
      */
-    fun qualityOf(label: String?, url: String? = null): Int = Qualities.Unknown.value
+    fun qualityOf(label: String?, url: String? = null): Int {
+        val labelNumber = label?.let {
+            Regex("""(\d{3,4})""").find(it)?.groupValues?.get(1)?.toIntOrNull()
+        }
+        if (labelNumber != null && labelNumber in 144..4320) return labelNumber
+        // mnemonically getQualityFromName(label) — grammar inlined to keep the unit-test
+        // classpath free of ExtractorApiKt (dev.whyoleg.cryptography is app-scope only).
+        val name = (label ?: "").lowercase(java.util.Locale.ROOT).replace("p", "").trim()
+        val fromName = when {
+            name == "4k" -> Qualities.P2160.value
+            else -> name.toIntOrNull()?.takeIf { it in 144..4320 } ?: Qualities.Unknown.value
+        }
+        if (fromName != Qualities.Unknown.value) return fromName
+        val urlNumber = url?.let {
+            Regex("""(\d{3,4})p\.mp4""").find(it)?.groupValues?.get(1)?.toIntOrNull()
+        }
+        if (urlNumber != null && urlNumber in 144..4320) return urlNumber
+        return Qualities.Unknown.value
+    }
 
     /**
      * Issue #275: on guest-shell video pages the /embed/{id}/ flashvars still expose
