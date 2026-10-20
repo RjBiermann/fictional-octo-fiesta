@@ -529,6 +529,9 @@ def closeout_healer():
         merged = _merged_pr_for_story(n)
         if not merged:
             continue
+        if _stamped_after_merge(n, (api(f"pulls/{merged}") or {}).get("merged_at")):
+            print(f"[orchestrator] {n}: deliberately re-armed after merge — closeout skipped")
+            continue
         post_comment(n, f"{MARK} delivered — PR #{merged} merged; closing out (ADR-0007, "
                         f"closeout-healed after the 12-post-merge miss recorded in #797).")
         close_issue(n, "completed", f"delivered via PR #{merged}")
@@ -544,16 +547,39 @@ def _open_pr_for_story(num):
     return None
 
 
+def _stamped_after_merge(num, merged_at):
+    """Deliberate human re-arm: status/planned applied by the OWNER after
+    the story's delivery merged. A human stamp overrides the merged-guard
+    ("run the work again") — machinery re-stamps never do."""
+    if not merged_at:
+        return False
+    latest = None
+    for e in api(f"issues/{num}/events?per_page=100") or []:
+        if e.get("event") == "labeled" and (e.get("label") or {}).get("name") == "status/planned":
+            latest = e
+    if not latest:
+        return False
+    return ((latest.get("created_at") or "") > merged_at
+            and (latest.get("actor") or {}).get("login") == OWNER)
+
+
 def _fire_implement(num):
     """Stamp status/planned (display state) + fire Implement by dispatch —
     a bot-applied label event is loop-dead, so the dispatch IS the fire.
     Delivered-guard: a story delivered via an open OR merged PR is never
     re-fired (the duplicate-PR class, ADR-0014's 'cannot tell delivered
     from next-in-line'; the merged case drove the re-stamp loop of #797)."""
-    delivered = _open_pr_for_story(num) or _merged_pr_for_story(num)
+    delivered = _open_pr_for_story(num)
     if delivered:
         print(f"[orchestrator] {num}: already delivered via PR #{delivered} — not re-fired")
         return
+    merged = _merged_pr_for_story(num)
+    if merged:
+        if _stamped_after_merge(num, api(f"pulls/{merged}").get("merged_at")):
+            print(f"[orchestrator] {num}: human re-arm after merged PR #{merged} — re-delivering")
+        else:
+            print(f"[orchestrator] {num}: already delivered via merged PR #{merged} — not re-fired")
+            return
     label_issue(num, "status/planned")
     _fire_workflow("05-implement.lock.yml", "issue", num)
 
