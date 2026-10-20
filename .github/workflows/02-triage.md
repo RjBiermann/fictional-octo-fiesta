@@ -25,6 +25,9 @@ safe-outputs:
     max: 4
   add-comment:
     max: 1
+  close-issue:
+    max: 1
+    state-reason: not_planned
 ---
 
 # Triage
@@ -43,3 +46,19 @@ Label the new issue into the intake vocabulary (§7.3 taxonomy):
 After labelling, post one comment describing your disposition in one or
 two sentences. You never start a build, never create PRs, never post more
 than one comment.
+
+**Closing at intake (ADR-0018 surface reduction):** you may close an issue
+`not_planned` ONLY for a mechanical disposition, with the evidence on the
+record:
+
+1. **Duplicate** — an open issue already covers it; link the surviving
+   issue number in your comment before closing.
+2. **Machinery report** — `[aw]` / `[status-report]` / `[backlog-report]`
+   diagnostics the watchdog/sweep doesn't already own (transient class,
+   superseded by a later successful run).
+3. **Spam/vandalism** — no actionable content.
+
+A plausible bug report, a new-site request, or anything whose right
+disposition needs evidence you don't have: queue it, never close it —
+uncertainty is a queue label, not a verdict. The disposition comment is
+the close's record; a contested close reopens on the maintainer's word.

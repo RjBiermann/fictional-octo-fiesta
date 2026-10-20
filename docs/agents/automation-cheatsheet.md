@@ -7,7 +7,8 @@ Human effort only where a human decision is needed.
 
 | Stage | Who | Action |
 |---|---|---|
-| Intake | machine | open an issue → `02-triage` labels `status/queued` |
+| Intake | machine | open an issue → `02-triage` labels `status/queued` (or closes duplicates/spam with the evidence on record) |
+| Backlog | machine | `03-backlog-triage` daily sweep heals labels, closes superseded reports (cap 5/sweep) |
 | Entry | machine | orchestrator applies `ai-fix` and fires plan round 1 (ADR-0018) |
 | Spec round 1 | machine | agent posts clarify questions on the issue |
 | Answers + approval | **human** | reply answers, then `approved` — the only required human input |

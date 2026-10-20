@@ -27,6 +27,10 @@ safe-outputs:
     allowed: [status/queued, status/in-review, status/fixing, status/fixing-stuck, status/ready-to-merge]
     max: 20
     target: "*"
+  close-issue:
+    max: 5
+    state-reason: not_planned
+    target: "*"
   add-comment:
     max: 10
     target: "*"
@@ -55,6 +59,13 @@ what the sweeper can do deterministically):
 - Flag chronic flappers (issues cycling fix/work states repeatedly, per
   budget-stamp history in comments) with a short comment naming the
   stamp evidence.
+- **Close stale machinery records (ADR-0018 surface reduction)**:
+  superseded weekly/duplicate `[status-report]`/`[backlog-report]` issues,
+  `[aw]` diagnostics a later successful run already outranked, and exact
+  duplicates of open work (link the survivor in the closing comment).
+  Same rule as 02-triage: a plausible bug report or finding never closes
+  here — uncertainty stays on the record as an issue. Cap 5 per sweep;
+  the disposition comment IS the record.
 - Post nothing on issues that need no change; your caps are shared with
   every other workflow in this repo.
 - If nothing needed attention, say nothing anywhere.
