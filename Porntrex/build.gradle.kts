@@ -1,5 +1,5 @@
 // ! This Extension Made By @ByAyzen for GizliKeyif
-version = 17 // FINDINGS-515: Vintage category row
+version = 18 // #770/S4: quality-mapping fix (#759/#769) ships — bump for app quality sort
 
 cloudstream {
     authors     = listOf("ByAyzen")
