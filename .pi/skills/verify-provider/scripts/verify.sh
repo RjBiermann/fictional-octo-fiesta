@@ -280,16 +280,18 @@ def dups(colspec):
     """stdin: id TAB …columns…; prints 'field value ids' for values shared by different ids
     (across pages/videos) or repeated within one id (within a page). The '-' placeholder
     (written to keep TSV column counts stable when a field is absent) counts as absent in
-    EVERY column — href/poster/stream via url_path, the rest here — so an all-placeholder
-    column can never collide (#664)."""
+    EVERY column — href/stream via url_path, poster via poster_path (same-artwork cover
+    variants of one video dedupe as one value, #680/#775), the rest here — so an
+    all-placeholder column can never collide (#664)."""
     cols = colspec.split(',')
     rows = [l.rstrip('\n').split('\t') for l in sys.stdin if l.strip()]
     for ci, col in enumerate(cols, start=1):
         seen = {}
         for r in rows:
-            v = url_path(r[ci]) if col in ('href', 'poster', 'stream') else inner_text(r[ci]).lower()
+            v = poster_path(r[ci]) if col == 'poster' else \
+                url_path(r[ci]) if col in ('href', 'stream') else inner_text(r[ci]).lower()
             if v == '-':
-                v = ''  # placeholder = absent column value (same rule url_path applies to href/poster/stream)
+                v = ''  # placeholder = absent column value (same rule url_path applies to href/stream)
             if not v:
                 continue
             seen.setdefault(v, []).append(r[0])
@@ -591,9 +593,15 @@ while IFS=$'\t' read -r vid vpath vtitle vposter vplot; do
   fi
   # '-' = absent column value (placeholder written at line 414 so empty columns survive read)
   # poster equality uses poster_path: per-surface cover-art variant tokens (-t/-n/…) are the
-  # same artwork, not a mismatch (#680) — href/stream paths keep url_path
-  if [[ -n "$cposter" && "$vposter" != '-' && -n "$vposter" && "$(py poster_path "$cposter")" != "$(py poster_path "$vposter")" ]]; then
-    echo "FAIL poster mismatch for $vpath: search='$cposter' load='$vposter'"; fail=1
+  # same artwork, not a mismatch (#680) — href/stream paths keep url_path. When the raw
+  # posters differ but normalized ones agree, keep the raw evidence in the transcript (NOTE
+  # convention) instead of passing silently (#775).
+  if [[ -n "$cposter" && "$vposter" != '-' && -n "$vposter" ]]; then
+    if [[ "$(py poster_path "$cposter")" != "$(py poster_path "$vposter")" ]]; then
+      echo "FAIL poster mismatch for $vpath: search='$cposter' load='$vposter'"; fail=1
+    elif [[ "$cposter" != "$vposter" ]]; then
+      echo "NOTE: poster variant ($cposter vs $vposter) — same artwork"
+    fi
   fi
 done < "$V_TSV"
 if (( agreed == 0 )); then

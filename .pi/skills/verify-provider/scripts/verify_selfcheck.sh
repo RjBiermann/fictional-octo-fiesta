@@ -75,4 +75,35 @@ pp() { python3 "$PYDOM" poster_path "$1"; }
 [[ "$(python3 "$PYDOM" path 'https://c.test/covers/cover-t.jpg')" == '/covers/cover-t.jpg' ]] \
   || { echo "FAIL: url_path must keep variant tokens (href/stream semantics unchanged)"; exit 1; }
 
+# 7. dups 'poster' column is normalized (issue #775, S2 wiring): same-artwork cover variants
+#    of one video dedupe as ONE poster value — check_listing's poster NOTE and the cross-video
+#    COLSPEC poster column both run through dups().
+dups_out=$(printf 'v1\thttps://c.test/covers/cover-t.jpg\nv2\thttps://c.test/covers/cover-n.jpg\n' \
+  | python3 "$PYDOM" dups 'poster')
+[[ "$dups_out" == "$(printf 'poster\t/covers/cover.jpg\tv1,v2')" ]] \
+  || { echo "FAIL: dups 'poster' must collapse variant tokens to one artwork value, got: $dups_out"; exit 1; }
+
+# 8. different artwork with variant tokens must NOT collide in the poster column
+dups_out=$(printf 'v1\thttps://c.test/covers/aaa-t.jpg\nv2\thttps://c.test/covers/bbb-n.jpg\n' \
+  | python3 "$PYDOM" dups 'poster')
+[[ -z "$dups_out" ]] || { echo "FAIL: dups 'poster' must not collapse different artwork, got: $dups_out"; exit 1; }
+
+# 9. href column keeps url_path semantics — variant tokens are real there, stay distinct
+#    (S2 constraint: url_path/href untouched)
+dups_out=$(printf 'v1\thttps://c.test/covers/cover-t.jpg\nv2\thttps://c.test/covers/cover-n.jpg\n' \
+  | python3 "$PYDOM" dups 'href')
+[[ -z "$dups_out" ]] || { echo "FAIL: dups 'href' must keep variant tokens distinct, got: $dups_out"; exit 1; }
+
+# 10. '-' placeholder in the poster column still counts as absent (no collision) —
+#     poster_path('-') must stay empty like url_path('-')
+dups_out=$(printf 'v1\t-\nv2\t-\n' | python3 "$PYDOM" dups 'poster')
+[[ -z "$dups_out" ]] || { echo "FAIL: dups 'poster' placeholder rows must count as absent, got: $dups_out"; exit 1; }
+
+# 11. cross-video COLSPEC shape (href,title,poster): two videos with variant posters of the
+#     same artwork collide on the normalized poster value; hrefs/titles stay clean
+dups_out=$(printf 'v1\t/a\ttitle one\thttps://c.test/covers/cover-t.jpg\nv2\t/b\ttitle two\thttps://c.test/covers/cover-n.jpg\n' \
+  | python3 "$PYDOM" dups 'href,title,poster')
+[[ "$dups_out" == "$(printf 'poster\t/covers/cover.jpg\tv1,v2')" ]] \
+  || { echo "FAIL: cross-video COLSPEC must report the normalized poster collision, got: $dups_out"; exit 1; }
+
 echo "RESULT: PASS"
