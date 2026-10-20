@@ -344,7 +344,7 @@ check_listing() {  # $1=urls-array-name $2=prefix $3=selector $4=title_sel $5=po
     py cards "$sel" "${tsel:--}" "${psel:--}" "$F" \
       | awk -F'\t' -v p="${prefix}$i" 'BEGIN{OFS="\t"}{print p,$1,$2,$3}' >> "$raw"
   done
-  dups_out=$(py dups 'href,title' < "$raw")
+  dups_out=$(py dups 'href' < "$raw")  # per-video identity is the href; a repeated title across distinct hrefs is site content
   if [[ -n "$dups_out" ]]; then
     echo "FAIL duplicate $prefix cards (same video twice on a page or across pages):"
     echo "$dups_out"; fail=1
@@ -496,7 +496,7 @@ for i in "${!VIDEO_URLS[@]}"; do
     (( empty_titles == 0 )) || { echo "FAIL empty recommendation title(s) ($VU)"; fail=1; }
     self_hits=$(cut -f1 /tmp/verify_rel.tsv | while read -r h; do py path "$h"; done | { grep -Fx "$vpath" || true; } | wc -l)
     (( self_hits == 0 )) || { echo "FAIL recommendations contain the video itself ($VU)"; fail=1; }
-    dups_out=$(awk -F'\t' 'BEGIN{OFS="\t"}{print NR"_r",$1,$2,$3}' /tmp/verify_rel.tsv | py dups 'href,title')
+    dups_out=$(awk -F'\t' 'BEGIN{OFS="\t"}{print NR"_r",$1,$2,$3}' /tmp/verify_rel.tsv | py dups 'href')  # same href-keyed identity rule as check_listing
     if [[ -n "$dups_out" ]]; then echo "FAIL duplicate recommendations ($VU):"; echo "$dups_out"; fail=1; fi
   fi
 done
