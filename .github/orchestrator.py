@@ -501,6 +501,40 @@ def _fire_workflow(lock, item_type, item_number):
         print(f"[orchestrator] {lock} dispatched for {item_type} #{item_number}")
 
 
+def _merged_pr_for_story(num):
+    """The merged delivery of story `num` — ADR-0007's closeout record."""
+    import re as _re
+    pat = _re.compile(rf"devloop/issue-{num}-")
+    merged = api("pulls?state=closed&per_page=60") or []
+    for pr in merged:
+        if pat.search(pr.get("head", {}).get("ref", "")) and pr.get("merged_at"):
+            return pr["number"]
+    return None
+
+
+def closeout_healer():
+    """ADR-0007 closeout, healed by the conveyor (ADR-0019): an open story
+    whose devloop/issue-N PR is merged to main IS delivered — close it.
+    Heals 12-post-merge safe-output failures AND ends the re-stamp loop:
+    merged stories must never re-arm (the [aw] post-merge re-stamp
+    pattern, backlog-report #797). The merge itself is the human/machinery
+    verdict; closing here executes it, same carve-out as 12-post-merge."""
+    if not OWNER:
+        return
+    stories = all_stories()
+    for s in stories:
+        if str(s.get("state", "")).lower() != "open":
+            continue
+        n = s["number"]
+        merged = _merged_pr_for_story(n)
+        if not merged:
+            continue
+        post_comment(n, f"{MARK} delivered — PR #{merged} merged; closing out (ADR-0007, "
+                        f"closeout-healed after the 12-post-merge miss recorded in #797).")
+        close_issue(n, "completed", f"delivered via PR #{merged}")
+        print(f"[orchestrator] {n}: closed out (PR #{merged} merged)")
+
+
 def _open_pr_for_story(num):
     import re as _re
     pat = _re.compile(rf"devloop/issue-{num}-")
@@ -513,10 +547,10 @@ def _open_pr_for_story(num):
 def _fire_implement(num):
     """Stamp status/planned (display state) + fire Implement by dispatch —
     a bot-applied label event is loop-dead, so the dispatch IS the fire.
-    Delivered-guard: an open PR for this story means it's already
-    delivered and awaiting merge — never re-fire (the duplicate-PR class,
-    ADR-0014's 'cannot tell delivered from next-in-line')."""
-    delivered = _open_pr_for_story(num)
+    Delivered-guard: a story delivered via an open OR merged PR is never
+    re-fired (the duplicate-PR class, ADR-0014's 'cannot tell delivered
+    from next-in-line'; the merged case drove the re-stamp loop of #797)."""
+    delivered = _open_pr_for_story(num) or _merged_pr_for_story(num)
     if delivered:
         print(f"[orchestrator] {num}: already delivered via PR #{delivered} — not re-fired")
         return
@@ -1144,6 +1178,7 @@ if __name__ == "__main__":
         "approvals": approve_companion_runs,
         "merge_readiness": merge_readiness,
         "chain_driver": chain_driver,
+        "closeout_healer": closeout_healer,
         "queue_to_pipeline": queue_to_pipeline,
         "plan_surrogate": plan_loop_surrogate,
         "decision_tags": decision_tags,
@@ -1155,7 +1190,7 @@ if __name__ == "__main__":
         "registry_sync": registry_sync,
     }
     _preflight_labels()
-    mutation_steps = {"merge_readiness", "chain_driver", "queue_to_pipeline",
+    mutation_steps = {"merge_readiness", "chain_driver", "closeout_healer", "queue_to_pipeline",
                       "plan_surrogate", "decision_tags", "stall_watch", "wave_driver",
                       "fix_surrogate", "watchdog", "registry_sync"}
     available = {name: fn for name, fn in steps.items()
