@@ -278,13 +278,18 @@ def stream_urls(html):
 
 def dups(colspec):
     """stdin: id TAB …columns…; prints 'field value ids' for values shared by different ids
-    (across pages/videos) or repeated within one id (within a page)."""
+    (across pages/videos) or repeated within one id (within a page). The '-' placeholder
+    (written to keep TSV column counts stable when a field is absent) counts as absent in
+    EVERY column — href/poster/stream via url_path, the rest here — so an all-placeholder
+    column can never collide (#664)."""
     cols = colspec.split(',')
     rows = [l.rstrip('\n').split('\t') for l in sys.stdin if l.strip()]
     for ci, col in enumerate(cols, start=1):
         seen = {}
         for r in rows:
             v = url_path(r[ci]) if col in ('href', 'poster', 'stream') else inner_text(r[ci]).lower()
+            if v == '-':
+                v = ''  # placeholder = absent column value (same rule url_path applies to href/poster/stream)
             if not v:
                 continue
             seen.setdefault(v, []).append(r[0])
@@ -522,7 +527,7 @@ done
 # identity-field exposure: all-or-none across sampled pages
 for col in 4 5; do
   name=$([[ $col == 4 ]] && echo poster || echo plot)
-  have=$(awk -F'\t' -v c=$col '$c != "" { n++ } END { print n+0 }' "$V_TSV")
+  have=$(awk -F'\t' -v c=$col '$c != "" && $c != "-" { n++ } END { print n+0 }' "$V_TSV")  # '-' placeholder = absent (#664)
   total=${#VIDEO_URLS[@]}
   if (( have > 0 && have < total )); then
     echo "FAIL: $name present on $have/$total video pages — inconsistent page shape (check --video-${name}-selector)"; fail=1
@@ -553,7 +558,8 @@ done
 
 # cross-video distinctness on exposed identity fields
 COLSPEC='href,title,poster'
-[[ $(awk -F'\t' '$5 != ""' "$V_TSV" | wc -l) -eq ${#VIDEO_URLS[@]} ]] && COLSPEC='href,title,poster,plot'
+# plot joins COLSPEC only when genuinely exposed on every page ('-' placeholder = absent, #664)
+[[ $(awk -F'\t' '$5 != "" && $5 != "-"' "$V_TSV" | wc -l) -eq ${#VIDEO_URLS[@]} ]] && COLSPEC='href,title,poster,plot'
 dups_out=$(py dups "$COLSPEC" < "$V_TSV")
 if [[ -n "$dups_out" ]]; then
   echo "FAIL cross-video identity collisions (different videos share a title/poster/plot):"
