@@ -117,7 +117,7 @@ def _fire_marker(rnd):
     slash-command parser only recognizes bodies that start with the
     command; the [orchestrator] marker trails for dedupe."""
     return f"/plan\n\n{MARK} /plan fired round {rnd}"
-STORY_RE = re.compile(r"\[spec\]\s*(?:Story\s+|S)(\d+)", re.I)
+STORY_RE = re.compile(r"\[spec\].*?\b(?:Story\s+|S)(\d+)\b", re.I)
 PARENT_RE = re.compile(r"approved\s+#(\d+)\s+spec", re.I)
 EPIC_KID_RE = re.compile(r"epic #(\d+)", re.I)
 ROUND_ANCH = {r: f"Plan round {r} —" for r in (1, 2, 3)}
