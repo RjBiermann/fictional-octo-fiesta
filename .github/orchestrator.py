@@ -230,9 +230,9 @@ def approve_companion_runs():
         print("[orchestrator] GH_AW_PROXY_PAT unset — approvals stay manual")
         return
     for pr in open_pulls():
-        branch = pr.get("head", {}).get("ref", "")
-        if not branch.startswith("devloop/"):
+        if not _agent_pr(pr):
             continue
+        branch = pr.get("head", {}).get("ref", "")
         runs = run(["gh", "run", "list", "--branch", branch, "--limit", "40",
                     "--json", "databaseId,workflowName,conclusion",
                     "--jq", '.[] | select(.conclusion=="action_required") | "\(.databaseId)|\(.workflowName)"'])
@@ -241,7 +241,7 @@ def approve_companion_runs():
                 continue
             rid, _, wname = line.partition("|")
             if wname in APPROVE_ALLOWLIST or (wname in AGENT_RUN_ALLOWLIST
-                                              and branch.startswith("devloop/issue-")):
+                                              and branch.startswith(AGENT_BRANCHES)):
                 out = run(["curl", "-s", "-X", "POST",
                            "-H", f"Authorization: Bearer {PROXY_PAT}",
                            "-H", "Accept: application/vnd.github+json",
@@ -972,8 +972,7 @@ def conflict_watch():
     # merge-tree + plumbing need up-to-date refs; branch fetches happen per-PR
     _pl(["git", "fetch", "origin", "main"])
     for pr in open_pulls():
-        branch = pr.get("head", {}).get("ref", "")
-        if not branch.startswith("devloop/"):
+        if not _agent_pr(pr):
             continue
         num = pr["number"]
         d = api(f"pulls/{num}") or {}
