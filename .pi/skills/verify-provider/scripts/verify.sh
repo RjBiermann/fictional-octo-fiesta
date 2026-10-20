@@ -216,6 +216,22 @@ def url_path(u):
     p = urlsplit(u).path.rstrip('/') or u
     return '' if p == '-' else p  # '-' placeholder = absent column value
 
+def poster_path(u):
+    """url_path + strip at most ONE trailing -<alnum 1-3> token from the filename stem
+    (before the extension), applied on BOTH sides of check-5 poster equality: a site's
+    cover-art variants are per-surface filenames for the same artwork (MissAV cards serve
+    cover-t.jpg via img data-src while the load page's og:image serves cover-n.jpg, #680).
+    Generic rule (-t/-n/-x2/…), not a per-site allowlist; href/stream keep url_path —
+    a variant token there distinguishes real cuts."""
+    p = url_path(u)
+    if not p:
+        return p
+    head, sep, fname = p.rpartition('/')
+    m = re.match(r'^(.+?)-[A-Za-z0-9]{1,3}(\.[^.]+)?$', fname)
+    if not m:
+        return p
+    return head + sep + m.group(1) + (m.group(2) or '')
+
 def cards_html(html, selector, title_sel, poster_sel):
     """TSV href/title/poster per card. Default title = card text; default poster = first img."""
     for attrs, inner in blocks(html, selector):
@@ -311,6 +327,8 @@ elif cmd == 'streams':  # file → up to 5 unique absolute stream URLs
         print(u)
 elif cmd == 'path':  # url → normalized path (scheme/query stripped)
     print(url_path(sys.argv[2]))
+elif cmd == 'poster_path':  # url → poster path (scheme/query + ONE variant token stripped)
+    print(poster_path(sys.argv[2]))
 elif cmd == 'normcards':  # id href title poster TSV → id path title poster
     for l in sys.stdin:
         f = (l.rstrip('\n').split('\t') + [''] * 4)[:4]
@@ -566,7 +584,9 @@ while IFS=$'\t' read -r vid vpath vtitle vposter vplot; do
     echo "FAIL title mismatch for $vpath: search='$ctitle' load='$vtitle'"; fail=1
   fi
   # '-' = absent column value (placeholder written at line 414 so empty columns survive read)
-  if [[ -n "$cposter" && "$vposter" != '-' && -n "$vposter" && "$(py path "$cposter")" != "$(py path "$vposter")" ]]; then
+  # poster equality uses poster_path: per-surface cover-art variant tokens (-t/-n/…) are the
+  # same artwork, not a mismatch (#680) — href/stream paths keep url_path
+  if [[ -n "$cposter" && "$vposter" != '-' && -n "$vposter" && "$(py poster_path "$cposter")" != "$(py poster_path "$vposter")" ]]; then
     echo "FAIL poster mismatch for $vpath: search='$cposter' load='$vposter'"; fail=1
   fi
 done < "$V_TSV"
