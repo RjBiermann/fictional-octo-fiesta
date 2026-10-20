@@ -216,6 +216,20 @@ def url_path(u):
     p = urlsplit(u).path.rstrip('/') or u
     return '' if p == '-' else p  # '-' placeholder = absent column value
 
+def poster_path(u):
+    """Poster-variant normalizer: url_path plus at most ONE trailing -<alnum 1-3> strip
+    from the filename stem (before the extension) — applied on BOTH sides of the check-5
+    equality. MissAV serves the card's img data-src as cover-t.jpg while the load page's
+    og:image is cover-n.jpg: same artwork, per-surface filenames. Generic for any site's
+    -t/-n/-x2 scheme (no per-site wiring); url_path (href/stream paths) keeps every token."""
+    p = url_path(u)
+    seg = p.rsplit('/', 1)[-1]
+    m = re.match(r'^(.*)(\.[A-Za-z0-9]+)$', seg)  # last segment with an extension: stem + .ext
+    if not m:
+        return p  # no filename.ext shape — nothing to strip
+    stem = re.sub(r'-[A-Za-z0-9]{1,3}$', '', m.group(1), count=1)
+    return p[:len(p) - len(seg)] + stem + m.group(2)
+
 def cards_html(html, selector, title_sel, poster_sel):
     """TSV href/title/poster per card. Default title = card text; default poster = first img."""
     for attrs, inner in blocks(html, selector):
@@ -311,6 +325,8 @@ elif cmd == 'streams':  # file → up to 5 unique absolute stream URLs
         print(u)
 elif cmd == 'path':  # url → normalized path (scheme/query stripped)
     print(url_path(sys.argv[2]))
+elif cmd == 'poster_path':  # url → poster-normalized path (check-5 variant equality)
+    print(poster_path(sys.argv[2]))
 elif cmd == 'normcards':  # id href title poster TSV → id path title poster
     for l in sys.stdin:
         f = (l.rstrip('\n').split('\t') + [''] * 4)[:4]

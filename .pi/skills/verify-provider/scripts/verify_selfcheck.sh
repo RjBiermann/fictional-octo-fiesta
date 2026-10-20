@@ -55,4 +55,20 @@ out=$(python3 "$PYDOM" cards 'div.card' 'a.title' - "$FIX2")
 grep -q '/one/' <<<"$out" || { echo "FAIL: nested wrapper card /one/ not found"; exit 1; }
 grep -q '/two/' <<<"$out" || { echo "FAIL: nested wrapper card /two/ not found"; exit 1; }
 
+# 5. poster_path (issue #774): poster-variant normalizer — url_path plus at most ONE
+#    trailing -<alnum 1-3> strip from the filename stem, before the extension. MissAV
+#    shape: card img data-src cover-t.jpg vs load-page og:image cover-n.jpg — same
+#    artwork, per-surface filenames; generic for any site's -t/-n/-x2 scheme.
+[[ "$(python3 "$PYDOM" poster_path 'https://img.example/cover-t.jpg')" == '/cover.jpg' ]] \
+  || { echo "FAIL: poster_path should strip one -t variant token (cover-t.jpg → cover.jpg)"; exit 1; }
+[[ "$(python3 "$PYDOM" poster_path 'https://img.example/cover-t.jpg')" \
+   == "$(python3 "$PYDOM" poster_path 'https://img.example/cover-n.jpg')" ]] \
+  || { echo "FAIL: poster_path should compare cover-t.jpg and cover-n.jpg equal"; exit 1; }
+[[ "$(python3 "$PYDOM" poster_path 'https://img.example/cover-t.jpg')" \
+   != "$(python3 "$PYDOM" poster_path 'https://img.example/other-n.jpg')" ]] \
+  || { echo "FAIL: poster_path must not compare cover-t.jpg and other-n.jpg equal"; exit 1; }
+# url_path semantics unchanged: variant tokens survive for href/stream paths
+[[ "$(python3 "$PYDOM" path 'https://img.example/cover-t.jpg')" == '/cover-t.jpg' ]] \
+  || { echo "FAIL: url_path lost the -t variant token (href/stream semantics changed)"; exit 1; }
+
 echo "RESULT: PASS"
