@@ -91,8 +91,8 @@ supplies what to check (judgment, from FINDINGS + the provider's Kotlin), the sc
    field — and the selector proving it — comes from FINDINGS; the agent judges that, the script
    asserts exposure consistency (check 2a).
 
-Recommendations (`--related-selector`): titles non-empty, pairwise distinct, and never the
-video itself.
+Recommendations (`--related-selector`): titles non-empty; hrefs pairwise distinct; a repeated
+title across distinct hrefs is site content, not a defect; recs never link the video itself.
 
 ## Rules
 
