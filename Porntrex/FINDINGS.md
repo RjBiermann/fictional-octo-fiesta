@@ -281,3 +281,66 @@ false-FAILs, not provider conditions:
    so unexposed plot enters the distinctness column and 5×'-' "collides". Manual
    href,title dedupe on the same TSV: clean (exit 0).
 Both recorded as an instrument backlog issue (not a Porntrex defect).
+
+## Porntrex quality mapping — S4: version bump, build, live verification (#770, parent #759)
+
+Stories S1–S3 delivered the fix: `getQualityFromName(label ?: "")` degraded every
+suffixed KVS label (`720p HD`, `1080p FHD`, `2160p 4K`) to `Qualities.Unknown` (400 —
+empty quality tag in-app, no quality sort; ground truth in `FINDINGS-767.md`). S3 wired
+`loadLinks` through `PorntrexParse.qualityOf` (leading resolution number, range
+144..4320; `4K` fallback; URL-pattern fallback; else 400), keeping the redirect-skip
+(#429/#256) and the display label (the app renders its own tag from the Int).
+
+**Version bump (S4): `17 → 18`** — ships the quality-mapping change to the app.
+
+### S4 runs (2026-10-20)
+
+- `gradlew Porntrex:test` — BUILD SUCCESSFUL; suite green incl. the S2/S3 quality tests
+  (`PorntrexParseTest`: 14 tests, 0 failures — mapping-fixture table, embed-fixture ladder
+  order guard, redirect-skip, label→attribute wiring shape `qualityLinks pairs map through qualityOf` = 480).
+- `gradlew Porntrex:make` — BUILD SUCCESSFUL, `Porntrex.cs3` produced.
+
+### Live verification (verify.sh, this run) — RESULT: PASS
+
+Sheet-browser UA (Firefox/130), search `/search/massage/` + async p2: 200, 85 `p.inf`
+cards each, no dupes. Home `/categories/busty/` + async p2: 200, 120 cards each, no
+dupes. 5 varied embed URLs (3366967 busty-recent, 1231055 + 1438574 search/massage p1,
+3368274 milf, 3369186 teen p2): all 200, `div#kt_player` matched 1 each; streams
+`get_file/.../{id}.mp4/` → **206 video/mp4 on all 5** (fresh tokens each). Check 6
+LoadResponse: recommendations, tags, plot, duration, actors, posters all assigned.
+
+- Title selector: `meta[name=description]` — the embed page carries no `og:` metas and no
+  HEADERS h1; the flashvar `title:` value and `meta[name=description]` content are the identical
+  strings (verified byte-equal on 3366967/1231055), so this is the evidence-derived bare title,
+  free of the `" / Embed Player"` `<title>` wrapper (the default selector `title` would have
+  carried the constant suffix into the comparison surfaces).
+- Check 5 NOTE (instrument mechanics, not site): the script href-matches load pages by path
+  (`embed/<id>` vs search-card `video/<id>/<slug>`), so no sample "appears" on the search
+  pages. Exercised manually live instead: embed flashvar title vs search-card title for
+  **1231055** (`real massage parlor handjob`) and **1438574** (`polina maxima - belarusian
+  babe has sensual massage`) — both AGREE, normalized.
+- Direct `/video/{id}/` w/o slug 404s today; provider load hrefs carry the slug (search
+  hrefs) → 200 shells as recorded (#171/#309), resolved through `/embed/{id}/`.
+
+### Quality values confirmed (the S4 acceptance criterion)
+
+All 5 sampled embeds carry the identical live label ladder today — byte-identical to the
+S1 static ladder: `480p`, `720p HD`, `1080p FHD`, `2160p 4K` (alts redirect-flagged page
+URLs; skip intact). Making the emitted link through the provider's flow
+(`qualityLinks` redirect-skip + `qualityOf`):
+
+| sampled embed | emitted (label, quality Int) | recognized? |
+|---|---|---|
+| 3366967 | `('480p', 480)` | yes |
+| 1231055 | `('480p', 480)` | yes |
+| 3368274 | `('480p', 480)` | yes |
+| 3369186 | `('480p', 480)` | yes |
+| 1438574 | `('480p', 480)` | yes |
+
+No emitted link degrades to `Unknown` (400) — the #759 empty-tag failure mode is gone on
+the live guest surface. The full text ladder maps 480/720/1080/2160 through the
+fixture-proven table (`porntrex_quality_labels.txt`, 9 rows green), so tiers that become
+real streams on a full page render also carry recognized Ints. `getStringByInt` renders
+`480p`/`720p`/`1080p` tags in-app and the quality/priority sort now behaves like every
+other provider. In-app testing stays maintainer-only at merge time (never an agent
+deliverable).
