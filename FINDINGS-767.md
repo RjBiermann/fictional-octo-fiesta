@@ -95,9 +95,14 @@ assert against `Qualities` constants / an in-repo mapping function, **not** call
 - URL surgery test: rewriting the signed get_file path `{id}.mp4` → `{id}_720p.mp4` returns
   **404** (the signature covers the filename) — higher tiers are **not** reachable by editing
   the guest stream URL.
-- Historical shape for contrast: the issue-#256 fixture (`porntrex_embed_page.html` era
-  grammar) shows KVS alts as `get_file/.../2491818_720p.mp4` — quality-in-filename exists on
-  KVS generally but is **not** emitted on today's Porntrex guest embed.
+- Historical shape for contrast: the issue-#256 era KVS grammar shows alts as
+  `get_file/.../2491818_720p.mp4` — quality-in-filename exists on KVS generally but is **not**
+  emitted on today's Porntrex guest embed. Citation, corrected on review round 1: that shape
+  is attested by the hand-written inline flashvar literal in
+  `Porntrex/src/test/kotlin/com/byayzen/PorntrexParseTest.kt:46` (synthetic test input, not
+  captured site evidence) — the committed `porntrex_embed_page.html` fixture has no such
+  pattern (its alts are redirect-flagged page URLs, same shape as today's live embed; its
+  only `_720p` occurrence is the `preview_720p.mp4.jpg` preview image).
 
 ## Part 3 — The exact mismatch (site vs. pinned API)
 
@@ -125,8 +130,19 @@ assert against `Qualities` constants / an in-repo mapping function, **not** call
 | `'4k'` (bare, exact) | `2160` | native |
 | `null` / `''` / unrecognized | `400` (`Qualities.Unknown.value`) | API default |
 
-Rule for S2: map the three known compound labels to `Qualities` enum values **first**, fall
-back to `getQualityFromName(label)` for bare `NNNp`/`4k`, default `Unknown`. Pass the Int on
+Rule for S2: map the three known compound labels to `Qualities` enum values **first**, then
+for bare `NNNp`/`4k` apply the Part-1 grammar **inlined in the mapping function** (lowercase
+→ strip all `p` → trim → `"4k"` → 2160, else `toIntOrNull() ?: Qualities.Unknown.value`),
+default `Unknown`. The fallback must **not** delegate to `getQualityFromName` anywhere in
+test-executed code: invoking it triggers `ExtractorApiKt` class initialization, whose
+`<clinit>` builds the full extractor registry and needs `dev.whyoleg.cryptography` (absent
+from the repo test classpath — the testability constraint above), which would make the
+mapping function itself un-unit-testable and crash the S2 red→green cycle on exactly the
+native-parse rows (`'540p'` → 540, bare `'4k'` → 2160). The grammar is bytecode-verified in
+this note, so an inline copy is behaviorally identical and keeps the mapping function
+unit-loadable; adding the cryptography runtime to `testImplementation` instead would be a
+root-build change affecting every provider — out of scope for a single-provider fix.
+Pass the Int on
 `ExtractorLink.quality`; the display `name` may keep or drop the site label — the app renders
 the badge from the Int (`getStringByInt`). If S2 adds link emission for redirect tiers, they
 must resolve to real media URLs first (page URLs are never streams), and the guest-surface
