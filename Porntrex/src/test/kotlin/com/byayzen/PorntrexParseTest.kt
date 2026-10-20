@@ -1,6 +1,7 @@
 package com.byayzen
 
 import com.kraptor.DurationParse
+import com.lagradost.cloudstream3.utils.Qualities
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -13,6 +14,12 @@ class PorntrexParseTest {
 
     private val doc by lazy {
         Jsoup.parse(File("src/test/resources/porntrex_video_page.html").readText())
+    }
+
+    /** Raw flashvar block of the recorded /embed/{id}/ fixture (live site capture). */
+    private val embedFlashvars by lazy {
+        Regex("var flashvars = \\{.*\\}", RegexOption.DOT_MATCHES_ALL).find(
+            File("src/test/resources/porntrex_embed_page.html").readText())?.value ?: ""
     }
 
     /** TDD for issue #309: the clock badge lives in the .video-info stats row on live DOM.
@@ -102,14 +109,61 @@ class PorntrexParseTest {
      * embed fixture: one working stream, redirect page URLs must never leak.
      */
     @Test fun `qualityLinks on raw embed fixture yields only the embed base stream`() {
-        val fv = Regex("var flashvars = \\{.*\\}", RegexOption.DOT_MATCHES_ALL).find(
-            File("src/test/resources/porntrex_embed_page.html").readText())?.value ?: ""
-        assertTrue(fv.contains("video_url:"))
-        val links = PorntrexParse.qualityLinks(fv)
+        assertTrue(embedFlashvars.contains("video_url:"))
+        val links = PorntrexParse.qualityLinks(embedFlashvars)
         assertEquals(1, links.size)
         assertEquals("480p", links[0].first)
         assertTrue(links[0].second.contains("?embed=true"))
         // the redirect-flagged page URLs must not appear as stream URLs
         assertTrue(links.none { it.second.contains("/video/") })
+    }
+
+    // ------------------------------------------------------------------
+    // S2 (issue #768): PorntrexParse.qualityOf — the pure label/url -> quality Int surface,
+    // mapping table decided in S1 (FINDINGS-767 section 4). RED step of the TDD chain
+    // (ADR-0005): this suite must fail against the S2 skeleton; S3 (#769) implements the
+    // mapping (green) and wires loadLinks. No HTTP mocking — pure-parse surface only.
+
+    /** Data-driven: every row of the S1 mapping table, as fixture data. */
+    @Test fun `qualityOf maps every row of the S1 mapping table fixture`() {
+        val rows = File("src/test/resources/porntrex_quality_labels.txt").readLines()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("#") }
+            .map { it.split("\t") }
+        assertTrue("quality fixture rows missing", rows.size >= 9)
+        for ((label, expected) in rows.map { it[0] to it[1].toInt() }) {
+            assertEquals("label '$label'", expected, PorntrexParse.qualityOf(label))
+        }
+    }
+
+    /** The recorded embed fixture still carries the exact live ladder S1 probed (order-guarded). */
+    @Test fun `embed fixture carries the S1 label ladder in flashvar order`() {
+        val labels = Regex("video_(?:url|alt_url\\d*)_text: '([^']+)'")
+            .findAll(embedFlashvars).map { it.groupValues[1] }.toList()
+        assertEquals(listOf("480p", "720p HD", "1080p FHD", "2160p 4K"), labels)
+    }
+
+    /** Flashvar labels flow through qualityLinks into the quality surface (the S3 wiring shape). */
+    @Test fun `qualityLinks pairs map through qualityOf`() {
+        val links = PorntrexParse.qualityLinks(embedFlashvars)
+        assertEquals(1, links.size)
+        val (label, url) = links[0]
+        assertEquals(480, PorntrexParse.qualityOf(label, url))
+    }
+
+    /** null / blank / unmappable labels fall back to Qualities.Unknown — the #759 empty-tag symptom. */
+    @Test fun `qualityOf falls back to Unknown for null blank and unmappable labels`() {
+        assertEquals(Qualities.Unknown.value, PorntrexParse.qualityOf(null))
+        assertEquals(Qualities.Unknown.value, PorntrexParse.qualityOf(""))
+        assertEquals(Qualities.Unknown.value, PorntrexParse.qualityOf("   "))
+        assertEquals(Qualities.Unknown.value, PorntrexParse.qualityOf("HD"))
+    }
+
+    /** URL-pattern fallback (e.g. `_1080p.mp4` in the path) when the text label doesn't map. */
+    @Test fun `qualityOf derives quality from the url pattern when the label does not map`() {
+        assertEquals(1080, PorntrexParse.qualityOf(
+            null, "https://www.porntrex.com/get_file/10/1f12/3363000/3363831/3363831_1080p.mp4/?embed=true"))
+        assertEquals(720, PorntrexParse.qualityOf(
+            "HD", "https://www.porntrex.com/get_file/10/1f12/3363000/3363831/3363831_720p.mp4/"))
     }
 }
