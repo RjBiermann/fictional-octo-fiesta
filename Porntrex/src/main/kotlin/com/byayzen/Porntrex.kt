@@ -249,6 +249,20 @@ object PorntrexParse {
      * `video_categories: 'A, B'` and `video_tags: 'x, y'`. Returns categories followed by
      * tags (deduped, order preserved); empty when neither key exists.
      */
+    /**
+     * Issue #759: pure quality mapping `(label, url) -> Int` — the value
+     * `ExtractorLink.quality` expects (S1 evidence, #767). The app's quality sort only
+     * recognizes the resolution Int: compound KVS labels like `1080p FHD` fall through
+     * `getQualityFromName` to Unknown(400), which sorts below 480p and renders blank.
+     * Decided table: leading resolution number from the label (range-validated) -> Int;
+     * numberless `4K` -> 2160; URL-pattern fallback (`_1080p.mp4` in the path) when the
+     * text label does not map; else `Qualities.Unknown` (400).
+     *
+     * S2 RED stub (#768): only the terminal else-branch is wired — the table itself
+     * lands in S3 (#769); the fixture tests must fail until then.
+     */
+    fun qualityOf(label: String?, url: String?): Int = Qualities.Unknown.value
+
     fun embedTags(document: org.jsoup.nodes.Document): List<String> {
         val flashvars = document.selectFirst("script:containsData(var flashvars)")?.data() ?: return emptyList()
         fun key(name: String): List<String> =

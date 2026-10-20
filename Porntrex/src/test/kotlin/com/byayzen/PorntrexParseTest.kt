@@ -1,6 +1,7 @@
 package com.byayzen
 
 import com.kraptor.DurationParse
+import com.lagradost.cloudstream3.utils.Qualities
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -111,5 +112,73 @@ class PorntrexParseTest {
         assertTrue(links[0].second.contains("?embed=true"))
         // the redirect-flagged page URLs must not appear as stream URLs
         assertTrue(links.none { it.second.contains("/video/") })
+    }
+
+    // ==== Issue #759 / story S2 (#768): pure quality mapping (label, url) -> Int — RED ====
+    // S1 evidence (#767): the app's quality sort only recognizes the resolution Int;
+    // compound KVS labels ('1080p FHD', '2160p 4K', ...) fall through getQualityFromName
+    // to Unknown(400). getQualityFromName itself is not unit-loadable (ExtractorApiKt
+    // <clinit>), so assertions run against the Qualities enum constants directly.
+
+    private val qualityCases: List<Triple<String?, String, Int>> by lazy {
+        File("src/test/resources/porntrex_quality_cases.txt").readLines()
+            .filter { it.isNotBlank() && !it.startsWith("#") }
+            .map { line ->
+                val parts = line.split("\t")
+                require(parts.size == 3) { "bad case line: $line" }
+                Triple(parts[0].takeIf { it != "<null>" }, parts[1], parts[2].toInt())
+            }
+    }
+
+    /** The whole decided S1 table, fixture-driven (porntrex_quality_cases.txt). */
+    @Test fun `quality mapping matches the decided S1 table`() {
+        assertTrue("fixture rows missing", qualityCases.size >= 15)
+        for ((label, url, expected) in qualityCases) {
+            assertEquals("label=$label url=$url", expected, PorntrexParse.qualityOf(label, url))
+        }
+    }
+
+    /** Compound KVS labels must yield the enum Int the app's quality sort recognizes. */
+    @Test fun `compound labels map to Qualities enum values`() {
+        assertEquals(Qualities.P1080.value, PorntrexParse.qualityOf("1080p FHD", "https://x/get_file/a/2491818.mp4/"))
+        assertEquals(Qualities.P2160.value, PorntrexParse.qualityOf("2160p 4K", "https://x/get_file/a/2491818.mp4/"))
+        assertEquals(Qualities.P720.value, PorntrexParse.qualityOf("720p HD", "https://x/get_file/a/2491818.mp4/"))
+    }
+
+    /** S1: numberless '4K' gets the getQualityFromName-style fallback to 2160. */
+    @Test fun `numberless 4K label maps to 2160`() {
+        assertEquals(Qualities.P2160.value, PorntrexParse.qualityOf("4K", "https://x/get_file/a/2491818.mp4/"))
+        assertEquals(Qualities.P2160.value, PorntrexParse.qualityOf("4k", null))
+    }
+
+    /** Bare NNNp labels parse natively; 540 is no Qualities constant — quality is a plain Int. */
+    @Test fun `bare NNNp labels parse to their resolution`() {
+        assertEquals(Qualities.P480.value, PorntrexParse.qualityOf("480p", null))
+        assertEquals(Qualities.P240.value, PorntrexParse.qualityOf("240p", null))
+        assertEquals(540, PorntrexParse.qualityOf("540p", null))
+    }
+
+    /** S2 spec: URL-pattern fallback (_NNNp.mp4 in the path) when the text label doesn't map. */
+    @Test fun `url pattern fallback when the text label does not map`() {
+        assertEquals(Qualities.P1080.value,
+            PorntrexParse.qualityOf(null, "https://x/get_file/a/2913997_1080p.mp4/?embed=true"))
+        assertEquals(Qualities.P720.value,
+            PorntrexParse.qualityOf("HD", "https://x/get_file/a/2491818_720p.mp4/"))
+    }
+
+    /** S1: map from the label, never the URL — the URL fallback only fires when it doesn't map. */
+    @Test fun `label wins over the url pattern when it maps`() {
+        assertEquals(Qualities.P480.value,
+            PorntrexParse.qualityOf("480p", "https://x/get_file/a/2491818_1080p.mp4/"))
+    }
+
+    /** Null/blank/unmappable label with no URL signal stays Unknown(400) — the live embed base shape. */
+    @Test fun `null or blank label with no url signal stays Unknown`() {
+        val bare = "https://x/get_file/a/2913997.mp4/?embed=true"
+        assertEquals(Qualities.Unknown.value, PorntrexParse.qualityOf(null, bare))
+        assertEquals(Qualities.Unknown.value, PorntrexParse.qualityOf("", bare))
+        assertEquals(Qualities.Unknown.value, PorntrexParse.qualityOf("HD", bare))
+        // range-validated: 9999p is not a resolution the app knows
+        assertEquals(Qualities.Unknown.value, PorntrexParse.qualityOf("9999p", bare))
     }
 }

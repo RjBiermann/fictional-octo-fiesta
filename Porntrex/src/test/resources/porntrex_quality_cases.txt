@@ -1,0 +1,24 @@
+# Issue #759 / story S2 (#768): PorntrexParse.qualityOf(label, url) -> Int case table.
+# The decided S1 mapping (#767 evidence note): leading resolution number from the
+# <key>_text label (range-validated) -> Int; numberless 4K -> 2160; URL-pattern fallback
+# (_NNNp.mp4 in the path) when the text label does not map; else Qualities.Unknown (400).
+# Format: TAB-separated  <label><TAB><url><TAB><expected>; <null> = Kotlin null label;
+# an empty first field = blank label. Labels/URLs copied from the live KVS ladder
+# (base '480p' + '720p HD' / '1080p FHD' / '2160p 4K' alts) and the #256 full-page shape.
+1080p FHD	https://www.porntrex.com/get_file/1/a/2491818_1080p.mp4/	1080
+2160p 4K	https://www.porntrex.com/get_file/1/a/2491818_2160p.mp4/	2160
+720p HD	https://www.porntrex.com/get_file/1/a/2491818_720p.mp4/	720
+480p	https://www.porntrex.com/get_file/1/a/2491818.mp4/?embed=true	480
+540p	https://www.porntrex.com/get_file/1/a/2491818_540p.mp4/	540
+240p	https://www.porntrex.com/get_file/1/a/2491818_240p.mp4/	240
+360p	https://www.porntrex.com/get_file/1/a/2491818_360p.mp4/	360
+4K	https://www.porntrex.com/get_file/1/a/2491818.mp4/	2160
+4k	https://www.porntrex.com/get_file/1/a/2491818.mp4/	2160
+<null>	https://www.porntrex.com/get_file/1/a/2913997_1080p.mp4/?embed=true	1080
+HD	https://www.porntrex.com/get_file/1/a/2491818_720p.mp4/	720
+9999p	https://www.porntrex.com/get_file/1/a/2491818_480p.mp4/	480
+480p	https://www.porntrex.com/get_file/1/a/2491818_1080p.mp4/	480
+<null>	https://www.porntrex.com/get_file/1/a/2913997.mp4/?embed=true	400
+	https://www.porntrex.com/get_file/1/a/2913997.mp4/?embed=true	400
+HD	https://www.porntrex.com/get_file/1/a/2913997.mp4/?embed=true	400
+9999p	https://www.porntrex.com/get_file/1/a/2913997.mp4/?embed=true	400
