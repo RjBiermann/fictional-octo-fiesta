@@ -493,7 +493,16 @@ def plan_loop_surrogate():
         # round 2: human answered after round 1
         if not r2 and not kid_stories:
             if not _has_marker(cs, _fire_marker(2)):
-                human_after = [c for c in cs if c.get("user", {}).get("login") == OWNER and c["created_at"] > r1["created_at"]]
+                # owner-identity collisions: the machinery's own comments
+                # (decision tags, fire markers) post through GH_AW_PROXY_PAT
+                # and carry OWNER's login — they must never count as the
+                # human's answers (ADR-0014 known limitation, observed live
+                # 2026-10-19: [orchestrator] tags fired round 2 on #759/#712
+                # with no human reply in the thread).
+                human_after = [c for c in cs
+                               if c.get("user", {}).get("login") == OWNER
+                               and MARK not in (c.get("body") or "")
+                               and c["created_at"] > r1["created_at"]]
                 if human_after:
                     post_comment(n, _fire_marker(2) + " (round-1 answers received; ADR-0017 surrogate)")
                     print(f"[orchestrator] {n}: /plan round 2 fired")
