@@ -337,7 +337,7 @@ def chain_driver():
             else:
                 print(f"[orchestrator] story 1 (issue {s['number']}): no round-3 approval recorded — waiting on human")
             continue
-        pstate = _story_state(num_story - 1, stories)
+        pstate = _story_state(num_story - 1, stories, parent_of(s))
         if str(pstate).lower() == "closed":
             _fire_implement(s["number"])
             print(f"[orchestrator] story {num_story} (issue {s['number']}): trigger stamped (story {num_story-1} closed)")
@@ -472,9 +472,13 @@ def _latest_workflow_run_at(name):
     hits = [r["createdAt"] for r in rows if r.get("event") in ("issues", "issue_comment")]
     return max(hits) if hits else None
 
-def _story_state(num, stories):
+def _story_state(num, stories, parent=None):
+    """State of story `num` — scoped to `parent`'s chain when given.
+    Unscoped lookups leak across chains: two chains each having a
+    Story 1 made Porntrex S2 fire while its own S1 was open (#790)."""
     for s in stories:
-        if story_num(s.get("title", "")) == num:
+        if story_num(s.get("title", "")) == num \
+                and (parent is None or parent_of(s) == parent):
             return s.get("state", "?")
     return "-"
 
@@ -953,7 +957,7 @@ def _demote_out_of_order(stories):
         labels = [l["name"] for l in s.get("labels", [])]
         if "status/planned" not in labels:
             continue
-        if str(_story_state(num_story - 1, stories)).lower() == "closed":
+        if str(_story_state(num_story - 1, stories, parent_of(s))).lower() == "closed":
             continue
         n = s["number"]
         ts = _label_applied_at(n, "status/planned")
