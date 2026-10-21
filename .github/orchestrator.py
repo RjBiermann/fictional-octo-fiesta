@@ -1002,14 +1002,37 @@ def registry_sync():
                          "-m", "registry: apply verdict entries from issues "
                                f"#{', #'.join(str(n) for n in applied)} "
                                "(orchestrator registry_sync, ADR-0013)"])
-        ok, _ = _git_push("main", commit)
-        if not ok:
-            ok = _push_ref_via_api("main", commit)
+        # Branch protection on main (7 required status checks, 2026-10-21)
+        # kills both direct paths: GITHUB_TOKEN cannot push main, and a
+        # commit synthesized inside this run never had a push event so its
+        # checks stay "expected" — the PATCH endpoint refuses it (runs
+        # 39607504429, 39610433015). PRs are the surviving route: required
+        # checks fire/skip on the PR head, and squash auto-merge lands when
+        # green (no review requirement on main).
+        branch = f"orch-registry/{int(time.time())}"
+        ok, out = _git_push(branch, commit)
+        if ok:
+            pr_out = run(["gh", "pr", "create", "--base", "main",
+                          "--head", branch,
+                          "--title", "[registry] apply findings entries "
+                          f"from #{', #'.join(str(n) for n in applied)}",
+                          "--body", f"Mechanical union of anchored registry "
+                          f"entries into `{REGISTRY_PATH}` (ADR-0013 — the "
+                          f"registry never travels in an agent diff). "
+                          f"Auto-merge armed; purely mechanical payload."])
+            pm = re.search(r"pull/(\d+)", pr_out or "")
+            if pm:
+                run(["gh", "api", "-X", "PUT",
+                     f"repos/{REPO}/pulls/{pm.group(1)}/auto-merge",
+                     "-f", "merge_method=squash"])
+            else:
+                ok = False
         if ok:
             for n in applied:
-                post_comment(n, f"{MARK} registry entry applied to `{REGISTRY_PATH}` on main "
-                                f"(`{commit[:10]}`). The registry never travels in an agent diff (ADR-0013).")
-            print(f"[orchestrator] registry_sync applied entries from {applied} -> {commit[:10]}")
+                post_comment(n, f"{MARK} registry entry applied to `{REGISTRY_PATH}` via "
+                                f"registry PR (landed by auto-merge when green). "
+                                f"The registry never travels in an agent diff (ADR-0013).")
+            print(f"[orchestrator] registry_sync applied entries from {applied} -> PR branch {branch}")
         else:
             print("[orchestrator] registry_sync push failed — entries stay pending on their issues")
     finally:
