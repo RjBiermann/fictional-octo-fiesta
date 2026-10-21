@@ -10,8 +10,16 @@ on:
   workflow_dispatch:
   issues:
     types: [opened, labeled]      # fresh trigger labels / new specs go instantly
+  issue_comment:
+    types: [created]              # human plan-round answers / `approved` / decision
+                                  # tags resolve in seconds, not at the next throttled
+                                  # sweep (the surrogate re-derives state, so bot-comment
+                                  # triggers are just churn, never lost work)
   pull_request:
     types: [closed]               # chain advance immediately after a merge
+  pull_request_review:
+    types: [submitted]            # human review verdicts reach the fix-loop without
+                                  # waiting for a schedule slot
 
 permissions:
   # contents: write — 16-f6b pushes union-merge commits to resolve the
