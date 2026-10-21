@@ -217,6 +217,22 @@ def parent_of(story):
         m = rx.search(body)
         if m:
             return int(m.group(1))
+    # Fallback: the GitHub sub-issue graph. Finalize agents keep writing the
+    # parent relationship ONLY via the sub-issue link (no body anchor —
+    # #845/#844 are the third recurrence of this class), so ask the graph:
+    # Issue.parent is a first-class GraphQL field.
+    out = run(["gh", "api", "graphql", "-f",
+               "query=query($o:String!,$r:String!,$n:Int!){repository(owner:$o,"
+               "name:$r){issue(number:$n){parent{number}}}}",
+               "-f", f"o={OWNER}", "-f", f"r={REPO.split('/', 1)[-1]}",
+               "-F", f"n={story['number']}"])
+    try:
+        data = json.loads(out or "{}")
+        p = ((data.get("data") or {}).get("repository") or {}).get("issue") or {}
+        if (p.get("parent") or {}).get("number"):
+            return int(p["parent"]["number"])
+    except (ValueError, TypeError):
+        pass
     return None
 
 
