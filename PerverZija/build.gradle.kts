@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 16 // #845: XSFTK fix — synthesized native-HLS playlists re-emit real playback from the open _enc CDN segments; decoy xs1.php demoted to legacy-only fallback
+version = 16 // #778: shared xvideos registry row (fleet bump)
 
 cloudstream {
     authors     = listOf("kraptor")
