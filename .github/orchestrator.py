@@ -1136,15 +1136,29 @@ def conflict_watch():
     owner ping kept on the thread as the last-resort call to action."""
     # merge-tree + plumbing need up-to-date refs; branch fetches happen per-PR
     _pl(["git", "fetch", "origin", "main"])
-    for pr in open_pulls():
-        if not _agent_pr(pr):
-            continue
+    pulls = [pr for pr in open_pulls() if _agent_pr(pr)]
+    label_map = _pr_labels_map([p["number"] for p in pulls])
+    for pr in pulls:
         num = pr["number"]
-        d = api(f"pulls/{num}") or {}
-        if d.get("mergeable_state") != "dirty":
-            continue
         branch = pr.get("head", {}).get("ref", "")
         if not branch:
+            continue
+        # Labeled but no longer conflicted? The Actions GITHUB_TOKEN sees
+        # mergeable_state=unknown forever (actor-cold mergeability cache),
+        # so the truth is a LOCAL merge-tree against main — no GitHub cache
+        # involved. Clears the label when the conflict is genuinely gone
+        # (#851-853: label outlived the resolution).
+        if "status/conflict" in label_map.get(num, set()):
+            _pl(["git", "fetch", "origin", branch])
+            files = _conflict_files(branch)
+            if not files:
+                run(["gh", "api", "-X", "DELETE",
+                     f"repos/{REPO}/issues/{num}/labels/status/conflict"])
+                print(f"[orchestrator] PR #{num}: conflict gone per local "
+                      f"merge-tree — status/conflict label cleared")
+                continue
+        d = api(f"pulls/{num}") or {}
+        if d.get("mergeable_state") != "dirty":
             continue
         _pl(["git", "fetch", "origin", branch])
         files = _conflict_files(branch)
