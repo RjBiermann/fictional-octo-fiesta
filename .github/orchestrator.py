@@ -318,6 +318,19 @@ def merge_readiness():
         if not _agent_pr(pr):
             continue
         d = api(f"pulls/{num}") or {}
+        # Stale conflict label: conflict_watch applies status/conflict, but
+        # only a 14-rebase agent run removes it — conflicts unstuck by the
+        # mechanical resolver (or by hand) left the label on forever
+        # (#851/#852/#853). The mergeable flag is the truth; clear the
+        # label when the PR merges cleanly again.
+        labels = {l.get("name") for l in (pr.get("labels") or [])}
+        if "status/conflict" in labels and d.get("mergeable"):
+            out = run(["gh", "api", "-X", "DELETE",
+                       f"repos/{REPO}/issues/{num}/labels/status/conflict"])
+            print(f"[orchestrator] PR #{num}: stale status/conflict label "
+                  f"cleared (mergeable=true)" if out == "" else
+                  f"[orchestrator] PR #{num}: status/conflict clear rc!=0")
+        d = api(f"pulls/{num}") or {}
         mstate = d.get("mergeable_state")
         if not _effective_ready(num, mstate):
             print(f"[orchestrator] PR #{num}: mergeable_state={mstate} — not ready")
