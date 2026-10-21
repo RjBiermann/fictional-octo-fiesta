@@ -1352,9 +1352,11 @@ def fix_surrogate():
         # fix loop fires, else the PR is pass or already served (the
         # fire marker itself is a later bot comment without "blocker", so
         # it is its own dedupe).
-        labels = [l["name"] for l in (api(f"issues/{num}") or {}).get("labels", [])]
-        if "status/ready-to-merge" in labels:
-            continue
+        # NOTE: no status/ready-to-merge label gate — a later review round
+        # can find a blocker while the readiness label from an earlier
+        # zero-findings round is still applied (#851 round 3: "hold
+        # ready-to-merge", blocker outstanding). The last bot comment is
+        # the verdict; the label is stale display state.
         verdict, vtime = "", ""
         for c in reversed(comments(num)):
             if (c.get("user") or {}).get("login") == "github-actions[bot]":
