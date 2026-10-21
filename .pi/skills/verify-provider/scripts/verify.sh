@@ -227,7 +227,11 @@ def poster_path(u):
     if not p:
         return p
     head, sep, fname = p.rpartition('/')
-    m = re.match(r'^(.+?)-[A-Za-z0-9]{1,3}(\.[^.]+)?$', fname)
+    # two variant schemes, both generic WP/tube-theme idioms (no per-site allowlist):
+    #  -[A-Za-z0-9]{1,3}  — cover-t/cover-n/cover-x2 art variants (issue #680)
+    #  -\d+x\d+           — WP thumbnail size tokens (-400x225); card img serves the
+    #    sized crop while the load page's og:image serves the full-size file *(#781)*
+    m = re.match(r'^(.+?)-(?:[A-Za-z0-9]{1,3}|\d+x\d+)(\.[^.]+)?$', fname)
     if not m:
         return p
     return head + sep + m.group(1) + (m.group(2) or '')
@@ -344,7 +348,11 @@ elif cmd == 'dups':  # colspec; stdin TSV, id first
     dups(sys.argv[2])
 PY
 py() { python3 "$PYDOM" "$@"; }
-norm() { python3 -c 'import sys,html,re;print(re.sub(r"\s+"," ",html.unescape(sys.stdin.read())).strip().lower())'; }
+# check-5 title compare canonicalizes unicode dashes (WP surfaces disagree on
+# en-dash vs hyphen for the same video: card title attr '&#8211;' vs og:title '-',
+# #781 ixiporn 2020-import pair) — title AGREEMENT canonicalization only; inner_text/
+# dups distinctness semantics are untouched (distinct titles never merge).
+norm() { python3 -c 'import sys,html,re;print(re.sub(r"\s+"," ",re.sub(r"[\u2010-\u2015\u2212]","-",html.unescape(sys.stdin.read()))).strip().lower())'; }
 
 # ── listing-page check shared by search / homepage / quick search ──
 # Fetch each URL, require 200 + ≥1 card, dedupe within/across pages (a card repeating on
