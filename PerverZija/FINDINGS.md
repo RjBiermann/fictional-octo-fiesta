@@ -250,3 +250,71 @@ mediaSequence=0 stays correct).
   `perverzija_proto_manifest.bin` (13639-byte XOR manifest for 4e316bf7…, decodes to 480/720).
 - Gates: `./gradlew PerverZija:test` 5/5 PerverZijaXsftkTest GREEN (73 tests debug run, 0 failures);
   `./gradlew PerverZija:make` BUILD SUCCESSFUL (`PerverZija.cs3`). Version 14 → 15.
+
+## FINDINGS-845 — XSFTK fix: synthesized native-HLS playback (2026-10-21, fix story #845)
+
+**Root cause confirmed live:** the shared `PerverZijaExtractor` emitted the decoy
+tokenless `xs1.php` master (playlist 200, every segment 404 = in-app ExoPlayer 2004).
+The sign/sep round-trip is NOT needed in-app: the AES-CBC segment files sit **open** on
+the CDN, so the fix synthesizes one native VOD playlist per quality and lets the player
+do the AES layer itself.
+
+### New live evidence (2026-10-21 ~03:3xZ, from this CI runner; video 2 = rkprime-abella,
+### host `perv.xtremestream.xyz`, embed URL `perv.xtremestream.xyz/player/index.php?data=b7644aba…`)
+
+- Player page: 200 **only with the video-page referer** (bare UA got
+  `You can't access the video directly`, 35 B). Boot in plain text:
+  `XSFTK.boot("b7644aba…", "5704a6fb8188bef064788210.1792562400", player)`
+- `proto_api op=manifest` → 200, XOR-SHA-256 decodes:
+  `{1080{td:10,n:244,bw:2683080,res:1920x1080}, 480{264}, 720{n:255,durs[0]=1.418089}, cdn[45 hosts: perv.xspcdn01…xspcdn35.click]}`
+- **`op=key` → 200/16 bytes with `X-XS-P: 1`; 403 without (re-verified).**
+- `op=sign&q=720&i=0` → base64 (`1792553636.3283aea01767.2766b1c…`); `op=seg` 403s
+  without `n` — both **not needed in-app** because:
+- **CDN `_enc` segments are open:** `https://<cdn>/cdn/down/<id>/720_enc/<q><i>.html`
+  → 200 with NO token, NO referer, NO UA requirement (re-verified bare `curl`),
+  identical bytes from every cdn host, i=0..n-1 contiguous (720254 fetched 200).
+  Legacy `<q>/<q><i>.html` shape: still nginx 404 (decoy confirmed again).
+- **Decryption re-verified:** AES-128-CBC with `op=key` bytes; `IV=BE(0)` → seg 0 →
+  first bytes `47401110`, TS sync 15/15 at 188-byte stride; `BE(1)` → `47401111`, 15/15
+  (openssl `aes-128-cbc`, key `2a5459…`-shaped 16 raw bytes).
+
+### Player simulation of the shipped design (playlist → data: URI → native HLS)
+A full offline simulation that consumes the synthesized playlist exactly the way
+ExoPlayer does (parse playlist → resolve `#EXT-X-KEY` URI → fetch key WITH header →
+fetch segments in order → decrypt with IV = media sequence number, i.e. **no-IV
+default**): playlist rebuilt from the live manifest (255 segs, TARGETDURATION 11
+= ceil(max dur), MEDIA-SEQUENCE 0, key line
+`#EXT-X-KEY:METHOD=AES-128,URI="<proto_api op=key>"` no IV=), data: roundtrip decodes
+back byte-exact, key fetch with `X-XS-P: 1` → 16 B, segments 0 and 1 both decrypt →
+MPEG-TS, sync 15/15 each. **SIM PASSED.**
+
+### In-app confirmation (maintainer-only, not run here)
+Per FINDINGS-840 the key URL must keep `X-XS-P: 1`; the extractor sets it on the
+ExtractorLink `headers` map (HlsFree #247 precedent). The one un-testable-from-CI
+assumption remains **ExoPlayer opening the `data:application/vnd.apple.mpegurl;base64,`
+playlist URI** (DataSchemeDataSource) — if the app instead rejects `data:` scheme
+playlists, the fallback is a per-segment presign sweep (734 sign calls at 480p) which
+is explicitly NOT shipped. In-app playback test is merge-time, not an agent deliverable.
+
+### Code landed (TDD red → green, ADR-0005)
+- NEW `shared/src/main/kotlin/com/kraptor/XsftkParse.kt` — single source of the XSFTK
+  protocol helpers: `xsftkBoot` / `protoApiUrl` / `decodeXsManifest` (moved from the
+  provider parse, same package), plus `qualities`, `xsSegmentUrl`, `variantPlaylist`
+  (no-IV contract + RFC-8216 target-duration guard), `encodeBase64NoWrap` /
+  `dataUri`. Root cause lives in the shared adapter, so the helpers moved to shared
+  (ADR-0002); never copy-paste between providers.
+- `shared/HostAdapters.kt` `PerverZijaExtractor.getUrl` rewritten: fetch player page
+  (video-page referer) → boot → manifest decode → one synthesized M3U8 `data:` link
+  per quality (highest first, `quality` from `<name>`, `headers = {"X-XS-P": "1"}`
+  for the op=key fetch). xs1.php emission demoted to a legacy-only fallback
+  (no-XSFTK pages) and no longer serves gated videos (decoy).
+- `PerverZijaParse` keeps thin delegates pinning the #846 API surface.
+- NEW test `PerverZijaSynthTest` (7 tests): segment URL shape, quality ordering,
+  playlist structure (key line URI exact, **no `IV=` attribute** — absence is a
+  contract, MEDIA-SEQUENCE 0, segment names/indices, ENDLIST, target-duration rule),
+  tiny-manifest determinism, unknown-quality null, data: roundtrip. Red first
+  (unresolved `XsftkParse`), then green.
+- Gates: `./gradlew PerverZija:test` BUILD SUCCESSFUL (0 failures; 7/7 new + 5/5
+  #846 probe tests + full suite); `./gradlew PerverZija:make` BUILD SUCCESSFUL
+  (`PerverZija.cs3`). Version 15 → 16.
+- #844 (fallback/removal story): moot under this verdict — no action taken.

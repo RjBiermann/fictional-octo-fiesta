@@ -144,22 +144,67 @@ open class PerverZijaExtractor : ExtractorApi() {
     ) {
         Log.d("kraptor_PerverZijaExtract", "url = $url")
 
-        // issue #333: emitting fixed 480/720/1080/2160 links breaks every video whose
-        // max quality is lower — xs1.php?q=<unavailable> returns HTTP 200 with a
-        // plain-text error, not an m3u8. Without q it serves a master playlist with
-        // all available #EXT-X-STREAM-INF variants (verified live for every sampled
-        // video) — emit that single adaptive link instead.
-        val changeUrl = url.replace("index.php", "xs1.php")
+        val ref = referer ?: url.substringBefore("/player/") + "/"
+        val boot = try {
+            XsftkParse.xsftkBoot(app.get(url, referer = ref).text)
+        } catch (e: Exception) {
+            Log.d(name, "boot: ${e.message}")
+            null
+        }
 
-        callback.invoke(newExtractorLink(
-            source = this.name,
-            name = this.name,
-            url = changeUrl,
-            type = ExtractorLinkType.M3U8
-        ) {
-            this.referer = url.substringBefore("/player/") + "/"
-            this.quality = Qualities.Unknown.value
-        })
+        if (boot == null) {
+            // Legacy fallback (issue #333 semantics): xs1.php serves the tokenless
+            // master playlist. Since the XSFTK gate (#840) it is a DECOY — valid
+            // playlist, every segment 404s — so it is only emitted when the player
+            // page shows no XSFTK layer at all (pre-gate videos, if any reappear);
+            // on gated pages it is never the answer (FINDINGS-840).
+            val changeUrl = url.replace("index.php", "xs1.php")
+            callback.invoke(newExtractorLink(
+                source = this.name,
+                name = this.name,
+                url = changeUrl,
+                type = ExtractorLinkType.M3U8
+            ) {
+                this.referer = url.substringBefore("/player/") + "/"
+                this.quality = Qualities.Unknown.value
+            })
+            return
+        }
+
+        // XSFTK chain (#845/#846, FINDINGS-840): decode the XOR'd manifest, then emit
+        // one synthesized VOD playlist per quality. No sign/seg round-trip in-app —
+        // the AES-128-CBC `_enc` segment files sit OPEN on the CDN, encrypted with
+        // the op=key bytes and IV = BE(segment index) = the HLS media-sequence
+        // default, so #EXT-X-KEY URI=op=key + in-order segments replay natively.
+        // The key fetch must carry X-XS-P: 1 (403 without) — it travels on the link
+        // headers map, same contract as HlsFree (#247).
+        val json = try {
+            XsftkParse.decodeXsManifest(
+                app.get(XsftkParse.protoApiUrl(url, boot, "manifest"), referer = ref).body.bytes(),
+                boot
+            )
+        } catch (e: Exception) {
+            Log.d(name, "manifest: ${e.message}")
+            null
+        }
+        if (json == null) {
+            Log.d(name, "manifest decode failed for ${boot.id}")
+            return
+        }
+
+        for (q in XsftkParse.qualities(json)) {
+            val playlist = XsftkParse.variantPlaylist(json, boot, url, q) ?: continue
+            callback.invoke(newExtractorLink(
+                source = this.name,
+                name = this.name,
+                url = XsftkParse.dataUri(playlist),
+                type = ExtractorLinkType.M3U8
+            ) {
+                this.referer = ref
+                this.headers = mapOf("X-XS-P" to "1")
+                this.quality = q.toIntOrNull() ?: Qualities.Unknown.value
+            })
+        }
     }
 }
 
