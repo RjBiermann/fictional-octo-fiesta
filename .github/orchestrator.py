@@ -364,6 +364,44 @@ def chain_driver():
     # Parent spec issue: close once every story referencing it is closed.
     by_parent = {}
 
+AUDIT_VERDICT_RE = re.compile(r"^##\s*Audit verdict\b.*\*\*clean\*\*", re.I | re.M)
+AUDIT_CHAIN_RE = re.compile(r"clean providers.{0,80}maintainer close", re.I | re.S)
+
+
+def audit_story_closeout(stories=None):
+    """#837: auto-close clean audit stories — evidence-level gates, fails
+    closed. A story whose parent spec declares verdict-only closeout and
+    whose only deliverable is a clean verdict comment is mechanically
+    closable: the human decision was the parent's round-3 approval; the
+    verdict comment is the work. Finding stories, PR-delivered stories and
+    anything undeterminable stay open."""
+    stories = stories if stories is not None else all_stories()
+    for s in stories:
+        if s.get("state") != "open":
+            continue
+        n = s["number"]
+        labels = [l["name"] for l in s.get("labels", [])]
+        if "status/in-review" not in labels:
+            continue
+        if _open_pr_for_story(n) or _merged_pr_for_story(n):
+            continue
+        pnum = parent_of(s)
+        if not pnum:
+            continue
+        parent_texts = [c.get("body") or "" for c in comments(pnum)]
+        pb = api(f"issues/{pnum}") or {}
+        parent_texts.insert(0, pb.get("body") or "")
+        if not any(AUDIT_CHAIN_RE.search(t) for t in parent_texts):
+            continue
+        if not any(AUDIT_VERDICT_RE.search(c.get("body") or "")
+                   for c in comments(n)):
+            continue
+        close_issue(n, "completed",
+                    f"{MARK} clean-audit closeout (evidence: `## Audit verdict … clean` comment, "
+                    f"no PR, parent #{pnum} declares verdict-only closeout) — chain advance per story-N rule")
+        print(f"[orchestrator] story (issue {n}): clean-audit auto-closed")
+
+
 def _parse_ts(s):
     try:
         return datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
@@ -654,6 +692,18 @@ def plan_loop_surrogate():
         kid_stories = [s for s in stories if parent_of(s) == n]
 
         fresh_trigger = any(l in triggers for l in labels)
+        # ADR-0021 (#839): a finalized story of an already-approved parent
+        # chain is planned — fire Implement directly instead of re-running
+        # the plan loop. Idempotence: _fire_implement stamps status/planned;
+        # an IN_FLIGHT label present means a fire is already out the door.
+        pnum_i = parent_of(i)
+        if fresh_trigger and pnum_i and _chain_approved(pnum_i) \
+                and "status/planned" not in labels \
+                and "status/in-review" not in labels:
+            _fire_implement(n)
+            print(f"[orchestrator] {n}: parent #{pnum_i} chain approved — "
+                  "implement fired directly (plan loop skipped)")
+            continue
         if fresh_trigger and not r1:
             _fire_plan(n, 1)
             continue
@@ -1232,6 +1282,7 @@ if __name__ == "__main__":
     steps = {
         "approvals": approve_companion_runs,
         "merge_readiness": merge_readiness,
+        "audit_story_closeout": audit_story_closeout,
         "chain_driver": chain_driver,
         "closeout_healer": closeout_healer,
         "queue_to_pipeline": queue_to_pipeline,
@@ -1245,7 +1296,7 @@ if __name__ == "__main__":
         "registry_sync": registry_sync,
     }
     _preflight_labels()
-    mutation_steps = {"merge_readiness", "chain_driver", "closeout_healer", "queue_to_pipeline",
+    mutation_steps = {"merge_readiness", "chain_driver", "closeout_healer", "audit_story_closeout", "queue_to_pipeline",
                       "plan_surrogate", "decision_tags", "stall_watch", "wave_driver",
                       "fix_surrogate", "watchdog", "registry_sync"}
     available = {name: fn for name, fn in steps.items()
