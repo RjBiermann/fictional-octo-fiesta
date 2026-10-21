@@ -1090,6 +1090,9 @@ def conflict_watch():
         d = api(f"pulls/{num}") or {}
         if d.get("mergeable_state") != "dirty":
             continue
+        branch = pr.get("head", {}).get("ref", "")
+        if not branch:
+            continue
         _pl(["git", "fetch", "origin", branch])
         files = _conflict_files(branch)
         if files and all(f == FINDINGS_PATH
