@@ -137,3 +137,116 @@ version bump (out of scope for an ai-fix per repo rules).
   poster exposure asserted directly (og:image on 4/4 video pages).
 - Gates: `./gradlew :PerverZija:test` 65 × debug+release, 0 failures; `./gradlew clean
   :PerverZija:make` BUILD SUCCESSFUL. No code change → version stays 13.
+
+## FINDINGS-840 — XSFTK signed-token probe (2026-10-21, implement story #846)
+
+**## Verdict: FIXABLE** — the token exchange is fully satisfiable without JS execution.
+Everything the player computes is reproducible with plain JVM/HTTP: the boot token is
+plaintext in the player HTML, the manifest is XOR-SHA-256, segments are standard AES-128-CBC
+with an HLS-expressible IV. Story #845 (fix) is viable; the removal fallback (#844) is not
+needed. Full chain reproduced with curl on two live videos end-to-end (16-byte key → decoded
+manifest JSON → signed segment URL → AES-decrypted MPEG-TS with clean sync bytes).
+
+### Symptom root cause (#840)
+The current extractor path (tokenless `xs1.php`) still answers 200 with valid playlists, but
+every segment URL in them is dead — this is the in-app ExoPlayer 2004 "io bad http status":
+
+```
+$ curl -s -o xs1seg.bin -w "%{http_code} bytes %{size_download}\n" \
+    "https://pervl3.xspcdn01.click/cdn/down/4e316bf7.../480/4800.html"
+404 bytes 146      # body: <html><head><title>404 Not Found</title>...  (nginx)
+```
+
+Url-shape note: legacy playlists use `.../480/<q><i>.html`; the new signed chain uses
+`.../480_enc/<q><i>.html` (also `.ts`-shaped paths under `cdn/down/<id>/`).
+
+### New player layer (deobfuscated ftk_engine.js, javascript-obfuscator output)
+- Player iframe page (`<sub>.xtremestream.xyz/player/index.php?data=<id>`) loads
+  `ftk/ftk_engine.js` + `ftk/xsad.js` and exposes the boot call **in plain text**:
+  `XSFTK.boot("<id>", "<hex>.<expiry>", player)` — id and usable token with zero JS run.
+- Both JS files are string-array-obfuscated; ftk_engine.js deobfuscates statically to
+  ~950 readable lines defining `window.XSFTK` (VM-extract string arrays, then
+  alias-propagation substitution — transcript notes in the run log).
+- API endpoint: `/player/proto_api.php` (relative to the player subdomain). Query:
+  `?data=<id>&op=<op>&vt=<token>`. **Header `X-XS-P: 1` required on every op** —
+  `op=key` and `op=seg` return 403 without it; referer is NOT required (200 with none).
+- `vt` and per-segment `n` tokens are `<hex-random>.<epoch>` / base64 of
+  `<epoch>.<hex>.<md5-hex>` — server-issued, regenerate per player fetch (observed epoch
+  expiry ~05:00Z on 2026-10-21, i.e. hours-long validity window).
+
+### Protocol (all live-verified; video 1 = red/ scene, video 2 = rkprime-abella scene)
+| op | header | request | response |
+|----|--------|---------|----------|
+| `key` | `X-XS-P: 1` | none extra | 16 raw bytes (AES-128-CBC video/segment key) |
+| `manifest` | (none) | none extra | octet-stream, XOR SHA-256(`M\|<id>\|<vt>`) → JSON |
+| `sign` | `X-XS-P: 1` | `&q=<q>&i=<i>` | base64 signed segment token `n` |
+| `seg` | `X-XS-P: 1` | `&q=<q>&i=<i>&n=<n>` (urlencoded) | AES-CBC bytes, IV = 16-byte BE(i) → TS |
+
+### Curl transcript (fresh 2026-10-21, unaltered key outputs)
+
+```console
+$ PLAYER=https://pervl3.xtremestream.xyz/player/index.php?data=4e316bf7cad703ffd97bd72c174b72c6
+$ curl -sL -A Mozilla/5.0 "$PLAYER" | grep -o 'XSFTK.boot[^)]*'
+XSFTK.boot("4e316bf7cad703ffd97bd72c174b72c6", "7cb593191aaa3bed708b7930.1792558800", player)
+$ ID=4e316bf7cad703ffd97bd72c174b72c6
+$ VT=7cb593191aaa3bed708b7930.1792558800
+$ API="https://pervl3.xtremestream.xyz/player/proto_api.php?data=$ID&vt=$VT"
+$ HOST="https://pervl3.xtremestream.xyz/player/index.php?data=$ID"
+# ---- op=key
+$ curl -sL -A Mozilla/5.0 -H "Referer: $HOST" -H "X-XS-P: 1" -o key.bin \
+    -w "key %{http_code} bytes %{size_download}\n" "$API&op=key"
+key 200 bytes 16
+$ xxd key.bin
+00000000: 2a54 591a 5196 f997 d091 22f7 4cd5 6fde
+# ---- X-XS-P required, referer not
+$ curl -sL -A Mozilla/5.0 -o k2.bin -w "%{http_code}\n" "$API&op=key"      # no X-XS-P
+403
+$ curl -sL -A Mozilla/5.0 -H "X-XS-P: 1" -o k3.bin -w "%{http_code}\n" "$API&op=key"  # no referer
+200
+# ---- op=manifest → XOR with SHA-256("M|<id>|<vt>") (node -e crypto) → JSON
+$ curl -sL -A Mozilla/5.0 -H "Referer: $HOST" -o manifest.bin \
+    -w "manifest %{http_code} bytes %{size_download}\n" "$API&op=manifest"
+manifest 200 bytes 13639
+$ <decode> {"480":{"td":8,"n":734,...,"res":"854x480"},"720":{"td":8,"n":777,...},
+            "cdn":["pervl3.xspcdn01.click"... through xspcdn10.click]}
+# ---- op=sign
+$ curl -sL -A Mozilla/5.0 -H "X-XS-P: 1" "$API&op=sign&q=480&i=0"
+MTc5MjU1MTM0OC5hMzQ2N2YyNDhhZjAuNzI1ZmIwMWZiMzMxOGIwOGUxMGFiNzAyN2Y5NDg1NjM
+# (base64 → "1792551348.a3467f248af0.725fb01fb3318b08e10bab7027f948563")
+# ---- op=seg → AES-128-CBC decrypt, IV = 16-byte big-endian segment index
+$ curl -sL -A Mozilla/5.0 -H "Ref: $HOST" -H "X-XS-P: 1" -o seg0.bin \
+    -w "seg %{http_code} bytes %{size_download}\n" "$API&op=seg&q=480&i=0&n=$B64"
+seg 200 bytes 304384
+$ <node aes-128-cbc, key=key.bin, iv=LE-free BE(0)> first byte 0x47, TS sync 4/4 beats
+#    (and BE(1), BE(2), and a 720p seg → 8/8 sync bytes each)
+```
+
+Video 2 (`https://tube.perverzija.com/rkprime-abella-danger-squirt-surge/`, host
+`perv.xtremestream.xyz`, note the short subdomain) reproduces the identical chain:
+boot `XSFTK.boot("b7644abae9d51f072401f013b5d42d53","bdea0f38d5716e78c627000c.1792558800")`,
+key 200/16 bytes, manifest XOR → `{1080(244 segs),720,...,cdn[]}`, sign+seg 200,
+segment TS first byte 0x47 / 8-of-8 sync. Legacy host `pervl2` / `index.php` shapes all hold.
+
+### Decoy (why "just fix the subdomain" fails)
+`player/xs1.php?data=<id>&q=<q>` (tokenless) STILL serves a well-formed VOD master with
+480/720 STREAM-INF entries, pointing at `<sub>.xspcdnNN.click/cdn/down/<id>/<q>/<q><i>.html`
+— every one of them is nginx-404. The old scheme is a decoy playlist provider; the URIs now
+resolve only through the managed `proto_api` round-trip.
+
+### IV note (read before fixing in-app segments)
+The JS builds the per-segment IV by nibble-dividing the segment index from byte 15 down —
+this is the **big-endian 16-byte counter**, not little-endian as a first glance suggests.
+`#EXTM3U playback` with `#EXT-X-KEY:METHOD=AES-128,URI=<proto_api key url>,IV=0x<BE counter>`
+is byte-order-compatible with native HLS players; key URL must send `X-XS-P: 1` (headers get
+carried on `ExtractorLink`s, and `data:`/`#EXT-X-` synthesized playlists keep the key
+session in one request context — otherwise the player emits no IV by default and only
+mediaSequence=0 stays correct).
+
+### Sort-relevant code landed (story-1 scope, TDD red → green)
+- `PerverZijaParse.xsftkBoot(playerHtml)` → `XsftkBoot(id, token)` from the plain-text boot call.
+- `PerverZijaParse.protoApiUrl(playerUrl, boot, op, extra)` → canonical proto_api endpoint builder.
+- `PerverZijaParse.decodeXsManifest(raw, boot)` → SHA-256(`M|id|vt`) XOR → JSON text (null guard).
+- Fixtures (live-derived): `perverzija_player_xsftk.html` (boot line verbatim),
+  `perverzija_proto_manifest.bin` (13639-byte XOR manifest for 4e316bf7…, decodes to 480/720).
+- Gates: `./gradlew PerverZija:test` 5/5 PerverZijaXsftkTest GREEN (73 tests debug run, 0 failures);
+  `./gradlew PerverZija:make` BUILD SUCCESSFUL (`PerverZija.cs3`). Version 14 → 15.
