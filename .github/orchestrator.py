@@ -906,6 +906,29 @@ def _registry_entry(cs):
     return None
 
 
+def _registry_candidate(cs):
+    """Un-anchored fenced-```json``` providers delta from a bot author —
+    the shape agents keep posting when they botch the anchor (#777). Only
+    objects with a top-level providers dict qualify; anything else stays
+    invisible to the registry (strict parse preserved)."""
+    for c in reversed(cs or []):
+        body = c.get("body") or ""
+        if REGISTRY_ANCHOR in body:
+            continue
+        if (c.get("user") or {}).get("login", "") not in ("github-actions[bot]", "github-actions"):
+            continue
+        m = re.search(r"```json\s*(\{.*?\})\s*```", body, re.S)
+        if not m:
+            continue
+        try:
+            obj = json.loads(m.group(1))
+        except ValueError:
+            continue
+        if isinstance(obj, dict) and isinstance(obj.get("providers"), dict):
+            return m.group(1)
+    return None
+
+
 def registry_sync():
     """ADR-0013: agent diffs carry no registry. The agent posts its
     would-be registry entry as an add-comment starting with
@@ -927,6 +950,21 @@ def registry_sync():
         e = _registry_entry(cs)
         if e:
             pend.append((i["number"], e))
+            continue
+        # Self-heal the recurring agent-formatting defect (#777, three
+        # strandings): a fix-loop/review agent posts the fenced ```json```
+        # providers delta WITHOUT the REGISTRY_ANCHOR line, while its own
+        # fix report claims it is anchored — _registry_entry can never
+        # see it. Repost the candidate verbatim, anchored, as the owner.
+        # The posted comment is a real anchored entry; the union below
+        # makes any later repost a no-op.
+        cand = _registry_candidate(cs)
+        if cand:
+            post_comment(i["number"], f"{REGISTRY_ANCHOR}\n```json\n{cand}\n```")
+            cs = comments(i["number"])
+            e = _registry_entry(cs)
+            if e:
+                pend.append((i["number"], e))
     if not pend:
         return
     if _pl(["git", "fetch", "origin", "main"])[0] > 1:
