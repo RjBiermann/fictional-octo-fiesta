@@ -359,6 +359,43 @@ open class AbyssPlayer : ExtractorApi() {
     }
 }
 
+/** xvideos.com/embedframe/<id> — SSR hub-embed host (issue #778, spec round of #708):
+ *  ixiporn's shape-B pages (2021–2023 import era) base64-wrap this iframe via
+ *  clean-tube-player/player-x.php. The embed page is server-rendered and carries the
+ *  player config as html5player.setVideo* calls (2 × mp4 qualities + HLS, live capture
+ *  61306335, probe 2026-10-21). Targets deleted upstream answer a 1049-byte
+ *  "This video has been deleted" shell — the adapter emits no links for those: no
+ *  throw, no best-effort dead URLs. Parsing lives in the pure XvideosParse seam. */
+open class Xvideos : ExtractorApi() {
+    override val name = "Xvideos"
+    override val mainUrl = "https://www.xvideos.com"
+    override val requiresReferer = true
+
+    override suspend fun getUrl(url: String, referer: String?): List<ExtractorLink>? {
+        val html = try {
+            app.get(url, referer = referer ?: "$mainUrl/").text
+        } catch (e: Exception) {
+            Log.d(name, "embed: ${e.message}")
+            return emptyList()
+        }
+        // Deleted-shell contract (#778): the shell has no setVideo* calls, so streams
+        // returns empty either way — the explicit gate documents intent.
+        if (XvideosParse.isDeletedShell(html)) return emptyList()
+        return XvideosParse.streams(html).map { s ->
+            newExtractorLink(
+                source = name,
+                name = name,
+                url = s.url,
+                type = if (s.isHls) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+            ) {
+                this.referer = "$mainUrl/"
+                this.headers = mapOf("Referer" to "$mainUrl/")
+                this.quality = if (s.isHls) Qualities.Unknown.value else getQualityFromName("${s.quality}p")
+            }
+        }
+    }
+}
+
 // player. subdomain of the abyssplayer embed host (Cat3Film #613 Story 2, FINDINGS
 // 2026-10-15): the site's sources-API backup embed lives at player.abyssplayer.com/<id>,
 // and loadExtractor's primary dispatch is startsWith(target, stripped mainUrl) — the

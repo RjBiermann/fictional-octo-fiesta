@@ -1,5 +1,5 @@
 // ! This Extension Made By @ByAyzen for GizliKeyif
-version = 19 // #670: shared dood.so registry row (fleet bump)
+version = 20 // #778: shared xvideos registry row (fleet bump)
 
 cloudstream {
     authors     = listOf("ByAyzen")

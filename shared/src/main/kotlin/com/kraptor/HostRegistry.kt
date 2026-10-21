@@ -190,6 +190,10 @@ internal fun sharedHostRegistry(): List<ExtractorApi> = listOf(
         PerverZijaExtractor(),
         HlsFree(),
         HlsFreeWww(),
+        // #778: xvideos.com/embedframe/<id> — SSR resolver for the ixiporn shape-B hub
+        // tier (#708/#709): html5player.setVideoUrlHigh/Low + setVideoHLS; deleted-upstream
+        // targets answer a "This video has been deleted" shell → no links, no throw.
+        Xvideos(),
     )
 
 fun BasePlugin.registerHostExtractors(first: List<ExtractorApi> = emptyList()) {
