@@ -190,6 +190,11 @@ internal fun sharedHostRegistry(): List<ExtractorApi> = listOf(
         PerverZijaExtractor(),
         HlsFree(),
         HlsFreeWww(),
+        // #779: second hub of the ixiporn shape-B tier (player-x.php b64 payload —
+        // hub varies per video, xvideos is the other observable). flashvars →
+        // /media/{hls,mp4}?s= chain; deleted videos answer a 404 shell with no
+        // flashvars and are declined at the Parse seam.
+        RedtubeEmbed(),
     )
 
 fun BasePlugin.registerHostExtractors(first: List<ExtractorApi> = emptyList()) {
