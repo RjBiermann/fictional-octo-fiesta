@@ -168,10 +168,18 @@ def api(path):
         out = run(["gh", "api", f"repos/{REPO}/{path}"])
         if out.strip():
             try:
-                return json.loads(out)
+                data = json.loads(out)
             except ValueError:
-                pass
-        time.sleep(5 + attempt * 10)  # 5s, 15s, 25s — secondary limits clear fast
+                data = None
+            # gh api prints error bodies (403/404/422) on stdout as JSON —
+            # returning them as data poisoned every step (open_pulls grew a
+            # 'message' dict, steps iterated strings). Error shape = exact
+            # {message, documentation_url, status} trio → retry.
+            if isinstance(data, dict) and set(data) == {"message", "documentation_url", "status"}:
+                data = None
+            if data is not None:
+                return data
+        time.sleep(5 + attempt * 10)
     return None
 
 
@@ -1420,25 +1428,68 @@ def fix_surrogate():
         # the verdict; the label is stale display state.
         verdict, vtime = "", ""
         for c in reversed(comments(num)):
-            if (c.get("user") or {}).get("login") == "github-actions[bot]":
-                verdict = (c.get("body") or "")
-                vtime = c.get("created_at", "")
-                break
+            if (c.get("user") or {}).get("login") != "github-actions[bot]":
+                continue
+            # skip the surrogate's own fire-marker comments — they carry
+            # no verdict text and would mask the verdict they point to
+            # (observed on #851: marker posted, cooldown ate the fire,
+            # marker became "the verdict").
+            if "fix-loop re-fired for the verdict at" in (c.get("body") or ""):
+                continue
+            verdict = (c.get("body") or "")
+            vtime = c.get("created_at", "")
+            break
         low = verdict.lower()
         if "blocker" not in low or any(s in low for s in ("0 blockers", "no blockers", "pass, no blockers")):
             continue
-        # dedupe: one fire per verdict — a bot comment later than the
-        # verdict carrying the marker means this round is served.
+        # dedupe: a verdict is served only when a fix-loop run created
+        # after it actually EXECUTED its agent. Marker comments alone lie:
+        # the dispatched run can be swallowed by the fix loop's cooldown
+        # (activation skips agent) while the marker was already posted —
+        # #851 stranded exactly that way, and re-fires were blocked
+        # forever. Cap: 2 fires per verdict, then escalate to the human
+        # via status/fixing-stuck.
         fire_marker = f"{MARK} fix-loop re-fired for the verdict at {vtime}"
         cs = comments(num)
-        if any((c.get("created_at", "") > vtime and fire_marker in (c.get("body") or ""))
-               or fire_marker in (c.get("body") or "") for c in cs):
+        markers = sum(1 for c in cs if fire_marker in (c.get("body") or ""))
+        served = False
+        rl = run(["gh", "run", "list", "--workflow", "07-fix-loop.lock.yml",
+                  "--limit", "15", "--json", "databaseId,createdAt"]).strip()
+        try:
+            rl = json.loads(rl or "[]")
+        except ValueError:
+            rl = []
+        for r in rl:
+            if r.get("createdAt", "") <= vtime:
+                continue
+            jobs = api_run_jobs(r["databaseId"])
+            if any((j.get("name") == "agent" and
+                    (j.get("conclusion") or "") != "skipped")
+                   for j in jobs):
+                served = True
+                break
+        if served:
+            continue
+        if markers >= 2:
+            if "status/fixing-stuck" not in [l.get("name") for l in (api(f"issues/{num}") or {}).get("labels", [])]:
+                run(["gh", "api", "-X", "POST", f"repos/{REPO}/issues/{num}/labels",
+                     "-f", "labels[]=status/fixing-stuck"])
+                print(f"[orchestrator] PR #{num}: 2 unserved fix-loop fires — status/fixing-stuck")
             continue
         post_comment(num, fire_marker + " — dispatch fires 07 (machine relay, ADR-0019)")
         ok = dispatch_ok(["gh", "workflow", "run", "07-fix-loop.lock.yml",
                           "--ref", "main", "-R", REPO,
                           "-f", f"aw_context={json.dumps({'item_type': 'pull_request', 'item_number': num})}"])
         print(f"[orchestrator] fix surrogate on PR #{num}: {'fired' if ok else 'failed: ' + out[:120]}")
+
+
+def api_run_jobs(run_id):
+    """Jobs of a workflow run (actions read scope). [] on any failure."""
+    out = run(["gh", "api", f"repos/{REPO}/actions/runs/{run_id}/jobs?per_page=100"])
+    try:
+        return (json.loads(out or "{}").get("jobs") or [])
+    except ValueError:
+        return []
 
 
 def _preflight_labels():
