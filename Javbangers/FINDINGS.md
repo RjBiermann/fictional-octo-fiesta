@@ -146,6 +146,64 @@ limitations as above: raw verify.sh RESULT is FAIL solely on regex-DOM-truncated
 duplicate `title=hd` cards in search/home/related (pre-existing script limit, Porntrex
 precedent); the substantive checks on the 5 pages all pass.
 
+## Quick search (2026-10-16 run, issue #656)
+**No distinct quick-search endpoint.** The header form's `data-url="https://www.javbangers.com/search/%QUERY%/"`
+server-side/on-submit only; main.min.new.js consumes it by redirecting the browser to
+`/search/<encoded>/` (not by fetching suggestions). No suggest endpoint exists
+(`/search/suggest/?q=` is literally the search page for the query "suggest" — the path
+shape IS the query slug; `?q=` is just the form GET param, honored identically at
+`/search/?q=anal` = 75/75 same items as `/search/anal/`). `tt-` typeahead CSS classes are
+dead theme chrome; zero `.typeahead(`/suggest JS in main.min.new.js + custom.js.
+Provider keeps `hasQuickSearch = false` (correct).
+
+## 2026-10-16 re-audit (issue #656, full-surface deep pass)
+Plain-curl tier on every surface (canaries 3/3; no challenge; TLS/browser never reached).
+
+- **Home rows p1/p2** — latest-updates 30+30 (0 id-overlap), most-popular 24+24 (0),
+  milf/hentai/chinese 24+24 (0). **Last-page wrap-pad on small categories:** when a category
+  has < 2×24 videos, its final page serves the remaining real items plus wrap-around repeats
+  of page 1 — deterministic, identical on the async endpoint. Measured p1∩p2: uncensored
+  22/24 (26-video catalog: p2 = 2 real + 22 wrapped), creampie 4/24 (stable across re-probes),
+  cosplay 2/24, teen 2/24, top-rated 1/24. Site-side KVS grid padding — every client sees the
+  same; provider faithfully mirrors; never a regression of any honored record (they only ever
+  claimed latest-updates/most-popular disjointness, still 0).
+- **Search contract re-confirmed:** `/search/japanese/` 200/75 cards (75 = page-1 cap for
+  high-volume queries), `/search/anal/` 200/75, `/search/mdyd/` 200/3 — exact FINDINGS shape;
+  `/search/<q>/2/` → 404 on japanese AND mdyd (#475 contract unchanged); query cross-overlap
+  japanese∩anal = 0 (no collapse). `?q=` form GET = same page (75/75 same items).
+- **File-less placeholder entries (~40% of sampled cards):** distinct probed videos 12/29
+  (video-1..13 + mdyd sample) serve a 200 page with NO `flashvars` block and no
+  `get_file`/player at all (KVS `kt_player` count 0) — clustered in the 401xxx/404xxx/407xxx
+  id bands and the whole chinese sample (3/3). They look planted: slugs like `txvlog2`,
+  `ktv-amateur-drunk`, `3519`, and a bare hex hash; real og:image/og:title, real
+  block-details/videodesc/Tags/Submitted-badge, related list present. Listing cards are
+  visually indistinguishable from file-bearing cards (real thumbnails both ways) — no
+  pre-filter exists provider-side. `load()` parses fine; `loadLinks` correctly returns false
+  (0 sources) → the app shows "no streams", exactly like the site's own empty player region.
+  Site content hygiene (delisted/dummy imports), not selector drift; recorded, not filed.
+- **File-bearing pages unchanged:** flashvars `video_url` 480p + `video_alt_url` 720p with
+  `video_url_text`/`video_alt_url_text`, keys unquoted values single-quoted — shared
+  `KvsFlashvars` grammar parses today's pages (408518/408521/110229/408225/393873 all carry
+  both qualities).
+- **Stream chain re-verified (refer now REQUIRED):** flashvars URL → `get_file` → 302 →
+  `origin13-direct.cdntrex.com/remote_control.php?...` → **206 video/mp4 with
+  `Referer: https://www.javbangers.com/` (origin hop 403s WITHOUT the referer — hardening
+  since 2026-09, FINDINGS then recorded it as optional; the provider has always shipped
+  `referer = mainUrl`, so nothing breaks). 5/5 streams 206 video/mp4 in verify.sh with the
+  header passed; bare-IP token validity: get_file itself 302s regardless, tokens are
+  IP/UA-bound and expire — stale tokens from hours-old page fetches still 302 but origin
+  403s; always pair token + referer + fresh page fetch.
+- **verify.sh (2026-10-16):** search 2 pages, home 2 pages, 5 video pages, related x10/page,
+  streams 5/5 → 206 video/mp4, tags all-5, code-completeness fields ok — single mechanical
+  FAIL line: "duplicate search cards" on /search/japanese/ are **distinct videos sharing
+  title text** (75/75 unique hrefs; 59 distinct titles / 75 cards — same-scene re-upload
+  spam class), not card duplication; verify.sh's pairwise-distinct-title rule can't express
+  this host class. Posters NOTE (uniform empty): listing thumbs live in `data-original`,
+  the script's fallbacks (data-src/data-front-lazy-src) don't cover that attr — direct parse
+  confirmed real cdntrex thumb URLs on every card. Year NOTE: script takes the first
+  `em.badge` (the empty Duration one) — direct parse: Submitted badge present ("2 months
+  ago") on the fresh-page sample.
+
 Video pages carry a `div.item` whose text starts `Tags:`; its anchors have **no href**, so
 the old categories-only selector never captured them. Exposure: 66008 → 18 real tags,
 188678 → 2 (SW-854 + long JP title), 223404 → 1 (Hardcore), 236474 → 1 (the title itself —
