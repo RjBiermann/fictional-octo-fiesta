@@ -302,7 +302,7 @@
       "pr": null,
       "findings": [],
       "false_positives": [],
-      "note": "run26c (issue #645, attempt 2 — attempt 1 / run 38957953946 completed the full probe, the fix (v12→13: Parse.searchUrl + search pagination wiring, Parse.filterSeen + Latest-row cross-page dedupe hardening), 7 new TDD tests, FINDINGS-645.md and registry updates, but died at PR push on a findings.json rebase conflict against the freshly-merged runs; attempt 2 (run 39002324793) recovered the attempt-1 diff from its bundle artifact but shipped a findings-only diff — review blockers (run 39092188760) caught that no provider file was on the branch and that this entry contradicted the provider verdict below; the attempt-3 repair (run 39103872812) re-applied the provider files, tests and FINDINGS docs from the attempt-1 bundle patch onto the rebased branch, reconciled this entry with the provider entry, and deduped the id run26→run26c — verdict ok-drift, drift_confirmed 0→3, last_deep 2026-10-16). Probe facts (attempt 1, plain-curl tier, canaries 3/3): home /page/2 serves the SAME listing (WP paged-2 body class on fresh origin fetches \u2014 site-side clamp of the Latest row; FINDINGS-522's cache-artifact attribution corrected); category rows clean (new-movies/classic-porn/classic-erotica/asian-erotica 20/20 disjoint each); search pagination NOW LIVE (/search/teacher/page/2 200 with 4 fresh cards, /page/3+ 404 \u2014 #522 recorded no-pagination); video pages x5 all LoadResponse fields intact (post_id + data-nonce present); streams sv1 hlsfree 5/5 fresh tokens 200 m3u8; sv2 loadvid unchanged (JS-gated blob); playmate sv3: the /api/s Chrome-JA3\u2192Sec-Fetch-trio gate is instrument-only \u2014 plain/okhttp-shaped clients pass WITHOUT the trio, app path was never broken, the attempt-1 mid-run speculative shared/ change was retracted; recorded as risk note (any future browser-fingerprint instrument request must carry the trio or 403s). Gates: gradlew Cat3Movie:test green (7 new tests), full clean build all 24 providers green, verify.sh final FAIL from 4 instrument limitations manually re-verified in FINDINGS-645 (home dupes raw-site in-render only, streams behind the ajax player chain, titles in the a.halim-thumb title attribute), check-findings.sh PASS. Out of scope flagged: Mangoporn/PandaMovies playmate sv3 embeds covered by #657/#659."
+      "note": "run26c (issue #645, attempt 2 \u2014 attempt 1 / run 38957953946 completed the full probe, the fix (v12\u219213: Parse.searchUrl + search pagination wiring, Parse.filterSeen + Latest-row cross-page dedupe hardening), 7 new TDD tests, FINDINGS-645.md and registry updates, but died at PR push on a findings.json rebase conflict against the freshly-merged runs; attempt 2 (run 39002324793) recovered the attempt-1 diff from its bundle artifact but shipped a findings-only diff \u2014 review blockers (run 39092188760) caught that no provider file was on the branch and that this entry contradicted the provider verdict below; the attempt-3 repair (run 39103872812) re-applied the provider files, tests and FINDINGS docs from the attempt-1 bundle patch onto the rebased branch, reconciled this entry with the provider entry, and deduped the id run26\u2192run26c \u2014 verdict ok-drift, drift_confirmed 0\u21923, last_deep 2026-10-16). Probe facts (attempt 1, plain-curl tier, canaries 3/3): home /page/2 serves the SAME listing (WP paged-2 body class on fresh origin fetches \u2014 site-side clamp of the Latest row; FINDINGS-522's cache-artifact attribution corrected); category rows clean (new-movies/classic-porn/classic-erotica/asian-erotica 20/20 disjoint each); search pagination NOW LIVE (/search/teacher/page/2 200 with 4 fresh cards, /page/3+ 404 \u2014 #522 recorded no-pagination); video pages x5 all LoadResponse fields intact (post_id + data-nonce present); streams sv1 hlsfree 5/5 fresh tokens 200 m3u8; sv2 loadvid unchanged (JS-gated blob); playmate sv3: the /api/s Chrome-JA3\u2192Sec-Fetch-trio gate is instrument-only \u2014 plain/okhttp-shaped clients pass WITHOUT the trio, app path was never broken, the attempt-1 mid-run speculative shared/ change was retracted; recorded as risk note (any future browser-fingerprint instrument request must carry the trio or 403s). Gates: gradlew Cat3Movie:test green (7 new tests), full clean build all 24 providers green, verify.sh final FAIL from 4 instrument limitations manually re-verified in FINDINGS-645 (home dupes raw-site in-render only, streams behind the ajax player chain, titles in the a.halim-thumb title attribute), check-findings.sh PASS. Out of scope flagged: Mangoporn/PandaMovies playmate sv3 embeds covered by #657/#659."
     },
     {
       "id": "run27",
@@ -326,6 +326,14 @@
       ],
       "false_positives": [],
       "note": "run28 (issue #654, fix-in-run per approved #631 spec round 2): Film1k deep pass, full surfaces TLS-impersonated (plain curl 403 CF, escalation ladder healthy), verdict ok. One confirmed condition: #408 'search no longer paginates' contract observed reversed \u2014 site serves real disjoint p1/p2/p3 again; fixed same run v13 TDD red->green (searchPageUrl + isNotFoundTemplate 404-wrap gate; the 404 wrap seeds 8 loop-post cards). Host mix rebalance (3/4 abyss, 1/4 byse) not drift; abyss enc-dec chain live, byse PoW chain replayed green master.m3u8 200. Suspected-only: sora CDN tunnel 403/404 datacenter artifact, not filed. Empty ?s= home-fallback surface change recorded. verify.sh FAILx4 = CF block, equivalent TLS-impersonated mechanical bar ALL PASS. findings.json Film1k entry updated, drift_confirmed=1; #496 stays closed/harmless; fixtures film1k_search_taboo_p2/_notfound_p4 committed."
+    },
+    {
+      "id": "run23",
+      "date": "2026-10-16",
+      "pr": null,
+      "findings": [],
+      "false_positives": [],
+      "note": "run23 (issue #656, self-contained run of approved #631 spec): Javbangers full-surface deep pass, tier plain-curl on every surface (canaries 3/3: film1k plain 403/TLS 200, eporner 200, pandamovies 302->200@.org; TLS/browser steps never reached). Home latest-updates 30+30 and most-popular 24+24 disjoint; search contract re-confirmed (p1 200/75 cap + 200/3 query-shape, p2 404 = standing #475, unchanged); quickSearch correctly absent (no suggest endpoint, no typeahead JS); 5-verify + 29-sample census of video pages: file-bearing pages still carry flashvars video_url/video_alt_url 480p+720p, stream chain get_file -> 302 -> origin13-direct.cdntrex.com -> 206 video/mp4 with site referer (origin hop now 403s without referer - evidence update, provider always shipped it). Verdict ok retained: 0 confirmed provider conditions -> no code change, no version bump (stays 7), drift_confirmed stays 1. Three site-side behaviors recorded in FINDINGS, not filed (no pre-filter / no provider fix exists, site-faithful): last-page wrap-pad on small categories (uncensored 22/24 p1-p2 overlap, deterministic, async-identical), ~40% file-less placeholder imports (loadLinks correctly returns false; cards indistinguishable in listings), same-title re-upload spam on high-volume search pages (75/75 unique hrefs, 59/75 distinct titles). verify.sh: search 2, home 2, 5 video pages, related 10/page, streams 5/5 206 video/mp4, tags all-5, fields ok; formal FAIL/NOTE lines evidence-backed in FINDINGS-656 (pairwise-title rule vs re-upload spam, data-original attr outside script fallback set, em.badge picks the empty Duration badge). 0 false positives. Gates: gradlew Javbangers:test green, clean make green, check-findings.sh PASS. Ground truth: FINDINGS-656.md, Javbangers/FINDINGS.md."
     }
   ],
   "providers": {
@@ -528,11 +536,11 @@
     "Cat3Movie": {
       "site": "cat3movie.org",
       "verdict": "ok-drift",
-      "reason": "deep 2026-10-16 (issue #645): all surfaces 200 plain-curl, grammar unchanged, but 3 confirmed drift-class conditions — (1) search gained pagination /search/<slug>/page/2+ past 404 (#522 recorded no-pagination; wired in-run as Parse.searchUrl), (2) halimmovies home /page/N serves the same listing (dead Latest-row; cross-page dedupe now via Parse.filterSeen) — offset legacy post renders 2-3x within one page, (3) playmate.to /api/s holds Chrome-JA3 clients to the Sec-Fetch trio (403 forbidden without, 200 with) — okhttp/NonThrowingClient does NOT present browser JA3, still 200 — no shared adapter change; recorded as instrument-gate risk note; streams 5/5 fresh 200 m3u8",
+      "reason": "deep 2026-10-16 (issue #645): all surfaces 200 plain-curl, grammar unchanged, but 3 confirmed drift-class conditions \u2014 (1) search gained pagination /search/<slug>/page/2+ past 404 (#522 recorded no-pagination; wired in-run as Parse.searchUrl), (2) halimmovies home /page/N serves the same listing (dead Latest-row; cross-page dedupe now via Parse.filterSeen) \u2014 offset legacy post renders 2-3x within one page, (3) playmate.to /api/s holds Chrome-JA3 clients to the Sec-Fetch trio (403 forbidden without, 200 with) \u2014 okhttp/NonThrowingClient does NOT present browser JA3, still 200 \u2014 no shared adapter change; recorded as instrument-gate risk note; streams 5/5 fresh 200 m3u8",
       "tier": "plain-curl",
       "surfaces": {
         "home": "200",
-        "search": "200 (pagination now live: /page/2 has 4 fresh cards, /page/3+ is 404 — page1 20 pages)",
+        "search": "200 (pagination now live: /page/2 has 4 fresh cards, /page/3+ is 404 \u2014 page1 20 pages)",
         "video": "200 (5 sampled)",
         "stream": "200 m3u8 (sv1 hlsfree, fresh token per probe)"
       },
@@ -599,19 +607,20 @@
     "Javbangers": {
       "site": "www.javbangers.com",
       "verdict": "ok",
-      "reason": "CLEARED 2026-10-14 (deep pass, S2 of #593): #475 record closed standing \u2014 condition (search p2 404) confirmed unchanged and matches the provider contract exactly (search declares hasNext=false; the site has no search pagination). Live: /latest-updates p1/p2 30 div.video-item cards each disjoint, /categories/milf 24, search p1 24, 2 video pages 200 with div.block-details/Tags/related, flashvars video_url/video_alt_url resolve: get_file \u2192 302 \u2192 origin11-direct.cdntrex.com \u2192 206 video/mp4 on the site referer. Historical record #475 closed; migrated ok-drift \u2192 ok.",
+      "reason": "RE-AUDITED 2026-10-16 (#656 deep pass): every honored surface intact, plain-curl tier on all (canaries 3/3). latest-updates p1/p2 30+30 disjoint, most-popular 24+24 disjoint; search p1 200/75 (japanese/anal) and 200/3 (mdyd, query-shape exact match), p2 404 = standing #475 contract re-confirmed; quickSearch absent (no suggest/typeahead endpoint; data-url = on-submit redirect) - correct as coded; stream chain re-verified: flashvars video_url 480p+720p -> get_file -> 302 -> origin13-direct.cdntrex.com -> 206 video/mp4 WITH site referer (origin hop now 403s without it - hardening since 2026-09, provider always shipped referer=mainUrl, no impact). New site-side observations recorded, not drift, not filed (provider faithfully mirrors the site; no pre-filter exists): (1) last-page wrap-pad on small categories - p2 carries N real items + wrap-around repeats of p1 (uncensored 22/24 overlap on a 26-video catalog, creampie 4/24 stable, cosplay/teen 2/24, top-rated 1/24; deterministic, async-identical); (2) ~40% of sampled listing entries are file-less placeholder imports (12/29 distinct pages: no flashvars/kt_player/get_file, planted slugs, real thumbnails, full block-details; load() parses, loadLinks returns false - site content hygiene clustered in 401xxx/404xxx/407xxx bands + whole chinese sample); (3) same-title distinct-video re-uploads on high-volume search pages (75/75 unique hrefs, 59/75 distinct titles). 0 findings, 0 false positives; no code change, version stays 7 (drift_confirmed stays 1 - hardening rule not reached).",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200 p1+p2 disjoint 30 cards",
-        "search": "200 p1 (p2 404 standing; provider hasNext=false by design)",
-        "video": "200 x2",
-        "stream": "get_file 302 \u2192 cdntrex origin 206 mp4"
+        "home": "200 latest-updates 30+30 & most-popular 24+24 disjoint; small categories pad last page with wrap-around p1 repeats (uncensored 22/24 overlap etc.)",
+        "search": "200 p1 75-cap (japanese/anal) & 3 (mdyd); p2 404 standing; provider hasNext=false by design",
+        "video": "200; ~40% file-less placeholder imports (no player, load() still parses)",
+        "stream": "get_file 302 -> cdntrex origin 206 mp4; site referer REQUIRED on origin hop since 2026-10-16 evidence",
+        "quickSearch": "absent (no distinct endpoint; data-url = on-submit redirect)"
       },
       "issue": 475,
       "standing_issue": 475,
       "drift_confirmed": 1,
       "chronic": false,
-      "last_deep": "2026-10-14"
+      "last_deep": "2026-10-16"
     },
     "Javmost": {
       "site": "www.javmost.ws",
