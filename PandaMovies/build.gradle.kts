@@ -1,4 +1,4 @@
-version = 5 // issue #555 markup migration: card__ grammar, pager pagination, hlm data-servers embeds, Latest row → home
+version = 6 // #670: shared dood.so registry row (fleet bump)
 
 cloudstream {
     authors     = listOf("RjBiermann")

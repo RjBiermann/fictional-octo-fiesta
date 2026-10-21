@@ -1,4 +1,4 @@
-version = 12
+version = 13 // #670: shared dood.so registry row (fleet bump)
 
 cloudstream {
     authors     = listOf("ai-builder")

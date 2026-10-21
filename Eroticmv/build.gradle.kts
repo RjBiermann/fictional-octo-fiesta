@@ -1,4 +1,4 @@
-version = 11
+version = 12 // #670: shared dood.so registry row (fleet bump)
 
 cloudstream {
     authors     = listOf("imperialbob")

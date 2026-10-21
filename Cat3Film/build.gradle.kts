@@ -1,4 +1,4 @@
-version = 14 // #613 Story 3: fix verified against the live site (test+build green, verify.sh pass)
+version = 15 // #670: shared dood.so registry row (fleet bump)
 
 cloudstream {
     authors     = listOf("RjBiermann")

@@ -1,4 +1,4 @@
-version = 8 // #657 deep audit: main-grid card grammar (widget row out), vidara.so shared row, load-page row bindings fixed
+version = 9 // #670: shared dood.so registry row (fleet bump)
 
 cloudstream {
     authors     = listOf("kraptor", "ByAyzen", "HindiProvider")

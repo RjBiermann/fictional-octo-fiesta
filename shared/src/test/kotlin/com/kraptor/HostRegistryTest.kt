@@ -173,6 +173,28 @@ class HostRegistryTest {
     }
 
     /**
+     * (f) Issue #670 (2026-10-16 Javmost deep pass): dood.so is a dood-family mirror —
+     * dood.so/e/<id> answers 301 → playmogo.com/e/<id> (curl-verified live), and the
+     * playmogo row IS registered. But loadExtractor dispatches by registered-mainUrl
+     * prefix on the ORIGINAL URL, so a dood.so anchor never reaches the playmogo row
+     * and the stream is dropped — in every provider, not just Javmost. Pin an explicit
+     * dood.so row in the dood (DoodStream) engine family.
+     */
+    @Test
+    fun `dood so mirror row serves the dood family`() {
+        val soRows = rows.filter { host(it.mainUrl) == "dood.so" }
+        assertTrue(
+            "no row answers dood.so — dood-family embeds dispatched as dood.so URLs " +
+                "are dropped (their 301 → playmogo never helps dispatch)",
+            soRows.isNotEmpty()
+        )
+        // same dood engine family as the playmogo row — one API contract (pass_md5 flow)
+        assertTrue(soRows.single() is DoodStream)
+        // the redirect target row stays reachable for playmogo-host embeds
+        assertTrue(rows.any { host(it.mainUrl) == "playmogo.com" })
+    }
+
+    /**
      * (c) Naming collisions across code paths (issue #347 P0-11) are
      * intentional — but only the documented ones. Names are user-facing in
      * CloudStream's source list; mirror families legitimately share a display
@@ -207,7 +229,7 @@ class HostRegistryTest {
         private val INTENTIONAL_NAME_COLLISIONS = mapOf(
             "AbyssPlayer" to 2,       // AbyssPlayer apex (issue #233) + player. subdomain row (#613)
             "Byse" to 16,            // filemoon byse*.com mirror family
-            "DoodStream" to 10,      // DoodStream class (myvidplay.com override) + dood factory default + DoodToExtractor row (#653)
+            "DoodStream" to 11,      // DoodStream class (myvidplay.com override) + dood factory default + DoodToExtractor row (#653) + dood.so mirror (#670)
             "EarnVids" to 5,         // vidHidePro mirrors
             "Filemoon" to 7,         // filemoon factory default
             "HlsFree" to 2,          // HlsFree class + HlsFreeWww www. variant

@@ -1,4 +1,4 @@
-version = 15 // shared KvsFlashvars (audit applied) on top of #483 quality pass-through
+version = 16 // #670: shared dood.so registry row (fleet bump)
 
 cloudstream {
     authors     = listOf("imperialbob")

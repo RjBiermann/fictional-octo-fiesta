@@ -1,4 +1,4 @@
-version = 13 // #654: search pagination restored (TDD) — paginated URL + 404-wrap Parse gate
+version = 14 // #670: shared dood.so registry row (fleet bump)
 // fetches guarded (uncaught DNS exception), turbovid-only pages fall through cleanly
 
 cloudstream {

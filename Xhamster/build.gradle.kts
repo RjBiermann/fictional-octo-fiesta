@@ -1,4 +1,4 @@
-version = 23 // run #635: year from videoModel.created epoch (template re-expanded; upload date now exposed)
+version = 24 // #670: shared dood.so registry row (fleet bump)
 
 cloudstream {
     authors     = listOf("kraptor","coxju","SIX")

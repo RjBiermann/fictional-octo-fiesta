@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 13 // FINDINGS-515: Classic tag row
+version = 14 // #670: shared dood.so registry row (fleet bump)
 
 cloudstream {
     authors     = listOf("kraptor")

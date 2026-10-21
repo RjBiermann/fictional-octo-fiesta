@@ -1,4 +1,4 @@
-version = 13 // issue #645 deep pass: search pagination wired (site gained /page/N); Latest-row cross-page dedupe hardening
+version = 14 // #670: shared dood.so registry row (fleet bump)
 
 cloudstream {
     authors     = listOf("RjBiermann")

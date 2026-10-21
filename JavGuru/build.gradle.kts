@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 28
+version = 29 // #670: shared dood.so registry row (fleet bump)
 
 cloudstream {
     authors     = listOf("kraptor", "ByAyzen")
