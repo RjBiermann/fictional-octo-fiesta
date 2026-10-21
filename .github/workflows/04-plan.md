@@ -35,6 +35,12 @@ safe-outputs:
     title-prefix: "[spec] "
   link-sub-issue:
     max: 30
+    # Relay-fired (ADR-0019): the default "triggering" target resolves to
+    # nothing on workflow_dispatch rounds and every link dies with "Target is
+    # triggering but not running in issue context" (#840, second link failure
+    # mode after #804's counter exhaustion). "*" resolves the relay payload's
+    # item_number — the parent issue — same pattern as add-comment above.
+    target: "*"
 ---
 
 # Plan (spec loop port)
@@ -56,7 +62,10 @@ surrogate miss the round and stall the chain.
   Confirm the spec, propose an epic/story breakdown in a single comment.
 - **Round 3** (round 2 exists + human wrote the word `approved` +
   replies): finalize — create the sub-issues (UNLABELED: no state label,
-  no trigger label) and link each as a sub-issue of the parent. Then post
+  no trigger label), each WITH `parent` set to the parent issue number
+  (create_issue auto-links when `parent` is present — do NOT also emit
+  separate `link_sub_issue` calls; they double-write the link budget and
+  died at the shared max-30 counter in #804). Then post
   the finalized spec as ONE comment on the parent (add-comment) — do NOT
   try to edit the parent body or file a missing-tool report: `update_issue`
   is not available in this pipeline (gh-aw v0.89.21); the comment is the

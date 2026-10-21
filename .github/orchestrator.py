@@ -402,6 +402,38 @@ def audit_story_closeout(stories=None):
         print(f"[orchestrator] story (issue {n}): clean-audit auto-closed")
 
 
+def subissue_latcher(stories=None):
+    """#840 follow-up: self-healing sub-issue linking — any open issue whose
+    body carries a Parent: #N link but whose parent does not actually list
+    it as a sub-issue gets the addSubIssue mutation applied. Heals both
+    safe-output link failure modes (#804 counter exhaustion, #840 relay
+    target) on the next sweep instead of silently stalling a chain.
+    Idempotent: already-linked pairs are skipped."""
+    stories = stories if stories is not None else all_stories()
+    for s in stories:
+        if s.get("state") != "open":
+            continue
+        pnum = parent_of(s)
+        if not pnum:
+            continue
+        n = s["number"]
+        linked = api(f"issues/{pnum}/sub_issues?per_page=100") or []
+        if any(x.get("number") == n for x in linked):
+            continue
+        pid = api(f"issues/{pnum}") or {}
+        sid = api(f"issues/{n}") or {}
+        if not (pid.get("id") and sid.get("id")):
+            print(f"[orchestrator] issue {n}: parent #{pnum} link pending — node lookup failed, retried next pass")
+            continue
+        out = run(["gh", "api", "graphql", "-f", "query=mutation($p:ID!,$s:ID!){"
+                   "addSubIssue(input:{issueId:$p, subIssueId:$s}){ subIssue { id } } }",
+                   "-f", f"p={pid['id']}", "-f", f"s={sid['id']}"])
+        if out.strip():
+            print(f"[orchestrator] issue {n}: latched to parent #{pnum} (was unlinked)")
+        else:
+            print(f"[orchestrator] issue {n}: addSubIssue rc!=0 for parent #{pnum} — retried next pass")
+
+
 def _parse_ts(s):
     try:
         return datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
@@ -1283,6 +1315,7 @@ if __name__ == "__main__":
         "approvals": approve_companion_runs,
         "merge_readiness": merge_readiness,
         "audit_story_closeout": audit_story_closeout,
+        "subissue_latcher": subissue_latcher,
         "chain_driver": chain_driver,
         "closeout_healer": closeout_healer,
         "queue_to_pipeline": queue_to_pipeline,
@@ -1296,7 +1329,7 @@ if __name__ == "__main__":
         "registry_sync": registry_sync,
     }
     _preflight_labels()
-    mutation_steps = {"merge_readiness", "chain_driver", "closeout_healer", "audit_story_closeout", "queue_to_pipeline",
+    mutation_steps = {"merge_readiness", "chain_driver", "closeout_healer", "audit_story_closeout", "subissue_latcher", "queue_to_pipeline",
                       "plan_surrogate", "decision_tags", "stall_watch", "wave_driver",
                       "fix_surrogate", "watchdog", "registry_sync"}
     available = {name: fn for name, fn in steps.items()
