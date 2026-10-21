@@ -29,7 +29,7 @@ decision is genuinely needed — and no PAT secrets anywhere in the pipeline.
 - **Machinery App is optional, not required**: `95-orchestrator.yml` and
   `90-sweeper.yml` accept a machinery GitHub App token in the legacy
   `GH_AW_PROXY_PAT` env (minted per job via `actions/create-github-app-token`,
-  guarded on `vars.MACHINERY_APP_ID`). It upgrades two PAT-era behaviors that
+  guarded on `vars.MACHINERY_APP_CLIENT_ID`). It upgrades two PAT-era behaviors that
   GITHUB_TOKEN alone cannot do:
   - `approve_companion_runs` — approving `action_required` gh-aw runs;
   - sweeper label re-fires — App-actor label events can pass gh-aw
@@ -45,8 +45,10 @@ decision is genuinely needed — and no PAT secrets anywhere in the pipeline.
 ## Owner steps (human, optional — only to enable the App upgrades)
 
 1. Register a repo-scoped GitHub App (Contents rw, Workflows rw, Issues rw,
-   Pull requests rw, Actions rw); set `MACHINERY_APP_ID` (variable) and
-   `MACHINERY_APP_KEY` (secret).
+   Pull requests rw, Actions rw); set `MACHINERY_APP_CLIENT_ID` (variable —
+   `create-github-app-token` consumes the Client ID, not the App ID) and
+   `MACHINERY_APP_KEY` (secret). `scripts/setup-machinery-app.sh` walks the
+   whole registration and writes both.
 2. Add the App login (`<app>[bot]`) to the `on.bots` allowlist of relay
    targets that react to App-actor label events (`04-plan`, `05-implement`,
    `07-fix-loop`, `14-rebase`) and recompile (`gh aw compile`).
