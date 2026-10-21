@@ -441,7 +441,30 @@ def chain_driver():
     _relay_untransitioned(stories, claims)
 
     # Parent spec issue: close once every story referencing it is closed.
+    # Enumerate over kid_count (ALL parents with kids) — iterating only the
+    # open-kid map made the close path unreachable a second time (the stub
+    # was dead code; review #872 round 1 caught the first rewrite repeating
+    # the same class).
     by_parent = {}
+    kid_count = {}
+    for s in stories:
+        pnum = parent_of(s)
+        if not pnum:
+            continue
+        kid_count[pnum] = kid_count.get(pnum, 0) + 1
+        if s.get("state") == "open":
+            by_parent.setdefault(pnum, []).append(s["number"])
+    for pnum, total in sorted(kid_count.items()):
+        open_kids = by_parent.get(pnum, [])
+        if open_kids:
+            print(f"[orchestrator] parent #{pnum}: {len(open_kids)} of {total} stories still open")
+            continue
+        pb = api(f"issues/{pnum}") or {}
+        if str(pb.get("state", "")).lower() != "open":
+            continue
+        close_issue(pnum, "completed",
+                    f"{MARK} parent spec closed: all {total} stories referencing it are closed")
+        print(f"[orchestrator] parent #{pnum}: closed (all stories closed)")
 
 #861: verdict headings may carry a story-number prefix ("## S03 audit
 # verdict — Cat3Movie: **clean**"); the old anchor rejected any prefix,
