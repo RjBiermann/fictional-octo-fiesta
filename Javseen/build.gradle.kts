@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 20 // #650: cloudwish.xyz embed host now extracts (shared CloudWish row)
+version = 21 // #670: shared dood.so registry row (fleet bump)
 
 cloudstream {
     authors     = listOf("byayzen")

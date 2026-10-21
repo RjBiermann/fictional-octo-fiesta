@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 15 // issue #642: video-page grammar dropped year/rating blocks — dead selectors removed, detail parse behind VideoPageParse
+version = 16 // #670: shared dood.so registry row (fleet bump)
 
 cloudstream {
     authors     = listOf("kraptor")

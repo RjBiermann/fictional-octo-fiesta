@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 17 // FINDINGS-736: BasePlugin + registerHostExtractors migration (legacy Plugin.load(context) dropped)
+version = 18 // #670: shared dood.so registry row (fleet bump)
 
 cloudstream {
     authors     = listOf("kraptor")

@@ -1,4 +1,4 @@
-version = 13
+version = 14 // #670: shared dood.so registry row (fleet bump)
 
 cloudstream {
     authors     = listOf("RjBiermann")

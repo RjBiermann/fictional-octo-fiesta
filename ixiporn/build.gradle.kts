@@ -1,4 +1,4 @@
-version = 27 // #655 deep pass: loadLinks shape-B guard — hub-embed pages (no contentUrl meta, #709) emit no stream instead of a "null" garbage URL
+version = 28 // #670: shared dood.so registry row (fleet bump)
 
 cloudstream {
     authors     = listOf("Phisher98")

@@ -1,4 +1,4 @@
-version = 8 // DSL newExtractorLink migration (issue #735)
+version = 9 // #670: shared dood.so registry row (fleet bump)
 
 cloudstream {
     authors     = listOf("cloudstream")

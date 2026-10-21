@@ -1,4 +1,4 @@
-version = 10 // FINDINGS-515: Vintage tag row
+version = 11 // #670: shared dood.so registry row (fleet bump)
 
 cloudstream {
     authors     = listOf("rjbiermann")

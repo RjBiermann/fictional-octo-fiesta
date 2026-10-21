@@ -111,6 +111,10 @@ internal fun sharedHostRegistry(): List<ExtractorApi> = listOf(
         player4me("https://vip.player4me.vip"),
         player4me("https://my.rpmplay.online"),
         dood("https://playmogo.com"),
+        // #670: dood.so is a dood-family mirror — /e/<id> answers 301 → playmogo.com
+        // (row above), but loadExtractor dispatches by mainUrl prefix on the ORIGINAL
+        // URL, so dood.so anchors need their own row or they are dropped fleet-wide.
+        dood("https://dood.so"),
         Voe(),
         streamtapeMirror("https://stape.fun"),
         StreamTAPE(),
