@@ -211,7 +211,8 @@ def parent_of(story):
     # "Part of #804" (the shape finalize agents keep writing naturally —
     # seen on #804's 27 kids AND #840's 3 kids; made canonical here instead
     # of editing bodies per occurrence, #840).
-    for rx in (PARENT_RE, EPIC_KID_RE, re.compile(r"[Pp]arent:?\s+#(\d+)"),
+    for rx in (PARENT_RE, EPIC_KID_RE,
+               re.compile(r"[Pp]arent(?:\s+issue)?:?\s+#(\d+)"),
                re.compile(r"[Pp]art of #(\d+)")):
         m = rx.search(body)
         if m:
