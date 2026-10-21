@@ -1,4 +1,4 @@
-version = 28 // #670: shared dood.so registry row (fleet bump)
+version = 29 // #708: player-x.php b64 hub-embed chain in loadLinks (TDD seam hubEmbedUrl)
 
 cloudstream {
     authors     = listOf("Phisher98")
