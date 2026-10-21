@@ -205,10 +205,14 @@ def all_stories():
 
 def parent_of(story):
     body = story.get("body") or ""
-    # 04-plan writes at least three link shapes across eras:
+    # 04-plan writes at least four link shapes across eras:
     # "approved #759 spec" (old waves), "parent #759, spec finalized…"
-    # (Porntrex-style), "Parent: #664 (spec finalized…)" (spec-loop kids).
-    for rx in (PARENT_RE, EPIC_KID_RE, re.compile(r"[Pp]arent:?\s+#(\d+)")):
+    # (Porntrex-style), "Parent: #664 (spec finalized…)" (spec-loop kids),
+    # "Part of #804" (the shape finalize agents keep writing naturally —
+    # seen on #804's 27 kids AND #840's 3 kids; made canonical here instead
+    # of editing bodies per occurrence, #840).
+    for rx in (PARENT_RE, EPIC_KID_RE, re.compile(r"[Pp]arent:?\s+#(\d+)"),
+               re.compile(r"[Pp]art of #(\d+)")):
         m = rx.search(body)
         if m:
             return int(m.group(1))
