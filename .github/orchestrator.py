@@ -732,19 +732,24 @@ def _merged_pr_for_story(num):
 
 
 def closeout_healer():
-    """ADR-0007 closeout, healed by the conveyor (ADR-0019): an open story
-    whose devloop/issue-N PR is merged to main IS delivered — close it.
+    """ADR-0007 closeout, healed by the conveyor (ADR-0019): an open issue
+    whose agent-delivery PR is merged to main IS delivered — close it.
     Heals 12-post-merge safe-output failures AND ends the re-stamp loop:
-    merged stories must never re-arm (the [aw] post-merge re-stamp
+    delivered issues must never re-arm (the [aw] post-merge re-stamp
     pattern, backlog-report #797). The merge itself is the human/machinery
-    verdict; closing here executes it, same carve-out as 12-post-merge."""
+    verdict; closing here executes it, same carve-out as 12-post-merge.
+    Enumeration is ALL open issues, not just story-numbered ones (#863
+    follow-up: #809/#781/#777 carry no S<n> prefix in their titles and
+    were invisible to the story filter — the straggler class persists
+    whenever 12-post-merge fails, which is exactly when this heals)."""
     if not OWNER:
         return
-    stories = all_stories()
-    for s in stories:
-        if str(s.get("state", "")).lower() != "open":
+    open_issues = [i for i in (api("issues?state=open&per_page=100") or [])
+                   if not i.get("pull_request")]
+    for i in open_issues:
+        if str(i.get("state", "")).lower() != "open":
             continue
-        n = s["number"]
+        n = i["number"]
         merged = _merged_pr_for_story(n)
         if not merged:
             continue
