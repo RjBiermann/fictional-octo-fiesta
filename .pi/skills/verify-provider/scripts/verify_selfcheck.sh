@@ -69,6 +69,15 @@ pp() { python3 "$PYDOM" poster_path "$1"; }
   || { echo "FAIL: poster_path must strip at most ONE token, got: $(pp 'https://c.test/covers/cover-t-2.jpg')"; exit 1; }
 [[ "$(pp 'https://c.test/covers/cover-x2.jpg')" == "$(pp 'https://c.test/covers/cover-n.jpg')" ]] \
   || { echo "FAIL: multi-char variant scheme (-x2) must collapse like -t/-n"; exit 1; }
+# 5b. WP thumbnail size token (-400x225, #781): card img serves the sized crop while the
+#     load page's og:image serves the full-sized file — same artwork, must compare equal.
+[[ "$(pp 'https://ixiporn.test/uploads/2021/02/4k-close-up-video-400x225.jpg')" == '/uploads/2021/02/4k-close-up-video.jpg' ]] \
+  || { echo "FAIL: poster_path must strip a -NNNxNNN thumbnail token, got: $(pp 'https://ixiporn.test/uploads/2021/02/4k-close-up-video-400x225.jpg')"; exit 1; }
+[[ "$(pp 'https://ixiporn.test/uploads/2021/02/4k-close-up-video-400x225.jpg')" == "$(pp 'https://ixiporn.test/uploads/2021/02/4k-close-up-video.jpg')" ]] \
+  || { echo "FAIL: -400x225 card crop vs full-size og:image must compare equal after poster_path"; exit 1; }
+# a stem that GENUINELY ends in digits-x-digits with no dash must stay untouched
+[[ "$(pp 'https://c.test/covers/cover400x225.jpg')" == '/covers/cover400x225.jpg' ]] \
+  || { echo "FAIL: poster_path must not strip undashed stems"; exit 1; }
 
 # 6. url_path semantics unchanged — href/stream variant tokens are real (distinct cuts),
 #    so `path` must NOT lose -t
@@ -182,5 +191,18 @@ dups_out=$(printf 'v1\t/a\ttitle one\thttps://c.test/covers/cover-t.jpg\nv2\t/b\
   | python3 "$PYDOM" dups 'href,title,poster')
 [[ "$dups_out" == "$(printf 'poster\t/covers/cover.jpg\tv1,v2')" ]] \
   || { echo "FAIL: cross-video COLSPEC must report the normalized poster collision, got: $dups_out"; exit 1; }
+
+# 15. check-5 norm dash canonicalization (#781): WP surfaces disagree on en-dash vs hyphen
+#     for the same video's title (card '&#8211;' vs og:title '-'). The norm function lives
+#     in the bash wrapper (not PYDOM), so this block extracts it from verify.sh and asserts
+#     the canonicalization + whitespace/lower semantics directly.
+NORMF=/tmp/verify_selfcheck_norm.sh
+{ sed -n '/^norm() {/p' "$DIR/verify.sh"; echo 'norm'; } > "$NORMF"
+bash -n "$NORMF"
+[[ "$(printf 'Clit Licking \xe2\x80\x93 Extreme Close Up' | bash "$NORMF")" \
+  == "$(printf 'Clit Licking - Extreme Close Up' | bash "$NORMF")" ]] \
+  || { echo "FAIL: norm must canonicalize en-dash titles to hyphen for check-5 agreement"; exit 1; }
+[[ "$(printf "  MiXed  CASE\ttitles " | bash "$NORMF")" == 'mixed case titles' ]] \
+  || { echo "FAIL: norm whitespace/lower semantics regressed"; exit 1; }
 
 echo "RESULT: PASS"
