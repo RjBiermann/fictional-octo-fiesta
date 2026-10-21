@@ -55,10 +55,10 @@ jobs:
       # unset (App unregistered) degrades to bookkeeping-only, below.
       - name: Machinery App token
         id: machinery_token
-        if: inputs.mode != 'report' && vars.MACHINERY_APP_ID != ''
-        uses: actions/create-github-app-token@v3
+        if: inputs.mode != 'report' && vars.MACHINERY_APP_CLIENT_ID != ''
+        uses: actions/create-github-app-token@v3.3.0
         with:
-          app-id: ${{ vars.MACHINERY_APP_ID }}
+          client-id: ${{ vars.MACHINERY_APP_CLIENT_ID }}
           private-key: ${{ secrets.MACHINERY_APP_KEY }}
 
       - name: Parse ledger + heal stuck labels

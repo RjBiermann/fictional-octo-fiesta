@@ -56,10 +56,10 @@ jobs:
       # everything runs under GITHUB_TOKEN; PAT-era extras stay manual.
       - name: Machinery App token
         id: machinery_token
-        if: vars.MACHINERY_APP_ID != ''
-        uses: actions/create-github-app-token@v3
+        if: vars.MACHINERY_APP_CLIENT_ID != ''
+        uses: actions/create-github-app-token@v3.3.0
         with:
-          app-id: ${{ vars.MACHINERY_APP_ID }}
+          client-id: ${{ vars.MACHINERY_APP_CLIENT_ID }}
           private-key: ${{ secrets.MACHINERY_APP_KEY }}
 
       - name: Run the mechanical conveyor
