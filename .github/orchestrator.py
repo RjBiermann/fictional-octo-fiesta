@@ -159,10 +159,20 @@ def dispatch_ok(cmd):
 
 
 def api(path):
-    out = run(["gh", "api", f"repos/{REPO}/{path}"])
-    if not out.strip():
-        return None
-    return json.loads(out)
+    # Secondary rate limits (403 after ~100 req/min — the sweep makes 100+)
+    # returned None silently and every downstream step no-oped (the stale
+    # status/conflict label on #851-853 was never cleared for exactly this
+    # reason). gh api already honors Retry-After internally? It does not;
+    # retry here with the documented window.
+    for attempt in range(4):
+        out = run(["gh", "api", f"repos/{REPO}/{path}"])
+        if out.strip():
+            try:
+                return json.loads(out)
+            except ValueError:
+                pass
+        time.sleep(5 + attempt * 10)  # 5s, 15s, 25s — secondary limits clear fast
+    return None
 
 
 def comments(num):
@@ -311,30 +321,52 @@ def _effective_ready(num, mstate):
     return True
 
 
+def _pr_labels_map(nums):
+    """One GraphQL call for all open PR labels. The per-PR REST fallback
+    died two ways in real sweeps (#851-853): pulls list objects carry no
+    labels field, and per-PR GETs mid-sweep hit GitHub's secondary rate
+    limit, silently returning no labels — the stale status/conflict label
+    then never got cleared. One batched call, no per-PR chatter."""
+    if not nums:
+        return {}
+    parts = "".join(f"p{n}: pullRequest(number:{n}){{number "
+                    f"labels(first:30){{nodes{{name}}}}}}" for n in nums)
+    out = run(["gh", "api", "graphql", "-f",
+               f"query=query($o:String!,$r:String!){{repository(owner:$o,"
+               f"name:$r){{{parts}}}}}",
+               "-f", f"o={OWNER}", "-f", f"r={REPO.split('/', 1)[-1]}"])
+    try:
+        repo = ((json.loads(out or "{}").get("data") or {}).get("repository") or {})
+    except ValueError:
+        return {}
+    m = {}
+    for v in repo.values():
+        if isinstance(v, dict) and v.get("number"):
+            m[v["number"]] = {l["name"] for l in v["labels"]["nodes"]}
+    return m
+
+
 def merge_readiness():
-    for pr in open_pulls():
+    prs = [pr for pr in open_pulls() if _agent_pr(pr)]
+    label_map = _pr_labels_map([p["number"] for p in prs])
+    for pr in prs:
         num = pr["number"]
         branch = pr.get("head", {}).get("ref", "")
-        if not _agent_pr(pr):
-            continue
         d = api(f"pulls/{num}") or {}
+        labels = label_map.get(num, set())
+        mstate = d.get("mergeable_state")
         # Stale conflict label: conflict_watch applies status/conflict, but
         # only a 14-rebase agent run removes it — conflicts unstuck by the
         # mechanical resolver (or by hand) left the label on forever
-        # (#851/#852/#853). The mergeable flag is the truth; clear the
-        # label when the PR merges cleanly again.
-        labels = {l.get("name") for l in ((api(f"issues/{num}") or {}).get("labels") or [])}
-        mstate0 = d.get("mergeable_state")
-        if "status/conflict" in labels and mstate0 in ("blocked", "clean", "unstable"):
-            # "dirty" = conflict live; "u" = GitHub still computing — wait
-            # for a definitive state rather than trusting a null mergeable.
+        # (#851/#852/#853). "dirty" = conflict live; "u" = GitHub still
+        # computing (the FIRST GET returns u and warms the cache — this
+        # fetch is the warm one). Clear only on definitive not-dirty states.
+        if "status/conflict" in labels and mstate in ("blocked", "clean", "unstable"):
             out = run(["gh", "api", "-X", "DELETE",
                        f"repos/{REPO}/issues/{num}/labels/status/conflict"])
             print(f"[orchestrator] PR #{num}: stale status/conflict label "
-                  f"cleared (state={mstate0})" if out == "" else
+                  f"cleared (state={mstate})" if out == "" else
                   f"[orchestrator] PR #{num}: status/conflict clear rc!=0")
-        d = api(f"pulls/{num}") or {}
-        mstate = d.get("mergeable_state")
         if not _effective_ready(num, mstate):
             print(f"[orchestrator] PR #{num}: mergeable_state={mstate} — not ready")
             continue
