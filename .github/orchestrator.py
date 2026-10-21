@@ -987,7 +987,12 @@ def _resolve_version_pair(a, b):
         return None
     na, nb = int(va.group(1)), int(vb.group(1))
     if na == nb:
-        return None  # same number, differing bump-comment — human decides
+        # Same number, differing trailing bump-comment: the bodies are
+        # identical apart from this line and the numbers match, so either
+        # pick is content-lossless — main (ours) wins. Holding this for a
+        # human stalled the #845/#780/#779 rebases (every fleet bump that
+        # ties a provider fix deadlocks the conveyor).
+        return a
     return a if na > nb else b
 
 
