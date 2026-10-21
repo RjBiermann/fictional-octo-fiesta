@@ -324,11 +324,14 @@ def merge_readiness():
         # (#851/#852/#853). The mergeable flag is the truth; clear the
         # label when the PR merges cleanly again.
         labels = {l.get("name") for l in ((api(f"issues/{num}") or {}).get("labels") or [])}
-        if "status/conflict" in labels and d.get("mergeable"):
+        mstate0 = d.get("mergeable_state")
+        if "status/conflict" in labels and mstate0 in ("blocked", "clean", "unstable"):
+            # "dirty" = conflict live; "u" = GitHub still computing — wait
+            # for a definitive state rather than trusting a null mergeable.
             out = run(["gh", "api", "-X", "DELETE",
                        f"repos/{REPO}/issues/{num}/labels/status/conflict"])
             print(f"[orchestrator] PR #{num}: stale status/conflict label "
-                  f"cleared (mergeable=true)" if out == "" else
+                  f"cleared (state={mstate0})" if out == "" else
                   f"[orchestrator] PR #{num}: status/conflict clear rc!=0")
         d = api(f"pulls/{num}") or {}
         mstate = d.get("mergeable_state")
