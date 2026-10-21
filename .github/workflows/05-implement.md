@@ -74,9 +74,13 @@ never fix inline.
    default (main); an explicit `base` — including habit-typed `master` —
    is rejected and the code push is lost (observed twice, 2026-10-16:
    runs 38957962887, 38961910251). Omit `base` entirely.
-4. Transition state in one pass: `add-labels status/in-review`, then
-   `remove-labels status/planned` (one state label at a time; partial
-   failure is healed by the daily sweep).
+4. **Transition immediately after the PR exists — before ANY
+   `add-comment`** (work stamp, registry entry, verdict; #860): a late
+   comment-payload error must not eat the turns before the state
+   transition. `add-labels status/in-review`, then `remove-labels
+   status/planned` (one state label at a time; partial failure is healed
+   by the daily sweep). An Implement run that posts its verdict but skips
+   this transition stalls the whole chain (observed S3 #812, ~13h).
 5. Post one work-attempt stamp (`add-comment`) closing out what you did.
 6. **Registry entries never travel in your diff** (ADR-0013): never edit
    `audits/findings.json` — a registry blob here dies rebasing onto moved
@@ -87,3 +91,9 @@ never fix inline.
 
 Never: apply trigger labels, label `status/planned`, merge, approve, or
 close anything.
+
+When this run is an audit story, the verdict comment's heading is
+machine-parsed by the orchestrator's story closeout (#861) — use exactly
+this heading shape, no prose inside the heading:
+`## [S<n> ]audit verdict — <Provider>: **clean**` (optional `S<n> `
+story prefix; verdict word in bold at the end).

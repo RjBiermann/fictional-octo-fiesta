@@ -24,7 +24,13 @@ safe-outputs:
   close-issue:
     max: 6
     state-reason: completed
+    # This workflow triggers on push/pull_request, never on issues — the
+    # default target "triggering" means gh-aw skips every close with
+    # "not running in issue context" (#862). target "*" + explicit
+    # issue_number per message is the only closing path here.
+    target: "*"
   add-comment:
+    target: "*"
     max: 2
 ---
 
@@ -38,7 +44,9 @@ owns either way).
    spec issue the PR body references (provenance section, `#refs`).
 2. Close linked sub-issues whose PRs are now merged — execution of the
    human's merge, not your judgment (the same carve-out as `/retry`'s
-   close). Issues without a merged PR stay open.
+   close). Issues without a merged PR stay open. Pass each issue's
+   number explicitly in the close_issue call (`issue_number` field);
+   without it the close lands nowhere (#862).
 3. Post one closeout comment per issue closed ("PR #{n} merged → #issue
    recorded"). Nothing else; `create-pull-request` was deliberately not
    configured — add it only when a concrete need appears.
