@@ -27,6 +27,13 @@ imports:
   - .github/workflows/shared/engine-lane.md
   - .github/workflows/shared/gate.md
   - .github/workflows/shared/budget.md
+# Full history is the point of this lane: on the default shallow checkout
+# (fetch-depth: 1) the rebase agent's first `git merge-tree origin/main HEAD`
+# dies with "refusing to merge unrelated histories" (rc=128) — no visible
+# merge-base, nothing rebased, PR stays DIRTY (#852, run 39547359427;
+# spec #855).
+checkout:
+  fetch-depth: 0
 permissions:
   contents: read
   issues: read
