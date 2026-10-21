@@ -1,4 +1,4 @@
-version = 29 // #708: player-x.php b64 hub-embed chain in loadLinks (TDD seam hubEmbedUrl)
+version = 29 // #778: shared xvideos registry row (fleet bump)
 
 cloudstream {
     authors     = listOf("Phisher98")

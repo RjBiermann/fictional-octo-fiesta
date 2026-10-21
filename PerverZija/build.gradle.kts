@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 15 // #846: XSFTK probe — proto_api parse shapes landed (boot/token, manifest XOR decode)
+version = 16 // #778: shared xvideos registry row (fleet bump)
 
 cloudstream {
     authors     = listOf("kraptor")
