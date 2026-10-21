@@ -436,12 +436,18 @@ def chain_driver():
             print(f"[orchestrator] story {num_story} (issue {s['number']}): predecessor still {pstate}")
 
     _demote_out_of_order(stories)
-    _reconcile_pass(stories, _claim_planned_fires(stories))
+    claims = _claim_planned_fires(stories)
+    _reconcile_pass(stories, claims)
+    _relay_untransitioned(stories, claims)
 
     # Parent spec issue: close once every story referencing it is closed.
     by_parent = {}
 
-AUDIT_VERDICT_RE = re.compile(r"^##\s*Audit verdict\b.*\*\*clean\*\*", re.I | re.M)
+#861: verdict headings may carry a story-number prefix ("## S03 audit
+# verdict — Cat3Movie: **clean**"); the old anchor rejected any prefix,
+# which left clean stories open with only the owner's click as a close
+# path. Still fails closed: prose must contain the bolded verdict word.
+AUDIT_VERDICT_RE = re.compile(r"^##\s*[A-Za-z0-9]*\s*audit verdict\b.*\*\*clean\*\*", re.I | re.M)
 AUDIT_CHAIN_RE = re.compile(r"clean providers.{0,80}maintainer close", re.I | re.S)
 
 
@@ -536,7 +542,8 @@ def _claim_planned_fires(stories):
     """Map open status/planned issues to the Implement run their label event
     fired. gh-aw run payloads carry no issue attribution, so claim by
     proximity: a run within 150s after the stamp claims at most one issue
-    (greedy nearest match). Returns {issue_number: fired}.
+    (greedy nearest match). Returns {issue_number: run-row or None}; the
+    row carries id/status/createdAt for the #860 transition relay.
     (This replaces the old reconcile check against the workflow's global
     latest run, which any sibling issue's run suppressed.)"""
     runs = _implement_fires()
@@ -559,7 +566,9 @@ def _claim_planned_fires(stories):
                 best = (i, delta)
         if best is not None:
             taken.add(best[0])
-        claims[s["number"]] = best is not None
+        # Row (not bool) so the #860 relay can read the run's completion
+        # status; _reconcile_pass only tests truthiness, so rows drop in.
+        claims[s["number"]] = runs[best[0]] if best is not None else None
     return claims
 
 
@@ -586,6 +595,34 @@ def _reconcile_pass(stories, claims):
         run(["gh", "api", "-X", "DELETE", f"repos/{REPO}/issues/{n}/labels/status%2Fplanned"])
         _fire_implement(n)
         print(f"[orchestrator] {n}: trigger re-fired (machine relay — stamp fired no run)")
+
+
+def _relay_untransitioned(stories, claims):
+    """#860 watchdog relay: an open status/planned story whose claimed
+    Implement run completed and posted machinery output (work report /
+    verdict) but skipped its own status/in-review transition gets the
+    transition applied mechanically — the run's work exists, the label
+    state is the only thing missing (observed S3 #812, chain idle ~13h).
+    Idempotent: the relay moves the story out of status/planned, so the
+    next pass skips it; runs that posted nothing are never claimed."""
+    for s in stories:
+        n = s["number"]
+        row = claims.get(n)
+        if not row or (row.get("status") or "") != "completed":
+            continue
+        if "status/planned" not in [l["name"] for l in s.get("labels", [])]:
+            continue
+        ran_at = _parse_ts(row.get("createdAt") or "")
+        ts = _parse_ts(_label_applied_at(n, "status/planned") or "")
+        if time.time() - max(ran_at, ts) < 600:   # grace: run output may still be posting
+            continue
+        if not any((c.get("user") or {}).get("login") == "github-actions[bot]"
+                   and _parse_ts(c.get("created_at") or "") > ran_at
+                   for c in comments(n)):
+            continue
+        run(["gh", "api", "-X", "DELETE", f"repos/{REPO}/issues/{n}/labels/status%2Fplanned"])
+        label_issue(n, "status/in-review")
+        print(f"[orchestrator] issue {n}: transition relayed (implement run completed with output, transition skipped)")
 
 
 def _chain_approved(pnum):

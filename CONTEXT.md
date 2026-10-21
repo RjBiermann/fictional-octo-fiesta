@@ -102,6 +102,10 @@ _Avoid_: region lock, geo block (implies refusal; a Geo-gate varies content)
 The mechanical commit-and-PR step performed by the workflow (the `deliver-pr` action), never by the agent: commit the working tree to `ai/issue-N`, force-push, create-or-update the PR. A run that produces changes but no Delivery is a failed run.
 _Avoid_: push, publish, ship
 
+**Closeout**:
+The mechanical post-merge step that executes the human's merge verdict: find each story issue the merged PR closed out and close it with a receipt comment — never the agent's judgment (12-post-merge; the same carve-out as `/retry`'s close). Story issues whose PR did not merge stay open. A Closeout that fails at the machinery layer is a stall, not a verdict: the Chain driver holds story N+1 behind an open predecessor.
+_Avoid_: review verdict (the human's decision that a merge executes), cleanup
+
 **Chain**:
 The story-ordered execution of an approved spec: the conveyor stamps `status/planned` on story N only once story N−1 closed — dependencies flow forward through closeout, not simultaneity.
 _Avoid_: pipeline (that is the whole loop), sequence of PRs
