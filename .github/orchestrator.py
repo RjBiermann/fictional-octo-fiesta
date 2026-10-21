@@ -323,7 +323,7 @@ def merge_readiness():
         # mechanical resolver (or by hand) left the label on forever
         # (#851/#852/#853). The mergeable flag is the truth; clear the
         # label when the PR merges cleanly again.
-        labels = {l.get("name") for l in (pr.get("labels") or [])}
+        labels = {l.get("name") for l in ((api(f"issues/{num}") or {}).get("labels") or [])}
         if "status/conflict" in labels and d.get("mergeable"):
             out = run(["gh", "api", "-X", "DELETE",
                        f"repos/{REPO}/issues/{num}/labels/status/conflict"])
