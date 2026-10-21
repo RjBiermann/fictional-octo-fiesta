@@ -18,7 +18,10 @@ on:
     # registry_sync push died exactly there (run 39607504429, spec #858).
     paths: ['.github/**']
   pull_request:
-    paths: ['**/build.gradle.kts']
+    # Same protected-surface rule as push (#858): findings-only registry PRs
+    # ([registry] lane) touch none of the old paths, so the required
+    # actionlint context stayed "expected" and the PR sat BLOCKED (#859).
+    paths: ['.github/**', 'audits/**', '**/build.gradle.kts']
   workflow_dispatch:
 
 permissions:
