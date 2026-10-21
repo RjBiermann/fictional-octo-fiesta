@@ -1,4 +1,4 @@
-version = 14 // #670: shared dood.so registry row (fleet bump)
+version = 15 // #778: shared xvideos registry row (fleet bump)
 // fetches guarded (uncaught DNS exception), turbovid-only pages fall through cleanly
 
 cloudstream {
