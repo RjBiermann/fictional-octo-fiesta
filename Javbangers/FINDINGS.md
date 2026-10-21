@@ -204,6 +204,8 @@ Plain-curl tier on every surface (canaries 3/3; no challenge; TLS/browser never 
   `em.badge` (the empty Duration one) — direct parse: Submitted badge present ("2 months
   ago") on the fresh-page sample.
 
+## Tags-row fix (issue #324, verified 2026-09-11)
+
 Video pages carry a `div.item` whose text starts `Tags:`; its anchors have **no href**, so
 the old categories-only selector never captured them. Exposure: 66008 → 18 real tags,
 188678 → 2 (SW-854 + long JP title), 223404 → 1 (Hardcore), 236474 → 1 (the title itself —
