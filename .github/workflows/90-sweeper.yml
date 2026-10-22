@@ -23,6 +23,7 @@ on:
 permissions:
   contents: read
   issues: write
+  actions: write   # stuck re-fire dispatches 05-implement (workflow_dispatch API, #880 r2)
 
 concurrency:
   group: sweeper
@@ -65,6 +66,9 @@ jobs:
         if: inputs.mode != 'report'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GITHUB_TOKEN is not an env var by default — the stuck re-fire's
+          # dispatch needs it explicitly (see 95-orchestrator.yml, #879 r2).
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_AW_PROXY_PAT: ${{ steps.machinery_token.outputs.token }}
           REPO: ${{ github.repository }}
           STUCK_HOURS: ${{ env.STUCK_HOURS }}

@@ -64,6 +64,13 @@ jobs:
 
       - name: Run the mechanical conveyor
         env:
+          # GITHUB_TOKEN is NOT an env var by default (it's a secret/context
+          # value only) — orchestrator.py's dispatch_ok reads it to send
+          # relay dispatches under github-actions[bot] (the identity gh-aw's
+          # activation gate authorizes; the machinery App is never a
+          # collaborator and fails closed there, #875/#879 round 2).
+          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
           GH_AW_PROXY_PAT: ${{ steps.machinery_token.outputs.token }}
           GH_AW_AUTO_MERGE: ${{ vars.GH_AW_AUTO_MERGE }}
           GH_AW_ORCH_PLAN: ${{ vars.GH_AW_ORCH_PLAN }}
