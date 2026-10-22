@@ -18,7 +18,10 @@ imports:
 permissions:
   contents: read
   issues: read
-timeout-minutes: 20
+timeout-minutes: 45   # 20 was the wall: round-3 agents re-read long threads and
+                      # safe-outputs got cancelled at 24min (observed #797,
+                      # 2026-10-22T19:45 run — delta-13 zero-safe-outputs class);
+                      # 45 = implement's own budget.
 max-turns: 25
 max-ai-credits: 500
 safe-outputs:
