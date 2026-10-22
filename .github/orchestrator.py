@@ -573,7 +573,7 @@ def _implement_fires():
     Each row: {id, status, createdAt} — id lets the conveyor cancel a run
     it demotes (out-of-order mass stamps), status filters terminal ones."""
     out = run(["gh", "run", "list", "--workflow", "Implement", "--limit", "60",
-               "--json", "databaseId,status,createdAt,event"])
+               "--json", "databaseId,status,conclusion,createdAt,event"])
     try:
         rows = json.loads(out or "[]")
     except Exception:
@@ -607,9 +607,9 @@ def _claim_planned_fires(stories):
             continue
         best = None
         # Candidates nearest-first; the first candidate whose run actually
-        # executed claims. A hollow run (activation-gated-out) does not
-        # shadow a real one — S07's shape: the App re-stamp fired a hollow
-        # run at +2s while the real dispatch sat at +41s.
+        # produced work (success + activation ran) claims. Hollow and
+        # failed candidates don't claim and don't shadow — S07's shape:
+        # hollow at +2s, then a failed dispatch claiming for hours.
         cands = []
         for i, rt in enumerate(runs):
             if i in taken or not rt.get("createdAt"):
@@ -618,7 +618,7 @@ def _claim_planned_fires(stories):
             if 0 <= delta <= 150:
                 cands.append((delta, i))
         for delta, i in sorted(cands):
-            if _run_executed(runs[i].get("databaseId") or runs[i].get("id") or 0):
+            if _run_executed(runs[i]):
                 best = (i, delta)
                 taken.add(i)
                 break
@@ -628,13 +628,18 @@ def _claim_planned_fires(stories):
     return claims
 
 
-def _run_executed(run_id):
-    """True iff the run's activation job actually ran (not skipped).
-    gh-aw marks activation-gated-out runs (role/bot gate denial) as
-    overall 'success' with every downstream job skipped — hollow runs.
-    They must not claim a planned stamp: the stamp fired no real work
-    (S07 stuck ~12h: a hollow run claimed the re-stamp and stall_watch
-    never re-fired). One API call per claimed candidate."""
+def _run_executed(row):
+    """True iff this fire claims its stamp: non-terminal rows (queued/
+    in-progress — conclusion empty) fall through to the activation check
+    (a long-running implement must claim early or every sweep re-fires it:
+    duplicate-billing loop, #884 review r1); TERMINAL rows claim only on
+    success with activation run — hollow (skipped activation) and failed
+    (agent died, e.g. AIC rate limit) runs fire no work and must not
+    claim (S07 stuck: hollow claimed 12h, failed claimed 2h)."""
+    concl = row.get("conclusion") or ""
+    if (row.get("status") or "") == "completed" and concl != "success":
+        return False
+    run_id = row.get("databaseId") or row.get("id") or 0
     out = run(["gh", "run", "view", str(run_id), "-R", REPO, "--json", "jobs"])
     try:
         jobs = json.loads(out or "{}").get("jobs", [])
