@@ -563,7 +563,13 @@ def _parse_ts(s):
 
 
 def _implement_fires():
-    """Implement runs triggered by issue events (label fires), newest first.
+    """Implement fires (label events + dispatch relays), newest first.
+    Both channels count: post-#875 the workflow_dispatch relay IS the fire
+    that executes (label events from the App actor trigger only hollow
+    runs) — filtering to issues-events alone made the claim blind to the
+    executed dispatch, so every sweep re-fired a stamp that HAD been
+    served (S07: re-stamped 15:59/16:23/16:37/16:49 in a loop).
+    Hollow runs are excluded downstream by _claim_planned_fires.
     Each row: {id, status, createdAt} — id lets the conveyor cancel a run
     it demotes (out-of-order mass stamps), status filters terminal ones."""
     out = run(["gh", "run", "list", "--workflow", "Implement", "--limit", "60",
@@ -572,7 +578,7 @@ def _implement_fires():
         rows = json.loads(out or "[]")
     except Exception:
         return []
-    return sorted((r for r in rows if r.get("event") == "issues"),
+    return sorted((r for r in rows if r.get("event") in ("issues", "workflow_dispatch")),
                   key=lambda r: r.get("createdAt") or "", reverse=True)
 
 
