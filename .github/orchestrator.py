@@ -147,12 +147,25 @@ def run(cmd, **kw):
     return r.stdout
 
 
-def dispatch_ok(cmd):
+def dispatch_ok(cmd, env=None):
     """True iff a fire-and-forget command exited 0. `gh workflow run` prints
     nothing to stdout on success and errors only to stderr, so an
     out.strip()=="" check would report failures as fired — and the pre-posted
-    dedupe marker would then block the retry permanently."""
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    dedupe marker would then block the retry permanently.
+
+    Dispatches go out under GITHUB_TOKEN (github-actions[bot]) regardless of
+    the ambient GH_TOKEN: gh-aw's activation gate authorizes dispatches only
+    via the trusted-bot path — github-actions[bot] has implicit repo write,
+    while an installed App is never a collaborator, so the gate resolves the
+    machinery actor to permission 'none' and fails closed (#797 round-3
+    strand; verified against check_membership.cjs). Every caller is a fire
+    site (_fire_workflow, conflict_watch's 14-rebase, fix_surrogate's
+    07-fix-loop), so the override lives here, not at the call sites. Labels
+    and comments keep the App identity."""
+    gh_token = os.environ.get("GITHUB_TOKEN", "")
+    if gh_token and env is None:
+        env = dict(os.environ, GH_TOKEN=gh_token)
+    r = subprocess.run(cmd, capture_output=True, text=True, env=env)
     if r.returncode != 0:
         sys.stderr.write(f"[orchestrator] dispatch rc={r.returncode}: {r.stderr.strip()[:300]}\n")
     return r.returncode == 0
@@ -714,7 +727,16 @@ def _fire_workflow(lock, item_type, item_number):
     gh-aw-internal `aw_context` shape restores the target item natively
     (compiled ctx: item_type ∈ {issue, pull_request, discussion}). Replaces
     the ADR-0017 owner-PAT comment/label relays: the machinery never acts
-    as the owner and needs no PAT secret."""
+    as the owner and needs no PAT secret.
+
+    The dispatch MUST go out under GITHUB_TOKEN (github-actions[bot]), not
+    the machinery App token: gh-aw's activation gate authorizes dispatches
+    only via the trusted-bot path — github-actions[bot] has implicit repo
+    write, while an installed App is never a collaborator, so the gate
+    resolves it to permission 'none' and fails closed (#797 round-3 relays
+    stranded exactly there; verified against check_membership.cjs). Labels
+    and comments keep the App identity — the override itself is centralized
+    in dispatch_ok, which every fire site uses."""
     ctx = json.dumps({"item_type": item_type, "item_number": item_number})
     ok = dispatch_ok(["gh", "workflow", "run", lock, "--ref", "main", "-R", REPO,
                       "-f", f"aw_context={ctx}"])
