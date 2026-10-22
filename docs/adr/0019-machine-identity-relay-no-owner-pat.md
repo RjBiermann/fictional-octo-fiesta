@@ -53,3 +53,20 @@ inferred. `04-plan`/`07-fix-loop` share the identical trigger shape.
 - GITHUB_TOKEN cannot trigger workflows in *other* repositories
   (gh-aw `dispatch-repository` needs a real token). This conveyor is
   same-repo only; cross-repo relay would reintroduce a token decision.
+
+## Amended 2026-10-22: owner-authored PRs join the fix surface
+
+The maintainer ordered the fix surrogate extended to owner-authored PRs
+(`maint/*` maintenance rounds): the machinery applies App-identity
+commits to the owner's branch under review-verdict blockers, merge stays
+the human gate. The trust anchor is the **author identity** (OWNER
+exact-match), never the branch shape — unknown authors remain unable to
+trigger any pipeline step (gh-aw `on.roles` + the membership check), and
+gh-aw's own gate explicitly authorizes allowlisted bots synchronizing
+same-repo PRs whose author is trusted, so no new confused-deputy surface
+opens. Implemented as `_fixable_pr` (fix_surrogate only; the other
+`_agent_pr` consumers keep their narrower scope). Same day, relay
+dispatches moved from the App token back to `GITHUB_TOKEN` (#875) — the
+App is never a collaborator, so gh-aw's gate resolves it to permission
+'none' on dispatches; the App keeps labels/comments/patch-push identity
+(ADR-0020 step 3).

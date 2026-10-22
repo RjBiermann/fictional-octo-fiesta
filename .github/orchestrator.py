@@ -768,6 +768,21 @@ def _agent_pr(pr):
             and pr.get("head", {}).get("ref", "").startswith(AGENT_BRANCHES))
 
 
+def _fixable_pr(pr):
+    """What the fix surrogate may push repairs to: machinery deliveries
+    (agent PRs) plus OWNER-authored PRs — the maintainer's 2026-10-22
+    carve-out. The trust anchor is the author identity, not the branch
+    shape: unknown authors can never reach this code (gh-aw's roles gate
+    bars them from triggering any pipeline step, and gh-aw's own
+    check_membership explicitly allows allowlisted bots to synchronize
+    same-repo PRs whose author is trusted). Machinery commits land as the
+    App identity — attribution stays structural (ADR-0019); merge stays
+    the human gate. Other human authors stay out — fail closed."""
+    if _agent_pr(pr):
+        return True
+    return (pr.get("user") or {}).get("login") == OWNER
+
+
 def _merged_pr_for_story(num):
     """The merged delivery of story `num` — ADR-0007's closeout record."""
     pat = _delivered_branch_pat(num)
@@ -1500,7 +1515,7 @@ def fix_surrogate():
     identity. Dedupe via the marker comment on the issue thread; bounded
     by the fix loop's own cycle cap + status/fixing-stuck."""
     for pr in open_pulls():
-        if not _agent_pr(pr):
+        if not _fixable_pr(pr):
             continue
         num = pr["number"]
         # Verdict source: 06-review posts as an ISSUE comment (safe-output
