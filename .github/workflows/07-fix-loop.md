@@ -35,6 +35,13 @@ max-turns: 30
 max-ai-credits: 1200
 safe-outputs:
   threat-detection: false   # engine:pi detection runs on Copilot CLI — not available (no Copilot); structural guardrails + human merge carry the boundary
+  # ADR-0020 step 3: machinery App identity for safe outputs — Workflows rw
+  # lets patch pushes carry workflow-file commits (GITHUB_TOKEN is rejected
+  # for those); ignore-if-missing falls back to GITHUB_TOKEN when unset.
+  github-app:
+    client-id: ${{ vars.MACHINERY_APP_CLIENT_ID }}
+    private-key: ${{ secrets.MACHINERY_APP_KEY }}
+    ignore-if-missing: true
   push-to-pull-request-branch:
     max: 3
   add-labels:

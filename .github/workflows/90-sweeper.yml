@@ -133,11 +133,27 @@ jobs:
                   # 2) Daily cap -> skip this round
                   if today >= cap_d:
                       continue
-                  # 3) Stuck -> re-fire by remove+re-add of the state label
+                  # 3) Stuck -> re-fire by DISPATCH (the working channel),
+                  # with the label roll kept as display state. History:
+                  # GITHUB_TOKEN label events never trigger workflows (GitHub
+                  # loop prevention) and App-actor label events trigger runs
+                  # that fail gh-aw activation (the App is never a
+                  # collaborator — #797/#875), so re-stamping alone was a
+                  # dead channel that left S07 idle ~12h with a hollow run
+                  # claiming the stamp.
                   if st and idle_h > stuck_h:
-                      for lb in sorted(st):
-                          gh("issue","edit",str(n),"--repo",repo,"--remove-label",lb)
-                          gh("issue","edit",str(n),"--repo",repo,"--add-label",lb)
+                      if "status/planned" in st:
+                          denv = dict(os.environ, GH_TOKEN=os.environ.get("GITHUB_TOKEN", ""))
+                          r = subprocess.run(["gh","workflow","run","05-implement.lock.yml",
+                                              "--ref","main","--repo",repo,
+                                              "-f",f"aw_context={{\"item_type\":\"issue\",\"item_number\":{n}}}"],
+                                             env=denv, capture_output=True, text=True)
+                          if r.returncode != 0:
+                              raise RuntimeError(f"dispatch issue {n}: {r.stderr.strip()[:160]}")
+                      else:
+                          for lb in sorted(st):
+                              gh("issue","edit",str(n),"--repo",repo,"--remove-label",lb)
+                              gh("issue","edit",str(n),"--repo",repo,"--add-label",lb)
                       names = ", ".join(sorted(st))
                       gh("issue","comment",str(n),"--repo",repo,
                          "--body",f"{pref} re-fired: `{names}` idle {int(idle_h)}h.")
