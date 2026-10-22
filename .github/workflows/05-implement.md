@@ -95,5 +95,6 @@ close anything.
 When this run is an audit story, the verdict comment's heading is
 machine-parsed by the orchestrator's story closeout (#861) — use exactly
 this heading shape, no prose inside the heading:
-`## [S<n> ]audit verdict — <Provider>: **clean**` (optional `S<n> `
-story prefix; verdict word in bold at the end).
+`## S<n> audit verdict — <Provider>: **clean**` (plain, spaced; the
+verdict word in bold at the end. Bracketed or unnumbered variants are
+tolerated by the closeout regex, but ship the canonical shape).

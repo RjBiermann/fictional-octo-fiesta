@@ -466,11 +466,13 @@ def chain_driver():
                     f"{MARK} parent spec closed: all {total} stories referencing it are closed")
         print(f"[orchestrator] parent #{pnum}: closed (all stories closed)")
 
-#861: verdict headings may carry a story-number prefix ("## S03 audit
-# verdict — Cat3Movie: **clean**"); the old anchor rejected any prefix,
-# which left clean stories open with only the owner's click as a close
-# path. Still fails closed: prose must contain the bolded verdict word.
-AUDIT_VERDICT_RE = re.compile(r"^##\s*[A-Za-z0-9]*\s*audit verdict\b.*\*\*clean\*\*", re.I | re.M)
+#861: verdict headings may carry a story-number prefix — "## S03 audit
+# verdict — …", "## [S06]audit verdict — …" (bracketed, glued — agents
+# copy the prompt pin's bracket notation literally), with or without a
+# trailing space. The old anchor rejected any prefix, which left clean
+# stories open with only the owner's click as a close path. Still fails
+# closed: prose must contain the bolded verdict word.
+AUDIT_VERDICT_RE = re.compile(r"^##\s*\[?[Ss]?\d*\]?\s*audit verdict\b.*\*\*clean\*\*", re.I | re.M)
 AUDIT_CHAIN_RE = re.compile(r"clean providers.{0,80}maintainer close", re.I | re.S)
 
 
