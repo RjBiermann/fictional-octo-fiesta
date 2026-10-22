@@ -918,13 +918,59 @@ def _fire_implement(num):
     _fire_workflow("05-implement.lock.yml", "issue", num)
 
 
+def _plan_round_state(n, rnd):
+    """fresh / served / in-flight / stranded for a plan round (#887 r1).
+    - fresh: no fire marker
+    - served: the round's own OUTPUT comment ('Plan round N —', the
+      delta-16 heading contract) posted after the marker — per-issue and
+      exact; also covers the owner's manual /plan (same heading)
+    - in-flight: plan dispatch runs exist after the marker with one
+      queued/in_progress (repo-wide listing, conservative: any recent
+      dispatch defers one sweep — false in-flight delays a heal, false
+      served would never heal)
+    - stranded: marker but no output and no live run — the dead-channel
+      class (#797 r3, #847 r2, #796 r2, #864 r1)"""
+    cs = comments(n)
+    mk = _fire_marker(rnd)
+    mkc = [c for c in cs if mk in (c.get("body") or "")]
+    if not mkc:
+        return "fresh"
+    after = mkc[-1]["created_at"] or ""
+    out_c = _round_comment(cs, rnd)
+    if out_c and (out_c.get("created_at") or "") > after:
+        return "served"
+    out = run(["gh", "run", "list", "--workflow", "04-plan.lock.yml",
+               "--limit", "100", "-R", REPO,
+               "--json", "databaseId,status,createdAt,event"])
+    try:
+        rows = json.loads(out or "[]")
+    except Exception:
+        return "in-flight"   # undeterminable -> never double-fire
+    # Both fire channels count: the surrogate's dispatch AND a live run
+    # from the owner's manual /plan comment (issue_comment event) — a
+    # manual unstrand in flight must not be double-fired (#887 r2
+    # blocker). --limit 100: the 30 cap evicted the real row on chatty
+    # threads (29/30 chaff observed live).
+    recent = [r for r in rows
+              if r.get("event") in ("workflow_dispatch", "issue_comment")
+              and (r.get("createdAt") or "") > after]
+    if not recent:
+        return "stranded"
+    if any((r.get("status") or "") in ("queued", "in_progress") for r in recent):
+        return "in-flight"
+    return "stranded"   # all terminal: denied/skipped/failed/walled
+
+
 def _fire_plan(n, rnd):
     """Record the round marker (dedupe + audit trail; bot identity) and
     fire the plan loop by dispatch with the round carried by aw_context."""
-    mk = _fire_marker(rnd)
-    if _has_marker(comments(n), mk):
+    state = _plan_round_state(n, rnd)
+    if state in ("served", "in-flight"):
         return False
-    post_comment(n, mk + _FIRE_SUFFIX.get(rnd, ""))
+    if state == "stranded":
+        print(f"[orchestrator] {n}: round {rnd} stranded (marker, no output, no live run) — re-firing")
+    else:   # fresh
+        post_comment(n, _fire_marker(rnd) + _FIRE_SUFFIX.get(rnd, ""))
     _fire_workflow("04-plan.lock.yml", "issue", n)
     print(f"[orchestrator] {n}: /plan round {rnd} fired (dispatch)")
     return True
@@ -973,21 +1019,19 @@ def plan_loop_surrogate():
             continue
         # round 2: human answered after round 1
         if not r2 and not kid_stories:
-            if not _has_marker(cs, _fire_marker(2)):
-                human_after = [c for c in cs
-                               if c.get("user", {}).get("login") == OWNER
-                               and MARK not in (c.get("body") or "")
-                               and c["created_at"] > r1["created_at"]]
-                if human_after:
-                    _fire_plan(n, 2)
+            human_after = [c for c in cs
+                           if c.get("user", {}).get("login") == OWNER
+                           and MARK not in (c.get("body") or "")
+                           and c["created_at"] > r1["created_at"]]
+            if human_after:
+                _fire_plan(n, 2)   # dedupe/heal lives inside _fire_plan now
         # round 3: owner approved after round 2
         if r2 and not kid_stories and not r3:
-            if not _has_marker(cs, _fire_marker(3)):
-                appr = [c for c in cs if c.get("user", {}).get("login") == OWNER
-                        and c["created_at"] > r2["created_at"]
-                        and (c.get("body") or "").strip().lower() in ("approved", "approve", "lgtm", "yes", "ok")]
-                if appr:
-                    _fire_plan(n, 3)
+            appr = [c for c in cs if c.get("user", {}).get("login") == OWNER
+                    and c["created_at"] > r2["created_at"]
+                    and (c.get("body") or "").strip().lower() in ("approved", "approve", "lgtm", "yes", "ok")]
+            if appr:
+                _fire_plan(n, 3)   # dedupe/heal lives inside _fire_plan now
 
 
 # -------------------------------------------------------- decision tags
