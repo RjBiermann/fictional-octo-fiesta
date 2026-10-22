@@ -33,6 +33,15 @@ max-turns: 30
 max-ai-credits: 1500
 safe-outputs:
   threat-detection: false
+  # ADR-0020 step 3: safe outputs act as the machinery App — its Workflows
+  # rw permission is what lets push/create-PR patches carry workflow-file
+  # commits (GITHUB_TOKEN is rejected for those since GitHub's
+  # workflow-commit push restriction; #875 context). ignore-if-missing:
+  # unregistered/fork context falls back to GITHUB_TOKEN instead of failing.
+  github-app:
+    client-id: ${{ vars.MACHINERY_APP_CLIENT_ID }}
+    private-key: ${{ secrets.MACHINERY_APP_KEY }}
+    ignore-if-missing: true
   add-comment:
     target: "*"
     # 3 slots: one work-attempt budget stamp + one work-report narration +
