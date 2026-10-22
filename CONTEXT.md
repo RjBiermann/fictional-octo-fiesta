@@ -106,6 +106,10 @@ _Avoid_: push, publish, ship
 The mechanical post-merge step that executes the human's merge verdict: find each story issue the merged PR closed out and close it with a receipt comment — never the agent's judgment (12-post-merge; the same carve-out as `/retry`'s close). Story issues whose PR did not merge stay open. A Closeout that fails at the machinery layer is a stall, not a verdict: the Chain driver holds story N+1 behind an open predecessor.
 _Avoid_: review verdict (the human's decision that a merge executes), cleanup
 
+**Maintenance round**:
+A maintainer-ordered change to the machinery itself (workflow files, orchestrator, ADRs) — the class the trigger-label lane cannot self-deliver when the machinery needs fixing. Delivered either as a lane run when the spec is in the queue, or directly by the maintainer session for emergencies; in both cases the machinery's review lane reviews the diff and the human merge is the gate.
+_Avoid_: hotfix (implies production pressure), self-repair (the machinery only auto-repairs its own agent deliveries — `fix-loop` — not maintainer rounds)
+
 **Chain**:
 The story-ordered execution of an approved spec: the conveyor stamps `status/planned` on story N only once story N−1 closed — dependencies flow forward through closeout, not simultaneity.
 _Avoid_: pipeline (that is the whole loop), sequence of PRs

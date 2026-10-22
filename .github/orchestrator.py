@@ -583,7 +583,11 @@ def _claim_planned_fires(stories):
     (greedy nearest match). Returns {issue_number: run-row or None}; the
     row carries id/status/createdAt for the #860 transition relay.
     (This replaces the old reconcile check against the workflow's global
-    latest run, which any sibling issue's run suppressed.)"""
+    latest run, which any sibling issue's run suppressed.)
+    Hollow runs (activation-gated-out: gh-aw marks them overall success
+    with the agent skipped) do NOT count as fires — they claim nothing
+    (#797/#875 class: the App-actor re-stamp fired a run that ran nothing,
+    and the claim made stall_watch never re-fire)."""
     runs = _implement_fires()
     taken = set()
     claims = {}
@@ -596,18 +600,47 @@ def _claim_planned_fires(stories):
         if not ts:
             continue
         best = None
+        # Candidates nearest-first; the first candidate whose run actually
+        # executed claims. A hollow run (activation-gated-out) does not
+        # shadow a real one — S07's shape: the App re-stamp fired a hollow
+        # run at +2s while the real dispatch sat at +41s.
+        cands = []
         for i, rt in enumerate(runs):
             if i in taken or not rt.get("createdAt"):
                 continue
             delta = _parse_ts(rt["createdAt"]) - _parse_ts(ts)
-            if 0 <= delta <= 150 and (best is None or delta < best[1]):
+            if 0 <= delta <= 150:
+                cands.append((delta, i))
+        for delta, i in sorted(cands):
+            if _run_executed(runs[i].get("databaseId") or runs[i].get("id") or 0):
                 best = (i, delta)
+                break
         if best is not None:
-            taken.add(best[0])
+            row = runs[best[0]]
+            if not _run_executed(row.get("databaseId") or row.get("id") or 0):
+                best = None   # hollow run — the stamp fired no work
+            else:
+                taken.add(best[0])
         # Row (not bool) so the #860 relay can read the run's completion
         # status; _reconcile_pass only tests truthiness, so rows drop in.
         claims[s["number"]] = runs[best[0]] if best is not None else None
     return claims
+
+
+def _run_executed(run_id):
+    """True iff the run's activation job actually ran (not skipped).
+    gh-aw marks activation-gated-out runs (role/bot gate denial) as
+    overall 'success' with every downstream job skipped — hollow runs.
+    They must not claim a planned stamp: the stamp fired no real work
+    (S07 stuck ~12h: a hollow run claimed the re-stamp and stall_watch
+    never re-fired). One API call per claimed candidate."""
+    out = run(["gh", "run", "view", str(run_id), "-R", REPO, "--json", "jobs"])
+    try:
+        jobs = json.loads(out or "{}").get("jobs", [])
+    except Exception:
+        return False   # undeterminable -> not a claim
+    act = [j for j in jobs if j.get("name") == "activation"]
+    return bool(act) and act[0].get("conclusion") == "success"
 
 
 def _has_stall_flag(cs):
@@ -635,6 +668,18 @@ def _reconcile_pass(stories, claims):
         print(f"[orchestrator] {n}: trigger re-fired (machine relay — stamp fired no run)")
 
 
+def _machinery_output(comments, after_ts):
+    """True iff some comment after after_ts was authored by machinery —
+    a bot-type user. Post-#877 safe-outputs act as the machinery App
+    (rjbiermann-machinery[bot]); pre-#877 they were github-actions[bot].
+    Both are Bot-type users; matching the type instead of one login keeps
+    this identity-proof as the machinery identity changes (ADR-0019:
+    attribution stays structural)."""
+    return any((c.get("user") or {}).get("type") == "Bot"
+               and _parse_ts(c.get("created_at") or "") > after_ts
+               for c in comments)
+
+
 def _relay_untransitioned(stories, claims):
     """#860 watchdog relay: an open status/planned story whose claimed
     Implement run completed and posted machinery output (work report /
@@ -654,9 +699,7 @@ def _relay_untransitioned(stories, claims):
         ts = _parse_ts(_label_applied_at(n, "status/planned") or "")
         if time.time() - max(ran_at, ts) < 600:   # grace: run output may still be posting
             continue
-        if not any((c.get("user") or {}).get("login") == "github-actions[bot]"
-                   and _parse_ts(c.get("created_at") or "") > ran_at
-                   for c in comments(n)):
+        if not _machinery_output(comments(n), ran_at):
             continue
         run(["gh", "api", "-X", "DELETE", f"repos/{REPO}/issues/{n}/labels/status%2Fplanned"])
         label_issue(n, "status/in-review")
@@ -766,6 +809,21 @@ def _agent_pr(pr):
     return (not pr.get("draft")
             and (pr.get("user") or {}).get("login") == "github-actions[bot]"
             and pr.get("head", {}).get("ref", "").startswith(AGENT_BRANCHES))
+
+
+def _fixable_pr(pr):
+    """What the fix surrogate may push repairs to: machinery deliveries
+    (agent PRs) plus OWNER-authored PRs — the maintainer's 2026-10-22
+    carve-out. The trust anchor is the author identity, not the branch
+    shape: unknown authors can never reach this code (gh-aw's roles gate
+    bars them from triggering any pipeline step, and gh-aw's own
+    check_membership explicitly allows allowlisted bots to synchronize
+    same-repo PRs whose author is trusted). Machinery commits land as the
+    App identity — attribution stays structural (ADR-0019); merge stays
+    the human gate. Other human authors stay out — fail closed."""
+    if _agent_pr(pr):
+        return True
+    return (pr.get("user") or {}).get("login") == OWNER
 
 
 def _merged_pr_for_story(num):
@@ -1500,7 +1558,7 @@ def fix_surrogate():
     identity. Dedupe via the marker comment on the issue thread; bounded
     by the fix loop's own cycle cap + status/fixing-stuck."""
     for pr in open_pulls():
-        if not _agent_pr(pr):
+        if not _fixable_pr(pr):
             continue
         num = pr["number"]
         # Verdict source: 06-review posts as an ISSUE comment (safe-output
