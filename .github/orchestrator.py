@@ -614,13 +614,8 @@ def _claim_planned_fires(stories):
         for delta, i in sorted(cands):
             if _run_executed(runs[i].get("databaseId") or runs[i].get("id") or 0):
                 best = (i, delta)
+                taken.add(i)
                 break
-        if best is not None:
-            row = runs[best[0]]
-            if not _run_executed(row.get("databaseId") or row.get("id") or 0):
-                best = None   # hollow run — the stamp fired no work
-            else:
-                taken.add(best[0])
         # Row (not bool) so the #860 relay can read the run's completion
         # status; _reconcile_pass only tests truthiness, so rows drop in.
         claims[s["number"]] = runs[best[0]] if best is not None else None
