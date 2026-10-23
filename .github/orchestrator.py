@@ -1068,6 +1068,23 @@ def closeout_healer():
         n = i["number"]
         merged = _merged_pr_for_story(n)
         if not merged:
+            # Fallback-receipt closeout (ADR-0020 class, #1282): a story whose
+            # delivery was routed to a fallback review issue #N closes out
+            # once the carrier itself closes (delivered/reviewed) — same
+            # ADR-0007 semantics as the merged-PR path.
+            receipt = _fallback_delivery(n)
+            if not receipt:
+                continue
+            fb_at, fb_num = receipt
+            if _rearmed_after(n, fb_at):
+                print(f"[orchestrator] {n}: deliberately re-armed after fallback receipt #{fb_num} — closeout skipped")
+                continue
+            fb = api(f"issues/{fb_num}") or {}
+            if str(fb.get("state", "")).lower() != "closed":
+                continue
+            post_comment(n, f"{MARK} delivered — fallback review issue #{fb_num} closed; closing out.")
+            close_issue(n, "completed", f"delivered via fallback review issue #{fb_num}")
+            print(f"[orchestrator] {n}: closed out (fallback review issue #{fb_num} closed)")
             continue
         if _stamped_after_merge(n, (api(f"pulls/{merged}") or {}).get("merged_at")):
             print(f"[orchestrator] {n}: deliberately re-armed after merge — closeout skipped")
@@ -1076,6 +1093,31 @@ def closeout_healer():
                         f"closeout-healed after the 12-post-merge miss recorded in #797).")
         close_issue(n, "completed", f"delivered via PR #{merged}")
         print(f"[orchestrator] {n}: closed out (PR #{merged} merged)")
+
+
+# ADR-0020 protected-files receipt: gh-aw's deterministic safe-output NOTE
+# stamped on a story when the delivery could not become a PR and was routed
+# to a fallback review issue instead. The linked issue #N is the delivery
+# carrier; the receipt is machine-readable state (not prose to ignore).
+FALLBACK_REVIEW_RE = re.compile(
+    r"fallback review issue was created .*?due to protected .{0,60}?changes?",
+    re.I | re.S)
+FALLBACK_LINK_RE = re.compile(r"\[#(\d+)\]")
+
+
+def _fallback_delivery(num, cs=None):
+    """The machinery fallback-delivery receipt on story `num` (ADR-0020
+    protected-files class, live instance #1264→#1271 recorded in #1282).
+    Returns (receipt_ts, carrier_issue_number) or None. Receipts are
+    matched narrowly to the gh-aw NOTE template; a stray over-match is
+    fail-closed for the delivered-guard (no re-fire), never a lost fire."""
+    for c in reversed(cs if cs is not None else comments(num)):
+        body = c.get("body") or ""
+        if FALLBACK_REVIEW_RE.search(body):
+            link = FALLBACK_LINK_RE.search(body)
+            if link:
+                return (c.get("created_at") or "", int(link.group(1)))
+    return None
 
 
 def _open_pr_for_story(num):
@@ -1090,7 +1132,17 @@ def _stamped_after_merge(num, merged_at):
     """Deliberate human re-arm: status/planned applied by the OWNER after
     the story's delivery merged. A human stamp overrides the merged-guard
     ("run the work again") — machinery re-stamps never do."""
-    if not merged_at:
+    return _rearmed_after(num, merged_at)
+
+
+def _rearmed_after(num, ts):
+    """Deliberate human re-arm after delivery evidence timestamp `ts`:
+    status/planned applied by the OWNER after `ts` (merged PR or fallback
+    receipt). A human stamp overrides a delivered-guard ("run the work
+    again") — machinery re-stamps never do (the #797 wave and the
+    16:36:11Z re-stamp of #1282 were both bot-applied). Generic overload
+    of _stamped_after_merge for both delivery-evidence classes."""
+    if not ts:
         return False
     latest = None
     for e in api(f"issues/{num}/events?per_page=100") or []:
@@ -1098,7 +1150,7 @@ def _stamped_after_merge(num, merged_at):
             latest = e
     if not latest:
         return False
-    return ((latest.get("created_at") or "") > merged_at
+    return ((latest.get("created_at") or "") > ts
             and (latest.get("actor") or {}).get("login") == OWNER)
 
 
@@ -1118,6 +1170,17 @@ def _fire_implement(num):
             print(f"[orchestrator] {num}: human re-arm after merged PR #{merged} — re-delivering")
         else:
             print(f"[orchestrator] {num}: already delivered via merged PR #{merged} — not re-fired")
+            return
+    receipt = _fallback_delivery(num)
+    if receipt:
+        fb_at, fb_num = receipt
+        if _rearmed_after(num, fb_at):
+            print(f"[orchestrator] {num}: human re-arm after fallback delivery #{fb_num} — re-delivering")
+        else:
+            # #1282/#1264: the machinery re-stamped status/planned 4 minutes
+            # after the lane's in-review receipt and re-fired — the receipt
+            # IS the delivery record; only a human re-arm overrides it.
+            print(f"[orchestrator] {num}: already delivered via fallback review issue #{fb_num} — not re-fired")
             return
     label_issue(num, "status/planned")
     _fire_workflow("05-implement.lock.yml", "issue", num)

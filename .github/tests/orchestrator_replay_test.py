@@ -52,13 +52,24 @@ def load_world():
         return json.load(fh)
 
 
+def load_fallback_world():
+    """Recorded 2026-10-23 recovery-record class (#1282): a story completed
+    via the protected-files `request-review` policy (safe-outputs NOTE:
+    'a fallback review issue was created ... due to protected file
+    changes: [#N]'), then re-armed by machinery 4 minutes after the lane
+    set it in-review — and re-fired."""
+    path = os.path.join(_HERE, "fixtures", "fallback_delivery.json")
+    with open(path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
 class ReplayCase(unittest.TestCase):
     """Base: installs a fixture-driven fake for every orchestrator side
     channel (api / post_comment / close_issue / label_issue / open_pulls /
     _fire_workflow) and pins OWNER to the fixture's owner login."""
 
-    def setUp(self):
-        self.world = load_world()
+    def setUp(self, loader=load_world):
+        self.world = loader()
         self.owner = self.world["owner"]
 
         self.comments = []   # (num, body)
@@ -97,6 +108,13 @@ class ReplayCase(unittest.TestCase):
                     if data["state"] == "open"]
         if path.startswith("issues/") and "/events" in path:
             return list(world["issues"][path.split("/")[1]]["events"])
+        if path.startswith("issues/") and "/comments" in path:
+            num = int(path.split("/")[1])
+            return list(world.get("comments", {}).get(str(num), []))
+        if path.startswith("issues/"):
+            num = path.split("/")[1]
+            if num.isdigit() and num in world["issues"]:
+                return copy.deepcopy(world["issues"][num])
         if path.startswith("pulls?state=closed"):
             return [copy.deepcopy(p) for p in world["pulls"]["closed"]]
         if path.startswith("pulls/"):
@@ -279,6 +297,70 @@ class TestCloseoutHealer(ReplayCase):
             orchestrator.closeout_healer()
         self.assertEqual(self.closes, [])
         self.assertEqual(self.comments, [])
+
+
+class TestFallbackReceiptGuard(ReplayCase):
+    """Invariant 4 (#1282 / #1185: the 2026-10-23 recovery-record re-fire
+    wave): a story completed via the protected-files `request-review`
+    policy carries a machinery receipt — the safe-outputs NOTE 'a fallback
+    review issue was created ... due to protected file changes: [#N]'.
+    That receipt IS the delivery record: the machinery must NEVER re-arm
+    /re-fire a receipt-carrying record. Mirror of invariant 2: only an
+    OWNER-applied status/planned AFTER the receipt counts as a deliberate
+    re-arm; bot re-stamps never do (recorded: the 16:36:11Z machinery
+    re-stamp on #1264 re-fired 4 minutes after the lane set in-review)."""
+
+    def setUp(self):
+        super().setUp(loader=load_fallback_world)
+
+    def _rearm(self, num, actor, at):
+        self.world["issues"][str(num)]["events"].append(
+            {"event": "labeled", "label": {"name": "status/planned"},
+             "actor": {"login": actor}, "created_at": at})
+
+    def test_recorded_receipt_never_refires(self):
+        orchestrator._fire_implement(1264)
+        self.assertEqual(self.fires, [],
+                         "a fallback-review receipt is a delivery record — "
+                         "re-firing is the #1282 class")
+        self.assertEqual(self.labels, [], "no re-arm stamp on a delivered record")
+
+    def test_derived_owner_rearm_after_receipt_refires(self):
+        self._rearm(1264, self.owner, "2026-10-23T17:10:00Z")
+        orchestrator._fire_implement(1264)
+        self.assertEqual(self.fires, [(IMPLEMENT_LOCK, "issue", 1264)])
+
+    def test_bot_rearm_after_receipt_not_rearm(self):
+        # The recorded wave's re-stamp was machinery-applied — loop-dead.
+        self._rearm(1264, "github-actions[bot]", "2026-10-23T17:10:00Z")
+        orchestrator._fire_implement(1264)
+        self.assertEqual(self.fires, [])
+
+    def test_rearm_before_receipt_not_rearm(self):
+        # A pre-receipt planned stamp is stale queue state, not a re-arm.
+        self._rearm(1264, self.owner, "2026-10-23T15:00:00Z")
+        orchestrator._fire_implement(1264)
+        self.assertEqual(self.fires, [])
+
+    def test_healer_closes_receipt_record_when_carrier_closes(self):
+        # #1271 fixture carrier is closed (delivered) — the story record
+        # closes out on the healer pass, same ADR-0007 semantics as a
+        # merged PR.
+        orchestrator.closeout_healer()
+        closed = {num for num, _r, _b in self.closes}
+        self.assertIn(1264, closed)
+
+    def test_healer_leaves_receipt_record_open_while_carrier_open(self):
+        self.world["issues"]["1271"]["state"] = "open"
+        orchestrator.closeout_healer()
+        closed = {num for num, _r, _b in self.closes}
+        self.assertNotIn(1264, closed)
+
+    def test_healer_owner_rearm_after_receipt_skips_closeout(self):
+        self._rearm(1264, self.owner, "2026-10-23T17:10:00Z")
+        orchestrator.closeout_healer()
+        closed = {num for num, _r, _b in self.closes}
+        self.assertNotIn(1264, closed)
 
 
 if __name__ == "__main__":

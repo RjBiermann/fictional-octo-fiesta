@@ -1,0 +1,25 @@
+{
+  "owner": "chain-owner",
+  "issues": {
+    "1264": {
+      "state": "open",
+      "title": "[impl] [spec] S1 — orchestrator-replay CI wiring in lint.yml (recovery record)",
+      "events": []
+    },
+    "1271": {
+      "state": "closed",
+      "title": "[impl] [spec] S1 — fallback review issue (carrier)",
+      "events": []
+    }
+  },
+  "pulls": { "open": [], "closed": [] },
+  "comments": {
+    "1264": [
+      {
+        "user": { "login": "github-actions[bot]" },
+        "created_at": "2026-10-23T16:32:00Z",
+        "body": "> [!NOTE]\n> The pull request was not created — a fallback review issue was created instead due to protected file changes: [#1271](https://github.com/adopt/repo/issues/1271)\n\ngh-aw budget: attempt=1 kind=fix run=39987038246 credits=1"
+      }
+    ]
+  }
+}
