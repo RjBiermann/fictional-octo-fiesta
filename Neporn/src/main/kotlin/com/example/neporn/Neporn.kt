@@ -5,7 +5,6 @@ import com.kraptor.KvsFlashvars
 import com.kraptor.registerHostExtractors
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
-import com.lagradost.cloudstream3.LoadResponse.Companion.addDuration
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.net.URLEncoder
@@ -72,7 +71,6 @@ class Neporn : MainAPI() {
             ?.removePrefix("Video: ")?.trim()
             ?: throw ErrorLoadingException("No title at $url")
         val poster = doc.selectFirst("meta[property=og:image]")?.attr("content")
-        val duration = doc.selectFirst("div.info span:contains(Duration:) em")?.text()?.trim()
         val tags = doc.select("div.info-content a[href*=/tags/]").map { it.text().trim() }
         val categories = doc.select("div.info-content a[href*=/categories/]").map { it.text().trim() }
         val plot = doc.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
@@ -88,7 +86,7 @@ class Neporn : MainAPI() {
             this.plot = plot
             this.actors = actors.map { ActorData(Actor(it)) }
             this.year = year
-            addDuration(duration?.trim())
+            this.duration = Parse.durationMinutes(doc)
             this.recommendations = recommendations
         }
     }
@@ -127,6 +125,13 @@ object Parse {
     fun actors(doc: Document): List<String> =
         doc.select("div.info-content a[href*=/models/] .name")
             .map { it.text().trim() }.filter { it.isNotBlank() }
+
+    // Issue #826: LoadResponse.addDuration routes through getDurationFromString, which only
+    // understands word forms ("20 min") — the site's visible "Duration: <em>20:48</em>" and
+    // every colon-form string degrade to null, so addDuration silently shipped no duration.
+    // The page's JSON-LD carries the canonical ISO-8601 token ("PT0H20M48S") -> minutes.
+    fun durationMinutes(doc: Document): Int? =
+        JsonLdParse.minutes(doc.select("script[type=application/ld+json]").html())
 }
 
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin

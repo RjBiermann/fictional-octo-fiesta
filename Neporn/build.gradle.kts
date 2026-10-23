@@ -1,4 +1,4 @@
-version = 10 // #778: shared xvideos registry row (fleet bump)
+version = 11 // #826: duration from JSON-LD (addDuration is a no-op on colon form)
 
 cloudstream {
     authors     = listOf("cloudstream")
