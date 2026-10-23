@@ -20,3 +20,4 @@ __pycache__/
 # pi package clones (auto-installed from pinned refs in .pi/settings.json)
 .pi/git/
 .env
+.github/aw/

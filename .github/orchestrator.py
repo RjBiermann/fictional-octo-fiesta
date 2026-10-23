@@ -783,10 +783,12 @@ def _claim_planned_fires(stories):
         if not ts:
             continue
         best = None
-        # Candidates nearest-first; the first candidate whose run actually
-        # produced work (success + activation ran) claims. Hollow and
-        # failed candidates don't claim and don't shadow — S07's shape:
-        # hollow at +2s, then a failed dispatch claiming for hours.
+        # Candidates nearest-first. Claim bar splits by terminality:
+        # - in-progress/queued: activation ran (a long-running implement
+        #   must claim early or every sweep re-fires it — #884 r1)
+        # - terminal: success + activation ran + MACHINERY OUTPUT exists
+        #   after the run start — a silent-empty exit (#904 class: content
+        #   [], zero safe-outputs) fired no work and must not claim
         cands = []
         for i, rt in enumerate(runs):
             if i in taken or not rt.get("createdAt"):
@@ -795,7 +797,12 @@ def _claim_planned_fires(stories):
             if 0 <= delta <= 150:
                 cands.append((delta, i))
         for delta, i in sorted(cands):
-            if _run_executed(runs[i]):
+            rt = runs[i]
+            if ((rt.get("status") or "") == "completed"
+                    and (rt.get("conclusion") or "") != "success"):
+                continue   # terminal failure/skip: no claim, no API call
+            activated = _activated(rt.get("databaseId") or rt.get("id") or 0)
+            if _claims_fire(rt, activated, comments(s["number"])):
                 best = (i, delta)
                 taken.add(i)
                 break
@@ -805,18 +812,10 @@ def _claim_planned_fires(stories):
     return claims
 
 
-def _run_executed(row):
-    """True iff this fire claims its stamp: non-terminal rows (queued/
-    in-progress — conclusion empty) fall through to the activation check
-    (a long-running implement must claim early or every sweep re-fires it:
-    duplicate-billing loop, #884 review r1); TERMINAL rows claim only on
-    success with activation run — hollow (skipped activation) and failed
-    (agent died, e.g. AIC rate limit) runs fire no work and must not
-    claim (S07 stuck: hollow claimed 12h, failed claimed 2h)."""
-    concl = row.get("conclusion") or ""
-    if (row.get("status") or "") == "completed" and concl != "success":
-        return False
-    run_id = row.get("databaseId") or row.get("id") or 0
+def _activated(run_id):
+    """True iff the run's activation job ran (not skipped). gh-aw marks
+    activation-gated-out runs (role/bot gate denial) as overall 'success'
+    with every downstream job skipped — hollow runs. One API call."""
     out = run(["gh", "run", "view", str(run_id), "-R", REPO, "--json", "jobs"])
     try:
         jobs = json.loads(out or "{}").get("jobs", [])
@@ -824,6 +823,27 @@ def _run_executed(row):
         return False   # undeterminable -> not a claim
     act = [j for j in jobs if j.get("name") == "activation"]
     return bool(act) and act[0].get("conclusion") == "success"
+
+
+def _claims_fire(rt, activated, output_comments):
+    """PURE claim-bar predicate (#905 r1 blocker 1 — the bar's semantics
+    live here, tested in orchestrator_test.py, not in prose).
+    rt: run row {databaseId, status, conclusion, createdAt}; activated:
+    the network-resolved activation-job check; output_comments: the
+    story's comments (Bot-type author + created_at after the run count).
+    - non-terminal (queued/in_progress): claims on activation alone — a
+      long-running implement must claim early or every sweep re-fires it
+      (duplicate-billing loop, #884 r1).
+    - terminal: claims only on success + activated + machinery output
+      after the run start — hollow (#879), failed (S07's AIC death) and
+      silent-empty (#904: content [], zero safe-outputs) runs fired no
+      work and must not claim."""
+    if (rt.get("status") or "") == "completed":
+        if (rt.get("conclusion") or "") != "success":
+            return False
+        return bool(activated) and _machinery_output(
+            output_comments, _parse_ts(rt.get("createdAt") or ""))
+    return bool(activated)
 
 
 def _has_stall_flag(cs):
@@ -852,15 +872,23 @@ def _reconcile_pass(stories, claims):
 
 
 def _machinery_output(comments, after_ts):
-    """True iff some comment after after_ts was authored by machinery —
-    a bot-type user. Post-#877 safe-outputs act as the machinery App
-    (rjbiermann-machinery[bot]); pre-#877 they were github-actions[bot].
-    Both are Bot-type users; matching the type instead of one login keeps
-    this identity-proof as the machinery identity changes (ADR-0019:
-    attribution stays structural)."""
-    return any((c.get("user") or {}).get("type") == "Bot"
-               and _parse_ts(c.get("created_at") or "") > after_ts
-               for c in comments)
+    """True iff some comment after after_ts is real machinery OUTPUT —
+    tightened per #905 r1 (a sibling fire's Bot chatter must not bless a
+    silent-empty run when two fires share the 150s window): Bot-type
+    author AND one of the lane's output signatures: budget stamp,
+    heading comment (verdicts/specs), or a registry entry."""
+    for c in comments:
+        if (c.get("user") or {}).get("type") != "Bot":
+            continue
+        if _parse_ts(c.get("created_at") or "") <= after_ts:
+            continue
+        body = c.get("body") or ""
+        if (body.startswith("gh-aw budget:")
+                or body.lstrip().startswith("## ")
+                or body.lstrip().startswith("[orchestrator]")
+                or "findings-registry-entry" in body[:120]):
+            return True
+    return False
 
 
 def _relay_untransitioned(stories, claims):

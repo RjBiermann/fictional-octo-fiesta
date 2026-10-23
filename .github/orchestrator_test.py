@@ -242,5 +242,55 @@ class TestBranchPendingPredicate(unittest.TestCase):
             story(900, "[spec] plain story"), [], self.comments_of([])))
 
 
+class TestClaimsFire(unittest.TestCase):
+    """The claim bar (#905 r1 blocker 1): run rows claiming a planned
+    stamp. Classes carved from the live saga: hollow (activation-skipped,
+    #879), failed (S07's AIC death), silent-empty (#904/#904-class:
+    success but zero safe-outputs), long-running (#884 r1: must claim
+    early), real success."""
+
+    RUN_TS = "2026-10-23T03:11:19Z"
+    OUTPUT_AFTER = {"created_at": "2026-10-23T03:12:00Z",
+                    "user": {"type": "Bot"},
+                    "body": "gh-aw budget: attempt=1 kind=spec run=1 credits=1"}
+    BOT_CHATTER = {"created_at": "2026-10-23T03:12:00Z",
+                   "user": {"type": "Bot"},
+                   "body": "re-fired: `status/planned` idle 12h."}
+
+    def row(self, status="completed", conclusion="success"):
+        return {"databaseId": 1, "createdAt": self.RUN_TS,
+                "status": status, "conclusion": conclusion}
+
+    def test_success_with_output_claims(self):
+        self.assertTrue(orchestrator._claims_fire(
+            self.row(), True, [self.OUTPUT_AFTER]))
+
+    def test_success_silent_empty_no_claim(self):
+        # #904: agent success, zero safe-outputs — the run fired no work
+        self.assertFalse(orchestrator._claims_fire(self.row(), True, []))
+
+    def test_success_bot_chatter_not_output(self):
+        # r1 suggestion 3: a sibling fire's Bot comment doesn't bless it
+        self.assertFalse(orchestrator._claims_fire(
+            self.row(), True, [self.BOT_CHATTER]))
+
+    def test_terminal_failure_never_claims(self):
+        self.assertFalse(orchestrator._claims_fire(
+            self.row(conclusion="failure"), True, [self.OUTPUT_AFTER]))
+
+    def test_terminal_skipped_never_claims(self):
+        self.assertFalse(orchestrator._claims_fire(
+            self.row(conclusion="skipped"), True, [self.OUTPUT_AFTER]))
+
+    def test_long_running_claims_early(self):
+        # #884 r1: in-progress rows claim via activation alone, else the
+        # 10-min sweep loop re-fires a >10min run forever
+        self.assertTrue(orchestrator._claims_fire(
+            self.row(status="in_progress", conclusion=""), True, []))
+
+    def test_unactivated_success_no_claim(self):
+        self.assertFalse(orchestrator._claims_fire(self.row(), False, [self.OUTPUT_AFTER]))
+
+
 if __name__ == "__main__":
     unittest.main()
