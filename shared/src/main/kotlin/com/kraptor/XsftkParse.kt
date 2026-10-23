@@ -103,14 +103,18 @@ object XsftkParse {
     fun playerId(playerUrl: String): String? =
         dataIdRe.find(playerUrl)?.groupValues?.get(1)
 
-    /** Tokenless master for the pre-gate family. Built from the player host + id, so
-     *  every player path shape (/player/index.php, /player/, extra query params)
-     *  resolves to the one xs1.php endpoint that FINDINGS-906 verified as live. */
-    fun legacyMasterUrl(playerUrl: String): String {
-        val host = playerUrl.substringBefore("/player/")
-        val id = playerId(playerUrl)
-        return if (id != null && host != playerUrl) "$host/player/xs1.php?data=$id"
-        else playerUrl.replace("index.php", "xs1.php")
+    /** Origin (scheme + host) of a player/embed URL, or null when it is not http(s). */
+    private val originRe = Regex("""^(https?://[^/?#]+)""", RegexOption.IGNORE_CASE)
+
+    /** Tokenless master for the pre-gate family. Built from the URL origin + `data=` id,
+     *  so every player path shape (/player/index.php, /player/, extra query params and
+     *  non-/player/ embeds) resolves to the one xs1.php endpoint FINDINGS-906 verified
+     *  as live. No `data=` id → null: a master URL cannot be guessed, so the caller
+     *  fails closed instead of emitting the player page itself as a playlist. */
+    fun legacyMasterUrl(playerUrl: String): String? {
+        val origin = originRe.find(playerUrl)?.groupValues?.get(1) ?: return null
+        val id = playerId(playerUrl) ?: return null
+        return "$origin/player/xs1.php?data=$id"
     }
 
     /** The one decision point the shared extractor uses (issue #908). Order matters:
@@ -121,7 +125,9 @@ object XsftkParse {
         return when {
             boot != null -> PlayerPlan.Xsftk(boot)
             isGatedPlayer(playerHtml) -> PlayerPlan.FailClosed
-            else -> PlayerPlan.Legacy(legacyMasterUrl(playerUrl))
+            else -> legacyMasterUrl(playerUrl)
+                ?.let { PlayerPlan.Legacy(it) }
+                ?: PlayerPlan.FailClosed
         }
     }
 

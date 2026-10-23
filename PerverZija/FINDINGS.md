@@ -419,19 +419,24 @@ tolerance + Parse delegates). Version 17 → 18. No provider-local extractor cop
    `index.php`, so `/player/index.php`, `/player/` and extra-query URL shapes all
    resolve to the one endpoint FINDINGS-906 verified as live. The whole
    `plan`-per-URL-shape matrix is pinned by tests.
-4. **Single/odd-quality manifests** — `playableSources(json, boot, playerUrl)`:
-   every quality the manifest can actually build, highest first; a malformed entry
-   is skipped instead of zeroing the list (a single-quality manifest with one
-   broken entry used to mean zero sources = "only one source, no qualities").
-   Non-numeric manifest keys are kept as labels (Unknown quality in-app) rather
-   than dropped; unparseable JSON yields no links, no throw.
+4. **Single/odd-quality manifests (refactor + regression pin, no behavior change)** —
+   `playableSources(json, boot, playerUrl)` factors the existing
+   `qualities()` / `variantPlaylist() ?: continue` loop into one seam. The pre-PR loop
+   already skipped a malformed entry and already kept non-numeric labels (Unknown in
+   app); there is no manifest shape where the old code zeroed the list and the new one
+   emits a source (a single-quality manifest whose only entry is broken still yields
+   zero under both). Kept as a seam + regression pin so the "only one source, no
+   qualities" class cannot regress; unparseable JSON yields no links, no throw.
 5. **Iframe host tolerance** — `loadLinks` picks the player structurally
    (`PerverZijaParse.playerEmbed`): known `xtremestream.xyz` iframe first, else the
    first http(s) iframe that is not a theme widget (Discord/Gravity-Forms/YouTube/
    social), with protocol-relative `//host/...` normalized. Non-xtremestream
-   players (census: `mixdrop.to` on 1/336) now go to the shared host registry
-   instead of being dropped. Player-page fetch failure also fails closed (an
-   unclassified page must never emit the decoy).
+   players (census: `mixdrop.to` on 1/336) are handed to the shared host registry
+   instead of being dropped — there is **no `mixdrop.to` row today** (only
+   `.is/.my/.ag`, and FINDINGS-906 records the upstream file dead), so a miss still
+   yields no source, same as before; routing means it works the day a row exists.
+   Player-page fetch failure also fails closed (an unclassified page must never emit
+   the decoy).
 
 ### Red → green transcript
 1. `PerverZijaFallbackChainTest` (16 tests) against the #906 fixtures + the two new
@@ -453,6 +458,11 @@ tolerance + Parse delegates). Version 17 → 18. No provider-local extractor cop
 - Legacy video (`60ad8380…`, 1.0 MB player page) → **0** `XSFTK.boot` occurrences,
   `m3u8_loader_url = https://perv.xtremestream.xyz/player/xs1.php?data=`, xs1 master
   200 with 480/720/1080 variants — the legacy branch keeps working.
+  **Known limitation (carried #907 ask, still open):** the negative case is n=1 —
+  this is the same fixture id, and the re-probe counted `XSFTK.boot` only, not the
+  `XSFTK` / `ftk_engine` / `ftk/xsad` marker set `isGatedPlayer` uses. A false
+  marker-positive on another legacy video would delete its working plain-TS chain;
+  confirm with 2–3 more live legacy ids before treating the branch as fully covered.
 
 ### Fixtures added
 | file | source | purpose |

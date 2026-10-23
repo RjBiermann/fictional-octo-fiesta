@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 18 // #908: structural fallback chain (no decoy), single/odd-quality manifests, iframe host tolerance
+version = 19 // #908 repair round 1: legacy master from origin+id, no guessed URL
 
 cloudstream {
     authors     = listOf("kraptor")

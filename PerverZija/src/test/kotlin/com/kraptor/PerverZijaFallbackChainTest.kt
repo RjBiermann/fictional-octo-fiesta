@@ -199,6 +199,31 @@ class PerverZijaFallbackChainTest {
         assertTrue(XsftkParse.playableSources("not json", boot, reportedPlayerUrl).isEmpty())
     }
 
+    @Test fun `legacy master is built from the origin for non player url shapes`() {
+        // Review finding: substringBefore("/player/") returned the whole URL when the
+        // path had no /player/ segment, so the master was wrong — or the player page
+        // itself was returned as a playlist. Origin + data id is shape-independent.
+        val expected = "https://perv.xtremestream.xyz/player/xs1.php?data=$legacyId"
+        for (url in listOf(
+            "https://perv.xtremestream.xyz/embed/$legacyId",
+            "https://perv.xtremestream.xyz/watch?data=$legacyId",
+            "https://perv.xtremestream.xyz/player/index.php?data=$legacyId"
+        )) {
+            val plan = PerverZijaParse.playerPlan(url, legacyPage)
+            assertEquals("legacy plan for $url", expected, (plan as XsftkParse.PlayerPlan.Legacy).masterUrl)
+        }
+    }
+
+    @Test fun `legacy master without a data id fails closed instead of guessing`() {
+        // No id means the xs1.php endpoint cannot be derived; emitting the player page
+        // (or a replace("index.php") guess) as an M3U8 master is the wrong-URL class.
+        val plan = PerverZijaParse.playerPlan(
+            "https://perv.xtremestream.xyz/watch/60ad83801910ec976590f69f638e0d6d",
+            legacyPage
+        )
+        assertEquals(XsftkParse.PlayerPlan.FailClosed, plan)
+    }
+
     // ---- loadLinks iframe tolerance -----------------------------------------
 
     @Test fun `player iframe is picked over the theme widgets`() {

@@ -112,8 +112,10 @@ class PerverZija : MainAPI() {
         Log.d("kraptor_$name", "iframe = ${iframe}")
 
         if (!iframe.contains("xtremestream.xyz")) {
-            // Alternate embed family: the shared host registry may answer it
-            // (mixdrop row); a miss just yields no sources, same as before.
+            // Alternate embed family: routed through the shared host registry. There
+            // is no mixdrop.to row yet (only .is/.my/.ag), so a miss yields no
+            // sources — same outcome as before; this starts working the day a row
+            // exists (FINDINGS-906: the upstream file is dead).
             return loadExtractor(iframe, data, subtitleCallback, callback)
         }
 
