@@ -1,0 +1,108 @@
+{
+  "meta": {
+    "description": "Recorded 2026-10-20 label/state-event history of the #797 re-stamp bug class, captured from the live REST API (repos/RjBiermann/fictional-octo-fiesta/issues/{n}/events and /pulls) in the raw event field paths (event, created_at, actor.login, label.name). Drives the replay in .github/tests/orchestrator_replay_test.py.",
+    "source_issue": 797,
+    "spec": 889,
+    "freeze": "2026-10-20T10:08:00Z",
+    "owner": "RjBiermann",
+    "modeled_issues": {
+      "771": "S2 of #664. Delivery #792 merged 2026-10-20T04:35:04Z; issue never closed by the ADR-0007 closeout; bot re-stamped status/planned at 03:54:43 / 04:11:27 / 04:26:01 / 04:35:15 / 05:08:43 / 10:02:51Z; the 05:08 wave re-fired the duplicate implement pass (run 39368254975).",
+      "768": "S2/S1 of #759. Delivery #791 merged 2026-10-20T04:32:10Z; bot re-stamp waves 03:54:46 / 04:11:14 / 04:26:04 / 05:08:54Z; in-review transitions 04:02:34 and 05:08:54-05:10:02Z. Carries the pre-merge OWNER stamp (02:15:24Z) - the negative case for the owner-only re-arm reading.",
+      "767": "S1 of #759. Closed by the maintainer 04:11:04Z (the ADR-0007 closeout fired), deliberately reopened by the maintainer 05:08:56Z; bot re-stamped 05:09:57Z and 10:02:54Z. A human reopen is live work in this world: the healer must leave it open and implement may fire on it.",
+      "775": "S2 of the #680 chain. No delivery PR at the freeze; bot re-added status/planned at 03:54:40 / 04:11:23 / 04:26:12 / 05:08:50 / 10:03:04Z. Sits outside the merged-delivered guard class - implement legitimately fires."
+    },
+    "modeled_pulls": {
+      "792": "merged delivery of #771 (devloop/issue-771-..., merged 04:35:04Z)",
+      "791": "merged delivery of #768 (devloop/issue-768-..., merged 04:32:10Z)",
+      "787": "closed UNMERGED racing duplicate for #767 (devloop/issue-767-990545cc)",
+      "790": "closed UNMERGED racing duplicate for #768 (devloop/issue-768-64152155)"
+    },
+    "recorded_but_not_modeled": [
+      "#788 - the FINDINGS-767 evidence-note PR (devloop/issue-767-2378e967) whose 04:11:02Z merge drove #767's closeout. Deliberately outside the replayed pull set: the maintainer's 05:08:56Z reopen is the modeled truth for #767 (a human reopen outranks a replayed closeout; re-closing it here would encode the machinery-over-human class this harness exists to catch).",
+      "#802/#803 - post-freeze duplicate PRs for #775 (created 15:07Z/16:30Z).",
+      "The post-13:58Z bot closes of #768/#771 and #775's afternoon re-stamp loop.",
+      "Non-label event kinds (referenced, parent_issue_added, ...) - only labeled/unlabeled (+ #767's closed/reopened) are modeled."
+    ],
+    "unmodeled_api_paths": "The replay's api() double raises on any REST path outside the modeled set - an orchestrator drift to new endpoints fails the replay loudly instead of silently no-oping."
+  },
+  "issues": {
+    "771": {
+      "state": "open",
+      "events": [
+        {"event": "labeled", "created_at": "2026-10-20T03:54:43Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T04:11:26Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "labeled", "created_at": "2026-10-20T04:11:27Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "labeled", "created_at": "2026-10-20T04:22:57Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/in-review"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T04:22:58Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "labeled", "created_at": "2026-10-20T04:26:01Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T04:28:52Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "labeled", "created_at": "2026-10-20T04:35:15Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T04:38:36Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "labeled", "created_at": "2026-10-20T05:08:43Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T05:11:40Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "labeled", "created_at": "2026-10-20T10:02:51Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T10:05:50Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}}
+      ]
+    },
+    "768": {
+      "state": "open",
+      "events": [
+        {"event": "labeled", "created_at": "2026-10-20T02:15:24Z", "actor": {"login": "RjBiermann"}, "label": {"name": "status/planned"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T02:19:16Z", "actor": {"login": "RjBiermann"}, "label": {"name": "status/planned"}},
+        {"event": "labeled", "created_at": "2026-10-20T03:54:46Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "labeled", "created_at": "2026-10-20T04:02:34Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/in-review"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T04:02:35Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "labeled", "created_at": "2026-10-20T04:11:14Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T04:19:04Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "labeled", "created_at": "2026-10-20T04:26:04Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T05:08:53Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "labeled", "created_at": "2026-10-20T05:08:54Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T05:10:02Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}}
+      ]
+    },
+    "767": {
+      "state": "open",
+      "events": [
+        {"event": "labeled", "created_at": "2026-10-20T02:15:23Z", "actor": {"login": "RjBiermann"}, "label": {"name": "status/planned"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T02:19:14Z", "actor": {"login": "RjBiermann"}, "label": {"name": "status/planned"}},
+        {"event": "labeled", "created_at": "2026-10-20T03:40:12Z", "actor": {"login": "RjBiermann"}, "label": {"name": "status/planned"}},
+        {"event": "labeled", "created_at": "2026-10-20T03:52:08Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/in-review"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T03:52:09Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "labeled", "created_at": "2026-10-20T03:53:59Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "closed", "created_at": "2026-10-20T04:11:04Z", "actor": {"login": "RjBiermann"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T04:25:07Z", "actor": {"login": "RjBiermann"}, "label": {"name": "status/planned"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T04:25:09Z", "actor": {"login": "RjBiermann"}, "label": {"name": "status/in-review"}},
+        {"event": "reopened", "created_at": "2026-10-20T05:08:56Z", "actor": {"login": "RjBiermann"}},
+        {"event": "labeled", "created_at": "2026-10-20T05:09:57Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "labeled", "created_at": "2026-10-20T05:11:16Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "triage/from-agent"}},
+        {"event": "labeled", "created_at": "2026-10-20T05:15:03Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/in-review"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T05:15:04Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "labeled", "created_at": "2026-10-20T10:02:54Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T10:07:13Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}}
+      ]
+    },
+    "775": {
+      "state": "open",
+      "events": [
+        {"event": "labeled", "created_at": "2026-10-20T03:54:40Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T04:11:21Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "labeled", "created_at": "2026-10-20T04:11:23Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T04:26:11Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "labeled", "created_at": "2026-10-20T04:26:12Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T05:08:49Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "labeled", "created_at": "2026-10-20T05:08:50Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T10:03:02Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "labeled", "created_at": "2026-10-20T10:03:04Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}},
+        {"event": "labeled", "created_at": "2026-10-20T10:07:20Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/in-review"}},
+        {"event": "unlabeled", "created_at": "2026-10-20T10:07:21Z", "actor": {"login": "github-actions[bot]"}, "label": {"name": "status/planned"}}
+      ]
+    }
+  },
+  "pulls": [
+    {"number": 792, "state": "closed", "merged_at": "2026-10-20T04:35:04Z", "draft": false, "user": {"login": "github-actions[bot]"}, "head": {"ref": "devloop/issue-771-68d4c029610f2689-8ccd59153bde6664"}},
+    {"number": 791, "state": "closed", "merged_at": "2026-10-20T04:32:10Z", "draft": false, "user": {"login": "github-actions[bot]"}, "head": {"ref": "devloop/issue-768-849af5d67e890692"}},
+    {"number": 787, "state": "closed", "merged_at": null, "draft": false, "user": {"login": "github-actions[bot]"}, "head": {"ref": "devloop/issue-767-990545cc1e98c605"}},
+    {"number": 790, "state": "closed", "merged_at": null, "draft": false, "user": {"login": "github-actions[bot]"}, "head": {"ref": "devloop/issue-768-641521559a202793"}}
+  ],
+  "open_pulls": []
+}
