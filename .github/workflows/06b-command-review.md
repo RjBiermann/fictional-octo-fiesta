@@ -27,7 +27,10 @@ safe-outputs:
     max: 10
     target: "*"
   add-comment:
-    max: 1
+    # 2 slots: one round reply + one work-attempt budget stamp — the body
+    # asks for both on a non-PR target, so max:1 strands the stamp (#1308,
+    # same class as 05-implement #716).
+    max: 2
 ---
 
 # Review (command — findings only; ADR-0001 semantics)
