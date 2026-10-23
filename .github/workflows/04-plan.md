@@ -68,7 +68,13 @@ surrogate miss the round and stall the chain.
   no trigger label), each WITH `parent` set to the parent issue number
   (create_issue auto-links when `parent` is present — do NOT also emit
   separate `link_sub_issue` calls; they double-write the link budget and
-  died at the shared max-30 counter in #804). Then post
+  died at the shared max-30 counter in #804). Title each sub-issue
+  `[spec] S<N> — <summary> (parent: #<parent>)` with N = 1,2,3… in fire
+  order: the orchestrator's chain driver enumerates stories ONLY by that
+  `S<N>` anchor in the title (`STORY_RE`), so a missing index leaves the
+  child invisible to the conveyor — the approved parent stalls silently
+  (recorded on #906–#909, fixed only by manual retitle 2026-10-23).
+  Then post
   the finalized spec as ONE comment on the parent (add-comment) — do NOT
   try to edit the parent body or file a missing-tool report: `update_issue`
   is not available in this pipeline (gh-aw v0.89.21); the comment is the
