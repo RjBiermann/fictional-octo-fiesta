@@ -222,7 +222,13 @@ def story_num(title):
 
 
 def _issue_list_rows(state):
-    out = run(["gh", "issue", "list", "--state", state, "--limit", "100",
+    # limit 1000, not 100: 'gh issue list --state all' sorts by CREATED
+    # (not updated), so the old 100-row window was a newest-created slice
+    # that systematically missed closed predecessors of older chains —
+    # e.g. S16 (#825, pred of the S17–S26 audit chain) fell outside and
+    # S17+ could never fire (pred '-' forever). ~740 issues total: fetch
+    # them all, one paginated call per state.
+    out = run(["gh", "issue", "list", "--state", state, "--limit", "1000",
                "--json", "number,title,state,body,labels"])
     if not out.strip():
         return []
