@@ -221,6 +221,28 @@ class XhamsterParseTest {
         assertNull(xHamster().yearFromCreated(0L))
     }
 
+    // S25 (#834) audit finding: LoadResponse.duration is MINUTES — the pinned pre-release jar
+    // multiplies it by 60 and hands the result to AccountManager.secondsToReadable
+    // (ResultViewModel2Kt: `getDuration() ... bipush 60 / imul / secondsToReadable`).
+    // window.initials videoModel/videoEntity carry SECONDS (492 = 8:12, 643 = 10:43,
+    // 1720 = 28:40), so load() must convert or an 8-minute clip renders as "8h 12m".
+    @Test fun `duration seconds convert to LoadResponse minutes`() {
+        assertEquals(8, xh.durationMinutes(492))
+        assertEquals(10, xh.durationMinutes(643))
+        assertEquals(28, xh.durationMinutes(1720))
+        assertNull(xh.durationMinutes(null))
+        assertNull(xh.durationMinutes(0))
+        assertNull(xh.durationMinutes(59)) // sub-minute floors to null — never 0
+    }
+
+    @Test fun `fixture videoModel duration is seconds and maps to whole minutes`() {
+        for (name in listOf("v1", "v2")) {
+            val seconds = xh.getInitialsJson(fixture(name))!!.videoModel!!.duration
+            assertTrue("$name: $seconds", (seconds ?: 0) > 60)
+            assertEquals(seconds!! / 60, xh.durationMinutes(seconds))
+        }
+    }
+
     private fun pageFixture(name: String): String =
         javaClass.getResource("/$name")!!.readText()
 

@@ -1,4 +1,4 @@
-version = 25 // #778: shared xvideos registry row (fleet bump)
+version = 26 // #834 (S25): LoadResponse.duration seconds → minutes (API-contract audit)
 
 cloudstream {
     authors     = listOf("kraptor","coxju","SIX")
