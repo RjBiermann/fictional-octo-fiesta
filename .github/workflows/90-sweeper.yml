@@ -117,22 +117,38 @@ jobs:
                   upd = datetime.datetime.fromisoformat(it["updated_at"].replace("Z","+00:00"))
                   idle_h = (datetime.datetime.now(datetime.timezone.utc)-upd).total_seconds()/3600
                   out = subprocess.run(["gh","api",f"repos/{repo}/issues/{n}/comments",
-                                        "--paginate","--jq",".[].body"],
+                                        "--paginate",
+                                        "--jq",'.[] | .created_at + "\\t" + (.body | gsub("\\n";" "))'],
                                        capture_output=True,text=True).stdout
-                  stamps = [l for l in out.splitlines() if l.strip().startswith(pref)]
+                  # TSV rows (created_at\tbody): the silent-empty re-fire count
+                  # lives in comment timestamps, not in bodies.
+                  rows = []
+                  for line in out.splitlines():
+                      ts, sep, body = line.partition("\\t")
+                      if sep and ts.startswith("20"):
+                          rows.append((ts, body))
+                  stamps = [b for _ts, b in rows if b.strip().startswith(pref)]
                   # A historical `reset` must re-arm escalation: counts resume
                   # from the last reset stamp, not from zero-forever.
                   reset_idx = max((i for i, l in enumerate(stamps) if "reset" in l), default=-1)
                   tail = stamps[reset_idx + 1:]
+                  tail_rows = [(ts, b) for ts, b in rows if b.strip().startswith(pref)][reset_idx + 1:] if stamps else []
+                  # Silent-empty Implement runs post no budget stamp (#913),
+                  # so the caps never tripped and the re-fire loop was
+                  # unbounded. The `re-fired:` comments this sweeper posts
+                  # per re-fire ARE the ledger for that class — count them.
                   today  = sum(day in l for l in tail)          # daily budget
                   budget = sum("attempt=" in l for l in tail)   # max_attempts
+                  refires = [ts for ts, b in tail_rows if "re-fired:" in b]
+                  today += sum(t[0:10] == day for t in refires)
+                  budget += len(refires)
                   # 1) Attempt caps -> escalate
                   if st and budget >= cap_max:
                       if "status/fixing-stuck" not in labels:
                           gh("issue","edit",str(n),"--repo",repo,
                              "--add-label","status/fixing-stuck")
                           gh("issue","comment",str(n),"--repo",repo,
-                             "--body",f"{pref} escalated: {budget} attempts; needs human.")
+                             "--body",f"{pref} escalated: {budget} attempts ({len(refires)} sweep re-fires); needs human.")
                       continue
                   # 2) Daily cap -> skip this round
                   if today >= cap_d:
