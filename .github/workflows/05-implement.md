@@ -107,3 +107,11 @@ this heading shape, no prose inside the heading:
 `## S<n> audit verdict — <Provider>: **clean**` (plain, spaced; the
 verdict word in bold at the end. Bracketed or unnumbered variants are
 tolerated by the closeout regex, but ship the canonical shape).
+
+When this run's parent spec declares a **conditional fan-out** (#847:
+probe → exactly one branch story), your deliverable verdict is
+machine-parsed by the orchestrator's branch executor — post exactly:
+`## Probe verdict — <chain>: **<fixable|not fixable>**` — the chain link
+in parens after the word "verdict" (e.g. `(#846)`), the outcome bold,
+`**not fixable**` checked before `**fixable**`. The executor fails
+closed on any other shape.
