@@ -36,6 +36,11 @@ object PerverZijaParse {
      *  hook are new (2026-10); the video id in arg 1 equals the data= param. */
     fun xsftkBoot(playerHtml: String) = XsftkParse.xsftkBoot(playerHtml)
 
+    /** Structural FTK-gate detection (markers and/or a live boot call). A gated page
+     *  whose boot call is missed keeps this true so the legacy xs1.php decoy is never
+     *  emitted for it (FINDINGS-906). */
+    fun isGatedPlayer(playerHtml: String) = XsftkParse.isGatedPlayer(playerHtml)
+
     /** Opaque per-video key/tokens from the signed-token API; header X-XS-P: 1 is
      *  required on every op (403 without it); referer is not. */
     fun protoApiUrl(playerUrl: String, boot: XsftkParse.Boot, op: String, extra: String = "") =

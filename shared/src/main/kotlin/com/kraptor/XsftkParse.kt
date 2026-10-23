@@ -35,11 +35,37 @@ object XsftkParse {
 
     private val mapper = ObjectMapper()
 
-    /** Player boot call exposed in plain text on the player (index.php) page. */
-    private val bootRe = Regex("""XSFTK\.boot\("([0-9a-f]+)",\s*"([0-9a-f.]+)"""")
+    /** Player boot call exposed in plain text on the player (index.php) page.
+     *  Format-tolerant by design (issue #907 hardening): the call may be reached as
+     *  XSFTK.boot(...) or XSFTK["boot"](...), with single/double quotes and arbitrary
+     *  whitespace/newlines between the arguments. A `window.` prefix needs no special
+     *  case — the match starts at `XSFTK`. Two small patterns (dot access, bracket
+     *  access) rather than one alternation keep each regex under Sonar S5843's
+     *  complexity limit without narrowing what matches; a strict one-shape matcher is
+     *  how a gated page silently degrades to the tokenless xs1.php decoy (FINDINGS-906). */
+    private val bootDotRe = Regex(
+        """XSFTK\s*\.\s*boot\s*\(\s*["']([0-9a-fA-F]+)["']\s*,\s*["']([0-9a-fA-F.]+)["']"""
+    )
+
+    private val bootBracketRe = Regex(
+        """XSFTK\s*\[\s*["']boot["']\s*\]\s*\(\s*["']([0-9a-fA-F]+)["']\s*,\s*["']([0-9a-fA-F.]+)["']"""
+    )
 
     fun xsftkBoot(playerHtml: String): Boot? =
-        bootRe.find(playerHtml)?.let { Boot(it.groupValues[1], it.groupValues[2]) }
+        (bootDotRe.find(playerHtml) ?: bootBracketRe.find(playerHtml))
+            ?.let { Boot(it.groupValues[1], it.groupValues[2]) }
+
+    /** Structural gate markers of the FTK player generation. A page that still loads
+     *  the gate but lost its inline XSFTK.boot(...) call must never be classified as
+     *  legacy: its tokenless xs1.php fallback is the decoy (playlist 200, every
+     *  segment 404 — FINDINGS-840/906), i.e. the owner-visible 2004 class.
+     *  `proto_api` is deliberately absent: no #906 gated fixture carries it, and a
+     *  false positive here would suppress the *working* legacy fallback (the mirror
+     *  2004 class). Only markers seen in the gated fixtures decide. */
+    private val gateMarkers = listOf("XSFTK", "ftk_engine", "ftk/xsad")
+
+    fun isGatedPlayer(playerHtml: String): Boolean =
+        xsftkBoot(playerHtml) != null || gateMarkers.any { playerHtml.contains(it) }
 
     /** Canonical proto_api endpoint. All ops share the shape
      *  <player-host>/player/proto_api.php?data=<id>&op=<op>&vt=<token>[extra]. */

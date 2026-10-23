@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 16 // #778: shared xvideos registry row (fleet bump)
+version = 17 // #907: XSFTK gate detection + boot-format tolerance (Parse seam, S2 of #903)
 
 cloudstream {
     authors     = listOf("kraptor")
