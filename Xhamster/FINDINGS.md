@@ -156,3 +156,85 @@ Kotlin-semantics decode of both → garbage (non-URL bytes)
   runner even session-cookie'd — CDN key appears IP/token-bound at render time; the algo-1/2/3/4 entries the
   provider decodes depend on which algos the site assigns that fetch. HLS auto master covers all qualities,
   so playback is unaffected (issue #338 agrees: "the defect is lost per-quality links").
+
+---
+
+# FINDINGS — Xhamster (issue #834, S25 CloudStream API-contract audit) — 2026-10-23
+
+Static audit of the provider against the current `com.lagradost:cloudstream3:pre-release`
+classes.jar (`./gradlew bootstrapCloudstream`, sha256 `ac5b150f…564cf8` — the moving
+`pre-release` tag has drifted from the FINDINGS-804/767 pin `16278fc2…15ccda`, so every cited
+symbol was re-read with `javap` on the fresh artifact).
+
+## Finding — `LoadResponse.duration` was fed SECONDS where the API expects MINUTES
+
+`window.initials.videoModel.duration` / `videoEntity.duration` are **seconds** (live captures:
+v1 492 = 8:12, v2 643 = 10:43, v3 1720 = 28:40, v4 845 = 14:05), and `load()` assigned that raw
+value to `this.duration`. The pinned jar consumes `LoadResponse.getDuration()` as
+**minutes** — `com.lagradost.cloudstream3.ui.result.ResultViewModel2Kt` bytecode:
+
+```
+invokeinterface com/lagradost/cloudstream3/LoadResponse.getDuration:()Ljava/lang/Integer;
+…
+bipush 60
+imul
+ldc_w "0 mins"
+invokevirtual AccountManager$Companion.secondsToReadable:(ILjava/lang/String;)Ljava/lang/String;
+```
+
+`secondsToReadable` splits days/hours/minutes (`TimeUnit` ladder in its bytecode), so the 8-minute
+sample video rendered as **8h 12m** in the result page header. `LoadResponse.Companion.addDuration`
+exists on the jar but takes a word-form String and is the wrong tool for a numeric seconds field
+(the S17/Neporn trap); the direct `duration` setter is the correct path once the unit is right.
+
+Fix (version 25 → 26): `xHamster.durationMinutes(seconds)` maps the initials seconds through the
+shared `DurationParse.fromSeconds` (floors, sub-minute/junk/0 → null — never a fake `0`), and
+`load()` assigns `this.duration = durationMinutes(durationSec)`. TDD red → green: the test first
+failed to compile on the missing Parse function, then `492 → 8`, `643 → 10`, `1720 → 28`,
+`845 → 14`, `null`/`0`/`59 → null`, plus a fixture-driven assertion that v1/v2 `videoModel.duration`
+is a seconds value and maps to whole minutes. Suite: 198 executions, 0 failures; `Xhamster.cs3`
+builds.
+
+## Other checklist axes — conform (no change)
+
+- **MainAPI contract** — overrides match the fresh jar exactly: `getMainPage(Int, MainPageRequest)`
+  :53, `search(String, Int): SearchResponseList` :74, `load(String): LoadResponse` :110,
+  `loadLinks(String, Boolean, SubtitleFile cb, ExtractorLink cb): Boolean` :191. `lang = "en"`
+  (ISO-639-1, matches gradle `language`), `hasMainPage = true`, `supportedTypes = setOf(TvType.NSFW)`,
+  `vpnStatus = VPNStatus.MightBeNeeded` (enum present on the jar).
+- **Homepage** — `newHomePageResponse(list = HomePageList(name, list, isHorizontalImages = true),
+  hasNext = true)` :63-71; jar `MainAPIKt.newHomePageResponse(HomePageList, Boolean)` and
+  `HomePageList(String, List, boolean)`. No raw `HomePageResponse(...)`.
+- **LoadResponse completeness** — poster (`this.posterUrl` from `pickVideoPoster`, `:179`), plot
+  (`:180`), tags (`:183`), recommendations (`recsFromThumbs` + mobile fallback, `:184`), `year`
+  (`yearFromCreated(videoModel.created)`, `:186`), `addActors(actors)` (`:187`, JVM
+  `addActorsOnly(List<Actor>)`). `addPoster`/`addQuality` do not exist on this jar. `score` stays
+  unset — the page *does* expose `videoEntity.rating.value` (0-100, e.g. 98); it is outside this
+  story's enumerated completeness list (poster/quality/duration/actors/recommendations) and is
+  recorded here as a backlog candidate, not shipped inline.
+- **Constructors** — DSL throughout: `newMovieSearchResponse` :104/:457, `newSearchResponseList` :86,
+  `newHomePageResponse` :63, `newMovieLoadResponse(title, url, TvType.NSFW, url)` :178,
+  `newExtractorLink(...)` :220/:249, `newSubtitleFile(lang, url)` :271. Zero raw
+  `ExtractorLink(...)` / `Episode(...)` / `HomePageResponse(...)`.
+- **Registration (ADR-0002)** — single `@CloudstreamPlugin` class at the bottom of the same file
+  (:511-515), `registerMainAPI(xHamster())` + `registerHostExtractors()`; no local `ExtractorApi`
+  subclass, no copied extractor file (`import com.kraptor.registerHostExtractors` is a redundant
+  same-package import, harmless).
+- **build.gradle.kts** — `version = 26`, `authors`, `language = "en"`, `status = 1`, `description`,
+  `tvTypes = listOf("NSFW")` exact, `iconUrl`.
+- **Quality mapping (FINDINGS-767 standard)** — links pass enum Ints. Preload HLS master (`:227`)
+  uses `Qualities.Unknown.value` (400 — genuinely unknown resolution for a multi-variant master,
+  the accepted Film1k-style fallback); the per-source branch (`:256`) maps the site's own label
+  with `entry.quality?.filter { it.isDigit() }?.toIntOrNull() ?: Qualities.Unknown.value`. Live label ladder in the fixtures is `auto` +
+  bare `<res>p` (`144p`/`240p`/`480p`/`720p`), so numeric tiers map to their resolution Int and
+  `auto` degrades to 400; no `getQualityFromName` call site exists, so the suffix-label trap
+  cannot fire. Latent (not observed): the digit filter would turn a literal `4K` label into `4`;
+  no fixture or recorded probe emits that form — recorded, not shipped.
+
+## Live spot-check — blocked by the recorded shell condition
+
+`curl -sSL "https://xhamster.com/videos/xh6Aty0?geo=us"` (desktop + mobile UA, 4 attempts) returned
+HTTP 200 at 37–38 KB with **zero** `videoModel` — the intermittent contentless SPA shell already
+recorded above, not a provider defect. The mismatch evidence therefore rests on the committed
+live-capture fixtures (v1–v4, real `window.initials` payloads) plus the jar bytecode; no full live
+sweep was run (audit scoping).

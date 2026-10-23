@@ -178,7 +178,8 @@ class xHamster : MainAPI() {
         return newMovieLoadResponse(title, url, TvType.NSFW, url) {
             this.posterUrl = posterFixed
             this.plot = description
-            this.duration = durationSec
+            // S25 (#834): LoadResponse.duration is MINUTES — see durationMinutes().
+            this.duration = durationMinutes(durationSec)
             this.tags = tags
             this.recommendations = recommendations
             // 2026-10-16 (run #635): upload year now derivable — videoModel.created epoch.
@@ -483,6 +484,14 @@ class xHamster : MainAPI() {
             null
         }
     }
+
+    // S25 (#834) audit finding: LoadResponse.duration is MINUTES, not seconds. The pinned
+    // pre-release jar renders it as `AccountManager.secondsToReadable(duration * 60, "0 mins")`
+    // (ResultViewModel2Kt bytecode), so a raw 492 s clip would display as "8h 12m". The initials
+    // JSON carries SECONDS in videoModel.duration / videoEntity.duration → convert here through
+    // the shared DurationParse (floors, sub-minute/junk → null, never 0).
+    internal fun durationMinutes(seconds: Int?): Int? =
+        DurationParse.fromSeconds(seconds?.toString())
 
     internal fun getInitialsJson(html: String): InitialsJson? {
         return try {
