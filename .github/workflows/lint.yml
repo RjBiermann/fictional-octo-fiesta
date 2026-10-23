@@ -69,6 +69,19 @@ jobs:
             exit 1
           fi
 
+  # Replay harness for the #797 bug class (spec #889): drives the recorded
+  # 2026-10-20 label-event history (#771/#768/#775/#767) through
+  # orchestrator.py (closeout_healer / _fire_implement / _stamped_after_merge)
+  # and asserts the invariants — merged-delivered stories are never re-fired
+  # and only an OWNER post-merge status/planned re-arms. Cheap (stdlib, no
+  # network), data-anchored, and must stay green on main.
+  orchestrator-replay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: "Replay #797 label-event fixtures through orchestrator.py"
+        run: python3 -m unittest discover -s .github/tests -p 'orchestrator_replay_test.py' -v
+
   dependency-review:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
