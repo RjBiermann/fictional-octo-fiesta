@@ -334,3 +334,24 @@ class TestAllStoriesWindows(unittest.TestCase):
             stories = orchestrator.all_stories()
         self.assertEqual(len(stories), 1)
         self.assertEqual(stories[0]["state"], "open")
+
+
+class TestMachineryAppIdentity(unittest.TestCase):
+    """ADR-0020 step 3 moved machinery safe-output deliveries to the
+    GitHub App identity (rjbiermann-machinery[bot]). _agent_pr's trust
+    anchor still required github-actions[bot], so every machinery-authored
+    PR fell out of _fixable_pr — the fix surrogate never fired on blocker
+    verdicts (recorded 2026-10-23: #1307/#1310, blockers outstanding,
+    zero 07-fix-loop runs)."""
+
+    def test_machinery_app_authored_pr_is_fixable(self):
+        pr = {"draft": False, "user": {"login": "rjbiermann-machinery[bot]"},
+              "head": {"ref": "devloop/issue-892-f0c00351a8f20524"}}
+        self.assertTrue(orchestrator._agent_pr(pr))
+        self.assertTrue(orchestrator._fixable_pr(pr))
+
+    def test_unknown_author_stays_fail_closed(self):
+        pr = {"draft": False, "user": {"login": "some-random-user"},
+              "head": {"ref": "devloop/issue-892-abcdef"}}
+        self.assertFalse(orchestrator._agent_pr(pr))
+        self.assertFalse(orchestrator._fixable_pr(pr))

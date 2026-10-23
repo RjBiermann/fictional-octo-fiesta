@@ -1034,10 +1034,30 @@ def _delivered_branch_pat(num):
 AGENT_BRANCHES = ("devloop/issue-", "ai/issue-", "fix/")
 
 
+def _machinery_login(pr):
+    """ADR-0020 step 3: machinery safe-output deliveries (push-to-pull-
+    request-branch / create-pull-request) land as the GitHub App identity
+    (<slug>-machinery[bot]), not github-actions[bot]. The App is a trusted
+    pipeline identity by design (ADR-0020 migration-design §2) — the
+    trust anchor must learn it or every machinery delivery falls out of
+    the delivered/fixable guards (recorded: #1307/#1310 sat on blocker
+    verdicts with zero 07-fix-loop fires, 2026-10-23). Env override
+    GH_AW_MACHINERY_LOGIN pins the exact adopter slug; default is the
+    '<anything>-machinery[bot]' suffix shape."""
+    login = ((pr.get("user") or {}).get("login") or "").lower()
+    pinned = os.environ.get("GH_AW_MACHINERY_LOGIN", "").lower()
+    if pinned:
+        return login == pinned
+    return login.endswith("-machinery[bot]")
+
+
 def _agent_pr(pr):
-    """True for agent-authored PRs in a known delivery branch shape."""
+    """True for agent-authored PRs in a known delivery branch shape:
+    github-actions[bot] (legacy GITHUB_TOKEN safe-outputs) and the
+    machinery GitHub App identity (ADR-0020 step 3)."""
     return (not pr.get("draft")
-            and (pr.get("user") or {}).get("login") == "github-actions[bot]"
+            and ((pr.get("user") or {}).get("login") == "github-actions[bot]"
+                 or _machinery_login(pr))
             and pr.get("head", {}).get("ref", "").startswith(AGENT_BRANCHES))
 
 
