@@ -322,8 +322,8 @@ ul {
 			resume: false,
 			
 			//logo on the trackbar
-			logotitle: watermark_and_trackbar_logo_title,
-			logourl: watermark_and_trackbar_logo_url,
+			//fixture normalization: the live page repeats logotitle/logourl here with
+			//identical values; the duplicate pair is removed (Sonar S1534).
 			logocontrolbar: trackbar_logo,
 			html5: {
 				hlsjsConfig: {

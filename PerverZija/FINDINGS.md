@@ -319,7 +319,7 @@ is explicitly NOT shipped. In-app playback test is merge-time, not an agent deli
   (`PerverZija.cs3`). Version 15 → 16.
 - #844 (fallback/removal story): moot under this verdict — no action taken.
 
-## FINDINGS-906 — failing-class census (2026-10-30, census story #906, parent #903)
+## FINDINGS-906 — failing-class census (2026-10-23, census story #906, parent #903)
 
 Full report: `FINDINGS-906.md` at the repo root. Headline: **335/336 sampled video pages are
 green through their live chain from CI; the reported #903 URL is green.** Two player generations
@@ -329,5 +329,7 @@ only `/<id>/<q>/…` as plain MPEG-TS. So the tokenless `xs1.php` fallback in
 `PerverZijaExtractor` is **correct for the 16 legacy videos and must be kept**; the decoy is only
 a risk when a gated page's boot line is missed. Shapes confirmed: single-quality XSFTK manifests
 (34/319, mostly 360/480) and one alternate iframe host (`mixdrop.to`, upstream file dead).
+No real failing-video fixture exists to ship (the only failure is dead upstream), so #906's
+failing-fixture request is recorded as a spec deviation in `FINDINGS-906.md`.
 Fixtures for #907: `perverzija_player_legacy_bootmiss.html` + `perverzija_legacy_{master,variant480}.m3u8`,
 `perverzija_player_{reported,singleq}_xsftk.html` + `perverzija_manifest_{reported,singleq}.bin`.

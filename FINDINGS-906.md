@@ -1,6 +1,6 @@
 # FINDINGS-906 — PerverZija failing-class census through the XSFTK chain (S1 of #903)
 
-Run: 2026-10-30 (`05-implement`, census story #906; parent #903, epic "PerverZija residual
+Run: 2026-10-23 (`05-implement`, census story #906; parent #903, epic "PerverZija residual
 2004 — failing-class hardening"). **No provider or `shared/` code changed in this story** —
 deliverables are the census result and the failing/failing-shaped fixtures that #907 (`S2`)
 consumes. Version stays 16.
@@ -67,11 +67,20 @@ source, no qualities"), but none of the 319 gated pages sampled missed the curre
   `mxdrop.click`), so this is a latent host-tolerance gap, not a fixable playback failure —
   same evidence class as FINDINGS-631. No fixture shipped for it (not playable upstream).
 
+## Spec traceability — no real failing-video fixture exists
+
+The #906 spec asked for fixtures captured from at least one **failing** video. The census shows
+that no such video is available: 335/336 sampled pages are green through their live chain, and
+the single failure (shape c) is an alternate `mixdrop.to` embed whose upstream file is dead
+(`WE ARE SORRY`), so it cannot yield a playable capture at any layer. This is a literal spec
+deviation forced by site evidence, recorded here for #907: shapes **(a)** and **(b)** are shipped
+as real fixtures, while shape **(c)** is evidence-only (dead upstream, no media fixture possible).
+
 ## Fixtures shipped (under `PerverZija/src/test/resources/`)
 
 | file | source | shape |
 |---|---|---|
-| `perverzija_player_legacy_bootmiss.html` | `blackedraw-serena-santos-wild-night` (legacy) | boot-miss player page, single tokenless `xs1.php` loader (newline runs collapsed from the 1.0 MB live response; all markup preserved) |
+| `perverzija_player_legacy_bootmiss.html` | `blackedraw-serena-santos-wild-night` (legacy) | boot-miss player page, single tokenless `xs1.php` loader (newline runs collapsed from the 1.0 MB live response; markup preserved apart from one duplicate `logotitle`/`logourl` pair removed for Sonar S1534) |
 | `perverzija_legacy_master.m3u8` | same video, `xs1.php?data=60ad8380…` | legacy master, 480/720/1080 variants |
 | `perverzija_legacy_variant480.m3u8` | same video, `xs1.php?…&q=480` | legacy media playlist (plain `<q>/` segments) |
 | `perverzija_player_reported_xsftk.html` | reported URL from #903 | gated player page (boot line verbatim) |
