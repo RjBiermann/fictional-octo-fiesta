@@ -7,6 +7,9 @@ strict: false
 description: Weekly spend + ledger report from run history (weekly, cheap)
 on:
   schedule: weekly on monday
+  workflow_dispatch:          # canary dispatch: ADR-0016 makes this the one
+                              # cheap, side-effect-free run every lane change
+                              # is validated against before the conveyor resumes
 imports:
   - .github/workflows/shared/engine-lane.md
   - .github/workflows/shared/gate.md
