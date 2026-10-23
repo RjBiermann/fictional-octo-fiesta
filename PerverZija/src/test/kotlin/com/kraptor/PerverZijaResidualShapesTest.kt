@@ -86,6 +86,20 @@ class PerverZijaResidualShapesTest {
         assertTrue(PerverZijaParse.isGatedPlayer(bootMiss))
     }
 
+    @Test fun `asset markers alone keep a boot-miss page gated without XSFTK`() {
+        // Pin the markers that do *not* contain the XSFTK token: with every XSFTK
+        // reference removed, ftk_engine and ftk/xsad must decide on their own (a
+        // marker with no fixture evidence would be a false-positive risk instead).
+        val noXsftk = reportedPage.replace("XSFTK", "")
+        assertFalse(noXsftk.contains("XSFTK"))
+        assertNull(PerverZijaParse.xsftkBoot(noXsftk))
+        assertTrue(PerverZijaParse.isGatedPlayer(noXsftk)) // ftk_engine decides
+        assertTrue(PerverZijaParse.isGatedPlayer(noXsftk.replace("ftk_engine", ""))) // ftk/xsad decides
+        assertFalse(
+            PerverZijaParse.isGatedPlayer(noXsftk.replace("ftk_engine", "").replace("ftk/xsad", ""))
+        )
+    }
+
     @Test fun `boot detection tolerates player-side formatting drift`() {
         // Same call, formatted the way minifiers/editors rewrite it: window prefix,
         // bracket access, single quotes, line breaks around the arguments.

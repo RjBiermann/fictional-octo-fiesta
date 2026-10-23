@@ -379,3 +379,16 @@ extractor landing on the tokenless `xs1.php` decoy — the exact owner-visible 2
 ### Statically verified decoder trap
 `decodeXsManifest` with a wrong boot token returns null (XOR garbage does not pass the
 `{` + `"cdn"` shape check) — no throw on hostile input.
+
+### Repair round (review findings, 2026-10-23)
+- **Sonar S5843 blocker:** the single boot regex (complexity 27 > 20) failed the quality
+  gate. Split into `bootDotRe` (dot access) and `bootBracketRe` (bracket access), tried in
+  order; each is 16/17, so the gate passes without narrowing what matches (the `window.`
+  prefix needs no special case — the match starts at `XSFTK`).
+- **Gate-marker evidence:** `proto_api` appeared in no gated fixture, so it was dropped
+  rather than allowed to suppress the working legacy fallback. Added
+  `asset markers alone keep a boot-miss page gated without XSFTK`, which removes every
+  `XSFTK` reference and pins `ftk_engine` and `ftk/xsad` as deciding markers (all three
+  gone → not gated).
+- **Re-verify:** `:PerverZija:test` green (12/12 in the residual class, 0 failures),
+  `:PerverZija:make` BUILD SUCCESSFUL.
