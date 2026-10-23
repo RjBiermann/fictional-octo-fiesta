@@ -479,6 +479,183 @@ def chain_driver():
                     f"{MARK} parent spec closed: all {total} stories referencing it are closed")
         print(f"[orchestrator] parent #{pnum}: closed (all stories closed)")
 
+# ------------------------------------------------- branch executor (#897)
+# Conditional fan-out, consumer side (parent spec #847, S1 #897): after the
+# probe story posts its verdict, exactly one branch story fires — with no
+# human click. Pure decision layer (regexes + _branch_decision, no API) plus
+# step wiring (branch_executor). Everything undeterminable fails closed:
+# the stories stay open for the human.
+
+
+def _strip_md(text):
+    """Bold-insensitive matching: headings/bold in the story bodies are
+    decoration (**Conditional: runs only if ...** is bold). The shortest
+    robust move for every declaration regex here."""
+    return re.sub(r"[*_`~]", "", text or "")
+
+
+FANOUT_EXACTLY_ONE_RE = re.compile(r"exactly one", re.I)
+FANOUT_CONDITIONAL_RE = re.compile(r"runs\s+only\s+if\b", re.I)
+FANOUT_VERDICTS_RE = re.compile(r"if\b.{0,120}?\bverdicts\b", re.I | re.S)
+
+BRANCH_DECL_RE = re.compile(
+    # 'runs only if the probe (#846) verdicts (not fixable)' — the #N is
+    # the probe link (NOT 'lowest-numbered sibling', which mis-resolves on
+    # chains with extra stories). Case- and bold-insensitive; bare and
+    # parenthesized both accepted. A branch edit that keeps this one
+    # declaration sentence stays routed; dropping/mangling it fails closed.
+    r"runs\s+only\s+if\s+(?:the\s+)?probe\s*\(?#?(\d+)\)?\s+verdicts?\s+"
+    r"(not\s+fixable|fixable)\b", re.I)
+
+PROBE_VERDICT_HEAD_RE = re.compile(r"^##\s*Probe\s+verdict\b", re.I | re.M)
+
+
+def _fanout_gate(parent_texts):
+    """Text-evidence gate on the parent, same style as #837's AUDIT_CHAIN_RE:
+    'exactly one' AND the conditional wording ('runs only if' / 'if …
+    verdicts'). Scans the parent body AND all parent comments — on the
+    live #840 chain the match rendered in the round-3 finalize comment,
+    not the issue body. Returns the matched text (the gate evidence for
+    the log line) or None."""
+    for t in parent_texts or []:
+        if FANOUT_EXACTLY_ONE_RE.search(t):
+            tl = _strip_md(t)
+            if FANOUT_CONDITIONAL_RE.search(tl) or FANOUT_VERDICTS_RE.search(tl):
+                return t
+    return None
+
+
+def _probe_verdict(pcs):
+    """Parse a probe's verdict from its comment thread. The verdict is a
+    bot comment whose body has a '## Probe verdict — <chain name>'
+    heading; the outcome is exactly one bold token inside it.
+    Resolving '**not fixable**' BEFORE '**fixable**' keeps any future
+    emphasis variant from snapping a stricter ('not fixable') answer to
+    the optimistic one. Returns (outcome | None, heading_matched | None).
+    The historical #846 comment was free-form prose ('FINDINGS-840 — probe
+    verdict … : FIXABLE.') with no heading and no bold token — that class
+    is NOT parseable evidence: fail closed.
+    """
+    for c in reversed(pcs or []):
+        body = c.get("body") or ""
+        if not PROBE_VERDICT_HEAD_RE.search(body):
+            continue
+        if (c.get("user") or {}).get("type") != "Bot":
+            continue   # human prose: never the mechanical verdict
+        if "**not fixable**" in body:
+            return "not fixable", body
+        if "**fixable**" in body:
+            return "fixable", body
+        return None, body   # anchored heading but no bold token: fail closed
+    return None, None
+
+
+def _branch_decision(parent_texts, stories, probe_comments):
+    """Pure decision layer for the conditional fan-out (parent spec #847).
+    parent_texts: parent body + all parent comments (strings).
+    stories: the chain's sibling story dicts (number/state/labels/body).
+    probe_comments: {probe_issue_number: [comment dicts]}. No API calls.
+
+    Returns:
+      None                     — no fan-out gate: not this executor's business
+      {…, "fire": None, "fail": reason} — fail closed; leave everything open
+      {…, "fire": story, "close": [story, …]} — the mechanical action.
+    Never mutates; the executor owns all mutation via existing helpers.
+    """
+    gate = _fanout_gate(parent_texts)
+    if not gate:
+        return None
+    decision = {"gate": (gate or "")[:120], "probe": None, "verdict": None,
+                "fire": None, "close": [], "fail": None}
+
+    branches, probes = {}, set()
+    for s in stories:
+        if str(s.get("state", "")).lower() != "open":
+            continue
+        m = BRANCH_DECL_RE.search(_strip_md(s.get("body") or ""))
+        if m:
+            probes.add(int(m.group(1)))
+            branches[m.group(2).lower()] = s
+    if not branches:
+        decision["fail"] = "fan-out gate matched but no open story declares a branch"
+        return decision
+    if len(probes) != 1:
+        decision["fail"] = ("branch declarations reference different probes "
+                            f"({sorted(probes)}) — ambiguous probe")
+        return decision
+    if sorted(branches) != ["fixable", "not fixable"]:
+        decision["fail"] = ("branches must declare exactly one fixable + one "
+                            f"not fixable (declared: {sorted(branches)})")
+        return decision   # both-or-neither / partial: fail closed
+    probe_n = probes.pop()
+    decision["probe"] = probe_n
+    verdict, vbody = _probe_verdict(probe_comments.get(probe_n))
+    if vbody is not None and verdict is None:
+        decision["fail"] = (f"verdict on probe #{probe_n} present but the outcome "
+                            "token is not exactly one bold fixable/not fixable")
+        return decision
+    if verdict is None:
+        decision["fail"] = f"no anchored '## Probe verdict' bot comment on probe #{probe_n}"
+        return decision
+    decision["verdict"] = verdict
+    decision["fire"] = branches[verdict]
+    decision["close"] = [s for o, s in branches.items() if o != verdict]
+    return decision
+
+
+def branch_executor(stories=None):
+    """#847 S1: resolve every approved chain's conditional fan-out from the
+    probe's verdict comment — exactly one branch fires, the others close
+    'not planned', with no human click. Pure decision via _branch_decision;
+    mutation via the existing helpers (_fire_implement carries the #797-class
+    delivered/IN_FLIGHT guards so a fired branch is never a duplicate PR).
+    Fail closed: every unresolvable chain is left open for the human."""
+    stories = stories if stories is not None else all_stories()
+    by_parent = {}
+    for s in stories:
+        pnum = parent_of(s)
+        if pnum:
+            by_parent.setdefault(pnum, []).append(s)
+    for pnum, kids in by_parent.items():
+        parent_texts = [(api(f"issues/{pnum}") or {}).get("body") or ""]
+        parent_texts += [c.get("body") or "" for c in comments(pnum)]
+        probe_comments = {s["number"]: comments(s["number"]) for s in kids}
+        d = _branch_decision(parent_texts, kids, probe_comments)
+        if d is None:
+            continue
+        if d["fail"]:
+            print(f"[orchestrator] parent #{pnum}: branch decision FAIL-CLOSED "
+                  f"(gate: {d['gate'][:60]!r}) — {d['fail']}; left open for the human")
+            continue
+        print(f"[orchestrator] parent #{pnum}: conditional fan-out resolved "
+              f"(gate matched: {d['gate'][:60]!r}; probe #{d['probe']} verdict "
+              f"**{d['verdict']}**) — fire #{d['fire']['number']}, "
+              f"close {[s['number'] for s in d['close']]}")
+        probe_pr = _open_pr_for_story(d["probe"])
+        if not probe_pr:
+            probe_pr = _merged_pr_for_story(d["probe"])
+        _fire_implement(d["fire"]["number"])
+        for s in d["close"]:
+            n = s["number"]
+            if _open_pr_for_story(n) or _merged_pr_for_story(n):
+                print(f"[orchestrator] branch #{n}: delivered via PR — not auto-closed "
+                      f"(closing would discard real work); left for the human")
+                continue
+            close_issue(n, "not planned",
+                        f"{MARK} branch resolved by #{d['probe']} verdict "
+                        f"(**{d['verdict']}**) — the other branch fired instead.")
+            print(f"[orchestrator] branch #{n}: closed not-planned "
+                  f"(unselected by probe #{d['probe']} verdict)")
+        if probe_pr:
+            print(f"[orchestrator] probe #{d['probe']}: evidence PR #{probe_pr} exists "
+                  f"— stays open for 12-post-merge/closeout; branches resolved anyway")
+        else:
+            close_issue(d["probe"], "completed",
+                        f"{MARK} probe closed completed: verdict resolved its fan-out "
+                        f"(no open/merged PR around the probe — #837 discipline)")
+            print(f"[orchestrator] probe #{d['probe']}: closed completed (no PR around it)")
+
+
 #861: verdict headings may carry a story-number prefix — "## S03 audit
 # verdict — …", "## [S06]audit verdict — …" (bracketed, glued — agents
 # copy the prompt pin's bracket notation literally), with or without a
@@ -984,6 +1161,24 @@ _FIRE_SUFFIX = {
 
 
 # ------------------------------------------------- plan-loop surrogate (/plan)
+def _decl_probe(story):
+    m = BRANCH_DECL_RE.search(_strip_md(story.get("body") or ""))
+    return int(m.group(1)) if m else None
+
+
+def _branch_pending(story, stories, comments_fn):
+    """True when `story` is a conditional branch (declaration present) whose
+    probe verdict is unresolved: the branch executor owns it, so a manual
+    ai-fix stamp must not fire it directly (direct-implement bypass guard,
+    #897). The probe is resolved by the declaration's own #N link (same
+    resolver as the decision layer — never 'lowest-numbered sibling')."""
+    probe_n = _decl_probe(story)
+    if not probe_n:
+        return False
+    verdict, _v = _probe_verdict(comments_fn(probe_n))
+    return verdict is None
+
+
 def plan_loop_surrogate():
     if not FIRE_PLAN:
         return
@@ -1008,6 +1203,11 @@ def plan_loop_surrogate():
         if fresh_trigger and pnum_i and _chain_approved(pnum_i) \
                 and "status/planned" not in labels \
                 and "status/in-review" not in labels:
+            if _branch_pending(i, stories, lambda pn: api(f"issues/{pn}/comments?per_page=100") or []):
+                print(f"[orchestrator] {n}: conditional branch of probe "
+                      f"#{_decl_probe(i)} — verdict unresolved; NOT fired "
+                      "directly (branch-executor gate, #897)")
+                continue
             _fire_implement(n)
             print(f"[orchestrator] {n}: parent #{pnum_i} chain approved — "
                   "implement fired directly (plan loop skipped)")
@@ -1716,6 +1916,7 @@ if __name__ == "__main__":
     steps = {
         "approvals": approve_companion_runs,
         "merge_readiness": merge_readiness,
+        "branch_executor": branch_executor,
         "audit_story_closeout": audit_story_closeout,
         "subissue_latcher": subissue_latcher,
         "chain_driver": chain_driver,
@@ -1731,7 +1932,7 @@ if __name__ == "__main__":
         "registry_sync": registry_sync,
     }
     _preflight_labels()
-    mutation_steps = {"merge_readiness", "chain_driver", "closeout_healer", "audit_story_closeout", "subissue_latcher", "queue_to_pipeline",
+    mutation_steps = {"merge_readiness", "branch_executor", "chain_driver", "closeout_healer", "audit_story_closeout", "subissue_latcher", "queue_to_pipeline",
                       "plan_surrogate", "decision_tags", "stall_watch", "wave_driver",
                       "fix_surrogate", "watchdog", "registry_sync"}
     available = {name: fn for name, fn in steps.items()
