@@ -1,0 +1,198 @@
+# Pipeline Verification — PerverZija (issue #909, S4 of the #903 epic)
+
+Live run: **2026-10-23**, from the CI runner, plain HTTP, no JS, mobile UA
+(`Mozilla/5.0 (Linux; Android 10) …`), theme referer `https://tube.perverzija.com/`
+for every player-page fetch. Scope: the previously-failing URL set (reported #903 link
++ the census `#906` failure) and a green-class regression sweep through the shipped
+chain (S3 = #908, provider version 19 → 20 this story).
+
+Result: **the reported URL decodes end-to-end on every quality it exposes, the green
+class keeps its multi-quality emission, and the one provider-side defect verification
+surfaced (duplicated related card) is fixed below.** Two residual classes stay
+upstream-side and are recorded with evidence, not papered over.
+
+## 1. Previously failing set
+
+### 1a. Reported URL from #903 — `playboyplus-natalia-starr-giddy-up` — **GREEN**
+
+Chain replayed exactly as `PerverZijaExtractor.getUrl` / `XsftkParse.playerPlan` does it
+(video page → iframe → player page → boot → `op=manifest` → XOR decode → `op=key` →
+seg-0 AES-128-CBC with `IV = BE(0)` → MPEG-TS sync):
+
+```text
+GET video page                          → 200
+iframe  https://pervl3.xtremestream.xyz/player/index.php?data=71eee742e4c6e094e6af364597af3f05
+GET player page (referer tube.perverzija.com/) → 200
+plan: XSFTK   boot.id = 71eee742…   boot.token = 3acfe9b7e97f1b14b0ed8aed.1792803600
+GET proto_api.php?op=manifest           → 200, 3238 B
+XOR-SHA-256("M|<id>|<token>") manifest  → qualities 1080, 720, 480
+GET proto_api.php?op=key  (X-XS-P: 1)   → 200, 16 B
+GET <cdn>/cdn/down/<id>/1080_enc/10800.html → 200, 2 435 360 B → AES-CBC → TS sync ✓ (80 segs)
+GET <cdn>/cdn/down/<id>/720_enc/7200.html   → 200, 1 146 816 B → AES-CBC → TS sync ✓ (76 segs)
+GET <cdn>/cdn/down/<id>/480_enc/4800.html   → 200,   674 736 B → AES-CBC → TS sync ✓ (74 segs)
+```
+
+The manifest byte count, quality set and segment counts are byte-identical to the
+`perverzija_manifest_reported.bin` fixture (3238 B → 1080/720/480, 80/76/74 segments);
+only the boot token rotated (epoch expiry), which the structural matcher tolerates.
+
+### 1b. Census failure from #906 — `allanal-lana-anal-rebel-rhyderanal-cravings` — **upstream dead, not 2004**
+
+```text
+GET video page → 200, iframe https://mixdrop.to/e/enl4jzdjt76r6q   (not xtremestream)
+GET https://mixdrop.to/e/enl4jzdjt76r6q → 302 → mxdrop.click/e/… → 200
+body: <h2>WE ARE SORRY</h2><p>We can't find the video you are looking for.</p>   (no MDCore.wurl)
+```
+
+Unchanged from FINDINGS-906: the alternate embed's file is dead at the source, so no
+provider-side chain can make it play. The shipped behaviour is correct and honest:
+`loadLinks` routes the non-xtremestream iframe to the shared host registry (no
+`mixdrop.to` row exists) and emits **no** source — never a 404-ing link. Recorded as
+Blocked/upstream, not a FAIL of this provider.
+
+## 2. Green-class regression — multi-quality emission intact
+
+A 24-video sample taken from four listing rows (`featured-scenes`, `studio/page/2`,
+`full-movie`, `tag/classic`) was replayed end-to-end through the same chain:
+
+| family | videos | qualities observed | result |
+|---|---|---|---|
+| XSFTK (gated) | 23 | `1080+720+480` ×17, `720+480` ×4, single `480` ×1, single `360` ×1 | 23/23 decode ✓ |
+| legacy (pre-gate) | 1 | 480+720+1080 via `xs1.php` master → media playlist → plain-TS seg-0 | 1/1 decode ✓ |
+
+Every quality the manifest exposed produced a buildable playlist whose first segment
+decrypted (gated) or served (legacy) to clean MPEG-TS sync bytes. Single-quality
+manifests (`wicked-the-bride-of-double-feature-1999` → `360` only) still emit exactly
+one source rather than zero — the "only one source, no qualities" class stays fixed.
+
+Legacy family spot-check (the S3 hand-off asked for more than one live legacy id):
+9 videos classified legacy, 8/9 fully green with 1–3 qualities each (e.g.
+`vivid-man-of-steel-xxx-an-axel-braun-parody-2013` → 480/720/1080 plain TS;
+`private-xtreme-22-a-is-for-anal-2005` → single `540` variant, green), **0**
+false marker-positives (`isGatedPlayer` never suppressed a live legacy master).
+
+## 3. Player-classification sweep (202 pages)
+
+202 unique video pages from 21 listing/search surfaces were classified through the
+shipped `PerverZijaParse.playerEmbed` + `XsftkParse.playerPlan` rules:
+
+| class | count | share |
+|---|---|---|
+| XSFTK (boot binds to the `data=` id) | 180 | 89.1% |
+| legacy (no gate marker, live `xs1.php`) | 18 | 8.9% |
+| alternate embed host (non-xtremestream) | 3 | 1.5% |
+| playerless page (`#player{display:none}`, `main_video_url=""`) | 1 | 0.5% |
+
+Invariants the S3 hardening depends on, all confirmed live:
+
+- **0** pages where a `XSFTK.boot(...)` call exists but does not bind to the URL's
+  `data=` id (the structural argument matcher never had to fall back).
+- **0** gated pages without a resolvable boot call (`FailClosed` never fired in the
+  sample) — and **0** legacy pages carrying an FTK gate marker.
+- **0** pages where a non-player iframe was picked over the xtremestream iframe.
+
+## 4. Residual upstream classes (recorded, not fixed)
+
+1. **Alternate embed hosts with no registry row** — 3/202 pages
+   (`mixdrop.to` ×2, `playhydrax.com` ×1). The `mixdrop.to` files are dead at source
+   (`WE ARE SORRY`); `playhydrax.com/?v=…` answers **403** from a plain runner. Routing
+   is correct (registry miss ⇒ no source, never a decoy link); a `mixdrop.to` registry
+   row only becomes worthwhile if a live file appears.
+2. **Stale legacy master on one player host** — `pervl2.xtremestream.xyz`'s `xs1.php`
+   currently answers *every* `data=` id with one fixed variant that maps to an unrelated
+   dead id (`/cdn/down/4e0db76e…/1080/10800.html` → **404**), while the same video id is
+   live on other hosts (`j2.`, `moviekh.`, `perv.` serve 480/720/1080 plain TS). 3 of the
+   18 legacy videos sampled sit on `pervl2` (`agwentertainment-angela-loves-anal-2-2018`,
+   `legalporno-linda-del-sol-first-triple-anal…paf011`, `private-milf-cafe-2009`).
+   The site's own player (video.js + `m3u8_loader_url` on `pervl2`) is broken the same
+   way — a host-side backend fault, not a provider grammar defect. Fixing it provider-side
+   would require inventing a player-host list plus a segment-liveness probe (N extra
+   requests) for a 1.5% class the site itself cannot play; out of scope per the repo's
+   "fix on confirmed provider condition" rule. Recorded in FINDINGS.md for the next
+   PerverZija ai-fix if the class grows.
+
+## 5. Provider defect found by verification, fixed in this story
+
+**Duplicated related card.** 4 of 24 sampled video pages render the same
+`div.xs-related-item` twice (e.g. `pornworld-tigerr-benson-ready-for-her-gushing` →
+`pornworld-nikky-dream-and-loren-minardi…` ×2; also `sinfulxxx-tiffany-tatum…`,
+`vivid-be-here-now-2007`, `pornworld-blondie-fesser…`). `load()` emitted the duplicate
+as two identical recommendations.
+
+- Fixture: `src/test/resources/perverzija_video_related_dup.html` — the page's 18
+  related cards, verbatim (one href twice).
+- Red → green: `PerverZijaRelatedDedupTest` (6 tests) failed at `related cards are
+  href-distinct` (18 vs 17) → `PerverZijaParse.related()` now dedupes by href, keeping
+  the first occurrence and its order → green.
+
+**Pre-existing red test on `main`** (surfaced by running the repo's own gate): the S3
+test `legacy master is built from the origin for non player url shapes` used
+`/embed/<id>` (a bare path id) and expected a Legacy master, contradicting both the
+implementation contract and the sibling test `legacy master without a data id fails
+closed instead of guessing` — so `:PerverZija:test` was red before this story. The URL
+now carries the id as `data=` (the shape every live iframe uses), preserving the test's
+intent (a non-`/player/` path still resolves the origin-derived master).
+
+## 6. verify.sh transcripts (2 invocations)
+
+Both invocations used the live selectors from FINDINGS: search `div.post_ajax_tm` +
+title `h3 a`, home `div.col-md-3.col-xs-6`, video `iframe[src*=xtremestream]`,
+related `div.xs-related-item`, tags `div.item-tax-list a[href*='/tag/']`,
+actors `div.item-tax-list a[href*='/stars/']`, `--load-response` +
+`--provider-src PerverZija`, no quick-search endpoint (recorded absent).
+
+**A — legacy family (streams mechanically checked).** `/?s=realitykings` p1+p2,
+`/featured-scenes/` p1+p2, three legacy videos whose master is passed as the
+`--stream-url` the provider resolves:
+
+| check | result |
+|---|---|
+| search p1/p2 | 200; 64+64 cards, no dupes/cross-page repeats ✓ |
+| home p1/p2 | 200; 64+64 cards, disjoint ✓ |
+| video ×3 | 200; `iframe[src*=xtremestream]` ×1 each; h1/og:image/og:description present ✓ |
+| streams ×3 (`xs1.php` master) | **200 `text/plain` + `#EXTM3U` body ×3** ✓ |
+| field exposure | tags + actors present on 3/3 ✓ (year/duration come from JSON-LD — not DOM-expressible, FINDINGS records them) |
+| related ×3 | 18/18/18 cards, titles non-empty, no self-link ✓ |
+| search ↔ load agreement | title agrees on 3/3; poster NOTE (card `-365x235` crop vs full-size `og:image`, same artwork) |
+| LoadResponse completeness (code half) | recommendations/tags/plot/duration/year/actors/posters all populated ✓ |
+
+`RESULT: FAIL` on exactly one check — **stream path distinctness**
+(`/player/xs1.php` for all three): the HLS identity of this family lives in the
+subdomain + `?data=` token, and `url_path()` keeps only the path. Manual substitution:
+the three masters carry distinct tokens
+(`d604dd857d8434bd10c0f2fb2c8eef03`, `d0ec7deb55fed8949efb61cf1fa39004`,
+`f74d6ef882234fd34400a296b1da6149`) and each serves `#EXTM3U` with its own variant list
+(same plateau as FINDINGS-651, unchanged instrument limit).
+
+**B — gated family (reported URL + census classes).** `/?s=wicked` p1+p2,
+`/full-movie/` p1+p2, videos: reported URL, `playboyplus-vero-star-serving-up-trouble`
+(single 480), `vivid-the-visitor-2006` (720/480), `wicked-the-bride-of-double-feature-1999`
+(single 360):
+
+| check | result |
+|---|---|
+| search p1/p2 | 200; 64+64 cards, no dupes ✓ |
+| home p1/p2 | 200; 64+64 cards, disjoint ✓ |
+| video ×4 | 200; iframe ×1 each; h1/og:image/og:description present ✓ |
+| field exposure | tags + actors on 4/4 ✓ |
+| related ×4 | 18/12/12/18 cards, titles non-empty, no self-link, no duplicate hrefs on these pages ✓ |
+| search ↔ load agreement | title + poster agree (poster NOTE: same artwork) ✓ |
+| LoadResponse completeness (code half) | all 7 fields populated ✓ |
+| streams | **`RESULT: FAIL` by instrument plateau**: the XSFTK playlist is emitted in-band as a `data:` URI (ExoPlayer opens it natively), so the page has no static m3u8/mp4 for the script to fetch. Substituted by the §1a chain transcript (manifest → key → segment → TS), which is the stronger evidence: it proves every emitted quality decodes. |
+
+The duplicate-recommendation check the script performs on the raw DOM still flags the
+site-side duplicate page (`pornworld-tigerr-benson…`) if it is sampled — the script
+reads the DOM, not provider output; the provider-side dedupe is pinned by
+`PerverZijaRelatedDedupTest`.
+
+## 7. Gates
+
+```text
+$ ./gradlew bootstrapCloudstream            → BUILD SUCCESSFUL
+$ ./gradlew :PerverZija:test                → BUILD SUCCESSFUL (138 tests, debug+release)
+$ ./gradlew :PerverZija:make                → BUILD SUCCESSFUL (PerverZija/build/PerverZija.cs3)
+$ ./gradlew test                            → BUILD SUCCESSFUL (all 24 providers, 781 tasks)
+```
+
+Provider version 19 → 20 (related-card dedupe). No change to the stream chain: the S3
+fallback/decision point is untouched, so §1–§3 are a regression check on shipped code.
