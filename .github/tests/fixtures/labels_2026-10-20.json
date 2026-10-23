@@ -1,0 +1,584 @@
+{
+  "description": "Recorded 2026-10-20 label-event / delivery history behind #797 (backlog-report: post-merge story issues re-stamped status/planned -> duplicate implement passes re-fired; ADR-0007 closeout uneven). Captured from the live REST API.",
+  "modeled_world": {
+    "freeze": "2026-10-20T10:07:21Z",
+    "note": "Events after the 10:02-10:07Z re-stamp wave are deliberately not modeled: the 13:58Z bot closes are the closeout-healer's own aftermath (what this harness proves heals), and the later same-day lifecycle is post-bug noise.",
+    "owner": "RjBiermann",
+    "bot": "github-actions[bot]"
+  },
+  "issues": {
+    "771": {
+      "title": "[impl] S2: KanataVerbindung keys (parent chain #664)",
+      "state": "open",
+      "note": "PR #792 merged 04:35:04Z (squash 864a19e); ADR-0007 closeout never fired; status/planned re-stamped 03:54/04:11/04:26/05:08/10:02Z \u2014 the 10:02 stamp is the re-fire class.",
+      "events": [
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T03:54:43Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T04:11:26Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T04:11:27Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/in-review"
+          },
+          "created_at": "2026-10-20T04:22:57Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T04:22:58Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T04:26:01Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T04:28:52Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T04:35:15Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T04:38:36Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T05:08:43Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T05:11:40Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T10:02:51Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T10:05:50Z"
+        }
+      ]
+    },
+    "768": {
+      "title": "[impl] S2/S1: plausible-rewrite keys (parent chain #759)",
+      "state": "open",
+      "note": "PR #791 merged 04:32:10Z after racing duplicate #790; re-stamps 03:54/04:11/04:26/05:08Z; the 05:08:54Z stamp survived to see the re-fire.",
+      "events": [
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "RjBiermann"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T02:15:24Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "RjBiermann"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T02:19:16Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T03:54:46Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/in-review"
+          },
+          "created_at": "2026-10-20T04:02:34Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T04:02:35Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T04:11:14Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T04:19:04Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T04:26:04Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T05:08:53Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T05:08:54Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T05:10:02Z"
+        }
+      ]
+    },
+    "775": {
+      "title": "[impl] S2 of #680 chain",
+      "state": "open",
+      "note": "status/planned re-added four times within ~75 min (03:54/04:11:23/04:26:12/05:08:50Z) \u2014 no merged delivery (duplicates #802/#803 closed unmerged), so it sits outside the merged-delivered guard class entirely.",
+      "events": [
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T03:54:40Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T04:11:21Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T04:11:23Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T04:26:11Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T04:26:12Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T05:08:49Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T05:08:50Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T10:03:02Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T10:03:04Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/in-review"
+          },
+          "created_at": "2026-10-20T10:07:20Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T10:07:21Z"
+        }
+      ]
+    },
+    "767": {
+      "title": "[impl] S1 of #759 chain",
+      "state": "open",
+      "note": "ADR-0007 closeout DID fire \u2014 closed 04:11:04Z by the maintainer, then deliberately reopened 05:08:56Z (human decision, respected). Delivery #787 closed unmerged, so the merged-delivered guard never applies: live work.",
+      "events": [
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "RjBiermann"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T02:15:23Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "RjBiermann"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T02:19:14Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "RjBiermann"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T03:40:12Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/in-review"
+          },
+          "created_at": "2026-10-20T03:52:08Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T03:52:09Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T03:53:59Z"
+        },
+        {
+          "event": "closed",
+          "actor": {
+            "login": "RjBiermann"
+          },
+          "label": null,
+          "created_at": "2026-10-20T04:11:04Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "RjBiermann"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T04:25:07Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "RjBiermann"
+          },
+          "label": {
+            "name": "status/in-review"
+          },
+          "created_at": "2026-10-20T04:25:09Z"
+        },
+        {
+          "event": "reopened",
+          "actor": {
+            "login": "RjBiermann"
+          },
+          "label": null,
+          "created_at": "2026-10-20T05:08:56Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T05:09:57Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "triage/from-agent"
+          },
+          "created_at": "2026-10-20T05:11:16Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/in-review"
+          },
+          "created_at": "2026-10-20T05:15:03Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T05:15:04Z"
+        },
+        {
+          "event": "labeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T10:02:54Z"
+        },
+        {
+          "event": "unlabeled",
+          "actor": {
+            "login": "github-actions[bot]"
+          },
+          "label": {
+            "name": "status/planned"
+          },
+          "created_at": "2026-10-20T10:07:13Z"
+        }
+      ]
+    }
+  },
+  "pulls_closed": [
+    {
+      "number": 792,
+      "user": "github-actions[bot]",
+      "head_ref": "devloop/issue-771-68d4c029610f2689-8ccd59153bde6664",
+      "state": "closed",
+      "merged_at": "2026-10-20T04:35:04Z"
+    },
+    {
+      "number": 791,
+      "user": "github-actions[bot]",
+      "head_ref": "devloop/issue-768-849af5d67e890692",
+      "state": "closed",
+      "merged_at": "2026-10-20T04:32:10Z"
+    },
+    {
+      "number": 787,
+      "user": "github-actions[bot]",
+      "head_ref": "devloop/issue-767-990545cc1e98c605",
+      "state": "closed",
+      "merged_at": null
+    },
+    {
+      "number": 802,
+      "user": "github-actions[bot]",
+      "head_ref": "devloop/issue-775-690bbc3523284dd2",
+      "state": "closed",
+      "merged_at": null
+    },
+    {
+      "number": 803,
+      "user": "github-actions[bot]",
+      "head_ref": "devloop/issue-775-2c4e9a81d6f34b17-21edbaf777cbc758",
+      "state": "closed",
+      "merged_at": null
+    }
+  ],
+  "pulls_open": [],
+  "note_pulls_open": "At the freeze the racing duplicates (#787 05:08Z, #802, #803) are already closed unmerged and no delivery PR is open \u2014 the healer and the delivered-guard see an empty open-PR surface."
+}
