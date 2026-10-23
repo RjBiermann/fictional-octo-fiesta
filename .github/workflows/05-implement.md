@@ -51,6 +51,10 @@ safe-outputs:
     max: 3
    # engine:pi detection runs on Copilot CLI — not available (no Copilot); structural guardrails + human merge carry the boundary
   create-pull-request:
+    # workflows: write on the minted machinery-App token — without it the
+    # remote rejects every push touching .github/workflows/** ("refusing
+    # to allow a GitHub App ... without 'workflows' permission"; #1063).
+    allow-workflows: true
     max: 1
     title-prefix: "[impl] "
     draft: false   # ADR-0017: ready PRs are the conveyor's currency; a session-side `gh pr ready` was bare chore, removed

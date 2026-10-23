@@ -53,6 +53,10 @@ safe-outputs:
     private-key: ${{ secrets.MACHINERY_APP_KEY }}
     ignore-if-missing: true
   push-to-pull-request-branch:
+    # workflows: write on the minted machinery-App token — without it the
+    # remote rejects every push touching .github/workflows/** ("refusing
+    # to allow a GitHub App ... without 'workflows' permission"; #1063).
+    allow-workflows: true
     max: 2
   remove-labels:
     allowed: [status/conflict]
