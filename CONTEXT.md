@@ -120,7 +120,7 @@ A capped parallel batch of an armed epic's independent kids: the conveyor stamps
 _Avoid_: batch, blast (the cap is the point)
 
 **Armed epic**:
-A spec epic the conveyor may run waves on: kids linked via `epic #N` in their bodies and the epic carrying an approval-of-record (owner one-worder, or the plan loop's round-3 marker — which the workflow posts as `github-actions[bot]` after your in-thread approval). Delivered-but-open kids get re-stamped by an armed epic — close them before re-arming.
+A spec epic the conveyor may run waves on: kids linked via `epic #N` in their bodies and the epic carrying an approval-of-record (owner one-worder, or the plan loop's round-3 marker — which the workflow posts as `github-actions[bot]` after your in-thread approval). Delivered-but-open kids get re-stamped by an armed epic — close them before re-arming (the **Re-stamp loop** guard set blocks the re-fire, not the stale state).
 _Avoid_: enabled epic, active epic (arming is state on the epic, not the machine)
 
 **Ack**:
@@ -150,6 +150,10 @@ _Avoid_: lost run, silent failure (the strand is visible: fallback issue + run l
 **Fallback review issue**:
 The gh-aw carrier created when the run's safe-output PR cannot be produced (e.g. protected-file `request-review` mode or a delivery failure): the bundle artifact and manual-landing instructions park on an issue instead. It is a holding pen, not a Delivery — a human must land it, and the trigger issue's state stays reconciled by the sweeper afterwards.
 _Avoid_: review issue (that is the Review verdict thread), stale issue
+
+**Re-stamp loop**:
+The delivered-story re-fire class (spec #797, recorded 2026-10-20): machinery re-applied `status/planned` to stories whose delivery PR had already merged (#771, #768, #775 — four bot stamps inside ~75 min), and each stamp re-fired an Implement pass that saw the merged state, skipped, and still spent a paid run; the racing duplicates (#787, #790) belong to the same class. The primary ADR-0007 closeout fired **unevenly** in that wave (#767 closed at its merge, then reversed by a human reopen — #771/#768 never closed), which is the provenance gap the healer now covers. This is a *recognized* class, not a re-reportable one: the guards are live and replay-pinned (`.github/tests/orchestrator_replay_test.py`, the `orchestrator-replay` job in lint.yml, fixtures from the recorded label events), so a fresh sighting owes a new fingerprint — an actor or channel the owner-gate cannot see — never a replay of the 2026-10-20 events. Guard set: `closeout_healer()` (an open issue with a merged delivery PR, or a closed fallback carrier, closes out); the merged-delivered guard in `_fire_implement()` (a delivered story is never re-fired); the owner-gated `_stamped_after_merge()` re-arm check (machinery re-stamps are loop-dead — only the OWNER's post-merge `status/planned` means "run it again"); and `concurrency: orchestrator, cancel-in-progress: true` (orchestrator label batches are serialized, so add/remove pairs cannot interleave). **Accepted-cosmetic:** the pre-serialization 05:08–05:11Z non-atomic label batches are historical — documented, no further fix built. Sibling machinery-robustness class, orthogonal: PR #873's verdict-anchor regex normalization (bracketed story-tag headings stranded clean audits).
+_Avoid_: duplicate-PR bug, re-arm bug (an owner re-arm is the legitimate override, not the fault), label race (the batches were the cosmetic part, not the class)
 
 **Gate**:
 The mechanical post-run check that issues an Agent run's verdict. Delivery is the verdict: a run whose Delivery succeeded is a success even if the agent narrated nothing. Missing agent narration (zero comments beyond the Ack) is a loud warning, never verdict-flipping.
