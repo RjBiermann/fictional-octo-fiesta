@@ -221,17 +221,30 @@ def story_num(title):
     return int(m.group(1)) if m else None
 
 
-def all_stories():
-    out = run(["gh", "issue", "list", "--state", "all", "--limit", "100",
+def _issue_list_rows(state):
+    out = run(["gh", "issue", "list", "--state", state, "--limit", "100",
                "--json", "number,title,state,body,labels"])
     if not out.strip():
         return []
-    raw = json.loads(out)
-    # gh issue list returns state UPPERCASE (REST api() returns lowercase);
-    # normalize here so every state comparison downstream is one convention
-    for i in raw:
+    return json.loads(out)
+
+
+def all_stories():
+    # Two windows, deduped by number (open wins): every OPEN issue — the
+    # close-burst class (2026-10-23): ~300 same-day bulk closes pushed the
+    # open, chain-approved #906–#909 out of the recent-100 recency window
+    # so the chain driver enumerated only closed rows and fired nothing —
+    # plus the most recently updated items so _story_state() can still
+    # resolve closed predecessors. gh issue list returns state UPPERCASE
+    # (REST api() returns lowercase); normalize here so every state
+    # comparison downstream is one convention.
+    raw = {i["number"]: i for i in _issue_list_rows("open")}
+    for i in _issue_list_rows("all"):
+        raw.setdefault(i["number"], i)
+    for i in raw.values():
         i["state"] = str(i.get("state", "")).lower()
-    return [i for i in raw if i.get("pull_request") is None and story_num(i.get("title", ""))]
+    return [i for i in raw.values()
+            if i.get("pull_request") is None and story_num(i.get("title", ""))]
 
 
 def parent_of(story):

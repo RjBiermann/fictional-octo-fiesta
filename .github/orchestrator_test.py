@@ -10,9 +10,11 @@ Run: python3 -m unittest .github.orchestrator_test  (or:
 """
 
 import importlib.util
+import json
 import os
 import re
 import unittest
+from unittest import mock
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _spec = importlib.util.spec_from_file_location(
@@ -294,3 +296,41 @@ class TestClaimsFire(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAllStoriesWindows(unittest.TestCase):
+    """The close-burst class (2026-10-23): a same-day bulk close of 300
+    issues pushed every OPEN story (#906–#909, chain approved at round 3)
+    out of the recent-100 `--state all` recency window, so all_stories()
+    enumerated only closed rows and the chain driver fired nothing. The
+    open-state window must keep open stories visible regardless of churn;
+    the recency window stays for closed-predecessor state lookups."""
+
+    def test_open_story_beyond_recent_window_is_enumerated(self):
+        open_row = {"number": 906, "title": "[spec] S1 — census (parent: #903)",
+                    "state": "OPEN", "body": "", "labels": []}
+        recent = [{"number": 1300 + i, "title": f"[spec] S1 — old close {i}",
+                   "state": "CLOSED", "body": "", "labels": []}
+                  for i in range(100)]
+
+        def fake_run(args, **kw):
+            state = args[args.index("--state") + 1]
+            return json.dumps([open_row] if state == "open" else recent)
+
+        with mock.patch.object(orchestrator, "run", fake_run):
+            stories = orchestrator.all_stories()
+        self.assertIn(906, {s["number"] for s in stories})
+
+    def test_dedup_across_windows_open_wins(self):
+        row = {"number": 906, "title": "[spec] S1 — census (parent: #903)",
+               "state": "OPEN", "body": "", "labels": []}
+        recent = [dict(row, state="CLOSED")]
+
+        def fake_run(args, **kw):
+            state = args[args.index("--state") + 1]
+            return json.dumps([row] if state == "open" else recent)
+
+        with mock.patch.object(orchestrator, "run", fake_run):
+            stories = orchestrator.all_stories()
+        self.assertEqual(len(stories), 1)
+        self.assertEqual(stories[0]["state"], "open")
