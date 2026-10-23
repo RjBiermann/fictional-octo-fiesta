@@ -101,18 +101,28 @@ class PerverZija : MainAPI() {
         Log.d("kraptor_$name", "data = ${data}")
         val document = app.get(data).document
 
-        val iframe = document.selectFirst("iframe")?.attr("src").toString()
+        // Player iframe host varies per video (pervlN/pervmN/j2/perv) and the #906
+        // census found one video on another embed host (mixdrop.to) — pick it
+        // structurally so a non-xtremestream iframe is routed, never dropped (#908).
+        val iframe = PerverZijaParse.playerEmbed(document) ?: run {
+            Log.d("kraptor_$name", "no player iframe")
+            return false
+        }
 
         Log.d("kraptor_$name", "iframe = ${iframe}")
 
-        // player subdomain varies per video (pervlN/pervmN/j2/perv...) — call the
-        // shared PerverZijaExtractor directly (referer derived from the url).
+        if (!iframe.contains("xtremestream.xyz")) {
+            // Alternate embed family: routed through the shared host registry. There
+            // is no mixdrop.to row yet (only .is/.my/.ag), so a miss yields no
+            // sources — same outcome as before; this starts working the day a row
+            // exists (FINDINGS-906: the upstream file is dead).
+            return loadExtractor(iframe, data, subtitleCallback, callback)
+        }
+
         // loadExtractor matches by mainUrl (=pervl2) and does NOT match the variant
         // subdomains (FINDINGS #161/#99: fixed-subdomain registration yields no stream),
-        // so it cannot replace this direct call.
-        if (iframe.contains("xtremestream.xyz")) {
-            PerverZijaExtractor().getUrl(iframe, "${mainUrl}/", subtitleCallback, callback)
-        }
+        // so the xtremestream family is called directly.
+        PerverZijaExtractor().getUrl(iframe, "${mainUrl}/", subtitleCallback, callback)
 
         return true
     }

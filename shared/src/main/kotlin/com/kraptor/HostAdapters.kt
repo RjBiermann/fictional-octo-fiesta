@@ -145,39 +145,51 @@ open class PerverZijaExtractor : ExtractorApi() {
         Log.d("kraptor_PerverZijaExtract", "url = $url")
 
         val ref = referer ?: url.substringBefore("/player/") + "/"
-        val boot = try {
-            XsftkParse.xsftkBoot(app.get(url, referer = ref).text)
+        val playerHtml = try {
+            app.get(url, referer = ref).text
         } catch (e: Exception) {
-            Log.d(name, "boot: ${e.message}")
-            null
+            // An unreachable player page cannot be classified; emitting the tokenless
+            // master here would be the decoy on a gated video (FINDINGS-906).
+            Log.d(name, "player: ${e.message}")
+            return
         }
 
-        if (boot == null) {
-            // Legacy fallback (issue #333 semantics): xs1.php serves the tokenless
-            // master playlist. Since the XSFTK gate (#840) it is a DECOY — valid
-            // playlist, every segment 404s — so it is only emitted when the player
-            // page shows no XSFTK layer at all (pre-gate videos, if any reappear);
-            // on gated pages it is never the answer (FINDINGS-840).
-            val changeUrl = url.replace("index.php", "xs1.php")
-            callback.invoke(newExtractorLink(
-                source = this.name,
-                name = this.name,
-                url = changeUrl,
+        // #908: one structural fallback chain (XsftkParse.playerPlan) instead of the
+        // old "boot == null → xs1.php" branch. The legacy master is only for pages
+        // without the FTK gate (the 16/336 live plain-TS family); on a gated page it
+        // is a DECOY — playlist 200, every segment 404s, the owner's 2004 — so a
+        // gated page whose boot call is missing fails closed (FINDINGS-906).
+        when (val plan = XsftkParse.playerPlan(url, playerHtml)) {
+            is XsftkParse.PlayerPlan.Legacy -> callback.invoke(newExtractorLink(
+                source = name,
+                name = name,
+                url = plan.masterUrl,
                 type = ExtractorLinkType.M3U8
             ) {
                 this.referer = url.substringBefore("/player/") + "/"
                 this.quality = Qualities.Unknown.value
             })
-            return
-        }
 
-        // XSFTK chain (#845/#846, FINDINGS-840): decode the XOR'd manifest, then emit
-        // one synthesized VOD playlist per quality. No sign/seg round-trip in-app —
-        // the AES-128-CBC `_enc` segment files sit OPEN on the CDN, encrypted with
-        // the op=key bytes and IV = BE(segment index) = the HLS media-sequence
-        // default, so #EXT-X-KEY URI=op=key + in-order segments replay natively.
-        // The key fetch must carry X-XS-P: 1 (403 without) — it travels on the link
-        // headers map, same contract as HlsFree (#247).
+            XsftkParse.PlayerPlan.FailClosed ->
+                Log.d(name, "gated player without boot call: decoy suppressed, no source")
+
+            is XsftkParse.PlayerPlan.Xsftk -> emitXsftk(url, ref, plan.boot, callback)
+        }
+    }
+
+    /** Booted gated player: decode the XOR'd manifest, then emit one synthesized VOD
+     *  playlist per buildable quality. No sign/seg round-trip in-app — the AES-128-CBC
+     *  `_enc` segment files sit OPEN on the CDN, encrypted with the op=key bytes and
+     *  IV = BE(segment index) = the HLS media-sequence default, so
+     *  #EXT-X-KEY URI=op=key + in-order segments replay natively (#845/#846).
+     *  The key fetch must carry X-XS-P: 1 (403 without) — it travels on the link
+     *  headers map, same contract as HlsFree (#247). */
+    private suspend fun emitXsftk(
+        url: String,
+        ref: String,
+        boot: XsftkParse.Boot,
+        callback: (ExtractorLink) -> Unit
+    ) {
         val json = try {
             XsftkParse.decodeXsManifest(
                 app.get(XsftkParse.protoApiUrl(url, boot, "manifest"), referer = ref).body.bytes(),
@@ -192,17 +204,18 @@ open class PerverZijaExtractor : ExtractorApi() {
             return
         }
 
-        for (q in XsftkParse.qualities(json)) {
-            val playlist = XsftkParse.variantPlaylist(json, boot, url, q) ?: continue
+        // playableSources skips an entry the manifest cannot render but keeps every
+        // other quality (#908), so a partially-malformed manifest still yields sources.
+        for (source in XsftkParse.playableSources(json, boot, url)) {
             callback.invoke(newExtractorLink(
-                source = this.name,
-                name = this.name,
-                url = XsftkParse.dataUri(playlist),
+                source = name,
+                name = name,
+                url = XsftkParse.dataUri(source.playlist),
                 type = ExtractorLinkType.M3U8
             ) {
                 this.referer = ref
                 this.headers = mapOf("X-XS-P" to "1")
-                this.quality = q.toIntOrNull() ?: Qualities.Unknown.value
+                this.quality = source.label.toIntOrNull() ?: Qualities.Unknown.value
             })
         }
     }

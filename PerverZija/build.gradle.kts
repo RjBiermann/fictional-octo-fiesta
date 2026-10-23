@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 17 // #907: XSFTK gate detection + boot-format tolerance (Parse seam, S2 of #903)
+version = 19 // #908 repair round 1: legacy master from origin+id, no guessed URL
 
 cloudstream {
     authors     = listOf("kraptor")
