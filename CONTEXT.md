@@ -5,9 +5,10 @@ CloudStream extension repo (18+ providers). This context covers the AI automatio
 > **Historical machinery note:** entries below describing the old pipeline's
 > runtime machinery — Builder/Reviewer runs, Rounds, Commands, the Monitor
 > cadence, the Model chain, `deliver-pr`, Acks — describe the pre-devloop
-> workflows, which have been removed. The pipeline is now devloop (see
-> AGENTS.md). The domain concepts (FINDINGS, Triage, Provider health, Expiry,
-> audit vocabulary) remain current.
+> workflows, which have been removed. The pipeline is now compiled gh-aw
+> workflows (AGENTS.md, "AI pipeline"); the live engine vocabulary is
+> **Engine lane**, below. The domain concepts (FINDINGS, Triage, Provider
+> health, Expiry, audit vocabulary) remain current.
 
 ## Language
 
@@ -189,6 +190,10 @@ _Avoid_: labeling, classification
 **Expiry**:
 A `needs-info` issue closed by the stale bot after the reporter stays silent past the grace window (mark-stale, then close). An Expiry ends a conversation, not a Triage verdict — the classification stands, the reporter just never answered. Any comment reopens it; trigger-labeled and ready-for-agent issues are exempt and never expire.
 _Avoid_: stale (the bot's mark, not the outcome), auto-close, abandonment
+
+**Engine lane**:
+The single model/provider lane every agent workflow runs through — pi over the OpenCode Go gateway (`openai/deepseek-v4.1-flash`), declared once in `shared/engine-lane.md` with one secret, one network allowlist entry, and `reasoning: false` by deliberate choice (ADR-0016).
+_Avoid_: model chain (historical), fallback chain, model pool, provider list
 
 **Agent-run action**:
 The composite action (`.github/actions/agent-run`) that executes the **Model chain** for every agent workflow: primary attempt → fallback attempt, with the skill set, thinking level, and bounded retries as inputs. The Model chain's only callers route through it; a chain change is a one-file edit.

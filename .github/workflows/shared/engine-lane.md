@@ -4,7 +4,7 @@
 # lane (below) is one example, not the default. Sources in this pipeline
 # never hardcode an engine; they import this file relatively.
 #
-# glm-5.3-flash on OpenCode Go speaks ONLY Chat Completions; gh-aw
+# deepseek-v4.1-flash on OpenCode Go speaks ONLY Chat Completions; gh-aw
 # v0.89.21's sandboxed pi gateway forces Responses for the openai/ lane
 # (confirmed by runtime 400 ModelProtocolUnsupported). Per gh-aw's own
 # documented escape hatch, the agent sandbox is disabled for this lane
@@ -13,15 +13,15 @@
 # agent job, safe-output allow-lists, human-only labels/merge, on.roles.
 engine:
   id: pi
-  version: "1.1.0"
-  model: openai/glm-5.3-flash
+  version: "1.4.0"
+  model: openai/deepseek-v4.1-flash
   env:
     # Validation-step alias: GenerateMultiSecretValidationStep validates
     # the user-supplied secret when engine.env overrides a credential key.
     CODEX_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
     OPENAI_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
 pre-agent-steps:
-  - name: Ship pi models.json (OpenCode Go lane - glm-5.3-flash, native)
+  - name: Ship pi models.json (OpenCode Go lane - deepseek-v4.1-flash, native)
     run: |
       DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
       mkdir -p "$DIR"
@@ -34,11 +34,11 @@ pre-agent-steps:
             "apiKey": "$OPENCODE_API_KEY",
             "models": [
               {
-                "id": "glm-5.3-flash",
-                "name": "GLM-5.3-Flash (OpenCode Go)",
+                "id": "deepseek-v4.1-flash",
+                "name": "DeepSeek-V4.1-Flash (OpenCode Go)",
                 "reasoning": false,
                 "input": ["text"],
-                "contextWindow": 128000,
+                "contextWindow": 1000000,
                 "maxTokens": 12000
               }
             ]
@@ -60,22 +60,32 @@ network:
 
 # Engine lane: pi + OpenCode Go (ADR-0016 — single model, single provider)
 
-Model: **`openai/glm-5.3-flash`** for every workflow in this pipeline —
+Model: **`openai/deepseek-v4.1-flash`** for every workflow in this pipeline —
 the `openai/` prefix routes through gh-aw's credential-isolated gateway
 as the OpenAI-compatible backend while `OPENAI_BASE_URL` re-targets it to
-`https://opencode.ai/zen/go/v1` (Go). `engine.config.model` declares the
-**Chat Completions** wire protocol (`api: openai-completions`) — Go's
-glm-5.3-flash surface — plus input/context/output limits and
-**`"reasoning": false`** (the GLM upstream 400s on `reasoning_effort`;
-the adopting repo's own #479/#493 history — never omit it).
+`https://opencode.ai/zen/go/v1` (Go). The pre-agent-step `models.json`
+declares the **Chat Completions** wire protocol (`api: openai-completions`) — Go's
+deepseek-v4.1-flash surface — plus input/context/output limits and
+**`"reasoning": false`**. That flag is a deliberate **off** on a model
+that does support reasoning: Go's acceptance of `reasoning_effort` for
+this id is unverified, and the GLM upstream 400'd on it (the adopting
+repo's own #479/#493 history). Raise it as its own canary experiment,
+never bundled with a model swap.
 
 Authentication: one secret, **`OPENAI_API_KEY`** (same OpenCode key as
 the repo's `OPENCODE_API_KEY` — only the binding name follows gh-aw's
 provider contract). `network.allowed` includes `opencode.ai`. Pi is a
 **validated Go client** (session headers, current builds; hence the
-version pin) — no custom header work needed here. Metering: glm-5.3-flash
-carries a $60/month (Go) / $180 (Go Plus) per-model cap; per-workflow
-`max-ai-credits` is the gh-aw-side ceiling.
+version pin) — no custom header work needed here. Metering:
+deepseek-v4.1-flash is $0.15/$0.60 per M (in/out — glm-5.3-flash was
+$0.15/$0.50), and OpenCode Go caps **per model** ($60/month Go), so a
+model swap opens a fresh meter. Per-workflow `max-ai-credits` stays the
+gh-aw-side ceiling.
+
+Pi is pinned at **`1.4.0`**. v0.89.21's own docs advertise 1.3.0 as the
+tested ceiling and version-gate some `engine.config` features, so the
+first canary run is the real compatibility verdict: on an argv or
+streaming-log failure the fallback rung is `1.3.0` — not `1.1.0`.
 
 History: the original draft of this lane used pi's own `models.json` +
 pre-agent-step writing, then `model: opencode-go/...` with
@@ -115,7 +125,8 @@ a malformed call does not consume tool-invocation budget, only a
 *processed* output does.
 ### Terminal-action guarantee (delta 13): wrap up before the wall.
 
-gh-aw's steering extension can crash under pi v1.1.0 (`reading 'steer'`) —
+gh-aw's steering extension can crash under pi 1.x (`reading 'steer'`;
+observed on 1.1.0) —
 when that happens the "5 minutes left / 2 minutes left" warnings never
 surface, and long audit sweeps die with **zero safe-outputs**. Contract:
 keep partial results in `audits/` / `FINDINGS-` writes current enough that
