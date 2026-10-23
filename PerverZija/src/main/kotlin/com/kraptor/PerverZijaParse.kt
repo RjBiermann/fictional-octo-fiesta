@@ -7,8 +7,17 @@ import org.jsoup.nodes.Element
 object PerverZijaParse {
 
     /** Related-videos cards. The old div.srelacionados block is gone from the site;
-     *  the WP theme now serves div.xs-related-item (title link + poster img). */
-    fun related(doc: Document): List<Element> = doc.select("div.xs-related-item").toList()
+     *  the WP theme now serves div.xs-related-item (title link + poster img). The
+     *  same card is rendered twice on some pages (4/24 sampled, issue #909), so the
+     *  list is deduped by href — a repeated link is a UI defect, not extra content.
+     *  Cards without a link are kept (they are dropped later by titleOf/href null). */
+    fun related(doc: Document): List<Element> {
+        val seen = HashSet<String>()
+        return doc.select("div.xs-related-item").filter { item ->
+            val href = item.selectFirst("a")?.attr("href")?.trim().orEmpty()
+            href.isEmpty() || seen.add(href)
+        }
+    }
 
     /** Home/search listing cards. The bare div#sidebar widget column is also a
      *  div.col-md-3 (issue #333) — excluding it by id keeps video-card rows for

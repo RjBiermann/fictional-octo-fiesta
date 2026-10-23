@@ -476,3 +476,38 @@ Only the iframe tags are kept (the video pages are ~370 kB); markup is verbatim.
 The in-app 2004 is still not reproducible at the HTTP layer (the chain is green from CI
 for both families). Whether ExoPlayer on-device accepts the `data:` playlist and applies
 the link headers is #909's live-verification scope.
+
+## FINDINGS-909 — S4 live verification of the #903 failing set (2026-10-23, implement story #909)
+
+Full evidence: `PerverZija/VERIFICATION.md`. Headlines:
+
+- **Reported #903 URL green end-to-end**: `playboyplus-natalia-starr-giddy-up` → boot
+  `71eee742…` → 3238 B XOR manifest → `1080/720/480` → `op=key` 16 B → seg-0 of all
+  three qualities decrypt to clean MPEG-TS (TS sync at 0/188/376). Tokens rotate per
+  session; the structural boot matcher handles it.
+- **Census failure is upstream-dead, unchanged**: `allanal-lana…` → `mixdrop.to/e/…` →
+  `mxdrop.click/e/…` 200 "WE ARE SORRY / We can't find the video" (no `MDCore.wurl`).
+  Provider routes the non-xtremestream iframe to the registry and emits no source —
+  correct fail-closed, not a 2004 chain failure.
+- **Green class regression-free**: 24-video live sample (23 XSFTK, 1 legacy) decoded
+  every exposed quality — `1080+720+480` ×17, `720+480` ×4, single `480`/`360` ×2;
+  legacy master still yields 480/720/1080 plain TS.
+- **202 video pages classified**: 180 XSFTK / 18 legacy / 3 alternate host / 1 playerless.
+  0 boot-id mismatches, 0 FailClosed, 0 marker false-positives on legacy pages — the S3
+  decision point holds live.
+
+Residual upstream classes (NOT provider defects, no code change):
+
+1. `pervl2.xtremestream.xyz`'s `xs1.php` is stale: every `data=` id returns one fixed
+   variant bound to a dead id (`4e0db76e…/1080/10800.html` → 404), while `j2.`/
+   `moviekh.`/`perv.` serve the same video id live. 3/18 sampled legacy videos sit on
+   `pervl2`; the site's own video.js player is broken there identically. Provider-side
+   workaround would need an invented host list + segment-liveness probing for ~1.5% of
+   videos the site cannot play either — deferred until the class grows.
+2. `playhydrax.com` embed (1/202): 403 from a plain runner, no registry row.
+
+Provider defect fixed in #909: 4 of 24 sampled pages render the same related card twice
+(incl. `pornworld-tigerr-benson…`) → `PerverZijaParse.related()` now dedupes by href
+(fixture `perverzija_video_related_dup.html`, `PerverZijaRelatedDedupTest`, version 19→20).
+Also repaired a pre-existing red S3 test (`/embed/<id>` expected a Legacy master while a
+sibling test pins "no `data=` id → FailClosed"); `:PerverZija:test` was red on main.

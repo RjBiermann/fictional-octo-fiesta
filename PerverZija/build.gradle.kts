@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 19 // #908 repair round 1: legacy master from origin+id, no guessed URL
+version = 20 // #909 live verification: href-distinct related cards (4/24 pages repeat one)
 
 cloudstream {
     authors     = listOf("kraptor")

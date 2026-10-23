@@ -204,8 +204,13 @@ class PerverZijaFallbackChainTest {
         // path had no /player/ segment, so the master was wrong — or the player page
         // itself was returned as a playlist. Origin + data id is shape-independent.
         val expected = "https://perv.xtremestream.xyz/player/xs1.php?data=$legacyId"
+        // #909: the first shape was `/embed/<id>` (a bare path id) — that can never be a
+        // Legacy plan: the sibling test below pins "no `data=` id → FailClosed", and the
+        // implementation's documented contract is the same, so the pair contradicted each
+        // other and the suite was red on main. Keep the intent (a non-/player/ path) with
+        // the id carried the way every live iframe carries it: as the `data=` query param.
         for (url in listOf(
-            "https://perv.xtremestream.xyz/embed/$legacyId",
+            "https://perv.xtremestream.xyz/embed?data=$legacyId",
             "https://perv.xtremestream.xyz/watch?data=$legacyId",
             "https://perv.xtremestream.xyz/player/index.php?data=$legacyId"
         )) {
