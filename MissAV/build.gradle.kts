@@ -1,5 +1,5 @@
 // ! Bu araç @ByAyzen tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 21 // #778: shared xvideos registry row (fleet bump)
+version = 22 // S16 audit (#825): MainAPI.lang "jp" → "ja" (ISO-639-1) fix
 
 cloudstream {
     authors     = listOf("ByAyzen")

@@ -46,7 +46,10 @@ class MissAV : MainAPI() {
     override var mainUrl = "https://missav.live"
     override var name = "MissAV"
     override val hasMainPage = true
-    override var lang = "jp"
+    // S16 audit (#825): ISO-639-1 Japanese is "ja" — "jp" (country code) isn't in the app's
+    // SubtitleHelper ISO lookup and made MissAV its own non-ISO provider-language group;
+    // aligns MainAPI.lang with build.gradle.kts language = "ja" and Javbangers.
+    override var lang = "ja"
     override val supportedTypes = setOf(TvType.NSFW)
     val subtitleCatUrl = "https://www.subtitlecat.com"
 
