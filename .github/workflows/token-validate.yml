@@ -42,9 +42,9 @@ jobs:
             TOKEN=$(echo "$RESP" | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')
             LEN=${#TOKEN}; DOTS=$(printf '%s' "$TOKEN" | tr -cd . | wc -c)
             echo "$MODE: len=$LEN dots=$DOTS prefix=${TOKEN:0:4}"
-            # end-to-end: real authenticated API call with the minted token
-            gh api -H "Authorization: Bearer $TOKEN" "repos/$REPO" --jq '.full_name'
-            gh api -H "Authorization: Bearer $TOKEN" repos/"$REPO"/issues?per_page=1 --jq '.[0].number'
+            # end-to-end: real authenticated API calls with the minted token (curl — no gh auth dependency)
+            curl -s -H "Authorization: Bearer $TOKEN" "https://api.github.com/repos/$REPO" | python3 -c 'import json,sys; print("probe1:", json.load(sys.stdin)["full_name"])'
+            curl -s -H "Authorization: Bearer $TOKEN" "https://api.github.com/repos/$REPO/issues?per_page=1" | python3 -c 'import json,sys; print("probe2: issue", json.load(sys.stdin)[0]["number"])'
             echo "$MODE: OK"
           done
           echo "VALIDATION PASSED — both formats serve real API calls"
