@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 17 // #907: XSFTK gate detection + boot-format tolerance (Parse seam, S2 of #903)
+version = 18 // #908: structural fallback chain (no decoy), single/odd-quality manifests, iframe host tolerance
 
 cloudstream {
     authors     = listOf("kraptor")

@@ -392,3 +392,77 @@ extractor landing on the tokenless `xs1.php` decoy — the exact owner-visible 2
   gone → not gated).
 - **Re-verify:** `:PerverZija:test` green (12/12 in the residual class, 0 failures),
   `:PerverZija:make` BUILD SUCCESSFUL.
+
+## FINDINGS-908 — hardened shared extractor: one structural fallback chain (2026-10-23, S3 of #903)
+
+**Scope:** `shared/XsftkParse.kt` (decision seam + structural boot matcher),
+`shared/HostAdapters.kt` (`PerverZijaExtractor` wiring), `PerverZija` (`loadLinks` host
+tolerance + Parse delegates). Version 17 → 18. No provider-local extractor copy.
+
+### What changed
+
+1. **One decision point** — `XsftkParse.playerPlan(playerUrl, playerHtml)`:
+   boot found → `Xsftk(boot)` (manifest chain); no boot but gate markers →
+   `FailClosed`; otherwise → `Legacy(masterUrl)`. The old adapter branched on
+   `boot == null` alone, so a gated page whose boot call was missed emitted the
+   tokenless `xs1.php` decoy (playlist 200, every segment 404 — the owner's 2004).
+   `FailClosed` is now the only outcome for that class.
+2. **Structural boot matching (red→green):** the #907 matcher required exactly
+   `<id>, <token>` in that order with hex shapes. It now matches the call skeleton
+   (`XSFTK.boot(...)` / `XSFTK["boot"](...)`) and classifies the quoted arguments:
+   dotted argument = token, plain hex = id, any order. The player URL's `data=` id
+   is passed as `expectedId`, which also binds tokens that dropped the
+   `<hex>.<epoch>` suffix and rejects a boot line for a *different* video
+   (`playerPlan` then classifies gated → `FailClosed`, never legacy).
+3. **Legacy master built from host+id** — `legacyMasterUrl` derives
+   `<player-host>/player/xs1.php?data=<id>` instead of string-replacing
+   `index.php`, so `/player/index.php`, `/player/` and extra-query URL shapes all
+   resolve to the one endpoint FINDINGS-906 verified as live. The whole
+   `plan`-per-URL-shape matrix is pinned by tests.
+4. **Single/odd-quality manifests** — `playableSources(json, boot, playerUrl)`:
+   every quality the manifest can actually build, highest first; a malformed entry
+   is skipped instead of zeroing the list (a single-quality manifest with one
+   broken entry used to mean zero sources = "only one source, no qualities").
+   Non-numeric manifest keys are kept as labels (Unknown quality in-app) rather
+   than dropped; unparseable JSON yields no links, no throw.
+5. **Iframe host tolerance** — `loadLinks` picks the player structurally
+   (`PerverZijaParse.playerEmbed`): known `xtremestream.xyz` iframe first, else the
+   first http(s) iframe that is not a theme widget (Discord/Gravity-Forms/YouTube/
+   social), with protocol-relative `//host/...` normalized. Non-xtremestream
+   players (census: `mixdrop.to` on 1/336) now go to the shared host registry
+   instead of being dropped. Player-page fetch failure also fails closed (an
+   unclassified page must never emit the decoy).
+
+### Red → green transcript
+1. `PerverZijaFallbackChainTest` (16 tests) against the #906 fixtures + the two new
+   iframe-block fixtures: **red at compile** — `Unresolved reference 'playerPlan' /
+   'PlayerPlan' / 'playerId' / 'masterUrl' / 'playerEmbed' / 'playableSources'`.
+2. Implemented the seam and wiring → **green: 16/16** in both variants (258 test
+   executions for :PerverZija:test, 0 failures), `:PerverZija:make` BUILD SUCCESSFUL,
+   repo-wide `./gradlew test` BUILD SUCCESSFUL (all 24 providers, shared code compiles
+   everywhere).
+
+### Live re-probe (2026-10-23, same method as FINDINGS-906)
+- Reported #903 player page 200 → boot call
+  `XSFTK.boot("71eee742e4c6e094e6af364597af3f05", "a90e18b6d6297060cf069ab1.1792800000", player)`
+  — the token *rotated* since the fixture (epoch expiry), the arguments/shape did not;
+  markers `XSFTK` / `ftk_engine` / `ftk/xsad` all present.
+- `op=manifest` with the fresh token → 3238 B XOR-decoded JSON, qualities
+  `1080/720/480`, 80/76/74 segments, CDN hosts `pervl3.xspcdn01.click` /
+  `pervl3.xspcdn02.click` — byte-for-byte the same manifest shape as the fixture.
+- Legacy video (`60ad8380…`, 1.0 MB player page) → **0** `XSFTK.boot` occurrences,
+  `m3u8_loader_url = https://perv.xtremestream.xyz/player/xs1.php?data=`, xs1 master
+  200 with 480/720/1080 variants — the legacy branch keeps working.
+
+### Fixtures added
+| file | source | purpose |
+|---|---|---|
+| `perverzija_video_embeds_xtremestream.html` | reported #903 video page | player iframe + Discord widget + hidden `about:blank` frame |
+| `perverzija_video_embeds_mixdrop.html` | `allanal-lana-anal-rebel-rhyderanal-cravings` | protocol-relative `//mixdrop.to/e/...` player iframe (census alternate host) |
+
+Only the iframe tags are kept (the video pages are ~370 kB); markup is verbatim.
+
+### Not in this story
+The in-app 2004 is still not reproducible at the HTTP layer (the chain is green from CI
+for both families). Whether ExoPlayer on-device accepts the `data:` playlist and applies
+the link headers is #909's live-verification scope.

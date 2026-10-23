@@ -15,7 +15,9 @@
 //     byte-for-byte the HLS "no IV attribute → IV = media sequence number" default,
 //     so a synthesized VOD playlist (#EXT-X-KEY URI=op=key, no IV=, MEDIA-SEQUENCE:0,
 //     in-order segments) replays natively. The legacy tokenless xs1.php master is a
-//     decoy: playlist 200 but every segment 404s (FINDINGS-840).
+//     decoy ONLY on gated videos (playlist 200, every segment 404s); on the pre-gate
+//     family it is live (plain MPEG-TS) — FINDINGS-840/906. playerPlan() is the one
+//     switch between the families (#908).
 //
 // Kept free of CloudStream framework types (unit-test classpath, ADR-0005) and of
 // android.* calls on the hot path except the Base64 shim (mirror of decodeBase64,
@@ -35,25 +37,44 @@ object XsftkParse {
 
     private val mapper = ObjectMapper()
 
-    /** Player boot call exposed in plain text on the player (index.php) page.
-     *  Format-tolerant by design (issue #907 hardening): the call may be reached as
-     *  XSFTK.boot(...) or XSFTK["boot"](...), with single/double quotes and arbitrary
-     *  whitespace/newlines between the arguments. A `window.` prefix needs no special
-     *  case — the match starts at `XSFTK`. Two small patterns (dot access, bracket
-     *  access) rather than one alternation keep each regex under Sonar S5843's
-     *  complexity limit without narrowing what matches; a strict one-shape matcher is
-     *  how a gated page silently degrades to the tokenless xs1.php decoy (FINDINGS-906). */
-    private val bootDotRe = Regex(
-        """XSFTK\s*\.\s*boot\s*\(\s*["']([0-9a-fA-F]+)["']\s*,\s*["']([0-9a-fA-F.]+)["']"""
+    /** Boot call skeleton: `XSFTK.boot(...)` or `XSFTK["boot"](...)`, any spacing.
+     *  The argument list is matched structurally and the quoted arguments are then
+     *  classified by shape (issue #908): a fixed "id, token" byte order is how a
+     *  re-minified page degraded to the tokenless `xs1.php` decoy (FINDINGS-906). */
+    private val bootCallRe = Regex(
+        """XSFTK\s*(?:\.\s*boot|\[\s*["']boot["']\s*\])\s*\(([^)]*)\)""",
+        RegexOption.IGNORE_CASE
     )
 
-    private val bootBracketRe = Regex(
-        """XSFTK\s*\[\s*["']boot["']\s*\]\s*\(\s*["']([0-9a-fA-F]+)["']\s*,\s*["']([0-9a-fA-F.]+)["']"""
-    )
+    private val quotedArgRe = Regex("""["']([^"']+)["']""")
+    private val bootIdRe = Regex("""[0-9a-fA-F]{16,}""")
+    private val bootTokenRe = Regex("""[0-9a-fA-F]{8,}\.\d+""")
 
-    fun xsftkBoot(playerHtml: String): Boot? =
-        (bootDotRe.find(playerHtml) ?: bootBracketRe.find(playerHtml))
-            ?.let { Boot(it.groupValues[1], it.groupValues[2]) }
+    fun xsftkBoot(playerHtml: String): Boot? = xsftkBoot(playerHtml, null)
+
+    /** Structural boot match. [expectedId] (the player URL's `data=` id) resolves the
+     *  arguments when shape alone is ambiguous — a token without the `<hex>.<epoch>`
+     *  suffix, an id that is not hex, or args in a different order. Without it the
+     *  pair is classified by shape: dotted argument = token, plain hex = id. */
+    fun xsftkBoot(playerHtml: String, expectedId: String?): Boot? {
+        for (call in bootCallRe.findAll(playerHtml)) {
+            val args = quotedArgRe.findAll(call.groupValues[1]).map { it.groupValues[1] }.toList()
+            bootFromArgs(args, expectedId)?.let { return it }
+        }
+        return null
+    }
+
+    private fun bootFromArgs(args: List<String>, expectedId: String?): Boot? {
+        if (args.size < 2) return null
+        if (expectedId != null) {
+            val id = args.firstOrNull { it.equals(expectedId, ignoreCase = true) } ?: return null
+            val token = args.firstOrNull { it != id } ?: return null
+            return Boot(id, token)
+        }
+        val token = args.firstOrNull { bootTokenRe.matches(it) } ?: return null
+        val id = args.firstOrNull { it != token && bootIdRe.matches(it) } ?: return null
+        return Boot(id, token)
+    }
 
     /** Structural gate markers of the FTK player generation. A page that still loads
      *  the gate but lost its inline XSFTK.boot(...) call must never be classified as
@@ -66,6 +87,43 @@ object XsftkParse {
 
     fun isGatedPlayer(playerHtml: String): Boolean =
         xsftkBoot(playerHtml) != null || gateMarkers.any { playerHtml.contains(it) }
+
+    /** How one player page becomes sources (issue #908). The legacy branch keeps the
+     *  live tokenless master; a gated page without a boot call has no playable route
+     *  (its `xs1.php` is the decoy), so it fails closed instead of emitting 404s. */
+    sealed class PlayerPlan {
+        data class Xsftk(val boot: Boot) : PlayerPlan()
+        data class Legacy(val masterUrl: String) : PlayerPlan()
+        object FailClosed : PlayerPlan()
+    }
+
+    private val dataIdRe = Regex("""[?&]data=([0-9a-fA-F]{16,})""")
+
+    /** Video id from the player URL — the id the boot call has to bind to. */
+    fun playerId(playerUrl: String): String? =
+        dataIdRe.find(playerUrl)?.groupValues?.get(1)
+
+    /** Tokenless master for the pre-gate family. Built from the player host + id, so
+     *  every player path shape (/player/index.php, /player/, extra query params)
+     *  resolves to the one xs1.php endpoint that FINDINGS-906 verified as live. */
+    fun legacyMasterUrl(playerUrl: String): String {
+        val host = playerUrl.substringBefore("/player/")
+        val id = playerId(playerUrl)
+        return if (id != null && host != playerUrl) "$host/player/xs1.php?data=$id"
+        else playerUrl.replace("index.php", "xs1.php")
+    }
+
+    /** The one decision point the shared extractor uses (issue #908). Order matters:
+     *  boot → XSFTK chain; still gated → FailClosed (never the decoy); otherwise the
+     *  legacy family keeps its live master (16/336 videos, FINDINGS-906). */
+    fun playerPlan(playerUrl: String, playerHtml: String): PlayerPlan {
+        val boot = xsftkBoot(playerHtml, playerId(playerUrl))
+        return when {
+            boot != null -> PlayerPlan.Xsftk(boot)
+            isGatedPlayer(playerHtml) -> PlayerPlan.FailClosed
+            else -> PlayerPlan.Legacy(legacyMasterUrl(playerUrl))
+        }
+    }
 
     /** Canonical proto_api endpoint. All ops share the shape
      *  <player-host>/player/proto_api.php?data=<id>&op=<op>&vt=<token>[extra]. */
@@ -142,6 +200,23 @@ object XsftkParse {
         }
     } catch (e: Exception) {
         null
+    }
+
+    /** One playable quality of a decoded manifest. `label` is the manifest key —
+     *  numeric on every #906 fixture, kept as text so an odd label (e.g. "hd")
+     *  still reaches the app instead of being dropped. */
+    data class QualitySource(val label: String, val playlist: String)
+
+    /** Every quality the manifest can actually build, highest first. A malformed
+     *  quality entry is skipped instead of zeroing the source list (the "only one
+     *  source, no qualities" class); an unparseable manifest yields none. */
+    fun playableSources(
+        json: String,
+        boot: Boot,
+        playerUrl: String,
+        cdnHost: String? = null
+    ): List<QualitySource> = qualities(json).mapNotNull { q ->
+        variantPlaylist(json, boot, playerUrl, q, cdnHost)?.let { QualitySource(q, it) }
     }
 
     /** Base64 (RFC 4648, padded, no line breaks). android.util.Base64 first (API 1+),

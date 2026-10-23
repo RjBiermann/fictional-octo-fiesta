@@ -33,8 +33,19 @@ object PerverZijaParse {
 
     /** Player boot call exposed in plain text on the player (index.php) page:
      *  XSFTK.boot(<"hex" id>, "<hex>.<expiry>", player). The token and the audio
-     *  hook are new (2026-10); the video id in arg 1 equals the data= param. */
+     *  hook are new (2026-10); the video id in arg 1 equals the data= param.
+     *  [expectedId] is the player URL's `data=` id, used to resolve the argument
+     *  pair structurally when the page's formatting/order drifts (#908). */
     fun xsftkBoot(playerHtml: String) = XsftkParse.xsftkBoot(playerHtml)
+
+    fun xsftkBoot(playerHtml: String, expectedId: String?) =
+        XsftkParse.xsftkBoot(playerHtml, expectedId)
+
+    /** Per-variant fallback chain for one player page (#908): booted gated page →
+     *  XSFTK chain, gated page without a boot call → fail closed (its tokenless
+     *  xs1.php is the 404 decoy), pre-gate page → live legacy master. */
+    fun playerPlan(playerUrl: String, playerHtml: String) =
+        XsftkParse.playerPlan(playerUrl, playerHtml)
 
     /** Structural FTK-gate detection (markers and/or a live boot call). A gated page
      *  whose boot call is missed keeps this true so the legacy xs1.php decoy is never
@@ -51,4 +62,34 @@ object PerverZijaParse {
      *  or null for anything that does not decode to an object. */
     fun decodeXsManifest(raw: ByteArray, boot: XsftkParse.Boot) =
         XsftkParse.decodeXsManifest(raw, boot)
+
+    // ---- video-page embeds (issue #908) --------------------------------------
+
+    /** Non-player iframes the WP theme renders on every video page (Discord month
+     *  widget, hidden Gravity Forms frame). Structural host match: subdomains count. */
+    private val widgetHosts = listOf(
+        "discord.com", "discordapp.com", "youtube.com", "youtu.be",
+        "facebook.com", "twitter.com", "x.com", "instagram.com",
+        "telegram.org", "t.me", "podbean.com", "spotify.com"
+    )
+
+    /** The video's player iframe, or null. The xtremestream host varies per video
+     *  (pervlN/pervmN/jN) and the #906 census found one video on another embed host
+     *  (mixdrop.to), so pick structurally: known player family first, else the first
+     *  iframe that is not a known non-player widget. Protocol-relative `//host/...`
+     *  srcs are normalized to https for the extractor. */
+    fun playerEmbed(doc: Document): String? {
+        val srcs = doc.select("iframe[src]").map { it.attr("src").trim() }
+            .filter { it.isNotEmpty() }
+            .map { if (it.startsWith("//")) "https:$it" else it }
+        return srcs.firstOrNull { it.contains("xtremestream.xyz") }
+            ?: srcs.firstOrNull { isPlayerEmbedUrl(it) }
+    }
+
+    /** http(s) URL whose host is not one of the theme's known non-player widgets. */
+    private fun isPlayerEmbedUrl(url: String): Boolean {
+        if (!url.startsWith("http://") && !url.startsWith("https://")) return false
+        val host = url.substringAfter("://").substringBefore('/').substringBefore(':').lowercase()
+        return host.isNotEmpty() && widgetHosts.none { host == it || host.endsWith(".$it") }
+    }
 }
