@@ -17,7 +17,9 @@ permissions:
   contents: read
   issues: read
   pull-requests: read
-timeout-minutes: 15
+timeout-minutes: 20          # canary slack: the first lane canary (39994868917)
+                            # used 13m19s of 15m — too thin for a run whose job
+                            # is to fail loudly, not to be cut off
 max-turns: 15
 max-ai-credits: 250
 safe-outputs:
