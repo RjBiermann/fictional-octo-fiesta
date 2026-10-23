@@ -33,7 +33,11 @@ safe-outputs:
   create-pull-request-review-comment:
     max: 10
   add-comment:
-    max: 1
+    # 2 slots: one verdict narration + one work-attempt budget stamp
+    # (shared/budget.md ledger protocol). max:1 deadlocked exactly like
+    # 05-implement did (#716): the narration consumed the slot, the stamp
+    # could never post, and the run filed a missing-tool failure (#1308).
+    max: 2
   add-labels:
     allowed: [status/ready-to-merge]
     max: 1
