@@ -1,0 +1,131 @@
+{
+  "provenance": "Recorded label-event / delivery history behind backlog-report #797 (2026-10-20). Events captured via `gh api repos/RjBiermann/fictional-octo-fiesta/issues/<n>/events?per_page=100` and `.../pulls/<n>` on 2026-10-23; trimmed to the modeled world (2026-10-20T02:15Z..2026-10-20T10:07Z, the re-stamp wave window). Event shapes match the REST issue-event objects the orchestrator consumes (`created_at`, `event`, `label.name`, `actor.login`). The recorded post-13:58Z bot closes are the world's aftermath (the healer's own work, post-mitigation) and are deliberately NOT modeled — the replica freezes the world while #771/#768/#775/#767 were still open at the 10:02-10:07Z re-stamp wave.",
+  "owner": "RjBiermann",
+  "issues": {
+    "771": {
+      "state": "open",
+      "title": "[spec] S2 AllClassicPorn (parent #664) — story 771",
+      "events": [
+        {"created_at": "2026-10-20T03:54:43Z", "event": "labeled",   "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T04:11:26Z", "event": "unlabeled", "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T04:11:27Z", "event": "labeled",   "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T04:22:57Z", "event": "labeled",   "label": {"name": "status/in-review"}, "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T04:22:58Z", "event": "unlabeled", "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T04:26:01Z", "event": "labeled",   "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T04:28:52Z", "event": "unlabeled", "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T04:35:15Z", "event": "labeled",   "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T04:38:36Z", "event": "unlabeled", "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T05:08:43Z", "event": "labeled",   "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T05:11:40Z", "event": "unlabeled", "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T10:02:51Z", "event": "labeled",   "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T10:05:50Z", "event": "unlabeled", "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}}
+      ],
+      "note": "PR #792 merged 04:35:04Z (squash 864a19e). The issue was never closed by the 12-post-merge closeout, yet re-stamps kept landing post-merge (05:08:43Z re-fired the duplicate implement pass, run 39368254975; 10:02:51Z behind it). Every post-merge re-stamp here is BOT-applied — the owner-only re-arm invariant must hold."
+    },
+    "768": {
+      "state": "open",
+      "title": "[spec] S2 Story of parent #759 — story 768",
+      "events": [
+        {"created_at": "2026-10-20T02:15:24Z", "event": "labeled",   "label": {"name": "status/planned"},  "actor": {"login": "RjBiermann"}},
+        {"created_at": "2026-10-20T02:19:16Z", "event": "unlabeled", "label": {"name": "status/planned"},  "actor": {"login": "RjBiermann"}},
+        {"created_at": "2026-10-20T03:54:46Z", "event": "labeled",   "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T04:02:34Z", "event": "labeled",   "label": {"name": "status/in-review"}, "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T04:02:35Z", "event": "unlabeled", "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T04:11:14Z", "event": "labeled",   "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T04:19:04Z", "event": "unlabeled", "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T04:26:04Z", "event": "labeled",   "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T05:08:53Z", "event": "unlabeled", "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T05:08:54Z", "event": "labeled",   "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T05:10:02Z", "event": "unlabeled", "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}}
+      ],
+      "note": "PR #791 merged 04:32:10Z (head devloop/issue-768-849af5d67e890692, after racing duplicate #790). Post-merge particles: the 05:08:53Z unlabeled / 05:08:54Z labeled pair — the non-atomic batch wave the backlog report flagged, and the latest labeled event is post-merge bot-applied."
+    },
+    "775": {
+      "state": "open",
+      "title": "[spec] S2 of the #680 chain — story 775",
+      "events": [
+        {"created_at": "2026-10-20T03:54:40Z", "event": "labeled",   "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T04:11:21Z", "event": "unlabeled", "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T04:11:23Z", "event": "labeled",   "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T04:26:11Z", "event": "unlabeled", "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T04:26:12Z", "event": "labeled",   "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T05:08:49Z", "event": "unlabeled", "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T05:08:50Z", "event": "labeled",   "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T10:03:02Z", "event": "unlabeled", "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T10:03:04Z", "event": "labeled",   "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T10:07:20Z", "event": "labeled",   "label": {"name": "status/in-review"}, "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T10:07:21Z", "event": "unlabeled", "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}}
+      ],
+      "note": "Re-added status/planned four times within ~75 min (03:54, 04:11, 04:26, 05:08Z). NO merged delivery exists — both duplicate PRs (#802, #803) closed UNmerged, so the merged-delivered guard never engages and the healer must leave it open; re-arm acceptance is not exercised because there is no merged_at to gate on."
+    },
+    "767": {
+      "state": "open",
+      "title": "[spec] S1 of parent #759 — story 767",
+      "events": [
+        {"created_at": "2026-10-20T02:15:23Z", "event": "labeled",   "label": {"name": "status/planned"},  "actor": {"login": "RjBiermann"}},
+        {"created_at": "2026-10-20T02:19:14Z", "event": "unlabeled", "label": {"name": "status/planned"},  "actor": {"login": "RjBiermann"}},
+        {"created_at": "2026-10-20T03:40:12Z", "event": "labeled",   "label": {"name": "status/planned"},  "actor": {"login": "RjBiermann"}},
+        {"created_at": "2026-10-20T03:52:08Z", "event": "labeled",   "label": {"name": "status/in-review"}, "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T03:52:09Z", "event": "unlabeled", "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T03:53:59Z", "event": "labeled",   "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T04:11:04Z", "event": "closed",    "label": null,                        "actor": {"login": "RjBiermann"}},
+        {"created_at": "2026-10-20T04:25:07Z", "event": "unlabeled", "label": {"name": "status/planned"},  "actor": {"login": "RjBiermann"}},
+        {"created_at": "2026-10-20T04:25:09Z", "event": "unlabeled", "label": {"name": "status/in-review"}, "actor": {"login": "RjBiermann"}},
+        {"created_at": "2026-10-20T05:08:56Z", "event": "reopened",  "label": null,                        "actor": {"login": "RjBiermann"}},
+        {"created_at": "2026-10-20T05:09:57Z", "event": "labeled",   "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T05:11:16Z", "event": "labeled",   "label": {"name": "triage/from-agent"}, "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T05:15:03Z", "event": "labeled",   "label": {"name": "status/in-review"}, "actor": {"login": "github-actions[bot]"}},
+        {"created_at": "2026-10-20T05:15:04Z", "event": "unlabeled", "label": {"name": "status/planned"},  "actor": {"login": "github-actions[bot]"}}
+      ],
+      "note": "Closeout DID fire at the merge (closed by the owner 04:11:04Z per ADR-0007), then the maintainer deliberately reopened at 05:08:56Z — the human decision, respected. The re-stamp that follows (05:09:57Z) is BOT-applied. PR #787 (racing duplicate) closed UNmerged, so there is no merged_at and the re-arm gate is undefined for this issue — its open state is the human's will, never the healer's business."
+    }
+  },
+  "pulls": {
+    "open": [],
+    "closed": [
+      {
+        "number": 792,
+        "head": {"ref": "devloop/issue-771-68d4c029610f2689-8ccd59153bde6664"},
+        "user": {"login": "github-actions[bot]"},
+        "draft": false,
+        "merged_at": "2026-10-20T04:35:04Z",
+        "merge_commit_sha": "864a19e"
+      },
+      {
+        "number": 791,
+        "head": {"ref": "devloop/issue-768-849af5d67e890692"},
+        "user": {"login": "github-actions[bot]"},
+        "draft": false,
+        "merged_at": "2026-10-20T04:32:10Z",
+        "merge_commit_sha": null
+      },
+      {
+        "number": 787,
+        "head": {"ref": "devloop/issue-767-990545cc1e98c605"},
+        "user": {"login": "github-actions[bot]"},
+        "draft": false,
+        "merged_at": null,
+        "merge_commit_sha": null,
+        "note": "racing duplicate — closed unmerged 05:08Z"
+      },
+      {
+        "number": 803,
+        "head": {"ref": "devloop/issue-775-2c4e9a81d6f34b17-21edbaf777cbc758"},
+        "user": {"login": "github-actions[bot]"},
+        "draft": false,
+        "merged_at": null,
+        "merge_commit_sha": null,
+        "note": "duplicate delivery for #775 — closed unmerged"
+      },
+      {
+        "number": 802,
+        "head": {"ref": "devloop/issue-775-690bbc3523284dd2"},
+        "user": {"login": "github-actions[bot]"},
+        "draft": false,
+        "merged_at": null,
+        "merge_commit_sha": null,
+        "note": "duplicate delivery for #775 — closed unmerged"
+      }
+    ]
+  }
+}
