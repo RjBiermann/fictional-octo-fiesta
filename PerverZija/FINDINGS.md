@@ -333,3 +333,49 @@ No real failing-video fixture exists to ship (the only failure is dead upstream)
 failing-fixture request is recorded as a spec deviation in `FINDINGS-906.md`.
 Fixtures for #907: `perverzija_player_legacy_bootmiss.html` + `perverzija_legacy_{master,variant480}.m3u8`,
 `perverzija_player_{reported,singleq}_xsftk.html` + `perverzija_manifest_{reported,singleq}.bin`.
+
+## FINDINGS-907 — TDD red→green on the #906 census fixtures (2026-10-23, unit story #907, parent #903)
+
+**Scope:** Parse layer only (`shared/XsftkParse.kt` + `PerverZijaParse` delegates + tests). The
+extractor wiring (per-variant fallback chain, `loadLinks` host tolerance) stays S3 (#908); this
+story ships the tested seam S3 consumes — "green tests define done" (#908 depends on #907).
+
+### Red → green transcript
+1. Added `PerverZijaResidualShapesTest` (11 tests) against the #906 fixtures. **Red:**
+   `Unresolved reference 'isGatedPlayer'` — the decoy-guard seam did not exist.
+2. Added `isGatedPlayer` (marker detection only) → **red at runtime:** the boot-format
+   tolerance test failed for all three real-world formatting variants (`window.XSFTK.boot`,
+   `XSFTK["boot"]`, newline-separated args) — the old regex accepted exactly one byte shape.
+3. Broadened `bootRe` (optional `window.`, dot/bracket access, single/double quotes, `\s*`
+   between arguments, case-insensitive hex) → **green: 11/11**, full provider suite 112 tests
+   × debug+release = 224, 0 failures; `clean :PerverZija:make` BUILD SUCCESSFUL; version 16 → 17.
+
+### Honest red/green split (spec traceability)
+`decodeXsManifest` / `qualities` / `variantPlaylist` were **already green** on the new shapes
+(they are pinned as regressions, not fake reds): the reported manifest decodes to
+`1080/720/480` (80/76/74 segments, target 9 — manifest `td=8` undershoots its own 8.341667s
+max), the single-quality manifest decodes to `360` only (1411 segments, target 11 — `td=10`
+vs 10.427078s max). The genuinely failing class is **boot/gate detection**: a gated page that
+loses its inline `XSFTK.boot(...)` call currently has no structural marker to stop the
+extractor landing on the tokenless `xs1.php` decoy — the exact owner-visible 2004 shape
+(FINDINGS-906). `isGatedPlayer` + tolerant boot matching close that at the Parse layer.
+
+### Tests (all fixture-driven)
+- reported (#903 URL): boot id/token, gate true, manifest decode, ordered qualities,
+  per-quality playlist (key URI with `X-XS-P`-gated op=key URL, no `IV=`, own CDN host,
+  first/last segment, `#EXT-X-ENDLIST`, target 9).
+- single-quality (`wicked-hercules-2002`): boot, gate, one quality, 1411-segment playlist,
+  non-existent quality → null.
+- legacy boot-miss: `xsftkBoot == null` **and** `isGatedPlayer == false` — the live plain-TS
+  `xs1.php` fallback must stay for these 16/336 videos (FINDINGS-906).
+- decoy trap: the reported page with its `XSFTK.boot` line stripped still classifies gated
+  (boot null, gate true) — the guard S3 wires.
+- legacy playlists: master variants `480/720/1080`, media playlist 269 plain segments, none
+  `_enc`. Observation: the legacy CDN roster mixes **`xspcdnNN` and `xscasacdnNN`** hosts
+  (60/269 segments) — host families are wider than the gated manifest's; `xsSegmentUrl`
+  already takes the host from the manifest/playlist, so no code change, but `_enc` vs plain
+  is the family discriminator, not the host name.
+
+### Statically verified decoder trap
+`decodeXsManifest` with a wrong boot token returns null (XOR garbage does not pass the
+`{` + `"cdn"` shape check) — no throw on hostile input.
