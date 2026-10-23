@@ -70,7 +70,11 @@ deepseek-v4.1-flash surface — plus input/context/output limits and
 that does support reasoning: Go's acceptance of `reasoning_effort` for
 this id is unverified, and the GLM upstream 400'd on it (the adopting
 repo's own #479/#493 history). Raise it as its own canary experiment,
-never bundled with a model swap.
+never bundled with a model swap. **Measured** (canary 39994868917): no
+effort field went over the wire, and the stream still carried
+`type:"thinking"` blocks — the flag governs request-side effort control,
+not the model's internal reasoning, so it is **not** a thinking-cost lever.
+Spend stays on `max-ai-credits`.
 
 Authentication: one secret, **`OPENAI_API_KEY`** (same OpenCode key as
 the repo's `OPENCODE_API_KEY` — only the binding name follows gh-aw's

@@ -37,6 +37,10 @@ Decided:
   show **no `reasoning_effort`** in `pi-streaming.jsonl`: gh-aw's `/reflect`
   capability discovery can enable effort *despite* `reasoning: false`, and
   if it does, that flag is cosmetic and the paragraph above is wrong.
+  Verified on 39994868917: no effort field on the wire — but the model
+  still emits internal thinking, so the flag is a protocol-compat switch,
+  never a spend control. Thinking cost is bounded by `max-ai-credits`
+  alone.
 - Any new workflow imports the lane; no workflow declares its own
   engine or model. `engine.config` is **not** an alternative carrier on
   v0.89.21 (probed: accepted and silently dropped) — the pre-agent
