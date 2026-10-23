@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="./assets/s.js"> </script>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1, maximum-scale=1" name="viewport">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<script src="./devtools-detector/lib/devtools-detector.js"></script>
+	<script src="./promise-polyfill/dist/polyfill.js"></script>
+<title>BlackedRaw - Serena Santos - Wild Night</title>
+<meta name="author" content="XtremeStream" />
+
+<script disable-devtool-auto src='https://cdn.jsdelivr.net/npm/disable-devtool'></script>
+<script>
+	window.XS_CCU_ENABLED = true;
+	window.XS_CCU_API     = "https://ccu.xtremestream.xyz";
+	
+	window.XS_SERVER_ID   = "perv.xtremestream.xyz";
+	if (!window.XS_SERVER_ID) window.XS_SERVER_ID = location.hostname;
+	
+	window.XS_VIDEO_ID    = "60ad83801910ec976590f69f638e0d6d";
+	window.XS_VIDEO_TITLE = "BlackedRaw - Serena Santos - Wild Night";
+</script>
+<script src="/player/assets/ccu.js?v=5"></script>
+<script>
+window.XS_TRACK_CFG = {
+  matomoSiteId: 2,
+  // idsite 14 (XS Player, nasi nodovi) NE ide u Matomo od 05.08.2026: nosio je ~70%
+  // dolaznog prometa i gusio nod (2 jezgra, load 38, red 240k). Player vec brojimo
+  // sami, a GA4 ostaje ukljucen. Vracanje: obrisi ovu liniju.
+  // Matomo nod (stats.xtremestream.xyz) se otkazuje 06.08.2026 — GA4 preuzima sve.
+  // Bezuslovno false: da player ne pokusava dohvatiti mrtav host na svakom ucitavanju.
+  // Vracanje: 'false' -> ((int)$__xs_cfg[0] === 14) ? 'false' : 'true'
+  enableMatomo: false,
+  nodesSiteId: 51,
+  node: "hls-perv",
+  ga4Id: "G-KXZJKX3EK0",
+  enableGa4: true,
+  site: "tube.perverzija.com"};
+</script>
+<script src="/player/assets/xs_tracker.js?v=2"></script>
+ 
+<link href="./videojs/examples/assets/css/style.css" rel="stylesheet" type="text/css">
+<!-- <link href="./videojs/skins/nuevo/videojs.min.css" rel="stylesheet" type="text/css" /> -->
+<!-- <link href="./videojs/skins/jwlike/videojs.min.css" rel="stylesheet" type="text/css" /> -->
+<!-- <link href="./videojs/skins/flow/videojs.min.css" rel="stylesheet" type="text/css" /> -->
+<!-- <link href="./videojs/skins/treso/videojs.min.css" rel="stylesheet" type="text/css" /> -->
+<link href="./videojs/plugins/videojs.ima.min.css" rel="stylesheet" type="text/css" />
+
+<script src="/player/assets/ccu_nuevo.js?v=2"></script>
+	<style>
+html,body {
+	height:100%;
+	width:100%;
+	padding:0;
+	margin:0;
+	overflow: hidden;
+	background-color:black
+	}
+.play-parent {
+	position:fixed;
+	object-fit: contain;
+	width:100%;
+	height:100%;
+	left:0;
+	top:0;
+	z-index:10
+	}
+/*.play-parent {
+	position:fixed;
+	width:100%;
+	height:100%;
+	left:0;
+	top:0;
+	z-index:10
+	}*/
+/* Player parent DIV  */
+
+/* Semi-transparent DIV element to cover entire player */
+.div-over {
+	background:rgba(0,0,0,0.5);
+	width: 100%;
+	height: 100%;
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index:99;
+	display:none;
+	overflow:hidden;
+}
+/* Centered DIV element for our banner ad */
+.overlay {
+	position:absolute;
+	top:50%;
+	left:50%;
+	transform: translate(-50%, -50%);
+	display:inline-block;
+}
+/* Close button */
+.over-close {
+	width: 28px;
+	height: 28px;
+	position: absolute;
+	top:10px;
+	right:10px;
+	line-height:28px;
+	text-align:center;
+	font-size:18px;
+	font-family: sans-serif;
+	background:#fff;
+	cursor:pointer;
+	border-radius:50%;
+	-webkit-border-radius:50%;
+	-moz-border-radius:50%;
+}
+.over-close:after {
+	content: '';
+	height: 16px;
+	border-left: 2px solid #222;
+	position: absolute;
+	transform: rotate(45deg);
+	left: 13px;
+	top:6px;
+}
+.over-close:before {
+	content: '';
+	height: 16px;
+	border-left: 2px solid #222;
+	position: absolute;
+	transform: rotate(-45deg);
+	left: 13px;
+	top:6px;
+}
+.div-over .no-click {
+	pointer-events:none;
+}
+.div-over .no-click:before, .div-over .no-click:after {
+	border-width:0;
+}
+/* Custom CSS for Video.js subtitle list */
+ul {
+    display: block;
+    line-height: 2em;
+    margin: 40px auto;
+    font-size: 16px;
+    /*
+	max-height: 200px;
+    overflow-y: auto;
+	*/
+}
+	</style>
+</head>
+
+<body>
+<div class="container">
+	<script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+	<!-- chrome flow jwlike mockup nuevo party pinko roundal shaka slategrey treso -->
+	<link href="./videojs/skins/jwlike/videojs.min.css" rel="stylesheet" type="text/css" />
+	<script src="./videojs/video.min.js"></script>
+	<!-- custom language
+	<script src="./videojs/lang/pt-BR.js"></script>
+	-->
+	<script src="./videojs/plugins/hlsjs.js"></script>
+	
+		<script src="./videojs/plugins/videojs.thumbnails.js"></script>
+		
+		
+	<!-- <script type="text/javascript" src="./videojs/video.min.js"></script> -->
+	<script type="text/javascript" src="./videojs/plugins/videojs.ima.min.js"></script>
+	<script type="text/javascript" src="./videojs/plugins/videojs-contrib-ads.min.js"></script>
+	<script type="text/javascript" src="./videojs/plugins/vast.vpaid.min.js"></script>
+	<script type="text/javascript" src="./videojs/nuevo.min.js"></script>
+	<script type="text/javascript" src="./videojs/plugins/vroll.js"></script>
+	
+	<script src="./videojs/plugins/videojs.hotkeys.min.js"></script>
+	<script src="./videojs/plugins/videojs-chromecast.min.js"></script>
+	<script src="./videojs/plugins/videojs.airplay.js"></script>
+	
+	<div class="play-parent">
+			<video id="player_1" class="video-js vjs-fill vjs-touch-nav vjs-default-skin" controls preload="auto" playsinline webkit-playsinline crossorigin="anonymous" poster="https://perv.xtremestream.xyz/video/_thumbnails/60ad83801910ec976590f69f638e0d6d_thumbnail_preview.jpg">
+			
+						<track kind="metadata" src="https://perv.xtremestream.xyz/player/thumbnail_preview/60ad83801910ec976590f69f638e0d6d.vtt" />			</video>
+				</div>
+</div>
+		<script>
+	document.onkeydown = function(e) {
+        if (e.ctrlKey && 
+            (e.keyCode === 85 )) {
+            return false;
+        }
+	};
+	</script>
+		<!-- imcounter start -->
+		<!-- imcounter end -->
+	<script>
+	</script><!--pg-omotac-5356-->
+<script type="text/javascript">!function(){"use strict";for(var t=window,e=t.Math,n=t.RegExp,s=t.Promise,r=t.Uint8Array,i=t.localStorage,o=t.Date.now,c=e.floor,l=e.random,h=t.JSON.stringify,a=t.String.fromCharCode,u='_^akcaa[YedZf\\`aQVSY[LNNLFE_JJRPPTNWBB=H<<EC7?;4;.19+,,(,,(:+"6*-$",){#\'{wwy)%! zynmltsrmk|ldcthpuadrq^_n]h\\^[Zeh`[RR\\\\\\KNTFMGDTESK?OCHFedsv(\'ur8\\R5/fW-5bL~$N;OKVJHwDA=UCw# @@a%}"mP#lmljjhHtsoqLP[@@LKGIU9C@@QBE>B.K=/*+/+)GOCCDEPPPMCG?CE85?%E?A/413>=8:_SR_I|$IFD.CXD-+{AK&t#x~"rlv|mFoiA401.443'.replace(/((\x40){2})/g,"$2").split("").map(((t,e)=>{const n=t.charCodeAt(0)-32;return n>=0&&n<95?a(32+(n+e)%95):t})).join(""),d=[0,7,13,19,25,27,30,35,42,49,62,66,72,73,75,77,78,80,82,85,88,92,96,101,107,114,122,122,128,136,138,139,144,145,146,147,150,153,169,174,192,218,225,231,243,251,261,262,267,273,278,282,289],f=0;f<d.length-1;f++)d[f]=u.substring(d[f],d[f+1]);var m=[d[0],d[1],d[2],d[3]];m.push(m[0]+d[4]);const p=d[5]+m[3],g={2:p+d[6],15:p+d[6],9:p+m[1],16:p+m[1],10:p+m[2],17:p+m[2]},v=d[7]+m[3],w={2:v+d[8],9:v+m[1],10:v+m[2]},b=d[9],E=b+d[10],y=b+d[11],C=m[0],x=m[4]+d[12],D=m[4]+d[13],A=m[4]+d[14],j=m[4]+d[15],N=[d[16],d[17],d[18],d[19],d[20],d[21],d[22],d[23],d[24],d[25]],I=36e5,O=(t,e)=>c(l()*(e-t+1))+t;function _(t,e,n){return function(t,e){try{return d[27],t()}catch(t){if(e)return e(t)}}(t,typeof handleException===d[28]?t=>{null===handleException||void 0===handleException||handleException(t)}:e)}const k=e=>{const[s]=e.split(d[29]);let[r,i,o]=((t,e)=>{let[n,s,...r]=t.split(e);return s=[s,...r].join(e),[n,s,!!r.length]})(e,d[30]);o&&_((()=>{throw new t.Error(d[31])}));const c=new n(`^(${s})?//`,d[32]),[l,...h]=r.replace(c,d[26]).split(d[33]);return{protocol:s,origin:r,domain:l,path:h.join(d[33]),search:i}},S=()=>`${N[O(0,N.length-1)]}=${!O(0,1)?(t=>{let e=d[26];for(let n=0;n<t;n++)e+=a(O(97,122));return e})(O(2,6)):O(1,999999)}`,$=(t,e,n)=>{const s=((t,e)=>(e+t).split(d[26]).reduce(((t,e)=>31*t+e.charCodeAt(0)&33554431),19))(t,e),r=(t=>{let e=t%71387;return()=>e=(23251*e+12345)%71387})(s);return n.split(d[26]).map((t=>((t,e)=>{const n=t.charCodeAt(0),s=n<97||n>122?n:97+(n-97+e())%26,r=a(s);return r===d[32]?r+d[32]:r})(t,r))).join(d[26])},P=(t,e)=>{let{domain:n,search:s,origin:r}=k(t),i=s?s.split(d[34]):[];const o=i.length>4?[0,2]:[5,9];i.push(...((t,e)=>{const n=[],s=O(t,e);for(let t=0;t<s;t++)n.push(S());return n})(...o)),i=(t=>{const e=[...t];let n=e.length;for(;0!==n;){const t=c(l()*n);n--,[e[n],e[t]]=[e[t],e[n]]}return e})(i);const[h,a]=((t,e)=>{const n=[],s=[];return t.forEach((t=>{t.indexOf(e)>-1?s.push(t):n.push(t)})),[n,s]})(i,b);i=h.filter((t=>!(t===`id=${e}`)));const u=$(e,n,i.join(d[34])).split(d[34]);return a.length>0&&u.push(...a),u.splice(O(0,i.length),0,d[35]+e),r.replace(n,n+d[36])+d[30]+u.join(d[34])};function T(t,e){const s=function(t){const e=new n(y+d[37]).exec(t.location.href);return e&&e[1]?e[1]:null}(t);return s?e.replace(d[38],`-${s}/`):e}const B=(e,n=t,s=!1)=>{let r;try{if(r=n[e],!r)return!1;const t="__storage_test__";return r.setItem(t,t),r.getItem(t),r.removeItem(t),!0}catch(t){return!!(!s&&(t=>t instanceof DOMException&&(22===t.code||1014===t.code||t.name===d[39]||t.name===d[40]))(t)&&r&&r.length>0)}},F=d[41];function K(){if(B(d[43]))try{const e=i.getItem(F);return[e?t.JSON.parse(e):null,!1]}catch(t){return[null,!0]}return[null,!0]}function R(e){if(!e)return null;const n={};return t.Object.keys(e).forEach((s=>{const r=e[s];(function(e){const n=null==e?void 0:e[0],s=null==e?void 0:e[1];return typeof n===d[42]&&t.Number.isFinite(s)&&s>o()})(r)&&(n[s]=r)})),n}function H(t,e,n){let s=(/https?:\/\//.test(t)?d[26]:d[44])+t;return e&&(s+=d[33]+e),n&&(s+=d[30]+n),s}const J=(()=>{var t;const[e,n]=K();if(!n){const n=null!==(t=R(e))&&void 0!==t?t:{};i.setItem(F,h(n))}return{get:t=>{const[e]=K();return null==e?void 0:e[t]},set:(t,e,s)=>{const r=[e,o()+1e3*s],[c]=K(),l=null!=c?c:{};l[t]=r,n||i.setItem(F,h(l))}}})(),L=(W=J,(t,e)=>{const{domain:n,path:s,search:r}=k(t),i=W.get(n);if(i)return[H(i[0],s,r),!1];if((null==e?void 0:e.replaceDomain)&&(null==e?void 0:e.ttl)){const{domain:t}=k(null==e?void 0:e.replaceDomain);return t!==n&&W.set(n,e.replaceDomain,e.ttl),[H(e.replaceDomain,s,r),!0]}return[t,!1]});var W;const G=t=>O(t-I,t+I),M=e=>{const s=new n(E+d[45]).exec(e.location.href),r=s&&s[1]&&+s[1];return r&&!t.isNaN(r)?(null==s?void 0:s[2])?G(r):r:G(o())},U=[1,3,6,5,8,9,10,11,12,13,14,18];class V{constructor(e,n,s){this.b6d=e,this.ver=n,this.fbv=s,this.gd=t=>this.wu.then((e=>e.url(this.gfco(t)))),this.b6ab=e=>r.from(t.atob(e),(t=>t.charCodeAt(0))),this.sast=t=>0!=+t,this.el=t.document.currentScript,this.wu=this.iwa()}ins(){t[this.gcdk()]={};const e=U.map((e=>this.gd(e).then((n=>{const s=n?T(t,n):void 0;return t[this.gcdk()][e]=s,s}))));return s.all(e).then((e=>(t[this.gcuk()]=e,!0)))}gfco(e){const n=t.navigator?t.navigator.userAgent:d[26],s=t.location.hostname||d[26];return[t.innerHeight,t.innerWidth,t.sessionStorage?1:0,M(t),0,e,s.slice(0,100),n.slice(0,15)].join(d[46])}iwa(){const e=t.WebAssembly&&t.WebAssembly.instantiate;return e?e(this.b6ab(this.b6d),{}).then((({instance:{exports:e}})=>{const n=e.memory,s=e.url,i=new t.TextEncoder,o=new t.TextDecoder(d[47]);return{url:t=>{const e=i.encode(t),c=new r(n.buffer,0,e.length);c.set(e);const l=c.byteOffset+e.length,h=s(c,e.length,l),a=new r(n.buffer,l,h);return o.decode(a)}}})):s.resolve(void 0)}cst(){const e=t.document.createElement(d[48]);return t.Object.assign(e.dataset,{cfasync:d[49]},this.el?this.el.dataset:{}),e.async=!0,e}}class q extends V{constructor(e,n,s,r,i){super(s,r,i),this.id=e,this.t=n,this.tmr=null,this.gcuk=()=>this.id+C,this.gcdk=()=>this.id+x,this.gfu=e=>T(t,e)+d[50]+this.id,t[this.id+j]=this.ins(),this.cclt(),t[this.id+A]=P}in(){this.sast(this.t)&&!0!==t[w[this.t]]&&(this.tmr&&t.clearTimeout(this.tmr),this.ast())}ast(){this.sast(this.t)&&this.gd(this.t).then((e=>{t[this.id+D]=this.ver;const n=this.cst(),[s]=L(this.gfu(e));n.src=P(s,this.id),t.document.head.appendChild(n)}))}cclt(){this.sast(this.t)&&(this.tmr=t.setTimeout((()=>!t[g[this.t]]&&this.ast()),5e3))}}!function(e,n,s,r,i,o){const c=new q("2057174","2","AGFzbQEAAAABHAVgAAF/YAN/f38Bf2ADf39/AX5gAX8AYAF/AX8DCQgAAQIBAAMEAAQFAXABAQEFBgEBgAKAAgYJAX8BQcCIwAILB2cHBm1lbW9yeQIAA3VybAADGV9faW5kaXJlY3RfZnVuY3Rpb25fdGFibGUBABBfX2Vycm5vX2xvY2F0aW9uAAcJc3RhY2tTYXZlAAQMc3RhY2tSZXN0b3JlAAUKc3RhY2tBbGxvYwAGCp8GCCEBAX9BuAhBuAgoAgBBE2xBoRxqQYfC1y9wIgA2AgAgAAuTAQEFfxAAIAEgAGtBAWpwIABqIgQEQEEAIQBBAyEBA0AgAUEDIABBA3AiBxshARAAIgZBFHBBkAhqLQAAIQMCfyAFQQAgBxtFBEBBACAGIAFwDQEaIAZBBnBBgAhqLQAAIQMLQQELIQUgACACaiADQawILQAAazoAACABQQFrIQEgAEEBaiIAIARJDQALCyACIARqC3ECA38CfgJAIAFBAEwNAANAIARBAWohAyACIAUgACAEai0AAEEsRmoiBUYEQCABIANMDQIDQCAAIANqMAAAIgdCLFENAyAGQgp+IAd8QjB9IQYgA0EBaiIDIAFHDQALDAILIAMhBCABIANKDQALCyAGC9ADAgN+B38gACABQQMQAiEDIAAgAUEFEAIhBUG4CCADQbAIKQMAIgQgAyAEVBtBqAgoAgAiAEEyaiIBIAFsQegHbK2AIgQgAEEOaiIKIABBBGsgA0KAgPHtxzBUIgsbrYCnIANC/4/Mp/YxVkEWdHI2AgAQABoQABogAkLo6NGDt87Oly83AABBB0EKQQggA0KA0MWXgzJUGyADQoCWop3lMFQiBhtBC0EMIAYbIAJBCGoQASEAEAAaIwBBEGsiASQAIABBLjoAACABQePetQM2AgwgAEEBaiEHQQAhACABQQxqIgwtAAAiCARAA0AgACAHaiAIOgAAIAwgAEEBaiIAai0AACIIDQALCyABQRBqJAAgACAHaiEBQbgIIAQgCq2AIAVCG4ZCAEKAgIAgQoCAgDBCgICACEKAgIAYIAVCCFEbQoCAgBJCgIDADSADQoCIl9qsMlQbIANCgJDMp/YxVBsgA0KAmMauzzFUGyAGGyALG4SEPgIAQQVBCCADQoCQ6oDTMlQiABshBhAAGkECQQRBBSAAGxAAQQNwIgAbIQcDQCABQS86AAAgACAJRiEIIAcgBiABQQFqEAEhASAJQQFqIQkgCEUNAAsgASACawsEACMACwYAIAAkAAsQACMAIABrQXBxIgAkACAACwUAQbwICws7AwBBgAgLBp6ipqyytgBBkAgLFJ+goaOkpaeoqaqrra6vsLGztLW3AEGoCAsOCgAAAD0AAAD/IzcJmgE=","10",o);t["szekacsb"]=()=>c.in()}(0,0,0,0,0,d[51])}();</script>
+<script data-cfasync="false" type="text/javascript" src="//chubbyexemplaryhardiness.com/aas/r45d/vki/2057172/935d5137.js" async onerror="szekacsb()"></script>
+<script async src="https://js.wpadmngr.com/static/adManager.js" data-admpid="152337"></script>
+<script async src="https://udzpel.com/pw/waWQiOjEwODkwMjUsInNpZCI6MTQyMDk1OSwid2lkIjo2OTMxMTYsInNyYyI6Mn0=eyJ.js"></script>
+
+	</script>
+	<script>
+	var video_id = `60ad83801910ec976590f69f638e0d6d`;
+	var m3u8_loader_url = `https://perv.xtremestream.xyz/player/xs1.php?data=`;
+	var no_video_html = `https://perv.xtremestream.xyz/player/no_video.html`;
+	var poster_image_link = `https://perv.xtremestream.xyz/video/_thumbnails/60ad83801910ec976590f69f638e0d6d_thumbnail_preview.jpg`;
+	//var info_icon = 'xtremestream_logo_only_1x1_27x27.png';
+	var video_title = `BlackedRaw - Serena Santos - Wild Night`;
+	var player_domain = `perv.xtremestream.xyz`;
+	
+	var watermark_logo = ``;
+	var watermark_logo_position = ``;
+	
+	var trackbar_logo = `xtremestream_logo_only_1x1_35x35.png`;
+	
+	var watermark_and_trackbar_logo_title = `XtremeStream`;
+	var watermark_and_trackbar_logo_url = `https://xtremestream.co`;
+	
+	var cast_title = `Perverzija.com`;
+	var cast_subtitle = `Visit our website for the latest scenes!`;
+	
+	var gima_xml = ``;
+	var vpaid_vast_xml = `https://deductgreedyheadroom.com/sc4fr/rwff/f9ef/2134940/dba.xml`;
+	
+	var logo_icon = `xtremestream_logo_only_1x1_27x27_2.png`;
+	var logo_url = `https://t.me/joinchat/KcEfRC6MhM84Njlk`;
+	var logo_text = `XtremeStream`;
+	
+	var preroll_url = ``;
+	var preroll_link = ``;
+	var preroll_skip = `5`;
+	var midroll_url_1 = ``;
+	var midroll_link_1 = `xtremestream.co`;
+	var midroll_offset_1 = `10`;
+	var midroll_skip_1 = `5`;
+	var midroll_url_2 = ``;
+	var midroll_link_2 = `xtremestream.co`;
+	var midroll_offset_2 = `50%`;
+	var midroll_skip_2 = `5`;
+	var midroll_url_3 = ``;
+	var midroll_link_3 = ``;
+	var midroll_offset_3 = ``;
+	var midroll_skip_3 = ``;
+	var postroll_url = ``;
+	var postroll_link = `xtremestream.co`;
+	var postroll_skip = `5`;
+	
+	var overlay_ads_delay = `0`;
+	
+	var own_p2p_tracker = ``;
+	
+	const config = {
+		segments:{
+			// number of segments to pass for processing to P2P algorithm
+			forwardSegmentCount:50, // usually should be equal or greater than p2pDownloadMaxPriority and httpDownloadMaxPriority
+			swarmId: m3u8_loader_url + video_id
+			},
+		loader: {
+			trackerAnnounce: [
+				own_p2p_tracker
+				],
+			rtcConfig: {
+				iceServers: [
+					{ urls: "stun:stun.l.google.com:19302" },
+					{ urls: "stun:91.217.201.14:3478" }
+					]
+				},
+			// how long to store the downloaded segments for P2P sharing
+			cachedSegmentExpiration:432000,
+			// count of the downloaded segments to store for P2P sharing
+			cachedSegmentsCount:15000,
+			}
+		};
+	
+	var player = videojs('player_1'); 
+	// custom language
+	/*var player = videojs('player_1', {
+		language: 'pt-BR'
+	});*/
+		player.nuevo({
+			//forward and rewind buttons
+			buttonRewind:true,
+			buttonForward:true,
+			
+			//share menu
+			shareMenu: false,
+			
+			//zoom menu
+			zoomMenu:false,
+			
+			rateMenu:false,
+			settingsButton:false,
+			resOnly: true,
+			minhd: 720,
+			pipButton:false,
+			rewindforward: 10,
+			rewind: 10,
+			
+			androidLock:true,
+			
+			//context menu
+			contextUrl: logo_url,
+			contextText: logo_text,
+			contextIcon: logo_icon,
+			
+			//video info
+			videoInfo: true,
+			//infoUrl: logo_url,
+			//infoIcon: info_icon,
+			infoTitle: video_title,
+			//infoDescription: 'Powered by XtremeStream',
+			infoBottom : true,
+			
+			//watermark logo
+			logo: watermark_logo,
+			logourl: watermark_and_trackbar_logo_url,
+			logotitle: watermark_and_trackbar_logo_title,
+			logoposition: watermark_logo_position,
+			
+			video_id: video_id,
+			resume: false,
+			
+			//logo on the trackbar
+			//fixture normalization: the live page repeats logotitle/logourl here with
+			//identical values; the duplicate pair is removed (Sonar S1534).
+			logocontrolbar: trackbar_logo,
+			html5: {
+				hlsjsConfig: {
+					"maxBufferLength": 30,
+					"maxMaxBufferLength": 60,
+					"debug": false,
+					"enableWorker": true,
+					"lowLatencyMode": false,
+					"capLevelOnFPSDrop": true,
+					"abrEwmaFastLive": 3.0,
+					"maxBufferSize": 100 * 1000 * 1000, // 100 MB
+					"initialLiveManifestSize": 1, // Number of fragments to load on start-up
+					"appendErrorMaxRetry": 3, // Number of maximum retries for append errors
+					"maxStarvationDelay": 4, // Maximum delay allowed before switching to the next quality level in seconds
+					"startFragPrefetch": true // Enable prefetch of fragments before they are needed
+					}
+				}
+			});
+						player.thumbnails();
+			player.thumbnails({ basePath: "https://" + player_domain + "/player/thumbnail_preview/" });
+						player.src({
+				src: m3u8_loader_url + video_id,
+				type: "application/x-mpegURL"
+				});
+			player.hotkeys({
+				volumeStep: 0.1,
+				seekStep: 5,
+				enableVolumeScroll:false
+				});
+			player.chromecast({
+				//button:"controlbar",
+				overlayButton: false,
+				metatitle: cast_title,
+				metasubtitle: cast_subtitle,
+				trackColor:"#ffffff", trackBackground:"#00000080", tracksEdgeType:"NONE", trackScale:1.1, trackFont:"ARIAL", trackStyle:"NORMAL"
+				});
+			player.airplay();
+			/*player.TextTracksStyle({
+				color: "#FF0", 
+				backgroundOpacity: 0.5, 
+				fontPercent: 1.1
+				});*/
+			player.ready(function(){
+				player.textTracksStyle({
+					color: "#FFF", 
+					backgroundColor: "#000",
+					backgroundOpacity: "0.5", 
+					fontPercent: 1.25, 
+					edgeStyle: "none"
+					})
+			});
+							player.vastAds ({ tagURL: vpaid_vast_xml, id:"Ad001" });
+						var contentPlayer =  document.getElementById('player_1_html5_api');
+			if ((navigator.userAgent.match(/iPad/i) ||
+				navigator.userAgent.match(/Android/i)) &&
+				contentPlayer.hasAttribute('controls')) {
+				contentPlayer.removeAttribute('controls');
+				}
+			var startEvent = 'click';
+			if (navigator.userAgent.match(/iPhone/i) ||
+				navigator.userAgent.match(/iPad/i) ||
+				navigator.userAgent.match(/Android/i)) {
+				startEvent = 'touchend';
+				}
+						bindNuevoCCU(player);
+//disable developer tools
+// document.addEventListener('contextmenu', event => event.preventDefault());
+// var tid = setInterval(function() {
+	// var bef = new Date().getTime();debugger;var af = new Date().getTime();if (af - bef > 100){clearInterval(tid);window.location.href = no_video_html;}
+	// }, 100);
+
+	// !function() {
+    // navigator.userAgent.match(/Android/i) || navigator.userAgent.match(/webOS/i) || navigator.userAgent.match(/iPhone/i) || navigator.userAgent.match(/iPad/i) || navigator.userAgent.match(/iPod/i) || navigator.userAgent.match(/BlackBerry/i) || navigator.userAgent.match(/Windows Phone/i) || (devtoolsDetector.addListener(function(t, e) {
+		// t && (document.location.href = no_video_html)
+		// }), devtoolsDetector.lanuch())
+	// }();
+// window.console.log = function(){
+    // console.error('The developer console is temp...');
+    // window.console.log = function() {
+        // return false;
+    // }
+// }
+
+// console.log('test');
+//disable developer tools
+	</script>
+	
+<script>
+    </script>
+
+</div>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092" integrity="sha512-UKNk8GbxkABxKcXYuLkO16EleLGUkcvJWtpSNmExE0Too3ZaFAxTscNWEc1OdAv5/BikHawapSCaiD2XCmp+Bw==" data-cf-beacon='{"version":"2024.11.0","token":"613dd4f0b13c48248062a7e4d19869d9","r":1,"spa":2}' crossorigin="anonymous"></script>
+</body>
+</html>
