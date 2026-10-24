@@ -1,7 +1,6 @@
 package com.allclassic
 
 import com.kraptor.JsonLdParse
-import com.kraptor.KvsFlashvars
 import com.kraptor.registerHostExtractors
 import com.lagradost.api.Log
 import org.jsoup.nodes.Element
@@ -111,12 +110,13 @@ class AllClassicPorn : MainAPI() {
         Log.d(tag, "data = $data")
         val html = app.get(data, referer = mainUrl).text
 
-        // Direct KVS flashvars: video_url + video_url_text pairs; skip ?login upsell "alt" urls.
-        // Shared grammar (audit finding 1). The caption flashvar is not on every live page:
-        // the video.js cfg player omits it, so parseQuality falls back to the URL filename
-        // token (issue #876, S2).
+        // One source-resolution path (issue #876, S3): the shared chain resolves legacy
+        // flashvars first, then the video.js cfg grammar; quality comes from the same
+        // chain (caption flashvar, else the resolved URL's filename token). Legacy-wins
+        // ordering keeps the historical fixtures resolving to the same URL, and the
+        // ?login upsell "alt" urls stay excluded — only the primary source is read.
         val quality = AllClassicPornParse.parseQuality(html)
-        val videoUrl = KvsFlashvars.field(html, "video_url") ?: return false
+        val videoUrl = AllClassicPornParse.parseVideoUrl(html) ?: return false
 
         callback(
             newExtractorLink(
