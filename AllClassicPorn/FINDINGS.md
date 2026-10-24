@@ -282,3 +282,24 @@ Spec: issue #637 (sub-issue of #631). No provider change — version stays 15.
   whole-card inner-text conflated rating/views/duration stats into the title).
 - Registry: `audits/findings.json` AllClassicPorn entry refreshed (`last_deep` 2026-10-16,
   verdict `ok`, tier `plain-curl`), one `last_runs` entry appended as run15 (no findings).
+
+## Epic #876 (2026-10-24) — stream-grammar drift: video.js `cfg` replaces the flashvars
+
+- **What changed (site-wide, `2026-10-16 → 2026-10-23`):** the inline KVS `flashvars` source is
+  gone. Every sampled page (owner's `/videos/205/…`, fresh `/page/1/` picks, `/search/milf/`,
+  `/90s/`, plus the historical 6161/2252/5887 fixture pages re-fetched live) now carries
+  `var cfg = { videoUrl: '…' }` and **zero** `video_url:` / `flashvars['video_url']` /
+  `video_url_text` entries. The old single-grammar read (`KvsFlashvars.field(html, "video_url")`)
+  therefore returned `null` → `loadLinks` returned `false` → "no Sources" (#876).
+- **Fix (S1–S3, merged):** `KvsFlashvars.source` chains legacy → cfg (`videoUrl`, camelCase,
+  `\b`-anchored so the sibling `posterUrl`/`timelineUrl`/`statsUrl`/`relatedUrl`/`embedUrl`/
+  `vastUrl` keys can never match); `parseQuality` falls back to the `_480p` filename token
+  because the cfg grammar ships no caption; `loadLinks` uses that one chain (v18).
+- **Delivery path unchanged:** `videoUrl` → `get_file/…` → **302** → `cdn*.allclassic.porn/
+  remote_control.php?…&acctoken=…` → **200/206 `video/mp4`** (ftyp/isom body), VPN-neutral.
+- **Verification:** 5/5 pages 200 + resolvable `videoUrl`, 5/5 streams 206 `video/mp4`,
+  search/home cards clean, title agreement passing with `h1[itemprop=name]` ↔
+  `div.th-description`, related 30/page clean. Only FAIL = the standing card
+  `320x240/N.jpg` vs `preview.jpg` poster artifact (audit #204 artifact 2).
+- Full evidence (transcripts, verbatim cfg wrapper, drift window, cross-provider regression):
+  root `FINDINGS-876.md`.

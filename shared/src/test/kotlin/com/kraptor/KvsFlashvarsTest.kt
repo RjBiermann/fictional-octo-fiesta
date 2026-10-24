@@ -68,8 +68,11 @@ class KvsFlashvarsTest {
      *  `cfg` object and there is no `videoUrlText` caption — quality has to come from the
      *  filename token. The URL is copied verbatim from the committed AllClassicPorn
      *  video-6161 fixture, including the `?v-acctoken=` query KVS appends after the
-     *  trailing slash; the `cfg` wrapper itself is still pending S4 (#1319) live capture.
-     *  Other `*Url` entries (poster/timeline) sit in the same block and must never be
+     *  trailing slash; the live `cfg` wrapper shape (sibling `posterUrl`/`timelineUrl`/
+     *  `statsUrl`/`relatedUrl`/`embedUrl`/`vastUrl` keys, no caption) is captured verbatim
+     *  in `FINDINGS-876.md` (S4, #1319) and on disk in AllClassicPorn's live
+     *  `video-205.html` fixture.
+     *  Other `*Url` entries (poster/timeline/vast) sit in the same block and must never be
      *  mistaken for the source. */
     private object Cfg {
         val url = "https://allclassic.porn/get_file/1/a27ec3614d24205b6a12d8dbd9427720/6000/6161/6161_480p.mp4/?v-acctoken=Njk4fDM0MjU2fDB8MjFiZTM3ZGFkNmFkYWQxNDk4ZDc3NjZiZGQxNmQ5YzEa993c2dd2a452692"
