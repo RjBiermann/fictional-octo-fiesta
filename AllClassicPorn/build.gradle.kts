@@ -1,4 +1,4 @@
-version = 17 // #778: shared xvideos registry row (fleet bump)
+version = 18 // #1318: loadLinks resolves via the chained parser (epic #876, S3)
 
 cloudstream {
     authors     = listOf("imperialbob")
