@@ -49,8 +49,22 @@ object AllClassicPornParse {
     fun parseTags(html: String): List<String> = listFromField(html, "video_tags")
     fun parseCategories(html: String): List<String> = listFromField(html, "video_categories")
 
-    /** Quality caption: both `video_url_text: 'x'` and `flashvars['video_url_text'] = 'x'` (issue #322, D2) — the shared grammar. */
-    fun parseQuality(html: String): String? = KvsFlashvars.field(html, "video_url_text")
+    /**
+     * Stream URL, multi-grammar (issue #876, S2): the legacy KVS flashvars form first
+     * (`video_url: '…'` / `flashvars['video_url'] = '…'`), then the video.js `cfg` entry
+     * (`videoUrl: '…'`) via the shared resolver. Legacy wins when a page carries both, so
+     * historical fixtures keep resolving to the same URL.
+     */
+    fun parseVideoUrl(html: String): String? = KvsFlashvars.source(html)
+
+    /**
+     * Quality caption: the legacy `video_url_text` flashvars in either grammar
+     * (issue #322, D2). When that caption is absent — the video.js `cfg` player ships
+     * none — derive it from the resolved URL's filename token (`…_480p.mp4` → `480p`)
+     * via the shared resolver. Null when neither source yields a label: never invent one.
+     */
+    fun parseQuality(html: String): String? =
+        KvsFlashvars.field(html, "video_url_text") ?: KvsFlashvars.quality(html)
 
     /** Home-page URL for a paginated row. Feed base `…/page/` 301s to root when bare, so page 1 uses canonical `…/page/1/` (issue #322, D1). */
     fun homePageUrl(base: String, page: Int): String = when {
