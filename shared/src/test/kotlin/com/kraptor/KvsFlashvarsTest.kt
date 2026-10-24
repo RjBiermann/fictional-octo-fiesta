@@ -64,16 +64,20 @@ class KvsFlashvarsTest {
 
     // ---- video.js cfg form (issue #1316, S1 of #876) --------------------------
 
-    /** AllClassicPorn video-205: the player moved off inline flashvars into a video.js
-     *  `cfg` object; the stream is the camelCase `videoUrl` entry. Other `*Url` entries
-     *  (poster/timeline) sit in the same block and must never be mistaken for the source. */
+    /** The #876 target shape: the stream is the camelCase `videoUrl` entry of a video.js
+     *  `cfg` object and there is no `videoUrlText` caption — quality has to come from the
+     *  filename token. The URL is copied verbatim from the committed AllClassicPorn
+     *  video-6161 fixture, including the `?v-acctoken=` query KVS appends after the
+     *  trailing slash; the `cfg` wrapper itself is still pending S4 (#1319) live capture.
+     *  Other `*Url` entries (poster/timeline) sit in the same block and must never be
+     *  mistaken for the source. */
     private object Cfg {
-        val url = "https://cdn3.allclassic.porn/get_file/1/9f8e/6000/205/205_480p.mp4"
+        val url = "https://allclassic.porn/get_file/1/a27ec3614d24205b6a12d8dbd9427720/6000/6161/6161_480p.mp4/?v-acctoken=Njk4fDM0MjU2fDB8MjFiZTM3ZGFkNmFkYWQxNDk4ZDc3NjZiZGQxNmQ5YzEa993c2dd2a452692"
         val shape = "var cfg = { videoUrl: '$url', " +
-            "posterUrl: '/contents/videos_screenshots/0/205/preview.jpg', " +
-            "timelineUrl: 'https://cdn3.allclassic.porn/timeline/205.vtt', skin: 'x' };"
+            "posterUrl: '/contents/videos_screenshots/0/6161/preview.jpg', " +
+            "timelineUrl: 'https://allclassic.porn/timeline/6161.vtt', skin: 'x' };"
         /** caption present, URL has no `_NNNp` filename token */
-        val captionShape = "var cfg = { videoUrl: 'https://cdn3.allclassic.porn/get_file/1/9f8e/6000/205/205', " +
+        val captionShape = "var cfg = { videoUrl: 'https://allclassic.porn/get_file/1/9f8e/6000/205/205', " +
             "videoUrlText: '720p HD' };"
     }
 
@@ -133,6 +137,16 @@ class KvsFlashvarsTest {
     @Test fun `quality derives from the url filename token`() {
         assertEquals("480p", KvsFlashvars.quality(Cfg.shape))
         assertEquals("1080p", KvsFlashvars.quality("video_url: 'https://h/get_file/28/hash_1080p'"))
+    }
+
+    /** Real KVS filenames put the token before a query token and a trailing slash
+     *  (`…/5887_480p.mp4/?v-acctoken=…`, AllClassicPorn video-5887/6161): the last
+     *  `?`-segment is not the filename, so the token must be read from the path. */
+    @Test fun `quality reads the filename token behind the kvs query token`() {
+        assertEquals("480p", KvsFlashvars.quality(
+            "video_url: 'https://allclassic.porn/get_file/1/f93f8dc4eda70a358a814f6d39fd4b3a/5000/5887/5887_480p.mp4/?v-acctoken=NDkyfDF8NjY1fGQ5YjE5YWE2OWNhYzE1MmFiNjdkZTZlNTgyZGRhY2E2c61c228d45d5f736'"))
+        assertEquals("1080p", KvsFlashvars.quality("video_url: 'https://h/get_file/28/hash_1080p?v-acctoken=abc'"))
+        assertEquals("480p", KvsFlashvars.quality("video_url: 'https://h/get_file/1/6161_480p.mp4#t=10'"))
     }
 
     @Test fun `quality falls back to the legacy caption`() {

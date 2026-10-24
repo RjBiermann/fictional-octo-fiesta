@@ -44,9 +44,16 @@ object KvsFlashvars {
      * (`…_480p.mp4` → "480p") when present, else the caption flashvar — legacy
      * `<key>_text`, then its cfg camelCase spelling. Null when neither is available —
      * never an invented quality.
+     *
+     * KVS appends a query token (`…/6161_480p.mp4/?v-acctoken=…`), so the token is read
+     * from the last path segment *after* `?`/`#` and any trailing slash are stripped
+     * (review on #1320) — otherwise the segment is the query string and the token misses.
      */
     fun quality(html: String, key: String = "video_url"): String? {
-        val fromName = source(html, key)?.substringAfterLast('/')?.let { FILE_QUALITY.find(it)?.groupValues?.get(1) }
+        val fromName = source(html, key)
+            ?.substringBefore('?')?.substringBefore('#')?.trimEnd('/')
+            ?.substringAfterLast('/')
+            ?.let { FILE_QUALITY.find(it)?.groupValues?.get(1) }
         return fromName?.plus("p") ?: label(html, key)
             ?: match(html, camelCase("${key}_text"), leadingBoundary = true)
     }
