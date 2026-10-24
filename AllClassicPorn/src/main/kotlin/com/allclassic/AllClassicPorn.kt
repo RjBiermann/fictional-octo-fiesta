@@ -112,8 +112,9 @@ class AllClassicPorn : MainAPI() {
         val html = app.get(data, referer = mainUrl).text
 
         // Direct KVS flashvars: video_url + video_url_text pairs; skip ?login upsell "alt" urls.
-        // Shared grammar (audit finding 1); caption uses the [X] = form on every live page,
-        // colon form kept as fallback (issue #322, D2).
+        // Shared grammar (audit finding 1). The caption flashvar is not on every live page:
+        // the video.js cfg player omits it, so parseQuality falls back to the URL filename
+        // token (issue #876, S2).
         val quality = AllClassicPornParse.parseQuality(html)
         val videoUrl = KvsFlashvars.field(html, "video_url") ?: return false
 

@@ -1,5 +1,6 @@
 package com.allclassic
 
+import com.kraptor.KvsFlashvars
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -13,6 +14,7 @@ class AllClassicPornParseTest {
     private val videoPage = javaClass.getResourceAsStream("/video-6161.html")!!.readBytes().decodeToString()
     private val searchPage = javaClass.getResourceAsStream("/search-milf.html")!!.readBytes().decodeToString()
     private val video2252 = javaClass.getResourceAsStream("/video-2252.html")!!.readBytes().decodeToString()
+    private val video205 = javaClass.getResourceAsStream("/video-205.html")!!.readBytes().decodeToString()
     private val loadTitle = AllClassicPornParse.parseTitle(videoPage)
 
     @Test fun `video page title includes year and matches card title from search fixture`() {
@@ -116,6 +118,37 @@ class AllClassicPornParseTest {
 
     @Test fun `null when no description source (issue #289)`() {
         assertNull(AllClassicPornParse.parsePlot("<html></html>"))
+    }
+
+    @Test fun `video url resolves the videojs cfg form on the 205 fixture (issue #876, S2)`() {
+        // video-205 carries the new player only: no legacy flashvars at all.
+        assertNull(KvsFlashvars.field(video205, "video_url"))
+        val url = AllClassicPornParse.parseVideoUrl(video205)
+        assertTrue("cfg videoUrl should resolve", url != null)
+        // assert the stable shape, not the volatile ?v-acctoken= token
+        val resolved = url!!
+        assertTrue(resolved.startsWith("https://allclassic.porn/get_file/"))
+        assertTrue("_480p.mp4" in resolved)
+    }
+
+    @Test fun `video url legacy fixtures parse exactly as the single-grammar field does`() {
+        assertEquals(KvsFlashvars.field(videoPage, "video_url"), AllClassicPornParse.parseVideoUrl(videoPage))
+        assertEquals(KvsFlashvars.field(video2252, "video_url"), AllClassicPornParse.parseVideoUrl(video2252))
+    }
+
+    @Test fun `video url prefers the legacy grammar when both forms are present`() {
+        val html = "video_url: 'https://h/legacy_480p.mp4', " +
+            "var cfg = { videoUrl: 'https://h/cfg_720p.mp4' };"
+        assertEquals("https://h/legacy_480p.mp4", AllClassicPornParse.parseVideoUrl(html))
+    }
+
+    @Test fun `video url null when neither grammar is present`() {
+        assertNull(AllClassicPornParse.parseVideoUrl("<html></html>"))
+    }
+
+    @Test fun `quality on the cfg-only fixture derives from the filename token (issue #876, S2)`() {
+        assertNull(KvsFlashvars.field(video205, "video_url_text"))
+        assertEquals("480p", AllClassicPornParse.parseQuality(video205))
     }
 
     @Test fun `quality caption matches the flashvars-bracket form (issue #322, fixture 2252)`() {
