@@ -1,0 +1,120 @@
+{
+  "id": "pr-787-cross-contamination",
+  "comment": [
+    "Recorded shape of the #787 leak (parent spec #796): PR #787 was dispatched",
+    "for story #767 (Porntrex S1 evidence) and ended up carrying story #771's",
+    "deliverable ('verify-provider: placeholder-safe plot handling (#771) (#792)',",
+    "commit 689ea1f17817) plus docs/skill edits that belong to other stories.",
+    "The story numbers, branch names and file paths below are the real ones from",
+    "that PR's commit list, so the sim reproduces the recorded evidence rather",
+    "than an invented scenario."
+  ],
+  "evidence": {
+    "parent_spec": 796,
+    "story_spec": 894,
+    "pr": 787,
+    "branch": "devloop/issue-767-990545cc1e98c605",
+    "leak_commit_sha12": "689ea1f17817",
+    "leak_commit_headline": "verify-provider: placeholder-safe plot handling (#771) (#792)"
+  },
+  "stories": {
+    "A": {
+      "issue": 767,
+      "title": "[impl] Porntrex quality mapping — S1: pinned-API + live evidence note",
+      "branch": "devloop/issue-767-990545cc1e98c605",
+      "pr": 787,
+      "deliverables": [
+        "Porntrex/src/main/kotlin/com/byayzen/Porntrex.kt",
+        "Porntrex/src/test/kotlin/com/byayzen/PorntrexParseTest.kt",
+        "Porntrex/src/test/resources/porntrex_quality_labels.txt",
+        "FINDINGS-767.md"
+      ]
+    },
+    "B": {
+      "issue": 771,
+      "title": "verify-provider: placeholder-safe plot handling (#664 story 2)",
+      "branch": "devloop/issue-771-5a1c0f7e2b3d9a64",
+      "pr": 792,
+      "deliverables": [
+        ".pi/skills/verify-provider/scripts/verify.sh",
+        ".pi/skills/verify-provider/scripts/verify_selfcheck.sh",
+        ".pi/skills/verify-provider/SKILL.md",
+        "FINDINGS-771.md"
+      ]
+    }
+  },
+  "cases": [
+    {
+      "name": "cross-pr-rewrite",
+      "story": "A",
+      "what": "aw_context was rewritten to story A while the furnished PR/branch is story B's — a repair for A would push into B's PR (root cause candidate 3 in #796).",
+      "aw_context": {"item_type": "issue", "item_number": 767},
+      "target_pr": 792,
+      "target_branch": "devloop/issue-771-5a1c0f7e2b3d9a64",
+      "pr_closing_issues": [771],
+      "furnished_findings": "B",
+      "changed_paths": [
+        ".pi/skills/verify-provider/scripts/verify.sh",
+        ".pi/skills/verify-provider/scripts/verify_selfcheck.sh"
+      ],
+      "expect_baseline": "leak",
+      "expect_guarded": "abort"
+    },
+    {
+      "name": "sibling-findings-same-branch",
+      "story": "A",
+      "what": "branch/PR identity is A's, but story B's findings and deliverable sit in the worktree (the recorded #787 third commit). The identity guard alone cannot catch this — the merge-scope rule must drop the sibling deliverable and never import its notes.",
+      "aw_context": {"item_type": "issue", "item_number": 767},
+      "target_pr": 787,
+      "target_branch": "devloop/issue-767-990545cc1e98c605",
+      "pr_closing_issues": [767],
+      "furnished_findings": "B",
+      "changed_paths": [
+        "Porntrex/src/main/kotlin/com/byayzen/Porntrex.kt",
+        "FINDINGS-767.md",
+        ".pi/skills/verify-provider/scripts/verify.sh",
+        ".pi/skills/verify-provider/scripts/verify_selfcheck.sh"
+      ],
+      "agent_state_merge": {
+        "path": "FINDINGS-767.md",
+        "lines": [
+          {"story": "A", "text": "- S1 quality mapping: every compound label maps to Unknown(400); S2 mapping table decided."},
+          {"story": "B", "text": "- S2 rule (imported from #771/#792): inline the bare-NNNp/4k grammar in the mapping function."}
+        ]
+      },
+      "expect_baseline": "leak",
+      "expect_guarded": "clean"
+    },
+    {
+      "name": "branch-without-issue-segment",
+      "story": "A",
+      "what": "the target branch carries no devloop/issue-<n>- segment, so the primary assertion cannot hold — the guard must fail closed.",
+      "aw_context": {"item_type": "issue", "item_number": 767},
+      "target_pr": 787,
+      "target_branch": "feature/quality-mapping",
+      "pr_closing_issues": [767],
+      "furnished_findings": "A",
+      "changed_paths": [
+        "Porntrex/src/main/kotlin/com/byayzen/Porntrex.kt"
+      ],
+      "expect_baseline": "leak",
+      "expect_guarded": "abort"
+    },
+    {
+      "name": "clean-story-scope",
+      "story": "A",
+      "what": "happy path: identity matches and only A's own deliverables are staged — the guard must not block a legitimate push.",
+      "aw_context": {"item_type": "issue", "item_number": 767},
+      "target_pr": 787,
+      "target_branch": "devloop/issue-767-990545cc1e98c605",
+      "pr_closing_issues": [767],
+      "furnished_findings": "A",
+      "changed_paths": [
+        "Porntrex/src/test/resources/porntrex_quality_labels.txt",
+        "FINDINGS-767.md"
+      ],
+      "expect_baseline": "clean",
+      "expect_guarded": "clean"
+    }
+  ]
+}
