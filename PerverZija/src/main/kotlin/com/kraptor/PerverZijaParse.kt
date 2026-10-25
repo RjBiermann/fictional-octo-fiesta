@@ -34,6 +34,44 @@ object PerverZijaParse {
     fun posterOf(item: Element): String? =
         item.selectFirst("a img")?.attr("src")?.takeIf { it.isNotEmpty() }
 
+    // ---- CDN roster selection (issue #1328/S2) ------------------------------
+    // The decoded manifest's `cdn` list is a redundancy pool, not a preference order:
+    // FINDINGS-1328 §1 fetched segment 0 of every quality from all 45 reported hosts
+    // (two families, `pervl3.xspcdnNN` / `pervl3.xscasacdnNN`) and every response was
+    // byte-identical. Building every segment URL from `cdn[0]` therefore let one
+    // blocked or unresolvable host kill every quality of the video at once. Selection
+    // is pure and bounded in shared `XsftkParse`; these delegates are the provider-side
+    // facade the #1328 tests reach (same pattern as the #845/#846 delegates above).
+
+    fun cdnHosts(json: String) = XsftkParse.cdnHosts(json)
+
+    fun cdnFamily(host: String) = XsftkParse.cdnFamily(host)
+
+    fun cdnCandidateOrder(hosts: List<String>) = XsftkParse.cdnCandidateOrder(hosts)
+
+    fun pickCdn(
+        ordered: List<String>,
+        maxProbes: Int = XsftkParse.MAX_PROBES,
+        probe: (String) -> Boolean
+    ) = XsftkParse.pickCdn(ordered, maxProbes, probe)
+
+    fun altCdnHost(
+        ordered: List<String>,
+        primaryFamily: String,
+        primaryHost: String,
+        maxProbes: Int = XsftkParse.MAX_ALT_PROBES,
+        probe: (String) -> Boolean
+    ) = XsftkParse.altCdnHost(ordered, primaryFamily, primaryHost, maxProbes, probe)
+
+    fun cdnSources(
+        json: String,
+        boot: XsftkParse.Boot,
+        playerUrl: String,
+        maxProbes: Int = XsftkParse.MAX_PROBES,
+        maxAltProbes: Int = XsftkParse.MAX_ALT_PROBES,
+        probe: (host: String, quality: String) -> Boolean
+    ) = XsftkParse.cdnSources(json, boot, playerUrl, maxProbes, maxAltProbes, null, probe)
+
     // ---- XSFTK signed-token layer (issue #846 probe, #840) -------------------
     // Issue #845: the implementation moved into shared XsftkParse.kt — the root-cause
     // adapter (shared PerverZijaExtractor) builds the synthesized playlists with the

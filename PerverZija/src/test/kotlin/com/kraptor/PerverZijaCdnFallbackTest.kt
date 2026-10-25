@@ -141,7 +141,7 @@ class PerverZijaCdnFallbackTest {
         val json = reportedManifest()
         val chosen = "pervl3.xscasacdn07.click"
 
-        val playlist = PerverZijaParse.variantPlaylist(json, reportedBoot, reportedPlayerUrl, "720", chosen)!!
+        val playlist = XsftkParse.variantPlaylist(json, reportedBoot, reportedPlayerUrl, "720", chosen)!!
         val segments = playlist.lineSequence().filter { it.contains("/cdn/down/") }.toList()
         assertEquals(76, segments.size)
         assertTrue(
@@ -149,9 +149,9 @@ class PerverZijaCdnFallbackTest {
             segments.all { it.startsWith("https://$chosen/cdn/down/$reportedId/720_enc/720") }
         )
         assertFalse(playlist.contains("xspcdn"))
-        assertEquals(777, playlist.lineSequence().count { it.startsWith("#EXTINF:") })
+        assertEquals(76, playlist.lineSequence().count { it.startsWith("#EXTINF:") })
 
-        val sources = PerverZijaParse.playableSources(json, reportedBoot, reportedPlayerUrl, chosen)
+        val sources = XsftkParse.playableSources(json, reportedBoot, reportedPlayerUrl, chosen)
         assertEquals(listOf("1080", "720", "480"), sources.map { it.label })
         assertTrue(sources.all { it.playlist.contains("https://$chosen/cdn/down/") })
     }
