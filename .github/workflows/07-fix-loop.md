@@ -71,6 +71,30 @@ safe-outputs:
 The fixer session — separate prompt, separate budget, separate judgment
 from the reviewer (ADR-0001: review finds, repair acts).
 
+## Rule 0 — pre-push identity guard (identical text in 07-fix-loop and 14-rebase)
+
+The push is this lane's only irreversible act, so it never rides on a guess
+about whose branch it targets. Before ANY `push-to-pull-request-branch` call
+in this run, derive the expected identity from your own context and assert it:
+
+- **Derive.** `N` = this run's `aw_context.item_number` (the issue the relay
+  dispatched for; on an event trigger, the number in the PR's closing-issue
+  link). `PR` = the PR whose branch you are about to push. `BR` = that PR's
+  head branch.
+- **Assert (primary — must hold).** `BR` starts with `devloop/issue-<N>-`: the
+  fixed issue segment `<N>` must equal the aw_context item exactly. A branch
+  naming a different issue, or carrying no issue segment at all, FAILS.
+- **Assert (secondary — confirms).** `gh pr view <PR> --json
+  closingIssuesReferences` lists `<N>` — the PR and this run resolve to the
+  same spec issue.
+- **On mismatch: NO push call is made.** Post exactly one `add_comment` on
+  issue `<N>` — the owner issue, never the PR — carrying the mismatch
+  evidence: this run's URL, `aw_context` item `<N>`, the target PR `<PR>`, the
+  target branch `<BR>`, and which assertion failed. Then stop loudly. That
+  stamp is the only artifact: no state-label churn, no second target, no retry
+  of the push. A bad-context run must be cheap to retry and trivial to audit —
+  this abort stamp is what makes it both.
+
 1. Re-derive findings from the current review comments + diff; a PR with
    a stale/empty diff aborts loudly (never pass on unverifiable state).
 2. If this would be cycle 4 or later (count work-attempt stamps on the
