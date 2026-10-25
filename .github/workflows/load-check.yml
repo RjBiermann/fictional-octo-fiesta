@@ -31,6 +31,21 @@ permissions:
   actions: write
 
 jobs:
+  # Story C of the #787 leak class (parent #796, spec #894): the guard that
+  # stops one story's repair from carrying another story's deliverables is
+  # prompt text, so it needs a mechanical assertion. Static prompt check on
+  # Rule 0 (07-fix-loop + 14-rebase) plus the scripted dispatch sim in
+  # .github/sims/. Zero AI, stdlib Python, no network — a load-check
+  # extension, not part of the emulator lane.
+  pipeline-sims:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Cross-contamination sim + prompt assertion (#894, parent #796)
+        run: python3 .github/sims/cross_contamination_sim.py -v
+
   compile:
     runs-on: ubuntu-latest
     steps:
