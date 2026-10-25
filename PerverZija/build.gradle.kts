@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 20 // #909 live verification: href-distinct related cards (4/24 pages repeat one)
+version = 21 // #1334: version bump
 
 cloudstream {
     authors     = listOf("kraptor")

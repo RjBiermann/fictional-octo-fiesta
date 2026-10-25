@@ -1,0 +1,222 @@
+name: Version bump
+
+# PR-time provider version bumps (issue #921, epic #910).
+#
+# A provider's `version` in build.gradle.kts stops being a manual edit: every PR that
+# changes a provider (or `shared/src/main/**` / the root Gradle inputs, which splice into
+# all of them — ADR-0002) gets its affected providers' integer `version` incremented and
+# committed onto the PR's own branch.
+#
+# This workflow is a writer and nothing else: it never merges, never approves, never
+# labels. Fork PRs are out of scope — there is no branch in this repository to push to.
+#
+# Why the machinery App token: a GITHUB_TOKEN push creates no workflow runs, so the bump
+# commit would carry no checks and the PR would sit BLOCKED on its now-stale required
+# status checks. The App-authenticated push re-triggers CI on the new head — which is why
+# the loop guard (commit marker + note scan) must hold against an App push too, not just
+# against GITHUB_TOKEN's no-retrigger behaviour.
+#
+# Token hygiene: no App credential exists while the script steps run — the mint is the
+# second-to-last step, after classification and bumping. It is scoped to `contents: write`
+# (the push) and handed only to the push step; checkout never persists a credential.
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+# Serial per PR, never cancel-in-progress: a run cancelled mid-push loses the bump
+# commit it just made, and two runs racing the same branch is how a real bump is lost.
+concurrency:
+  group: version-bump-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write        # push the bump commit back to the PR branch
+  pull-requests: read
+
+jobs:
+  bump:
+    # Fork PRs are out of scope (spec boundary): the head branch lives in another
+    # repository, so there is nothing here this workflow may push a bump to.
+    # Dependabot PRs pass the same-repo test but run with a read-only GITHUB_TOKEN and
+    # no secrets, so they can neither mint the App token nor push; skipping them keeps
+    # "Version bump" from being permanently red on every weekly Gradle update.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v7
+        with:
+          # The event's SHA, not the branch ref: classification diffs base...head, so the
+          # tree being bumped must be the same commit the changed-file set describes. A
+          # force-push between delivery and checkout then fails the push instead of
+          # bumping a tree this run never classified.
+          ref: ${{ github.event.pull_request.head.sha }}
+          # The classifier diffs base..head, so the base commit must be readable
+          # locally; a shallow clone would turn the classification into a guess.
+          fetch-depth: 0
+          token: ${{ github.token }}
+          # Never persist a token into .git/config: later steps run PR-branch scripts.
+          persist-credentials: false
+
+      # Loop guard, part 1 of 2 (see the bump step for the marker scan).
+      - name: Loop guard
+        id: guard
+        run: |
+          # GITHUB_TOKEN pushes do not start workflow runs, but a machinery-App
+          # authenticated push does — so the guard cannot lean on GitHub's token
+          # semantics. The subject marker alone is prose anyone can write, so bind it
+          # to our own bump commit: the Actions bot author, a non-empty commit, and a
+          # file set that is only provider build files.
+          subject=$(git log -1 --format=%s)
+          author=$(git log -1 --format=%ae)
+          files=$(git show --pretty=format: --name-only HEAD)
+          unexpected=''
+          if [[ -n $files ]]; then
+            unexpected=$(printf '%s\n' "$files" | grep -vE '^[^/]+/build\.gradle\.kts$' || true)
+          fi
+          if [[ $subject == *'[skip version-bump]'* ]] \
+             && [[ $author == '41898282+github-actions[bot]@users.noreply.github.com' ]] \
+             && [[ -n $files ]] \
+             && [[ -z $unexpected ]]; then
+            echo "bump=false" >> "$GITHUB_OUTPUT"
+            echo "version-bump: head commit is a bump commit — nothing to do"
+            exit 0
+          fi
+          echo "bump=true" >> "$GITHUB_OUTPUT"
+
+      - name: Classify affected providers
+        id: affected
+        if: steps.guard.outputs.bump == 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # One classification contract, shared with the build gate (#919):
+          # none | <Provider> lines | ALL, where ALL means every provider because a
+          # shared/** or root Gradle change reaches all of them (ADR-0002).
+          # Three-dot: classify the PR's own changes (merge-base..head), never the
+          # main-side commits the branch happens to be behind — a two-dot diff would
+          # report those as changes and bump providers this PR never touched.
+          if [[ ! -f scripts/affected-set.sh ]]; then
+            # A branch cut before the classifier landed carries no affected-set.sh. No
+            # classification → no write (fail closed): warn and skip instead of red-ing
+            # every old branch or guessing ALL (26 spurious bumps).
+            echo "::warning::scripts/affected-set.sh absent on this branch — skipping the bump"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          classify_args=(--diff "$BASE_SHA...$HEAD_SHA")
+          # shared/src/test/** cannot reach a .cs3: ask newer classifiers to ignore it so
+          # a test-only PR does not bump every provider. Older branch copies have no such
+          # flag; they still classify (build-gate semantics) and bump as before.
+          if grep -q -- '--ignore-shared-tests' scripts/affected-set.sh; then
+            classify_args=(--ignore-shared-tests "${classify_args[@]}")
+          fi
+          if ! classified=$(bash scripts/affected-set.sh "${classify_args[@]}"); then
+            # An unclassifiable PR writes nothing (fail closed). Falling back to ALL
+            # would bump all 26 providers for a change we could not attribute.
+            echo "::error::affected-set.sh could not classify $BASE_SHA...$HEAD_SHA"
+            exit 1
+          fi
+          echo "version-bump: affected set [$(printf '%s' "$classified" | tr '\n' ' ')]"
+          echo "run=true" >> "$GITHUB_OUTPUT"
+          {
+            echo "set<<AFFECTED_SET_EOF"
+            printf '%s\n' "$classified"
+            echo "AFFECTED_SET_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Bump affected providers
+        id: bump
+        if: steps.guard.outputs.bump == 'true' && steps.affected.outputs.run == 'true'
+        env:
+          AFFECTED: ${{ steps.affected.outputs.set }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # The bumper is newer than the classifier, so a branch cut between the two
+          # carries no bumper: fail closed (warn + skip) instead of exiting 127 and
+          # red-ing an otherwise fine PR.
+          if [[ ! -f scripts/bump-provider-versions.sh ]]; then
+            echo "::warning::scripts/bump-provider-versions.sh absent on this branch — skipping the bump"
+            echo "bumped=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The note is the repo's existing `// #<issue>: <what changed>` style, and it
+          # doubles as the bump marker. --base-revision makes the *target branch's*
+          # committed version the floor, so two PRs that both start from N publish N+1
+          # and N+2 rather than colliding on N+1, and a base that overtook this branch
+          # forces a fresh increment instead of a silent no-op.
+          note="#${PR_NUMBER}: version bump"
+          changed=$(printf '%s\n' "$AFFECTED" \
+            | bash scripts/bump-provider-versions.sh --note "$note" --base-revision "$BASE_SHA")
+          if [[ -z $changed ]]; then
+            # `none` — a PR touching only docs, scripts, audits or non-build workflows
+            # — and a branch already ahead of its base both land here: no commit.
+            echo "bumped=false" >> "$GITHUB_OUTPUT"
+            echo "version-bump: no provider version to move — no commit"
+            exit 0
+          fi
+          echo "bumped=true" >> "$GITHUB_OUTPUT"
+          printf 'version-bump: bumped\n%s\n' "$changed"
+
+      # ADR-0020: the App is optional. Unset (App unregistered) falls through to
+      # GITHUB_TOKEN, which still pushes — only the CI re-trigger on the bump commit is
+      # lost, and the PR then needs a rebase/human nudge before its checks are current.
+      # A half-configured App (client id set, key missing) degrades the same way instead
+      # of failing the mint step on every PR. Minted only when a bump commit is actually
+      # needed, i.e. after all PR-branch code has already run without a credential.
+      - name: Mint machinery App token
+        id: app
+        env:
+          GH_AW_IGNORE_IF_MISSING_PRIVATE_KEY: ${{ secrets.MACHINERY_APP_KEY }}
+        if: >-
+          steps.bump.outputs.bumped == 'true' &&
+          vars.MACHINERY_APP_CLIENT_ID != '' &&
+          env.GH_AW_IGNORE_IF_MISSING_PRIVATE_KEY != ''
+        uses: actions/create-github-app-token@v3.3.0
+        with:
+          client-id: ${{ vars.MACHINERY_APP_CLIENT_ID }}
+          private-key: ${{ secrets.MACHINERY_APP_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          # This workflow only pushes a commit. Narrowing the token here is what keeps a
+          # branch that rewrites the invoked scripts from reaching issues, PRs or
+          # workflows under the machinery App's identity.
+          permission-contents: write
+
+      - name: Commit and push the bump
+        if: steps.bump.outputs.bumped == 'true'
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          # This step is the only place the App token is exposed: no earlier step (which
+          # runs PR-branch code) can read it, and checkout did not persist it.
+          PUSH_TOKEN: ${{ steps.app.outputs.token || github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -u
+          staged=$(git diff --cached --name-only)
+          if [[ -z $staged ]]; then
+            echo "version-bump: nothing staged — no commit"
+            exit 0
+          fi
+          # The bump commit must carry provider build files and nothing else: any other
+          # staged path means this workflow touched something it never should.
+          unexpected=$(printf '%s\n' "$staged" | grep -vE '^[^/]+/build\.gradle\.kts$' || true)
+          if [[ -n $unexpected ]]; then
+            echo "::error::refusing to commit unexpected paths"
+            printf '%s\n' "$unexpected"
+            exit 1
+          fi
+
+          git commit -m "chore(version): bump affected providers (#${PR_NUMBER}) [skip version-bump]"
+          # Same-repo PR branch only (the job-level `if` already excluded forks). The
+          # credential rides in this one command, never in .git/config.
+          git push "https://x-access-token:${PUSH_TOKEN}@github.com/${REPO}.git" \
+            "HEAD:refs/heads/${HEAD_REF}"

@@ -1,5 +1,5 @@
 // ! This Extension Made By @ByAyzen for GizliKeyif
-version = 20 // #778: shared xvideos registry row (fleet bump)
+version = 21 // #1334: version bump
 
 cloudstream {
     authors     = listOf("ByAyzen")

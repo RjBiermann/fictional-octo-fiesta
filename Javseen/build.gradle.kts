@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 22 // #778: shared xvideos registry row (fleet bump)
+version = 23 // #1334: version bump
 
 cloudstream {
     authors     = listOf("byayzen")
