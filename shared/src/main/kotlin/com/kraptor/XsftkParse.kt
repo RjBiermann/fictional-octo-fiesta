@@ -213,6 +213,52 @@ object XsftkParse {
      *  still reaches the app instead of being dropped. */
     data class QualitySource(val label: String, val playlist: String)
 
+    /** One manifest quality and the outcome of trying to build its playlist (#1328/S1):
+     *  `playlist` is null when the quality is skipped, and `reason` then names why
+     *  (`missing n`, `missing durs`, `unbuildable`). `cdnHost`/`segmentCount` are the
+     *  values that reach the synthesized playlist, for the adapter's log line. */
+    data class QualityPlan(
+        val label: String,
+        val playlist: String?,
+        val reason: String?,
+        val cdnHost: String?,
+        val segmentCount: Int
+    )
+
+    /** Every quality with its build outcome, highest first. This is the diagnostics
+     *  view of the same decision [variantPlaylist] makes; [playableSources] derives
+     *  from it, so there is still one selection path and emitted playlists stay
+     *  byte-identical. An unparseable manifest yields none. */
+    fun qualityPlans(
+        json: String,
+        boot: Boot,
+        playerUrl: String,
+        cdnHost: String? = null
+    ): List<QualityPlan> {
+        val root = try {
+            mapper.readTree(json)
+        } catch (e: Exception) {
+            return emptyList()
+        }
+        val cdn = cdnHost ?: root.get("cdn")?.get(0)?.asText()
+        return qualities(json).map { q ->
+            val node = root.get(q)
+            val n = node?.get("n")?.asInt()
+            val durs = node?.get("durs")
+            when {
+                node == null -> QualityPlan(q, null, "unbuildable", cdn, 0)
+                n == null -> QualityPlan(q, null, "missing n", cdn, 0)
+                durs == null -> QualityPlan(q, null, "missing durs", cdn, 0)
+                cdn == null -> QualityPlan(q, null, "unbuildable", null, 0)
+                else -> {
+                    val segs = minOf(n, durs.size()).coerceAtLeast(0)
+                    val playlist = variantPlaylist(json, boot, playerUrl, q, cdn)
+                    QualityPlan(q, playlist, if (playlist == null) "unbuildable" else null, cdn, segs)
+                }
+            }
+        }
+    }
+
     /** Every quality the manifest can actually build, highest first. A malformed
      *  quality entry is skipped instead of zeroing the source list (the "only one
      *  source, no qualities" class); an unparseable manifest yields none. */
@@ -221,8 +267,8 @@ object XsftkParse {
         boot: Boot,
         playerUrl: String,
         cdnHost: String? = null
-    ): List<QualitySource> = qualities(json).mapNotNull { q ->
-        variantPlaylist(json, boot, playerUrl, q, cdnHost)?.let { QualitySource(q, it) }
+    ): List<QualitySource> = qualityPlans(json, boot, playerUrl, cdnHost).mapNotNull { plan ->
+        plan.playlist?.let { QualitySource(plan.label, it) }
     }
 
     /** Base64 (RFC 4648, padded, no line breaks). android.util.Base64 first (API 1+),

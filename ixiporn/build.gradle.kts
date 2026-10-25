@@ -1,4 +1,4 @@
-version = 30 // #1334: version bump
+version = 31 // #1342: version bump (v31)
 
 cloudstream {
     authors     = listOf("Phisher98")

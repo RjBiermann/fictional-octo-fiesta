@@ -131,6 +131,10 @@ class Javhdz2 : Javhdz() {
 }
 
 open class PerverZijaExtractor : ExtractorApi() {
+    private companion object {
+        const val TAG = "kraptor_PerverZijaExtract"
+    }
+
     override var name = "PerverZija"
     // player iframe subdomain varies per video (pervlN/pervmN/j2/perv...); referer must be the player domain
     override var mainUrl = "https://pervl2.xtremestream.xyz"
@@ -142,7 +146,7 @@ open class PerverZijaExtractor : ExtractorApi() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
-        Log.d("kraptor_PerverZijaExtract", "url = $url")
+        Log.d(TAG, "url = $url")
 
         val ref = referer ?: url.substringBefore("/player/") + "/"
         val playerHtml = try {
@@ -150,7 +154,7 @@ open class PerverZijaExtractor : ExtractorApi() {
         } catch (e: Exception) {
             // An unreachable player page cannot be classified; emitting the tokenless
             // master here would be the decoy on a gated video (FINDINGS-906).
-            Log.d(name, "player: ${e.message}")
+            Log.d(TAG, "stage=player failed: ${e.message}")
             return
         }
 
@@ -171,7 +175,7 @@ open class PerverZijaExtractor : ExtractorApi() {
             })
 
             XsftkParse.PlayerPlan.FailClosed ->
-                Log.d(name, "gated player without boot call: decoy suppressed, no source")
+                Log.d(TAG, "stage=player failed: gated player without boot call (decoy suppressed, no source)")
 
             is XsftkParse.PlayerPlan.Xsftk -> emitXsftk(url, ref, plan.boot, callback)
         }
@@ -196,27 +200,47 @@ open class PerverZijaExtractor : ExtractorApi() {
                 boot
             )
         } catch (e: Exception) {
-            Log.d(name, "manifest: ${e.message}")
-            null
+            Log.d(TAG, "stage=manifest failed: ${e.message}")
+            return
         }
         if (json == null) {
-            Log.d(name, "manifest decode failed for ${boot.id}")
+            Log.d(TAG, "stage=manifest failed: decode failed for ${boot.id}")
             return
         }
 
         // playableSources skips an entry the manifest cannot render but keeps every
         // other quality (#908), so a partially-malformed manifest still yields sources.
-        for (source in XsftkParse.playableSources(json, boot, url)) {
+        // qualityPlans is the same decision with the skip reason and CDN host attached
+        // (#1328/S1) — a device logcat then names the failing layer instead of just
+        // "doesn't play". No per-segment logging: this runs once per extraction.
+        val keyHost = url.substringAfter("://", url).substringBefore('/')
+        val plans = XsftkParse.qualityPlans(json, boot, url)
+        var emitted = 0
+        for (plan in plans) {
+            val playlist = plan.playlist
+            if (playlist == null) {
+                Log.d(TAG, "skip q=${plan.label} reason=${plan.reason ?: "unbuildable"}")
+                continue
+            }
             callback.invoke(newExtractorLink(
                 source = name,
                 name = name,
-                url = XsftkParse.dataUri(source.playlist),
+                url = XsftkParse.dataUri(playlist),
                 type = ExtractorLinkType.M3U8
             ) {
                 this.referer = ref
                 this.headers = mapOf("X-XS-P" to "1")
-                this.quality = source.label.toIntOrNull() ?: Qualities.Unknown.value
+                this.quality = plan.label.toIntOrNull() ?: Qualities.Unknown.value
             })
+            emitted++
+            Log.d(
+                TAG,
+                "source q=${plan.label} cdn=${plan.cdnHost} key=$keyHost " +
+                    "segs=${plan.segmentCount} bytes=${playlist.toByteArray(Charsets.UTF_8).size}"
+            )
+        }
+        if (emitted == 0) {
+            Log.d(TAG, "stage=playlist failed: no buildable quality (qualities=${plans.size})")
         }
     }
 }
