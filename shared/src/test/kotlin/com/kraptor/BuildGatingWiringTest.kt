@@ -57,7 +57,15 @@ class BuildGatingWiringTest {
             classify.has("|| classified=ALL"),
         )
         // No pushed range (dispatch, new branch, zero SHA) is a forced full build too.
-        assertTrue("a dispatch/zero-SHA push must force a full build", classify.has("mode=full"))
+        // `mode=full` alone is already satisfied by the ALL arm above, so pin the branch
+        // itself: its event/SHA test and the log line only that branch prints.
+        assertTrue(
+            "a dispatch/zero-SHA push must force a full build",
+            classify.has("\"\$EVENT_NAME\" != \"push\"") &&
+                classify.has("-z \"\$BEFORE\"") &&
+                classify.has("\"\$BEFORE\" =~ ^0+\$") &&
+                classify.has("no pushed range to classify"),
+        )
     }
 
     @Test
@@ -85,8 +93,8 @@ class BuildGatingWiringTest {
         assertTrue("full mode keeps the whole-fleet build", build.has("./gradlew test make makePluginsJson"))
         assertTrue("subset mode builds per affected provider", build.has(":test") && build.has(":make"))
         assertTrue(
-            "the registry must be regenerated on every non-none run",
-            build.has("makePluginsJson"),
+            "the registry must be regenerated on every non-none run — including the subset arm",
+            build.has("./gradlew \"\${tasks[@]}\" makePluginsJson"),
         )
         assertTrue(
             "only the rebuilt providers may be republished",
@@ -100,7 +108,7 @@ class BuildGatingWiringTest {
         assertTrue("full mode still wipes the builds branch", clean.has("rm -f ./*.cs3"))
         assertTrue(
             "subset mode must decide per artifact, by whether the provider still has a build file",
-            clean.has("build.gradle.kts") && clean.has("rm -f"),
+            clean.has("[[ -f \"\$GITHUB_WORKSPACE/src/\$name/build.gradle.kts\" ]] || rm -f \"\$cs3\""),
         )
     }
 
@@ -130,7 +138,7 @@ class BuildGatingWiringTest {
         assertTrue("three-dot diff: only the PR's own changes may bump providers", classify.has("..."))
         assertTrue(
             "a test-only shared change must not bump all 26 providers",
-            classify.has("--ignore-shared-tests"),
+            classify.has("classify_args=(--ignore-shared-tests \"\${classify_args[@]}\")"),
         )
         assertTrue("an unclassifiable PR writes nothing", classify.has("if ! classified="))
     }
@@ -157,8 +165,21 @@ class BuildGatingWiringTest {
     }
 
     @Test
-    fun `version bump stays a writer only`() {
-        assertTrue("the bump leaves exactly one provider's version moved", bumpText.contains("build.gradle.kts"))
+    fun `version bump pipes the affected set into the bumper and stays a writer only`() {
+        // The bump step is where #1334's two regressions lived (26 spurious bumps and a
+        // version collision): pin that the affected set actually reaches the bumper with
+        // both fixes, not just that some token exists somewhere in the file.
+        val bump = bumpSteps.named("Bump affected providers")
+        assertTrue(
+            "the affected set must be piped into the bumper",
+            bump.has("printf '%s\\n' \"\$AFFECTED\"") &&
+                bump.has("| bash scripts/bump-provider-versions.sh"),
+        )
+        assertTrue("the bump note must be passed through", bump.has("--note \"\$note\""))
+        assertTrue(
+            "the bump must use the target branch's version as its floor (#1334)",
+            bump.has("--base-revision \"\$BASE_SHA\""),
+        )
         for (forbidden in listOf("gh pr merge", "gh pr review", "gh pr edit", "gh issue", "gh api", "--add-label")) {
             assertFalse(
                 "version-bump.yml must never call '$forbidden' — it only writes bump commits",
