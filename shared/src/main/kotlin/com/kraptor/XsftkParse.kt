@@ -271,6 +271,170 @@ object XsftkParse {
         plan.playlist?.let { QualitySource(plan.label, it) }
     }
 
+    // ---- CDN roster selection (#1328/S2) -------------------------------------
+    // The manifest's `cdn` list is a redundancy pool: FINDINGS-1328 §1 fetched segment 0
+    // of every quality from all 45 hosts (two families, `pervl3.xspcdnNN` /
+    // `pervl3.xscasacdnNN`) and every response was byte-identical. Building all segment
+    // URLs from `cdn[0]` therefore made one blocked or unresolvable host kill every
+    // quality of the video at once — the connect-level 2001 shape of this report, and
+    // AGENTS.md's "multi-host fallback" hardening for a third drift recurrence.
+    //
+    // Selection stays pure (a boolean probe callable, no HTTP), so the bounded-probe
+    // contract is unit-tested without mocking transport (ADR-0005).
+
+    /** Primary probe budget. A healthy manifest costs exactly one probe (`cdn[0]` is
+     *  candidate #1); six still covers both families and each family's second host. */
+    const val MAX_PROBES = 6
+
+    /** Fallback-source probe budget: three siblings of the other family are enough to
+     *  survive a single dead host without spending the whole roster. */
+    const val MAX_ALT_PROBES = 3
+
+    private val trailingDigitsRe = Regex("""\d+$""")
+
+    /** Every `cdn` entry, trimmed, blanks dropped, deduped, manifest order preserved.
+     *  Empty for malformed JSON or a manifest without a roster — the caller then fails
+     *  closed instead of guessing a host. */
+    fun cdnHosts(json: String): List<String> = try {
+        val node = mapper.readTree(json).get("cdn")
+        if (node == null || !node.isArray) emptyList()
+        else LinkedHashSet<String>().also { seen ->
+            for (el in node) {
+                val host = el.asText().trim()
+                if (host.isNotEmpty()) seen.add(host)
+            }
+        }.toList()
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    /** Structural family key = the second-level label with trailing digits stripped:
+     *  `pervl6.xspcdn01.click` → `xspcdn`, `j2.xscasacdn03.click` → `xscasacdn`. A host
+     *  with no second level (or an all-digit one) falls back to the whole host, so
+     *  unrelated CDNs can never merge into one family by accident. */
+    fun cdnFamily(host: String): String {
+        val trimmed = host.trim().lowercase()
+        val labels = trimmed.split('.')
+        if (labels.size < 3 || labels.any { it.isEmpty() }) return trimmed
+        return labels[labels.size - 2].replace(trailingDigitsRe, "").ifEmpty { trimmed }
+    }
+
+    /** Deterministic round-robin across the roster's families: the first host of every
+     *  family (manifest order), then the second of every family, and so on. After
+     *  `cdn[0]` the head of each *other* family is tried before any family's second
+     *  host, so one blocked family and one blocked host are both survived with the
+     *  fewest probes — while candidate #1 stays `cdn[0]`. Every host appears exactly
+     *  once; a stable input gives a stable output. */
+    fun cdnCandidateOrder(hosts: List<String>): List<String> {
+        val seen = HashSet<String>()
+        val families = LinkedHashMap<String, MutableList<String>>()
+        for (raw in hosts) {
+            val host = raw.trim()
+            if (host.isEmpty() || !seen.add(host)) continue
+            families.getOrPut(cdnFamily(host)) { mutableListOf() }.add(host)
+        }
+        val ordered = ArrayList<String>(seen.size)
+        var round = 0
+        while (true) {
+            var added = false
+            for (family in families.values) {
+                if (round < family.size) {
+                    ordered.add(family[round])
+                    added = true
+                }
+            }
+            if (!added) return ordered
+            round++
+        }
+    }
+
+    /** First candidate the probe accepts, bounded to [maxProbes] calls. `null` means no
+     *  host is usable — the caller then emits nothing instead of dead segment URLs.
+     *  `inline` so an adapter can pass its suspend HTTP probe straight through. */
+    inline fun pickCdn(
+        ordered: List<String>,
+        maxProbes: Int = MAX_PROBES,
+        probe: (String) -> Boolean
+    ): String? {
+        var probes = 0
+        for (host in ordered) {
+            if (probes >= maxProbes) return null
+            probes++
+            if (probe(host)) return host
+        }
+        return null
+    }
+
+    /** First candidate from a *different* family the probe accepts — the manual
+     *  fallback source. Bounded to [maxProbes] (3): one blocked family is survivable
+     *  when any sibling answers. `null` on a single-family roster or when no other
+     *  candidate is alive, so a roster of one family never grows a duplicate source. */
+    inline fun altCdnHost(
+        ordered: List<String>,
+        primaryFamily: String,
+        primaryHost: String,
+        maxProbes: Int = MAX_ALT_PROBES,
+        probe: (String) -> Boolean
+    ): String? {
+        var probes = 0
+        for (host in ordered) {
+            if (host == primaryHost || cdnFamily(host) == primaryFamily) continue
+            if (probes >= maxProbes) return null
+            probes++
+            if (probe(host)) return host
+        }
+        return null
+    }
+
+    /** One link the adapter emits (#1328/S2): a synthesized playlist for one manifest
+     *  quality plus the CDN host it names. `alt = true` marks the manual fallback copy
+     *  of the same quality set (the app shows it as a second source of the same video). */
+    data class PlannedSource(
+        val quality: String,
+        val playlist: String,
+        val cdnHost: String,
+        val alt: Boolean
+    )
+
+    /** The whole emission decision, still pure: build the quality set against `cdn[0]`
+     *  first (a manifest with no buildable quality must not spend a network call), probe
+     *  the round-robin order for a live host, rebuild the qualities against it, then add
+     *  the other family's copy once (capped at two families). An empty list means fail
+     *  closed — no decoy, no tokenless `xs1.php` on a gated page (#906).
+     *
+     *  [onSkip] reports each quality the manifest cannot build (the #1336/S1 diagnostics);
+     *  [probe] receives a candidate host plus the highest buildable quality, i.e. the
+     *  segment the adapter preflights with `Range: bytes=0-1023`. */
+    inline fun cdnSources(
+        json: String,
+        boot: Boot,
+        playerUrl: String,
+        maxProbes: Int = MAX_PROBES,
+        maxAltProbes: Int = MAX_ALT_PROBES,
+        noinline onSkip: ((QualityPlan) -> Unit)? = null,
+        probe: (host: String, quality: String) -> Boolean
+    ): List<PlannedSource> {
+        val ordered = cdnCandidateOrder(cdnHosts(json))
+        val seedHost = ordered.firstOrNull() ?: return emptyList()
+        val seedPlans = qualityPlans(json, boot, playerUrl, seedHost)
+        for (plan in seedPlans) if (plan.playlist == null) onSkip?.invoke(plan)
+        val probeQuality = seedPlans.firstOrNull { it.playlist != null }?.label ?: return emptyList()
+
+        val chosen = pickCdn(ordered, maxProbes) { host -> probe(host, probeQuality) }
+            ?: return emptyList()
+        val primary = playableSources(json, boot, playerUrl, chosen).map { source ->
+            PlannedSource(source.label, source.playlist, chosen, alt = false)
+        }
+        if (primary.isEmpty()) return emptyList()
+
+        val altHost = altCdnHost(ordered, cdnFamily(chosen), chosen, maxAltProbes) { host ->
+            probe(host, probeQuality)
+        } ?: return primary
+        return primary + playableSources(json, boot, playerUrl, altHost).map { source ->
+            PlannedSource(source.label, source.playlist, altHost, alt = true)
+        }
+    }
+
     /** Base64 (RFC 4648, padded, no line breaks). android.util.Base64 first (API 1+),
      *  java.util.Base64 only as the JVM-test fallback (API 26+, mirror of
      *  decodeBase64 in HostRegistry.kt). */

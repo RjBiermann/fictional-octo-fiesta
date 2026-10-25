@@ -187,7 +187,15 @@ open class PerverZijaExtractor : ExtractorApi() {
      *  IV = BE(segment index) = the HLS media-sequence default, so
      *  #EXT-X-KEY URI=op=key + in-order segments replay natively (#845/#846).
      *  The key fetch must carry X-XS-P: 1 (403 without) — it travels on the link
-     *  headers map, same contract as HlsFree (#247). */
+     *  headers map, same contract as HlsFree (#247).
+     *
+     *  #1328/S2: the manifest's `cdn` list is a redundancy pool (segment bytes verified
+     *  identical on all 45 reported hosts, two families — FINDINGS-1328 §1), so the CDN
+     *  host is now *selected*, not assumed to be `cdn[0]`: one blocked/unresolvable host
+     *  used to take down every quality of the video at once (the connect-level 2001 shape
+     *  of the report). XsftkParse.cdnSources is the whole pure decision — probe a
+     *  deterministic round-robin order, emit every buildable quality of the first live
+     *  host, then offer the other family once as a manual fallback source. */
     private suspend fun emitXsftk(
         url: String,
         ref: String,
@@ -208,40 +216,72 @@ open class PerverZijaExtractor : ExtractorApi() {
             return
         }
 
-        // playableSources skips an entry the manifest cannot render but keeps every
-        // other quality (#908), so a partially-malformed manifest still yields sources.
-        // qualityPlans is the same decision with the skip reason and CDN host attached
-        // (#1328/S1) — a device logcat then names the failing layer instead of just
-        // "doesn't play". No per-segment logging: this runs once per extraction.
+        // #1328/S1 keeps its diagnostics: onSkip names every quality the manifest cannot
+        // build, and the emission log names the selected host per source. An all-dead
+        // roster (or a manifest with no buildable quality) emits NOTHING — never a decoy,
+        // never a tokenless xs1.php on a gated page (#906's rule stands).
         val keyHost = url.substringAfter("://", url).substringBefore('/')
-        val plans = XsftkParse.qualityPlans(json, boot, url)
-        var emitted = 0
-        for (plan in plans) {
-            val playlist = plan.playlist
-            if (playlist == null) {
-                Log.d(TAG, "skip q=${plan.label} reason=${plan.reason ?: "unbuildable"}")
-                continue
-            }
+        val roster = XsftkParse.cdnHosts(json)
+        var skipped = 0
+        var probed = false
+        val sources = XsftkParse.cdnSources(json, boot, url, onSkip = { plan ->
+            skipped++
+            Log.d(TAG, "skip q=${plan.label} reason=${plan.reason ?: "unbuildable"}")
+        }) { host, quality ->
+            probed = true
+            cdnSegmentAlive(host, boot.id, quality)
+        }
+        if (sources.isEmpty()) {
+            Log.d(
+                TAG,
+                when {
+                    roster.isEmpty() -> "stage=cdn failed: manifest has no cdn roster"
+                    !probed -> "stage=playlist failed: no buildable quality " +
+                        "(qualities_skipped=$skipped)"
+                    else -> "stage=cdn failed: no live cdn host (roster=${roster.size}, " +
+                        "maxProbes=${XsftkParse.MAX_PROBES})"
+                }
+            )
+            return
+        }
+        for (source in sources) {
+            val playlist = source.playlist
             callback.invoke(newExtractorLink(
                 source = name,
-                name = name,
+                // the fallback family is the same video: source label unchanged, link
+                // name marked so the app's source sheet shows the manual fallback
+                name = if (source.alt) "$name (alt)" else name,
                 url = XsftkParse.dataUri(playlist),
                 type = ExtractorLinkType.M3U8
             ) {
                 this.referer = ref
                 this.headers = mapOf("X-XS-P" to "1")
-                this.quality = plan.label.toIntOrNull() ?: Qualities.Unknown.value
+                this.quality = source.quality.toIntOrNull() ?: Qualities.Unknown.value
             })
-            emitted++
             Log.d(
                 TAG,
-                "source q=${plan.label} cdn=${plan.cdnHost} key=$keyHost " +
-                    "segs=${plan.segmentCount} bytes=${playlist.toByteArray(Charsets.UTF_8).size}"
+                "source q=${source.quality}${if (source.alt) " alt=1" else ""} " +
+                    "cdn=${source.cdnHost} key=$keyHost " +
+                    "segs=${playlist.lineSequence().count { it.startsWith("#EXTINF:") }} " +
+                    "bytes=${playlist.toByteArray(Charsets.UTF_8).size}"
             )
         }
-        if (emitted == 0) {
-            Log.d(TAG, "stage=playlist failed: no buildable quality (qualities=${plans.size})")
-        }
+    }
+
+    /** Segment-0 preflight for one candidate CDN host (#1328/S2). The `_enc` segment
+     *  files sit open on the CDN (no token, no referer — FINDINGS-840/1328), so a 200 or
+     *  206 on the first 1 KiB of the highest buildable quality proves the host is
+     *  reachable *and* serving this video. A DNS/connect failure is exactly the 2001
+     *  shape being hardened against, so any exception is a rejection, never a crash. */
+    private suspend fun cdnSegmentAlive(host: String, id: String, quality: String): Boolean = try {
+        val code = app.get(
+            XsftkParse.xsSegmentUrl(host, id, quality, 0),
+            headers = mapOf("Range" to "bytes=0-1023")
+        ).code
+        code == 200 || code == 206
+    } catch (e: Exception) {
+        Log.d(TAG, "cdn probe failed: $host (${e.javaClass.simpleName})")
+        false
     }
 }
 
