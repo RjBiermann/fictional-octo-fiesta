@@ -1,5 +1,5 @@
 // ! Bu araç @ByAyzen tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 22 // S16 audit (#825): MainAPI.lang "jp" → "ja" (ISO-639-1) fix
+version = 23 // #1334: version bump
 
 cloudstream {
     authors     = listOf("ByAyzen")

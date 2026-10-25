@@ -1,4 +1,4 @@
-version = 16 // #778: shared xvideos registry row (fleet bump)
+version = 17 // #1334: version bump
 
 cloudstream {
     authors     = listOf("RjBiermann")

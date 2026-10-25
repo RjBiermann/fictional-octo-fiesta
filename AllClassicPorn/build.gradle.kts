@@ -1,4 +1,4 @@
-version = 18 // #1318: loadLinks resolves via the chained parser (epic #876, S3)
+version = 19 // #1334: version bump
 
 cloudstream {
     authors     = listOf("imperialbob")

@@ -1,4 +1,4 @@
-version = 11 // #826: duration from JSON-LD (addDuration is a no-op on colon form)
+version = 12 // #1334: version bump
 
 cloudstream {
     authors     = listOf("cloudstream")

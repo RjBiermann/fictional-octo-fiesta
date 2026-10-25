@@ -1,4 +1,4 @@
-version = 26 // #834 (S25): LoadResponse.duration seconds → minutes (API-contract audit)
+version = 27 // #1334: version bump
 
 cloudstream {
     authors     = listOf("kraptor","coxju","SIX")
