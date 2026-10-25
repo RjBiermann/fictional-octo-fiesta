@@ -1,0 +1,7 @@
+audits/findings.json
+scripts/setup-machinery-app.sh
+.pi/settings.json
+.pi/skills/verify-provider/SKILL.md
+skills/pre-review/SKILL.md
+skills-lock.json
+LICENSE

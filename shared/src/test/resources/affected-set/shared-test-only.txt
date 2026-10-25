@@ -1,0 +1,2 @@
+shared/src/test/kotlin/com/kraptor/DurationParseTest.kt
+shared/src/test/resources/search_card_fixture.html

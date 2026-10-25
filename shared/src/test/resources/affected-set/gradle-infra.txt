@@ -1,0 +1,3 @@
+gradle/wrapper/gradle-wrapper.properties
+gradlelibs/INTEGRITY.txt
+vendor/com/github/recloudstream/gradle/gradle-SNAPSHOT.jar
