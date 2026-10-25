@@ -120,6 +120,11 @@ def _fire_marker(rnd):
 STORY_RE = re.compile(r"\[spec\].*?\b(?:Story\s+|S)(\d+)\b", re.I)
 PARENT_RE = re.compile(r"approved\s+#(\d+)\s+spec", re.I)
 EPIC_KID_RE = re.compile(r"epic #(\d+)", re.I)
+# every body shape parent_of() accepts — the cheap "is this a story?" probe
+# all_stories() uses before paying parent_of's sub-issue-graph API fallback.
+KID_LINK_RES = (PARENT_RE, EPIC_KID_RE,
+                re.compile(r"[Pp]arent(?:\s+issue)?:?\s+#(\d+)"),
+                re.compile(r"[Pp]art of #(\d+)"))
 ROUND_ANCH = {r: f"Plan round {r} —" for r in (1, 2, 3)}
 IN_FLIGHT = ("status/planned", "status/in-review", "status/fixing",
              "status/fixing-stuck", "status/queued")
@@ -216,9 +221,13 @@ def open_pulls():
     return api("pulls?state=open&per_page=50") or []
 
 
-def story_num(title):
-    m = STORY_RE.search(title or "")
-    return int(m.group(1)) if m else None
+def story_num(s):
+    """Fire order (1-based) of a plan story. The title contract is
+    `[spec] S<N> — …`, but 04-plan has shipped whole chains without it
+    (#910/#864/#796, 2026-10-23) — those kids get `_ordinal` from the
+    parent's round-3 story list in all_stories()."""
+    m = STORY_RE.search(s.get("title") or "")
+    return int(m.group(1)) if m else s.get("_ordinal")
 
 
 def _issue_list_rows(state):
@@ -249,8 +258,62 @@ def all_stories():
         raw.setdefault(i["number"], i)
     for i in raw.values():
         i["state"] = str(i.get("state", "")).lower()
-    return [i for i in raw.values()
-            if i.get("pull_request") is None and story_num(i.get("title", ""))]
+    stories = [i for i in raw.values()
+               if i.get("pull_request") is None and story_num(i)]
+    # Ordinal-less chains (#910/#864/#796): the kids declared their parent in
+    # the body only, so STORY_RE dropped them and every driver downstream —
+    # chain_driver, the claim/reconcile relays — saw no story at all and
+    # fired nothing. Recover the ordinals from the parent's round-3 list.
+    by_parent = {}
+    for i in raw.values():
+        if i.get("pull_request") is not None or story_num(i) is not None:
+            continue
+        # Plan kids only. 05-implement / 07-fix-loop / 12-post-merge also
+        # file `[impl]`/`[from-impl]`/`[aw]` follow-ups that name their spec
+        # as parent; ranking those would let chain_driver fire — and
+        # _demote_out_of_order cancel runs — on another lane's work order.
+        if not (i.get("title") or "").lstrip().lower().startswith("[spec]"):
+            continue
+        if not any(rx.search(i.get("body") or "") for rx in KID_LINK_RES):
+            continue
+        pnum = parent_of(i)
+        if pnum:
+            by_parent.setdefault(pnum, set()).add(i["number"])
+    for pnum, kids in by_parent.items():
+        for n, ordinal in _plan_ordinals(pnum, kids).items():
+            raw[n]["_ordinal"] = ordinal
+            stories.append(raw[n])
+    return stories
+
+
+_R3_BODY_CACHE = {}
+
+
+def _plan_ordinals(pnum, kids):
+    """Story ordinals for a chain that skipped the `[spec] S<N>` title
+    contract: rank the kids by first mention in the parent's round-3
+    finalize comment — the plan loop's own story list, in fire order, in
+    whatever markup the agent chose (numbered list, bullets, trailing
+    `(#NNN)`). Kids the comment never named rank last, by number. No
+    round-3 comment = not a plan chain: rank nothing, so prose that merely
+    mentions a parent elsewhere never resurrects an old chain.
+    The round-3 body is cached per process: all_stories() runs in five
+    drivers per pass and 04-plan posts that comment from its own workflow,
+    so it cannot change under a single orchestrator run."""
+    if pnum not in _R3_BODY_CACHE:
+        _R3_BODY_CACHE[pnum] = (_round_comment(comments(pnum), 3)
+                                or {}).get("body") or ""
+    body = _R3_BODY_CACHE[pnum]
+    if not body:
+        return {}
+    rank = {}
+    for m in re.finditer(r"#(\d+)", body):
+        n = int(m.group(1))
+        if n in kids:
+            rank.setdefault(n, len(rank) + 1)
+    for n in sorted(kids - set(rank)):
+        rank[n] = len(rank) + 1
+    return rank
 
 
 def parent_of(story):
@@ -261,9 +324,7 @@ def parent_of(story):
     # "Part of #804" (the shape finalize agents keep writing naturally —
     # seen on #804's 27 kids AND #840's 3 kids; made canonical here instead
     # of editing bodies per occurrence, #840).
-    for rx in (PARENT_RE, EPIC_KID_RE,
-               re.compile(r"[Pp]arent(?:\s+issue)?:?\s+#(\d+)"),
-               re.compile(r"[Pp]art of #(\d+)")):
+    for rx in KID_LINK_RES:
         m = rx.search(body)
         if m:
             return int(m.group(1))
@@ -447,7 +508,7 @@ def chain_driver():
     for s in stories:
         if s["state"] != "open":
             continue
-        num_story = story_num(s["title"])
+        num_story = story_num(s)
         labels = [l["name"] for l in s.get("labels", [])]
         if "status/planned" in labels:
             continue
@@ -459,6 +520,10 @@ def chain_driver():
                 print(f"[orchestrator] story 1 (issue {s['number']}): trigger stamped (chain approved at round 3)")
             else:
                 print(f"[orchestrator] story 1 (issue {s['number']}): no round-3 approval recorded — waiting on human")
+            continue
+        if not num_story:
+            # `[spec] S0 — …` baseline: no predecessor to wait on, and
+            # indexing _story_state(-1) would stall on a phantom '-'.
             continue
         pstate = _story_state(num_story - 1, stories, parent_of(s))
         if str(pstate).lower() == "closed":
@@ -986,7 +1051,7 @@ def _story_state(num, stories, parent=None):
     Unscoped lookups leak across chains: two chains each having a
     Story 1 made Porntrex S2 fire while its own S1 was open (#790)."""
     for s in stories:
-        if story_num(s.get("title", "")) == num \
+        if story_num(s) == num \
                 and (parent is None or parent_of(s) == parent):
             return s.get("state", "?")
     return "-"
@@ -1827,8 +1892,8 @@ def _demote_out_of_order(stories):
     for s in stories:
         if str(s.get("state", "")).lower() != "open":
             continue
-        num_story = story_num(s.get("title", ""))
-        if num_story <= 1:
+        num_story = story_num(s)
+        if not num_story or num_story <= 1:
             continue
         labels = [l["name"] for l in s.get("labels", [])]
         if "status/planned" not in labels:
