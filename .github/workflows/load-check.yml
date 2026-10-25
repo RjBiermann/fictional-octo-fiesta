@@ -186,7 +186,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           KIND: load
         run: |
-          export JAR_SHA=$(cat artifact/jar-sha.txt 2>/dev/null || echo unknown)
+          # Separate assignment from export: exporting in the same statement
+          # masks the command substitution's return status (actionlint SC2155).
+          JAR_SHA=$(cat artifact/jar-sha.txt 2>/dev/null || echo unknown)
+          export JAR_SHA
           ./.github/load-check/scripts/failure-issue.sh \
             --plugins <(sort -u loadcheck-evidence/failing-plugins.txt) \
             --log loadcheck-evidence/logcat.log \
