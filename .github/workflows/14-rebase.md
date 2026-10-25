@@ -106,16 +106,30 @@ not vibes:
    conflicted files). If clean — the conflict cleared between label and
    run: just `remove-labels status/conflict` and stamp, done.
 2. Resolve in the working tree by `git merge origin/main` (a normal merge
-   commit — no rebase, no force push; review history stays intact):
+   commit — no rebase, no force push; review history stays intact).
+   Classify every conflicted file by family, not by literal filename:
    - **Append-only registry JSON** (`GH_AW_REGISTRY_PATH` shape): union
      both sides — run/record entries append and dedupe; main wins scalars.
-   - **Test files**: keep BOTH sides' test methods/blocks sequentially.
+   - **Test files ONLY**: keep BOTH sides' test methods/blocks sequentially.
+     Keep-BOTH is scoped to test files — never apply it to any other
+     category below.
+   - **Agent-state markdown** — the family of `FINDINGS-*` notes plus
+     budget/attempt ledger notes (any agent-state note file, whatever its
+     exact name): merge on content. Start from main's file, append and
+     dedupe this branch's own (this story's) note additions, and never
+     import a sibling branch's deliverable wholesale. If import-vs-merge
+     is ambiguous, DO NOT guess — skip the push and stamp what blocked
+     you (see 6).
    - **Version files** (`build.gradle.kts`-style `version = N`): when the
      bodies differ solely in the version line, the higher number wins
      (its bump-comment rides); anything more differs → treat as next rule.
    - **Everything else**: minimal semantic merge preserving BOTH sides'
      intent. When that is genuinely ambiguous, DO NOT guess — skip the
      push and stamp what blocked you (see 6).
+
+   These categories are exhaustive and mutually exclusive. Ambiguity in
+   any of them resolves to the rule-6 blocked path (skip + stamp), never
+   to a guessed import of the other side's deliverable.
 3. Verify before pushing: run the repo's own test command scoped to the
    affected modules (Android repo: `./gradlew <module>:test`). Red = do
    not push; fix or abort per rule 2.
