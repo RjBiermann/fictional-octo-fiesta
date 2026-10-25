@@ -1,0 +1,6 @@
+.github/workflows/lint.yml
+.github/workflows/codeql.yml
+.github/workflows/04-plan.md
+.github/workflows/04-plan.lock.yml
+.github/orchestrator.py
+.github/ISSUE_TEMPLATE/bug.md
