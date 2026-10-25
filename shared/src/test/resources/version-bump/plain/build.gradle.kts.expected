@@ -1,0 +1,9 @@
+version = 2 // #1331: version bump
+
+cloudstream {
+    authors     = listOf("kraptor")
+    language    = "en"
+    description = "Minimal provider build file, no trailing comment on the version line."
+    status  = 1 // will be 3 if unspecified
+    tvTypes = listOf("NSFW")
+}

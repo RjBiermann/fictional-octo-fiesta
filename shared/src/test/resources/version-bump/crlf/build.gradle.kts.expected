@@ -1,0 +1,6 @@
+version = 5 // #1331: version bump
+
+cloudstream {
+    authors     = listOf("kraptor")
+    tvTypes = listOf("NSFW")
+}
