@@ -336,6 +336,145 @@ class TestAllStoriesWindows(unittest.TestCase):
         self.assertEqual(stories[0]["state"], "open")
 
 
+class TestPlanKidOrdinals(unittest.TestCase):
+    """Ordinal-less plan chains (2026-10-23): 04-plan created #920/#919/
+    #921/#918 (parent #910), #922–#926 (#864) and #896/#895/#894 (#796)
+    without the `[spec] S<N>` title contract, declaring the parent in the
+    body only. all_stories() keyed on the title ordinal, so those 12 kids
+    were invisible to chain_driver and every relay — three approved chains,
+    zero fires, no PR for ~15h. Ordinals now come from the parent's
+    round-3 story list, which is where fire order actually lives.
+    Fixtures are the three live comment shapes."""
+
+    # "1. #920 — …" numbered list (#910)
+    R3_NUMBERED = ("Plan round 3 — finalized spec & sub-issues created\n\n"
+                   "1. #920 — Affected-set classifier.\n2. #919 — build.yml "
+                   "gating.\n3. #921 — Auto version-bump.\n4. #918 — "
+                   "Verification & wiring.\n")
+    # "1. **Archive …** — … (#922)" trailing reference (#864)
+    R3_TRAILING = ("Plan round 3 — spec finalized; sub-issues created\n\n"
+                   "1. **Archive root run reports** (#922)\n"
+                   "2. **Archive provider run reports** (#923)\n"
+                   "3. **Doc-noise sweep** (#924)\n"
+                   "4. **Noise-free convention** (#925)\n"
+                   "5. **Verify & open PR** (#926)\n")
+    # "- #896 — A" bullets, a probe ref mixed in (#796)
+    R3_BULLETS = ("Plan round 3 — finalized spec (approved): guards\n\n"
+                  "- #896 — **A — identity guard**\n"
+                  "- #895 — **B — merge-scope hardening**\n"
+                  "- #894 — **C — contamination sim**\n")
+
+    def _kids(self, numbers, parent):
+        return [{"number": n, "title": f"[spec] task {n} — ordinal-less",
+                 "state": "open",
+                 "body": f"Parent: #{parent} (approved spec, plan round 3).",
+                 "labels": [{"name": "status/queued"}]} for n in numbers]
+
+    def _assert_ranks(self, r3, kids, parent, expected):
+        rows = self._kids(kids, parent)
+        by_num = {r["number"]: r for r in rows}
+
+        def fake_run(args, **kw):
+            state = args[args.index("--state") + 1]
+            return json.dumps(rows if state == "open" else [])
+
+        with mock.patch.object(orchestrator, "run", fake_run), \
+                mock.patch.object(orchestrator, "comments",
+                                  lambda n: [{"body": r3}]):
+            stories = orchestrator.all_stories()
+        got = {s["number"]: orchestrator.story_num(s) for s in stories}
+        self.assertEqual(got, expected)
+        self.assertEqual(sorted(by_num), sorted(expected))  # nothing dropped
+
+    def test_numbered_list_ranks_in_fire_order(self):
+        self._assert_ranks(self.R3_NUMBERED, [918, 919, 920, 921], 910,
+                           {920: 1, 919: 2, 921: 3, 918: 4})
+
+    def test_trailing_reference_ranks_in_fire_order(self):
+        self._assert_ranks(self.R3_TRAILING, [922, 923, 924, 925, 926], 864,
+                           {922: 1, 923: 2, 924: 3, 925: 4, 926: 5})
+
+    def test_bullets_rank_in_fire_order_not_number_order(self):
+        self._assert_ranks(self.R3_BULLETS, [894, 895, 896], 796,
+                           {896: 1, 895: 2, 894: 3})
+
+    def test_kid_absent_from_round3_list_still_ranked(self):
+        # a kid the finalize comment never named must not vanish (unranked
+        # = never fired); it ranks last so the chain still drains.
+        got = orchestrator._plan_ordinals
+        rows = {"body": self.R3_BULLETS}
+        with mock.patch.object(orchestrator, "comments",
+                               lambda n: [{"body": rows["body"]}]), \
+                mock.patch.dict(orchestrator._R3_BODY_CACHE, {}, clear=True):
+            self.assertEqual(got(796, {894, 895, 896, 999}),
+                             {896: 1, 895: 2, 894: 3, 999: 4})
+
+    def test_non_plan_followup_is_not_a_story(self):
+        # Review #1324 round 1 blocker: 07-fix-loop/12-post-merge file
+        # `[from-impl]`/`[aw]` follow-ups that name their spec as parent. A
+        # round-3 comment on the parent is NOT enough — ranking one of those
+        # lets chain_driver stamp status/planned on another lane's work item
+        # and _demote_out_of_order cancel its run.
+        kid = {"number": 1303, "title": "[from-impl] delivered-guard misses",
+               "state": "open", "body": "Parent: #797 (approved spec)",
+               "labels": []}
+        spec_kid = {"number": 929, "title": "[spec] replay harness",
+                    "state": "open", "body": "Parent: #797", "labels": []}
+
+        def fake_run(args, **kw):
+            state = args[args.index("--state") + 1]
+            return json.dumps([kid, spec_kid] if state == "open" else [])
+
+        with mock.patch.object(orchestrator, "run", fake_run), \
+                mock.patch.object(orchestrator, "comments",
+                                  lambda n: [{"body": self.R3_BULLETS}]), \
+                mock.patch.dict(orchestrator._R3_BODY_CACHE, {}, clear=True):
+            stories = orchestrator.all_stories()
+        self.assertEqual({s["number"] for s in stories}, {929})
+
+    def test_round3_body_fetched_once_per_parent(self):
+        # five drivers call all_stories() per pass — the memo keeps that at
+        # one thread fetch per parent instead of five.
+        rows = self._kids([922, 923], 864)
+        calls = []
+
+        def fake_run(args, **kw):
+            state = args[args.index("--state") + 1]
+            return json.dumps(rows if state == "open" else [])
+
+        with mock.patch.object(orchestrator, "run", fake_run), \
+                mock.patch.object(orchestrator, "comments",
+                                  lambda n: calls.append(n) or
+                                  [{"body": self.R3_TRAILING}]), \
+                mock.patch.dict(orchestrator._R3_BODY_CACHE, {}, clear=True):
+            orchestrator.all_stories()
+            orchestrator.all_stories()
+        self.assertEqual(calls.count(864), 1)
+
+    def test_s0_title_is_not_treated_as_ordinal_less(self):
+        # `[spec] S0 — Baseline` (live #809 under #804) parses to a falsy 0,
+        # not to "no ordinal" — it must not pick up a round-3 rank.
+        kid = {"number": 809, "title": "[spec] S0 — Baseline", "state": "closed",
+               "body": "Parent: #804", "labels": []}
+
+        def fake_run(args, **kw):
+            state = args[args.index("--state") + 1]
+            return json.dumps([kid] if state == "open" else [kid])
+
+        with mock.patch.object(orchestrator, "run", fake_run), \
+                mock.patch.object(orchestrator, "comments",
+                                  lambda n: [{"body": self.R3_BULLETS}]), \
+                mock.patch.dict(orchestrator._R3_BODY_CACHE, {}, clear=True):
+            orchestrator.all_stories()
+        self.assertNotIn("_ordinal", kid)
+        self.assertEqual(orchestrator.story_num(kid), 0)
+
+    def test_title_ordinal_still_wins(self):
+        s = {"number": 1319, "title": "[spec] S4 — Verify (live) + build",
+             "body": "Parent: #876", "_ordinal": 9}
+        self.assertEqual(orchestrator.story_num(s), 4)
+
+
 class TestMachineryAppIdentity(unittest.TestCase):
     """ADR-0020 step 3 moved machinery safe-output deliveries to the
     GitHub App identity (rjbiermann-machinery[bot]). _agent_pr's trust
