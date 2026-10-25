@@ -1,10 +1,12 @@
 package com.kraptor
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
 /**
@@ -59,6 +61,22 @@ class AffectedSetTest {
     }
 
     @Test
+    fun `version bumps ignore shared test sources`() {
+        val run = run(fixture("shared-test-only.txt"), repoRoot, "--ignore-shared-tests")
+        assertEquals(run.stderr, 0, run.exitCode)
+        assertEquals("none\n", run.stdout)
+    }
+
+    @Test
+    fun `ignoring test sources does not mask a real shared source change`() {
+        val changed = "shared/src/test/kotlin/com/kraptor/FooTest.kt\n" +
+            "shared/src/main/kotlin/com/kraptor/Foo.kt\n"
+        val run = run(changed, repoRoot, "--ignore-shared-tests")
+        assertEquals(run.stderr, 0, run.exitCode)
+        assertEquals("ALL\n", run.stdout)
+    }
+
+    @Test
     fun `blank diff lines classify none`() {
         val run = run("\n  \n\n")
         assertEquals(0, run.exitCode)
@@ -104,10 +122,14 @@ class AffectedSetTest {
         command.addAll(args)
         val process = ProcessBuilder(command).directory(repoRoot).start()
         process.outputStream.use { it.write(changedPaths.toByteArray()) }
+        // Read stderr concurrently: a child that fills that pipe while we block on stdout
+        // would otherwise deadlock, and a hang must fail with a named assertion.
+        val stderr = CompletableFuture.supplyAsync { process.errorStream.bufferedReader().readText() }
         val stdout = process.inputStream.bufferedReader().readText()
-        val stderr = process.errorStream.bufferedReader().readText()
-        process.waitFor(60, TimeUnit.SECONDS)
-        return Run(process.exitValue(), stdout, stderr)
+        val finished = process.waitFor(60, TimeUnit.SECONDS)
+        if (!finished) process.destroyForcibly()
+        assertTrue("affected-set.sh timed out", finished)
+        return Run(process.exitValue(), stdout, stderr.get(5, TimeUnit.SECONDS))
     }
 
     private fun fixture(name: String) = resource(name)

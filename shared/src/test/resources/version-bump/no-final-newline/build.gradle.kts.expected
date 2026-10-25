@@ -1,0 +1,6 @@
+version = 10 // #1331: version bump
+
+cloudstream {
+    authors     = listOf("kraptor")
+    description = "No trailing newline after the final brace — the bump must not add one."
+}

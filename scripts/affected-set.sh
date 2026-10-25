@@ -38,6 +38,11 @@ FULL_ROOT_FILES=(
 )
 FULL_PATHS=(".github/workflows/build.yml")
 
+# Version bumps (issue #921) pass --ignore-shared-tests: test sources and fixtures
+# cannot reach a .cs3, so a test-only PR must not move every provider's version. The
+# build gate never passes it, keeping its fail-closed `shared/** → ALL` verdict.
+IGNORE_SHARED_TESTS=0
+
 # Proven not to reach a built plugin: prose, audits, tooling, the pipeline's own docs.
 IGNORED_TOP_LEVEL=(.agents .github .pi audits docs scripts skills)
 IGNORED_ROOT_FILES=(.gitattributes .gitignore LICENSE skills-lock.json)
@@ -62,6 +67,9 @@ classify_stream() {
         path=${path%$'\r'}                                # tolerate CRLF input
         [[ -z ${path//[[:space:]]/} ]] && continue        # blank line
         path=${path#./}
+        if (( IGNORE_SHARED_TESTS )) && [[ $path == shared/src/test/* ]]; then
+            continue                                       # test-only: no artifact
+        fi
         top=${path%%/*}
         base=${path##*/}
 
@@ -131,6 +139,9 @@ Prints none | provider names (one per line) | ALL for the changed paths.
   --repo-root DIR   repository to classify against (default: this script's parent)
   --diff RANGE      read the changed paths from `git diff --name-only RANGE`
                     instead of stdin (e.g. origin/main...HEAD, BEFORE..SHA)
+  --ignore-shared-tests
+                    treat shared/src/test/** as not affecting an artifact (the
+                    version-bump consumer only; the build gate never passes it)
 EOF
 }
 
@@ -152,6 +163,7 @@ main() {
                          root=$2; shift 2 ;;
             --diff)      [[ $# -ge 2 ]] || usage_error "--diff needs a git revision range"
                          diff_range=$2; shift 2 ;;
+            --ignore-shared-tests) IGNORE_SHARED_TESTS=1; shift ;;
             -h | --help) usage; exit 0 ;;
             *)           usage_error "unknown option: $1" ;;
         esac

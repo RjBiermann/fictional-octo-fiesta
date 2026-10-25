@@ -6,6 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
 /**
@@ -28,6 +29,7 @@ class VersionBumpTest {
         "plain",             // no trailing comment at all
         "first-match-only",  // only the first `version =` line is the plugin version
         "crlf",              // CRLF build file keeps its line endings
+        "no-final-newline",  // `}` without a trailing newline stays that way
     )
 
     private val repoRoot = findRepoRoot()
@@ -166,6 +168,50 @@ class VersionBumpTest {
     }
 
     @Test
+    fun `a base that overtook the branch forces a fresh version`() {
+        val root = Files.createTempDirectory("version-bump-git").toFile()
+        try {
+            val providerDir = File(root, "FixtureProvider")
+            providerDir.mkdirs()
+            val build = File(providerDir, "build.gradle.kts")
+            // Base already published 23 (another PR moved it); this branch also bumped
+            // 22 → 23 from the same starting point, so its version now collides.
+            build.writeText("version = 23 // #100: version bump\n")
+            git(root, "init", "-q")
+            git(root, "add", ".")
+            git(root, "commit", "-q", "-m", "base")
+            build.writeText("version = 23 // #101: version bump\n")
+
+            val run = run("FixtureProvider\n", root, "--base-revision", "HEAD")
+            assertEquals(run.stderr, 0, run.exitCode)
+            assertEquals("FixtureProvider/build.gradle.kts\n", run.stdout)
+            assertEquals("version = 24 // $note (v24)\n", readText(build))
+
+            // Ahead of the base now: a re-run (re-trigger, synchronize, rebase) is a no-op.
+            val second = run("FixtureProvider\n", root, "--base-revision", "HEAD")
+            assertEquals(second.stderr, 0, second.exitCode)
+            assertEquals("", second.stdout)
+            assertEquals("version = 24 // $note (v24)\n", readText(build))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `a base revision that is not a commit is a usage error`() {
+        val root = providerRoot("plain")
+        try {
+            val before = readText(buildFile(root))
+            val run = run("FixtureProvider\n", root, "--base-revision", "nope")
+            assertEquals(2, run.exitCode)
+            assertTrue(run.stderr, run.stderr.contains("not a commit"))
+            assertEquals(before, readText(buildFile(root)))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `the note is required`() {
         val root = providerRoot("plain")
         try {
@@ -219,10 +265,30 @@ class VersionBumpTest {
         }
         val process = ProcessBuilder(command).directory(repoRoot).start()
         process.outputStream.use { it.write(changedProviders.toByteArray()) }
+        // Read stderr concurrently: a child that fills that pipe while we block on stdout
+        // would otherwise deadlock, and a hang must fail with a named assertion instead of
+        // `IllegalThreadStateException` from exitValue().
+        val stderr = CompletableFuture.supplyAsync { process.errorStream.bufferedReader().readText() }
         val stdout = process.inputStream.bufferedReader().readText()
-        val stderr = process.errorStream.bufferedReader().readText()
-        process.waitFor(60, TimeUnit.SECONDS)
-        return Run(process.exitValue(), stdout, stderr)
+        val finished = process.waitFor(60, TimeUnit.SECONDS)
+        if (!finished) process.destroyForcibly()
+        assertTrue("bump script timed out", finished)
+        return Run(process.exitValue(), stdout, stderr.get(5, TimeUnit.SECONDS))
+    }
+
+    private fun git(root: File, vararg args: String) {
+        val command = mutableListOf(
+            "git", "-C", root.absolutePath,
+            "-c", "user.name=version-bump-test",
+            "-c", "user.email=version-bump-test@example.invalid",
+        )
+        command.addAll(args)
+        val process = ProcessBuilder(command).redirectErrorStream(true).start()
+        val output = process.inputStream.bufferedReader().readText()
+        val finished = process.waitFor(60, TimeUnit.SECONDS)
+        if (!finished) process.destroyForcibly()
+        assertTrue("git ${args.joinToString(" ")} timed out", finished)
+        assertEquals("git ${args.joinToString(" ")} failed: $output", 0, process.exitValue())
     }
 
     private fun readText(file: File) = file.readText()
