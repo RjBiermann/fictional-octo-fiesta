@@ -16,8 +16,28 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - '*.md'
+    # Positive allow-list pre-filter (issue #919, epic #910). It replaces the
+    # root-only `paths-ignore: '*.md'`, which let docs/** and audits/FINDINGS-*.md
+    # pushes run a full 26-provider build. Over-triggering here only wastes a run,
+    # so every pattern stays deliberately broad; under-triggering would strand a
+    # stale .cs3, so anything that can reach a provider build is listed. The
+    # authoritative gate is scripts/affected-set.sh in the classify step.
+    paths:
+      - '**/*.kts'                  # root + every provider Gradle build script
+      - '**/src/**'                 # provider + shared sources, tests, fixtures
+      - 'gradle/**'                 # wrapper distribution config
+      - 'gradlelibs/**'             # vendored-jar integrity record
+      - 'vendor/**'                 # vendored CloudStream Gradle plugin
+      - 'gradle.properties'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - 'repo.json'                 # registry manifest copied to the builds branch
+      - 'scripts/affected-set.sh'   # the classifier this workflow runs
+      - '.github/workflows/build.yml'
+  # #920's approved classifier contract: a manual dispatch is a forced full
+  # build (no changed-file list exists to classify). It is also the recovery
+  # lever now that a normal push no longer rebuilds the whole fleet.
+  workflow_dispatch:
 
 jobs:
   build:
@@ -27,23 +47,76 @@ jobs:
         uses: actions/checkout@v7
         with:
           path: "src"
+          # The classifier diffs the pushed range: a shallow clone cannot see
+          # github.event.before, and a base commit we cannot read is a gating
+          # decision this workflow refuses to guess (see the classify step).
+          fetch-depth: 0
 
+      - name: Classify affected set
+        id: affected
+        working-directory: ${{ github.workspace }}/src
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          # No meaningful changed-file list (a dispatch, a new branch, a
+          # force-push, or a zero SHA) → forced full build. Fail closed: an
+          # unclassifiable push must never end in a silent skip.
+          if [[ "$EVENT_NAME" != "push" || -z "$BEFORE" || "$BEFORE" =~ ^0+$ ]]; then
+            echo "mode=full" >> "$GITHUB_OUTPUT"
+            echo "providers=" >> "$GITHUB_OUTPUT"
+            echo "affected-set: full (no pushed range to classify)"
+            exit 0
+          fi
+          # scripts/affected-set.sh is not committed executable; the classifier
+          # contract is none | <Provider> lines | ALL, exit 0 once classified.
+          classified=$(bash scripts/affected-set.sh --diff "$BEFORE..$AFTER") || classified=ALL
+          case "$classified" in
+            ALL)  mode=full ;;
+            none) mode=none ;;
+            *)    mode=subset ;;
+          esac
+          printf 'mode=%s\n' "$mode" >> "$GITHUB_OUTPUT"
+          printf 'providers=%s\n' "$(printf '%s' "$classified" | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+          printf 'affected-set: %s [%s]\n' "$mode" "$(printf '%s' "$classified" | tr '\n' ' ')"
+
+      # `none` ends the run here: no checkout, no cleanup, no build, no publish.
       - name: Checkout builds
+        if: steps.affected.outputs.mode != 'none'
         uses: actions/checkout@v7
         with:
           ref: "builds"
           path: "builds"
-      
+
       - name: Clean old builds
-        run: rm -f "$GITHUB_WORKSPACE"/builds/*.cs3
+        if: steps.affected.outputs.mode != 'none'
+        working-directory: ${{ github.workspace }}/builds
+        env:
+          MODE: ${{ steps.affected.outputs.mode }}
+        run: |
+          if [[ "$MODE" = "full" ]]; then
+            rm -f ./*.cs3
+            exit 0
+          fi
+          # Subset run: keep every artifact this run does not rebuild — wiping
+          # them all would strand the untouched providers — and drop only the
+          # ones whose provider no longer exists in the source tree.
+          for cs3 in ./*.cs3; do
+            [[ -e "$cs3" ]] || continue
+            name=$(basename "$cs3" .cs3)
+            [[ -f "$GITHUB_WORKSPACE/src/$name/build.gradle.kts" ]] || rm -f "$cs3"
+          done
 
       - name: Setup JDK 17
+        if: steps.affected.outputs.mode != 'none'
         uses: actions/setup-java@v5
         with:
           java-version: 17
           distribution: temurin
 
       - name: Setup Gradle
+        if: steps.affected.outputs.mode != 'none'
         uses: gradle/actions/setup-gradle@v6
 
       # v2 unconditionally installs the SDK package `tools`, which Google removed
@@ -51,6 +124,7 @@ jobs:
       # `tools` in its default `packages`, so skip package installation explicitly:
       # the runner image preinstalls the SDK and the action keeps accepting licenses.
       - name: Setup Android SDK
+        if: steps.affected.outputs.mode != 'none'
         uses: android-actions/setup-android@v4
         with:
           packages: ''
@@ -59,20 +133,73 @@ jobs:
       # mavenLocal (jitpack 404s the coordinate; warm-cache residue masked this
       # until run 34716659549). Runs before any task that resolves :cloudstream.
       - name: Bootstrap cloudstream3 artifact
+        if: steps.affected.outputs.mode != 'none'
         run: |
           cd "$GITHUB_WORKSPACE/src"
           ./gradlew bootstrapCloudstream
 
       - name: Build Plugins
+        if: steps.affected.outputs.mode != 'none'
+        working-directory: ${{ github.workspace }}/src
+        env:
+          MODE: ${{ steps.affected.outputs.mode }}
+          PROVIDERS: ${{ steps.affected.outputs.providers }}
         run: |
-          cd "$GITHUB_WORKSPACE/src"
           chmod +x gradlew
-          ./gradlew test make makePluginsJson
-          cp -- */build/*.cs3 "$GITHUB_WORKSPACE/builds"
-          cp build/plugins.json "$GITHUB_WORKSPACE/builds"
-          cp repo.json "$GITHUB_WORKSPACE/builds"
+          builds="$GITHUB_WORKSPACE/builds"
+          read -r -a affected <<< "$PROVIDERS"
+
+          # `makePluginsJson` cannot be scoped on its own: every provider
+          # contributes a :<Provider>:writeCacheEntry dependency to it, and that
+          # entry hashes the provider's own .cs3 — so a subset run would either
+          # build all 26 providers or publish a registry missing 25 rows.
+          # Seeding the unaffected providers' build dirs with the .cs3 already
+          # published on the builds branch and excluding :<Provider>:make for
+          # them regenerates those rows from the published artifact (identical
+          # bytes → identical row) without compiling an uninvolved provider.
+          if [[ "$MODE" = "subset" ]]; then
+            excludes=()
+            for dir in ./*/; do
+              name=$(basename "$dir")
+              [[ -f "$dir/build.gradle.kts" ]] || continue
+              affected_here=0
+              for provider in "${affected[@]}"; do
+                if [[ "$provider" = "$name" ]]; then affected_here=1; fi
+              done
+              if (( affected_here )); then continue; fi
+              if [[ ! -f "$builds/$name.cs3" ]]; then
+                # No published artifact to reuse: its registry row cannot be
+                # regenerated safely, so fall back to the full build (fail closed).
+                echo "::warning::no published $name.cs3 to reuse — rebuilding every provider"
+                MODE=full
+                break
+              fi
+              mkdir -p "$dir/build"
+              cp "$builds/$name.cs3" "$dir/build/$name.cs3"
+              excludes+=("-x" ":$name:make")
+            done
+          fi
+
+          if [[ "$MODE" = "full" ]]; then
+            ./gradlew test make makePluginsJson
+            cp -- */build/*.cs3 "$builds"
+          else
+            tasks=()
+            for provider in "${affected[@]}"; do
+              tasks+=(":$provider:test" ":$provider:make")
+            done
+            ./gradlew "${tasks[@]}" makePluginsJson "${excludes[@]}"
+            # Only the providers this run rebuilt get republished; the rest keep
+            # the artifacts already on the builds branch.
+            for provider in "${affected[@]}"; do
+              cp "$provider/build/$provider.cs3" "$builds/"
+            done
+          fi
+          cp build/plugins.json "$builds"
+          cp repo.json "$builds"
 
       - name: Push builds
+        if: steps.affected.outputs.mode != 'none'
         run: |
           cd "$GITHUB_WORKSPACE/builds"
           git config --local user.email "actions@github.com"
@@ -82,6 +209,7 @@ jobs:
           git push --force
 
       - name: Mirror builds branch to Codeberg
+        if: steps.affected.outputs.mode != 'none'
         env:
           CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
         run: |
