@@ -246,12 +246,24 @@ open class PerverZijaExtractor : ExtractorApi() {
         }
         for (source in sources) {
             val playlist = source.playlist
+            // #1328/S3: the `data:` URI is the budgeted payload (base64 of the playlist,
+            // ~4/3 of the raw bytes). Over budget is LOGGED and still emitted — a missing
+            // source would be harder to diagnose than an oversized one, and whether the
+            // in-app player accepts a big data: URI is device-only evidence (H5).
+            val uri = XsftkParse.dataUri(playlist)
+            if (uri.length > XsftkParse.PLAYLIST_BUDGET_BYTES) {
+                Log.d(
+                    TAG,
+                    "source q=${source.quality} playlist bytes=${uri.length} " +
+                        "OVER BUDGET (${XsftkParse.PLAYLIST_BUDGET_BYTES})"
+                )
+            }
             callback.invoke(newExtractorLink(
                 source = name,
                 // the fallback family is the same video: source label unchanged, link
                 // name marked so the app's source sheet shows the manual fallback
                 name = if (source.alt) "$name (alt)" else name,
-                url = XsftkParse.dataUri(playlist),
+                url = uri,
                 type = ExtractorLinkType.M3U8
             ) {
                 this.referer = ref

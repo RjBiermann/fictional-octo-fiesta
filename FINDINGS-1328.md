@@ -155,3 +155,70 @@ pervl6.xspcdn35.click
   a Private DNS, VPN, ad-blocker, or broken NAT64 path. The new diagnostics only make the
   failing layer legible in `logcat` (`stage=player|manifest|playlist`, `source … cdn=… key=…
   segs=… bytes=…`, `skip q=… reason=…`); they do not test the network.
+
+## §5 In-band playlist budget (S3 / #1338)
+
+Run 2026-10-25 (`05-implement`, story S3 of #1328). Code change is one documented constant
+(`XsftkParse.PLAYLIST_BUDGET_BYTES = 96 * 1024`) plus one diagnostic log line on the real
+emission path (`PerverZijaExtractor.emitXsftk`). **Emitted bytes are unchanged** — an
+over-budget source is still emitted (log, never drop).
+
+### Measured sizes
+
+Live probe from §1, plus what the builder actually produces from the shipped captures
+(`PerverZijaPlaylistBudgetTest` / replay):
+
+| source | quality | segments | raw playlist | base64 | `data:` URI (base64 + 42 B prefix) |
+|---|---|---|---|---|---|
+| live probe (§1) | 1080 | 394 | 44 052 | 58 736 | 58 778 |
+| live probe (§1) | 720 | 381 | 41 920 | 55 896 | 55 938 |
+| live probe (§1) | 480 | 372 | 40 933 | 54 580 | 54 622 |
+| `perverzija_manifest_reported.bin` (#906) | 1080 | 80 | 9 100 | 12 136 | 12 178 |
+| `perverzija_manifest_reported.bin` | 720 | 76 | 8 510 | 11 348 | 11 390 |
+| `perverzija_manifest_reported.bin` | 480 | 74 | 8 299 | 11 068 | 11 110 |
+| `perverzija_proto_manifest.bin` (#845) | 720 | 777 | 84 912 | 113 216 | 113 258 |
+| `perverzija_proto_manifest.bin` | 480 | 734 | 80 439 | 107 252 | 107 294 |
+| `perverzija_manifest_singleq.bin` (#906) | 360 | 1 411 | 155 613 | 207 484 | 207 526 |
+
+The reported fixture was pruned to 80 segments when it was captured for the repo, so the
+394-segment live maximum is reproduced in the test by cycling that fixture's own durations:
+**raw 44 046 / base64 58 728 / URI 58 770** — the measured shape within 8 B, and the value
+the budget is sized against.
+
+### The constant and its rationale
+
+```kotlin
+/** Upper bound for one synthesized playlist carried in a `data:` URI. */
+const val PLAYLIST_BUDGET_BYTES = 96 * 1024
+```
+
+- 96 KiB ≈ 2× the largest measured payload (58 778 B URI), so a normal video never trips it.
+- **Diagnostic ceiling, not a gate.** `emitXsftk` logs
+  `source q=<label> playlist bytes=<data-uri bytes> OVER BUDGET (98304)` and still emits.
+- Two shipped fixtures are already over budget on real long videos — 720 × 777 =
+  113 258 B and 360 × 1 411 = 207 526 B — which is exactly why "drop it" is out of scope:
+  dropping would trade a diagnosable oversized payload for a missing source.
+- Bounds H5 (playlist rejected / size-limited by the in-app player): if the device failure
+  is size-related, `logcat` now names the size against a documented threshold.
+
+### Contract pinned by `PerverZijaPlaylistBudgetTest` (10 tests, green)
+
+1. budget constant; every buildable quality of the reported fixture under budget; the
+   measured 394-segment maximum asserted exactly (>40 kB, < budget, largest payload)
+2. `#EXT-X-TARGETDURATION:` ≥ the largest `#EXTINF` for every quality (the reported
+   fixture's `td=8` undershoots its own 8.341667 s segment → synthesized target 9)
+3. `#EXT-X-MEDIA-SEQUENCE:0` for every quality, no `IV=` (IV = media sequence number)
+4. exactly one `#EXT-X-KEY:METHOD=AES-128,URI="…op=key…"` line, no `IV=`; key host = the
+   player host (not the `*.click` CDN), and the segment host differs
+5. `#EXT-X-ENDLIST` is the last line (VOD, not live)
+6. segment URLs in index order `0..n-1`, no gaps, no duplicates, one per `#EXTINF`
+7. a quality with missing/empty `durs` still yields the other qualities
+   (`perverzija_manifest_singleq.bin` covers the single-quality side)
+
+### Still unverifiable from CI
+
+**In-app `data:` playlist consumption is still unverifiable from CI.** The budget makes an
+oversized payload legible in `logcat`; whether ExoPlayer on a given device accepts a
+multi-tens-of-kB `data:application/vnd.apple.mpegurl;base64,…` URI remains maintainer-only
+evidence at merge time, and the S4 device request asks for it (H5's decisive split: an
+external player that plays a link the app cannot).

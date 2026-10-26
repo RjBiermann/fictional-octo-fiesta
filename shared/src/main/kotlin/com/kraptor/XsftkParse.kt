@@ -435,6 +435,25 @@ object XsftkParse {
         }
     }
 
+    // ---- in-band `data:` playlist budget (#1338/S3) --------------------------
+
+    /** Upper bound for one synthesized playlist carried in a `data:` URI — a diagnostic
+     *  ceiling, not a gate.
+     *
+     *  Measured on the largest sampled quality of the reported video (FINDINGS-1328 §1):
+     *  1080 / 394 segments → 45 kB raw playlist (44 052 B) → **58 736 B base64** in the
+     *  `data:` URI, plus the `#EXT-X-KEY` line. 96 KiB is ~2× headroom over that, so a
+     *  normal video can never trip the warning while a manifest shape with hundreds more
+     *  segments becomes visible in logcat instead of surfacing as an unexplained
+     *  player-side failure (H5 in the S1 hypothesis table: the in-app player's tolerance
+     *  of a multi-tens-of-kB `data:` URI is unverifiable from CI).
+     *
+     *  Over-budget sources are **still emitted** — the adapter logs and emits. Dropping
+     *  them would trade a diagnosable failure for a missing source, and real long videos
+     *  already exceed the budget on shipped fixtures (`perverzija_proto_manifest.bin`
+     *  720×777 → 113 216 B, `perverzija_manifest_singleq.bin` 360×1411 → 207 484 B). */
+    const val PLAYLIST_BUDGET_BYTES = 96 * 1024
+
     /** Base64 (RFC 4648, padded, no line breaks). android.util.Base64 first (API 1+),
      *  java.util.Base64 only as the JVM-test fallback (API 26+, mirror of
      *  decodeBase64 in HostRegistry.kt). */

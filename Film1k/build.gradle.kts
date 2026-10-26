@@ -1,4 +1,4 @@
-version = 18 // #1344: version bump (v18)
+version = 19 // #1345: version bump (v19)
 // fetches guarded (uncaught DNS exception), turbovid-only pages fall through cleanly
 
 cloudstream {
