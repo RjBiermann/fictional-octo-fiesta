@@ -196,3 +196,164 @@ $ ./gradlew test                            → BUILD SUCCESSFUL (all 24 provide
 
 Provider version 19 → 20 (related-card dedupe). No change to the stream chain: the S3
 fallback/decision point is untouched, so §1–§3 are a regression check on shipped code.
+
+## #1328 — playback hardening (S4)
+
+Live run: **2026-10-26 04:00–04:12Z**, from the CI runner, plain HTTP, no JS, mobile UA
+(`Mozilla/5.0 (Linux; Android 10; K) …`), theme referer `https://tube.perverzija.com/`
+on every player-page fetch. Scope: the shipped S2 multi-CDN selection and S3 `data:` budget,
+replayed against the #1328 reported URL, a second gated video from a different listing row
+and a different player subdomain, and one legacy (pre-gate) video. Provider version at run:
+**24** (from #1345); this story is docs-only, so no version bump is expected.
+
+### 1. Reported URL — `evolvedfightslez-jazmine-cruz-vs-nadia-white` — **GREEN**
+
+Chain replayed exactly as `PerverZijaExtractor.emitXsftk` / `XsftkParse.cdnSources` does it
+(video page → iframe → player page → boot pair → `op=manifest` → XOR decode → roster
+selection → `op=key` → seg-0 of chosen and alt-family hosts → AES-128-CBC → MPEG-TS sync):
+
+```text
+GET video page                                  → 200, 369 361 B
+iframe  https://pervl6.xtremestream.xyz/player/index.php?data=55ed523b2ca4371a31d7dbd7a2877bea
+GET player page (referer tube.perverzija.com/)  → 200, 3 177 B
+boot    XSFTK.boot("55ed523b2ca4371a31d7dbd7a2877bea",
+                   "cbd4413fa0b31d17d33e04b7.1792998000", player)
+GET proto_api.php?op=manifest                   → 200, application/octet-stream, 11 062 B
+XOR SHA-256("M|<id>|<token>")                   → qualities 1080 (394 segs), 720 (381), 480 (372)
+                                                → cdn roster 45 hosts, 2 families
+                                                  (pervl6.xspcdnNN ×35 / pervl6.xscasacdnNN ×10)
+shipped selection replay (XsftkParse.cdnSources):
+  primary probe q=1080 pervl6.xspcdn01.click    → 206, 1 024 B   chosen, probes=1
+  alt probe     q=1080 pervl6.xscasacdn01.click → 206, 1 024 B   alt,    probes=1
+GET proto_api.php?op=key  (X-XS-P: 1)           → 200, 16 B
+                                                 403 without X-XS-P · 403 with X-XS-P: 0
+GET <chosen>/cdn/down/<id>/1080_enc/10800.html  → 200, 3 352 608 B
+                                                  sha256 9252ebf3d09cfee4…
+GET <alt>/cdn/down/<id>/1080_enc/10800.html     → 200, 3 352 608 B
+                                                  sha256 9252ebf3d09cfee4…  (identical bytes)
+AES-128-CBC decrypt, IV = BE(0)                 → clean MPEG-TS, 17 833/17 834 slot starts
+                                                  0x47 (100.0%; last slot is a partial trailer)
+```
+
+The manifest head is `xspcdn01, xscasacdn01, xspcdn02, xscasacdn02, …`, so candidate #1 is
+`cdn[0]` and the healthy video spent **one primary probe**. The alt source is the first host
+of the other family, also accepted on its first probe. The fallback budget (6 primary / 3 alt)
+was not approached because nothing was dead from CI.
+
+### 2. Second gated video — `blacked-kelsi-monroe-fit-babe-kelsi-handles-his-bbc-at-the-gym` — **GREEN**
+
+From `/featured-scenes/`, a different listing row and a different player subdomain
+(`pervl4`, vs `pervl6` for the reported URL):
+
+```text
+GET video page                                  → 200, 387 588 B
+iframe  https://pervl4.xtremestream.xyz/player/index.php?data=da40657c9fece7e48d30af42d31d4350
+GET player page (referer tube.perverzija.com/)  → 200, 3 718 B
+boot    XSFTK.boot("da40657c9fece7e48d30af42d31d4350",
+                   "5921bb56b114771ef20ab37d.1792998000", player)
+GET proto_api.php?op=manifest                   → 200, application/octet-stream, 10 332 B
+XOR SHA-256("M|<id>|<token>")                   → qualities 2160 (291 segs), 1080 (215),
+                                                  720 (219), 480 (221)
+                                                → cdn roster 45 hosts, 2 families
+                                                  (pervl4.xspcdnNN ×35 / pervl4.xscasacdnNN ×10)
+shipped selection replay (XsftkParse.cdnSources):
+  primary probe q=2160 pervl4.xspcdn01.click    → 206, 1 024 B   chosen, probes=1
+  alt probe     q=2160 pervl4.xscasacdn01.click → 206, 1 024 B   alt,    probes=1
+GET proto_api.php?op=key  (X-XS-P: 1)           → 200, 16 B
+                                                 403 without X-XS-P · 403 with X-XS-P: 0
+GET <chosen>/cdn/down/<id>/2160_enc/21600.html  → 200, 54 528 B, sha256 a107b649b5cdf151…
+GET <alt>/cdn/down/<id>/2160_enc/21600.html     → 200, 54 528 B, same sha256 (identical bytes)
+AES-128-CBC decrypt, IV = BE(0)                 → clean MPEG-TS, 290/291 slot starts 0x47
+                                                  (99.7%; last slot is a partial trailer)
+```
+
+Same 45-host roster shape, same two-family split, one primary and one alt probe. The
+`2160` quality is a useful extra: the manifest advertises a resolution above the reported
+video's maximum and the shipped selector still probes the highest *buildable* quality first.
+
+### 3. Legacy video — `vivid-man-of-steel-xxx-an-axel-braun-parody-2013` — **GREEN, untouched by S2**
+
+A pre-gate page (`XSFTK` = 0, `ftk_engine` = 0, `ftk/xsad` = 0) on `j2.xtremestream.xyz`.
+`playerPlan` returns `Legacy` before `emitXsftk` runs, so **no CDN selection code executes**
+for this family:
+
+```text
+GET video page                                  → 200, 366 380 B
+iframe  https://j2.xtremestream.xyz/player/index.php?data=ea160c1a93b80943bb632999ff3e6130
+GET player page (referer tube.perverzija.com/)  → 200, 1 020 895 B
+                                                (no XSFTK / ftk_engine / ftk/xsad markers)
+GET https://j2.xtremestream.xyz/player/xs1.php?data=ea160c1a93b80943bb632999ff3e6130
+                                                → 200, 567 B, #EXTM3U, 3 STREAM-INF
+GET xs1.php?…&q=480                             → 200, 115 267 B, 1 121 EXTINF, no #EXT-X-KEY
+GET <j2.xspcdn01.click>/…/480/4800.html         → 200, 567 196 B
+                                                  MPEG-TS 3 017/3 017 slot starts 0x47 (100%)
+GET xs1.php?…&q=720                             → 200, 127 099 B, 1 235 EXTINF
+GET …/720/7200.html                             → 200, 931 164 B, 4 953/4 953 0x47 (100%)
+GET xs1.php?…&q=1080                            → 200, 144 674 B, 1 378 EXTINF
+GET …/1080/10800.html                           → 200, 1 368 828 B, 7 281/7 281 0x47 (100%)
+```
+
+The legacy master/variant/segment chain is byte-for-byte the family the #909 record
+verified; S2 changes only the gated `emitXsftk` path.
+
+### 4. verify.sh invocations
+
+Both invocations used the live selectors from FINDINGS — search `div.post_ajax_tm` +
+title `h3 a`, home `div.col-md-3.col-xs-6`, video `h1` for title agreement, player
+`iframe[src*=xtremestream]`, related `div.xs-related-item`, tags
+`div.item-tax-list a[href*='/tag/']`, actors `div.item-tax-list a[href*='/stars/']`,
+`--load-response recommendations,tags,plot,duration,year,actors,posters` +
+`--provider-src PerverZija`, mobile UA, no quick-search endpoint (recorded absent).
+
+**A — legacy family.** `/?s=vivid` p1+p2, home `/` + `/page/2/`, the legacy video with its
+`xs1.php` master as `--stream-url` and a player-origin Referer:
+
+| check | result |
+|---|---|
+| search p1/p2 | 200; 64 + 63 cards, no duplicates/cross-page repeats ✓ |
+| home p1/p2 | 200; 64 + 64 cards, disjoint ✓ |
+| video | 200; iframe ×1; h1/poster/plot present ✓ |
+| stream (`xs1.php` master) | 200 `text/plain` + `#EXTM3U` body ✓ |
+| field exposure | tags + actors on 1/1 ✓ |
+| related | 18 cards, titles non-empty, no self-link ✓ |
+| search ↔ load agreement | title + poster agree (poster NOTE: `-365x235` crop vs full `og:image`, same artwork) ✓ |
+| LoadResponse completeness (code half) | all 7 sampled fields populated ✓ |
+
+The only `FAIL` is the site-side duplicate recommendation (`vivid-center-stage-2003` twice
+in the raw DOM); the shipped `PerverZijaParse.related()` dedupes it by href
+(`PerverZijaRelatedDedupTest`), and the script reads the DOM rather than provider output.
+
+**B — gated family.** `/?s=blacked` p1+p2, home `/` + `/page/2/`, the reported URL and the
+`pervl4` video:
+
+| check | result |
+|---|---|
+| search p1/p2 | 200; 64 + 64 cards, no duplicates ✓ |
+| home p1/p2 | 200; 64 + 64 cards, disjoint ✓ |
+| video ×2 | 200; iframe ×1 each; h1/poster/plot present ✓ |
+| field exposure | tags + actors on 2/2 ✓ |
+| related ×2 | 18/18 cards, titles non-empty, no self-link, no duplicate hrefs ✓ |
+| LoadResponse completeness (code half) | all 7 sampled fields populated ✓ |
+| streams | **`RESULT: FAIL` by instrument plateau**: the XSFTK sources are emitted as in-band `data:application/vnd.apple.mpegurl;base64,…` URIs, so the page has no static m3u8/mp4 for the script to fetch. The §1–§2 chain transcripts are the stronger substitute: they prove the manifest → key → segment → TS decode for both videos. |
+
+### 5. Residual classes / limits
+
+- **In-app playback is maintainer-only.** Every check here is plain HTTP; ExoPlayer's
+  acceptance of the emitted `data:` URI on a particular device is not observable from CI
+  (H5). This lane does not pretend otherwise.
+- **`data:` playlist acceptance is untested from CI** — unchanged from the #909 record and
+  pinned by `PerverZijaPlaylistBudgetTest`. A `data:` URI is not a fetchable m3u8, so the
+  playlist itself can be byte-compared but not replayed by the verifier. The S3 budget only
+  makes an oversized payload visible in `logcat`.
+- **A device-side DNS/filter block of `*.click` (H3) cannot be fixed here.** Every roster
+  host is under `.click`; if the user still reports 2001 after this ships, H3 is the leading
+  explanation and the device request in `FINDINGS-1328.md` §7 is how to settle it.
+- **No dead candidate was observed from CI**, so this run gives no direct evidence for H1.
+  `cdn[0]` answered `206` on both gated videos. A remaining device-only 2001 is therefore
+  more likely H2/H3/H4/H5 than a dead primary host as seen from the runner.
+- **Legacy family is unaffected by S2.** `playerPlan.Legacy` bypasses `emitXsftk`; the
+  replay above is a regression check, not a changed path.
+- **Version bump.** This story changes only `*.md` files. `scripts/affected-set.sh`
+  classifies the diff as `none`, so the #921/#1334 PR-time bumper has nothing to bump;
+  version 24 (from #1345) stays unchanged by hand. If the bumper were expected to fire for
+  a docs-only PR, that would be a machinery finding — not a reason to edit `version` here.
