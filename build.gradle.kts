@@ -108,7 +108,7 @@ subprojects {
         // but you don't need to include any of them if you don't need them.
         // https://github.com/recloudstream/cloudstream/blob/master/app/build.gradle.kts
         implementation(kotlin("stdlib")) // Adds Standard Kotlin Features
-        implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
+        implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.12.0")
         implementation("com.github.Blatzar:NiceHttp:0.4.11") // HTTP Lib
         implementation("org.jsoup:jsoup:1.23.2") // HTML Parser
         // IMPORTANT: Do not bump Jackson above 2.13.1, as newer versions will
@@ -123,8 +123,8 @@ subprojects {
         // Constructors are pure field assignments, JVM-test safe. The two
         // kotlinx-serialization jars satisfy Voe's @Serializable companions.
         testImplementation(files(configurations.getByName("cloudstream")))
-        testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.11.0")
-        testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.11.0")
+        testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.12.0")
+        testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.12.0")
     }
 
 }
