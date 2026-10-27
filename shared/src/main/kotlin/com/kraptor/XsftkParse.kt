@@ -20,8 +20,7 @@
 //     switch between the families (#908).
 //
 // Kept free of CloudStream framework types (unit-test classpath, ADR-0005) and of
-// android.* calls on the hot path except the Base64 shim (mirror of decodeBase64,
-// java.util.Base64 fallback for JVM tests). Lives in shared/ because the root cause
+// android.* calls on the hot path. Lives in shared/ because the root cause
 // of the #840 symptom is the shared PerverZijaExtractor adapter (HostRegistry row)
 // emitting the decoy — never copy-paste extractor code into a provider (ADR-0002).
 package com.kraptor

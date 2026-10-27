@@ -38,7 +38,7 @@ right suspect; its answer is "none".
 ## §3 Fix — host the playlist on loopback, emit an `http://` URL
 
 The plugin runs inside the app process, so `shared/XsftkPlaylistServer.kt` binds
-`127.0.0.1:0`, keeps the last 16 published playlists, and serves
+`127.0.0.1:0`, keeps the last 64 published playlists, and serves
 `GET /<id>.m3u8` (`Content-Type: application/vnd.apple.mpegurl`) over plain HTTP.
 `PerverZijaExtractor.emitXsftk` publishes each synthesized quality and emits
 `http://127.0.0.1:<port>/<id>.m3u8`; the `#EXT-X-KEY` and segment URIs inside the playlist
@@ -62,8 +62,9 @@ decoded video. Before the fix the same two videos produced 2001 on every source.
 
 - Loopback hosting needs the plugin to run inside the app process (it does) and cleartext
   http to be permitted; CloudStream sets `android:usesCleartextTraffic="true"`.
-- The host lives as long as the app process; a playlist id stays valid for the last 16
-  published links, which covers player retries and seeks.
+- The host lives as long as the app process; a playlist id stays valid for the last 64
+  published links, which covers player retries, seeks and browsing between videos
+  (a gated video publishes up to 6 links).
 - Legacy (pre-gate) videos still emit the tokenless `xs1.php` master and are untouched.
 - In-app testing stays maintainer-only per ADR-0012; this run happened because the maintainer
   asked for it on the issue.

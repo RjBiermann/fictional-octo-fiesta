@@ -254,8 +254,14 @@ class PerverZijaPlaylistContractTest {
 
             val sources = XsftkParse.playableSources(case.json, reportedBoot, reportedPlayerUrl)
             assertEquals(case.label, listOf("1080", "480"), sources.map { it.label })
+            val intact = XsftkParse.playableSources(reportedManifest(), reportedBoot, reportedPlayerUrl)
+                .associate { it.label to it.playlist }
             for (source in sources) {
-                assertTrue(case.label, source.playlist.contains("#EXT-X-ENDLIST"))
+                // a survivor is byte-identical to the same quality built from the intact
+                // manifest, and the broken 720 never leaks into it (a bare ENDLIST check
+                // would be a tautology — §5 already pins ENDLIST for every source)
+                assertEquals(case.label, intact.getValue(source.label), source.playlist)
+                assertFalse(case.label, source.playlist.contains("/720_enc/"))
             }
         }
 

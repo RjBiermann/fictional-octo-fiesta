@@ -244,6 +244,9 @@ open class PerverZijaExtractor : ExtractorApi() {
             )
             return
         }
+        // Loopback host diagnostics (#1353 review): a failed accept/serve would otherwise
+        // leave no plugin-side trace for the next 2001 report.
+        XsftkPlaylistServer.logger = { message -> Log.d(TAG, "stage=playlist host: $message") }
         for (source in sources) {
             val playlist = source.playlist
             // #1353: the playlist is hosted on loopback and the player gets an http URL.
