@@ -222,3 +222,64 @@ oversized payload legible in `logcat`; whether ExoPlayer on a given device accep
 multi-tens-of-kB `data:application/vnd.apple.mpegurl;base64,…` URI remains maintainer-only
 evidence at merge time, and the S4 device request asks for it (H5's decisive split: an
 external player that plays a link the app cannot).
+
+## §6 S2 outcome — multi-CDN fallback in the live chain (S4 / #1339)
+
+Live replay **2026-10-26 04:00–04:12Z**, same method as §1 (plain HTTP from the CI runner,
+mobile UA, no JS, theme referer on the player page). Two gated videos from different listing
+rows and different player subdomains, plus one legacy video for the untouched-family check:
+
+| video | player host | `op=manifest` | qualities (segments) | roster / families | primary probes | chosen host | alt probes | alt-family host | dead candidates |
+|---|---|---|---|---|---|---|---|---|---|
+| `evolvedfightslez-jazmine-cruz-vs-nadia-white` (#1328 URL) | `pervl6` | 11 062 B | `1080/394`, `720/381`, `480/372` | 45 / `xspcdn` 35 + `xscasacdn` 10 | **1** | `pervl6.xspcdn01.click` | **1** | `pervl6.xscasacdn01.click` | **0** |
+| `blacked-kelsi-monroe-fit-babe-kelsi-handles-his-bbc-at-the-gym` (`/featured-scenes/`) | `pervl4` | 10 332 B | `2160/291`, `1080/215`, `720/219`, `480/221` | 45 / `xspcdn` 35 + `xscasacdn` 10 | **1** | `pervl4.xspcdn01.click` | **1** | `pervl4.xscasacdn01.click` | **0** |
+
+- **Roster reuse: the 45-host shape held on both videos.** Both manifests listed 45 hosts in
+the same two families, `xspcdnNN` (35) and `xscasacdnNN` (10); only the player-subdomain
+prefix moved (`pervl6.*` vs `pervl4.*`). Manifest order reproduced the §2 quirk (`xspcdn34`
+before `xspcdn33`); no host was dropped by dedupe.
+- **Probe counts actually spent: 2 per gated video (4 total).** One primary probe on the
+highest buildable quality (`1080` / `2160`), accepted by `cdn[0]` on the first try; one alt
+probe on the first host of the other family, also accepted on the first try. The budgets
+(`MAX_PROBES` 6 / `MAX_ALT_PROBES` 3) were never approached.
+- **No candidate was dead from CI.** Both `cdn[0]` and the other family's `cdn[0]` answered
+`206` to `Range: bytes=0-1023`. That is **not** direct evidence for H1: if the device still
+fails on these URLs, the divergence is device-side (H3/H4/H5) or the per-video key host (H2),
+not a primary host that CI can see as dead.
+- **The alt family is the same media.** Segment 0 of the chosen and alt hosts was byte-identical
+on both videos (`sha256 9252ebf3d09cfee4…`, 3 352 608 B for `pervl6`; `sha256 a107b649b5cdf151…`,
+54 528 B for `pervl4`), matching the §1 conclusion that the roster is interchangeable.
+- **S2 did not touch the legacy family.** `playerPlan.Legacy` returns before `emitXsftk`, so no
+CDN selection runs. The legacy replay (VERIFICATION `## #1328 — playback hardening (S4)` §3)
+kept its pre-gate master → variant → plain-TS chain: `j2.xspcdn01.click` segment 0,
+100 % MPEG-TS sync at 480/720/1080.
+- **Instrument plateau unchanged.** The emitted source is still a `data:` URI, not a fetchable
+m3u8, so the playlist is byte-comparable but not replayable by `verify.sh`; the manual chain
+above is the substitute, exactly as recorded for #909.
+
+## §7 Next device report
+
+This block is for the maintainer to paste into a future report. This lane does **not** post it
+as a comment and does **not** ask the reporter directly. The three answers settle H1 vs H3 vs
+H5; without them, a remaining 2001 is indistinguishable at the code layer.
+
+```text
+PerverZija playback evidence request (one failing attempt, please):
+
+(a) Attach `adb logcat -s kraptor_PerverZija kraptor_PerverZijaExtract` from around one
+    failing attempt. The S1 lines name the failing stage (`stage=player|manifest|playlist|cdn`),
+    the selected host (`source q=… cdn=… key=… segs=… bytes=…`) and any skipped quality
+    (`skip q=… reason=…`).
+
+(b) Open the same video URL in VLC or MX Player on the same device and network.
+    Plays there → in-app consumption (H5); fails there too → reachability/DNS (H1/H3/H4).
+
+(c) Report the device's Private DNS / VPN / DNS-filter state and whether the `cdn=` host from
+    (a) resolves, e.g. `adb shell ping -c1 pervl6.xspcdn01.click` (or the matching
+    `xscasacdn` host). Also report Settings → Player (ExoPlayer / libVLC / MPV).
+
+Why this matters: every segment host is under `*.click`; a device-side TLD/filter block
+removes the whole roster at once (H3), which no Kotlin change can fix. If an external player
+plays a link the app cannot, the chain is healthy and the fault is the in-app `data:` playlist
+path (H5).
+```
