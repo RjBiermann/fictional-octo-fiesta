@@ -23,3 +23,15 @@ they never open a fresh issue per day), and fix runs ride devloop's existing cap
 (`max_per_day`, timeouts) with no new knobs. A failure issue carries the failing plugin
 list, logcat tail, app version, and upstream jar SHA so the fix run starts from evidence
 and never re-probes.
+
+Attribution guard (#1362): a plugin set is only reportable when the app actually examined
+it — its own listing of the pushed plugin folder is non-empty, or at least one plugin is
+named as loaded/failed. A run where the folder counts 0 files is an **instrument** fault
+(missing all-files grant, wrong package, wrong push path) and files a single
+`instrument-fault` sentinel instead of the provider set, keeping the dedup key stable. The
+measured failure is why: 26 `adb push`es succeeded, the app logged `folder: 0`, and
+expected-minus-loaded named all 26 providers — an ai-fix issue fired at code that was never
+loaded. A second defect in the same run, downstream of the grant, was ours too: the success
+line is `I/PluginManager( pid): Loaded plugin <file>.cs3 successfully`, so a regex requiring
+a `PluginManager: ` message prefix saw a fully-loaded fleet as zero and reported it failing.
+Instrument evidence is never provider evidence, in either direction.

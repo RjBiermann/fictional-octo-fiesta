@@ -7,8 +7,12 @@
 # 3. Boot the app, fire upstream's local-plugin reload intent
 #    ("cloudstreamapp:"), assert registration at logcat level only:
 #      success  -> PluginManager: Loaded plugin <name> successfully
+#                  (tag form, current builds: I/PluginManager( pid): Loaded plugin
+#                   <file>.cs3 successfully — see parse-log.sh)
 #      failure  -> PluginManager: Failed to load <file>: <stack>
 #                  PluginManager: Failed to load plugin  X: <reason>
+#    A fleet the app never even listed (0 files in its plugin folder) is an
+#    instrument fault, not a provider one — see the attribution guard below.
 # Emulator results are never Geo-gated evidence (same runner IP, ADR-0012).
 #
 # Usage: emulator-load.sh <cs3-dir>
@@ -20,7 +24,6 @@ CS3_DIR=$1
 source "$(dirname "$0")/parse-log.sh"
 EVIDENCE=loadcheck-evidence
 mkdir -p "$EVIDENCE"
-PKG=com.lagradost.cloudstream3
 
 # ---- wait for boot --------------------------------------------------------
 deadline=$((SECONDS + 900))
@@ -40,6 +43,15 @@ VERSION=$("$AAPT" dump badging "$EVIDENCE/app-prerelease.apk" 2>/dev/null \
   | sed -n "s/.*versionName='\([^']*\)'.*/\1/p" | head -1) || true
 [[ -n ${VERSION:-} ]] || VERSION="latest-prerelease (versionName unparsable)"
 printf '%s\n' "$VERSION" > "$EVIDENCE/app-version.txt"
+# The prerelease APK installs as com.lagradost.cloudstream3.prerelease, not the stable
+# package — a hardcoded name launches nothing and every plugin then "fails" to load.
+PKG=$("$AAPT" dump badging "$EVIDENCE/app-prerelease.apk" 2>/dev/null \
+  | sed -n "s/^package: name='\([^']*\)'.*/\1/p" | head -1) || true
+[[ -n ${PKG:-} ]] || PKG=$(adb shell pm list packages 2>/dev/null \
+  | sed -n "s/^package:\(com\.lagradost\.cloudstream3.*\)$/\1/p" | head -1 | tr -d '\r')
+[[ -n ${PKG:-} ]] || { echo "cannot determine the CloudStream package name" >&2; exit 1; }
+printf '%s\n' "$PKG" > "$EVIDENCE/app-package.txt"
+echo "package: $PKG"
 adb install -r -t "$EVIDENCE/app-prerelease.apk"
 
 # ---- logcat capture starts BEFORE the app touches anything ----------------
@@ -47,6 +59,16 @@ adb logcat -c
 adb logcat -v time > "$EVIDENCE/logcat.log" &
 LOGCAT_PID=$!
 trap 'kill "$LOGCAT_PID" 2>/dev/null || true' EXIT
+
+# ---- all-files access: without it the app lists 0 files in its plugin folder ----
+# A fresh install has no storage grant, so the app's listing of the shared plugin dir
+# reads empty while the shell's shows 26, and no plugin is ever examined (#1362). The
+# install-time dialog is not tap-able in CI, so apply the app-op directly.
+# NOTE: PR #1360 carries the same two hunks (package derivation + this grant), derived
+# independently from the same run — whichever lands second keeps one copy.
+adb shell appops set "$PKG" MANAGE_EXTERNAL_STORAGE allow
+adb shell pm grant "$PKG" android.permission.READ_EXTERNAL_STORAGE 2>/dev/null || true
+adb shell pm grant "$PKG" android.permission.WRITE_EXTERNAL_STORAGE 2>/dev/null || true
 
 # ---- push every plugin, then upstream's own reload intent -----------------
 adb shell mkdir -p /storage/emulated/0/Cloudstream3/plugins
@@ -66,12 +88,12 @@ mapfile -t expected < <(cd "$CS3_DIR" && ls *.cs3 | sed 's/\.cs3$//' | sort)
 printf '%s\n' "${expected[@]:-}" > "$EVIDENCE/expected-plugins.txt"
 echo "expected ${#expected[@]} plugins"
 
-# ponytail: substring match tolerates version suffixes in logged plugin names
-# ("EPorner (4)" vs expected "EPorner"); distinct .cs3 stems make false
-# positives unlikely.
+# Names arrive as .cs3 stems (extract_loaded strips the file name and any
+# " (4)" version suffix), so the comparison is exact: substring matching let
+# "PornXP" be satisfied by a different "PornXPHD" registration.
 all_loaded() {
   local l="$1" e
-  for e in "${expected[@]}"; do grep -qF "$e" <<<"$l" || return 1; done
+  for e in "${expected[@]}"; do grep -qxF "$e" <<<"$l" || return 1; done
   return 0
 }
 
@@ -87,10 +109,33 @@ while :; do
   sleep 10
 done
 
-# ---- failing set: expected minus successfully-loaded (best-effort names) --
 printf '%s\n' "$loaded" > "$EVIDENCE/loaded-plugins.txt"
+
+# ---- attribution guard (ADR-0012): an invisible plugin set is OUR fault ------
+# The app's own listing is the only evidence that the pushed set was examined.
+# Measured (#1362, run 40575172160): 26 `adb push`es succeeded, the app logged
+# "Files in '/storage/emulated/0/Cloudstream3/plugins' folder: 0" (fresh install,
+# no all-files grant), and expected-minus-loaded then named all 26 providers — a
+# false ai-fix issue fired at code that was never loaded. Zero visibility says
+# nothing about any plugin: report the instrument fault, never the provider set.
+if [[ $(plugin_visibility "$EVIDENCE/logcat.log" ${#expected[@]}) == invisible ]]; then
+  app_saw=$(extract_plugin_dir_count "$EVIDENCE/logcat.log" || true)
+  {
+    echo "instrument-fault: the app listed ${app_saw:-no} of ${#expected[@]} pushed plugin files"
+    echo "plugin dir: /storage/emulated/0/Cloudstream3/plugins"
+    echo "not a provider fault (ADR-0012) — check the all-files grant and the push path"
+  } > "$EVIDENCE/instrument-fault.txt"
+  cat "$EVIDENCE/instrument-fault.txt" >&2
+  # Stable dedup key: the counts stay in the evidence and the run comment, out of
+  # the issue title, so repeat instrument faults append instead of fanning out.
+  echo 'instrument-fault (app listed 0 pushed plugin files: storage/push visibility, not provider faults)' \
+    > "$EVIDENCE/failing-plugins.txt"
+  exit 1
+fi
+
+# ---- failing set: expected minus successfully-loaded (best-effort names) --
 for e in "${expected[@]}"; do
-  grep -qF "$e" <<<"$loaded" || echo "$e" >> "$EVIDENCE/failing-plugins.txt"
+  grep -qxF "$e" <<<"$loaded" || echo "$e" >> "$EVIDENCE/failing-plugins.txt"
 done
 # plus any plugin names the failure logs name directly
 extract_failed "$EVIDENCE/logcat.log" >> "$EVIDENCE/failing-plugins.txt" || true
