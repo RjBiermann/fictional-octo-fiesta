@@ -244,19 +244,19 @@ open class PerverZijaExtractor : ExtractorApi() {
             )
             return
         }
+        // Loopback host diagnostics (#1353 review): a failed accept/serve would otherwise
+        // leave no plugin-side trace for the next 2001 report.
+        XsftkPlaylistServer.logger = { message -> Log.d(TAG, "stage=playlist host: $message") }
         for (source in sources) {
             val playlist = source.playlist
-            // #1328/S3: the `data:` URI is the budgeted payload (base64 of the playlist,
-            // ~4/3 of the raw bytes). Over budget is LOGGED and still emitted — a missing
-            // source would be harder to diagnose than an oversized one, and whether the
-            // in-app player accepts a big data: URI is device-only evidence (H5).
-            val uri = XsftkParse.dataUri(playlist)
-            if (uri.length > XsftkParse.PLAYLIST_BUDGET_BYTES) {
-                Log.d(
-                    TAG,
-                    "source q=${source.quality} playlist bytes=${uri.length} " +
-                        "OVER BUDGET (${XsftkParse.PLAYLIST_BUDGET_BYTES})"
-                )
+            // #1353: the playlist is hosted on loopback and the player gets an http URL.
+            // A `data:` URI never plays — the app's Cronet/OkHttp datasource answers
+            // net::ERR_UNKNOWN_URL_SCHEME, surfaced as 2001 (FINDINGS-1353).
+            val uri = try {
+                XsftkPlaylistServer.publish(playlist)
+            } catch (e: Exception) {
+                Log.d(TAG, "stage=playlist failed: loopback host (${e.javaClass.simpleName})")
+                continue
             }
             callback.invoke(newExtractorLink(
                 source = name,

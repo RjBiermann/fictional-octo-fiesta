@@ -118,13 +118,14 @@ class PerverZijaSynthTest {
         assertNull(XsftkParse.variantPlaylist("garbage", boot, playerUrl, "480"))
     }
 
-    // ---- data: URI ------------------------------------------------------------
+    // ---- loopback playback URL (#1353) ----------------------------------------
 
-    @Test fun `data uri carries the playlist base64 decodable`() {
+    @Test fun `published playlist is served over loopback http`() {
         val pl = "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-ENDLIST"
-        val uri = XsftkParse.dataUri(pl)
-        assertTrue(uri.startsWith("data:application/vnd.apple.mpegurl;base64,"))
-        val b64 = uri.removePrefix("data:application/vnd.apple.mpegurl;base64,")
-        assertEquals(pl, String(java.util.Base64.getDecoder().decode(b64), Charsets.UTF_8))
+        val url = XsftkPlaylistServer.publish(pl)
+        // the app's player only speaks http(s): a data: URI dies as 2001 (#1353)
+        assertTrue(url, url.startsWith("http://127.0.0.1:"))
+        assertTrue(url, url.endsWith(".m3u8"))
+        assertEquals(pl, java.net.URL(url).readText())
     }
 }

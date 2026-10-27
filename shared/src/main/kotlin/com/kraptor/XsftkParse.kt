@@ -20,8 +20,7 @@
 //     switch between the families (#908).
 //
 // Kept free of CloudStream framework types (unit-test classpath, ADR-0005) and of
-// android.* calls on the hot path except the Base64 shim (mirror of decodeBase64,
-// java.util.Base64 fallback for JVM tests). Lives in shared/ because the root cause
+// android.* calls on the hot path. Lives in shared/ because the root cause
 // of the #840 symptom is the shared PerverZijaExtractor adapter (HostRegistry row)
 // emitting the decoy — never copy-paste extractor code into a provider (ADR-0002).
 package com.kraptor
@@ -435,40 +434,9 @@ object XsftkParse {
         }
     }
 
-    // ---- in-band `data:` playlist budget (#1338/S3) --------------------------
-
-    /** Upper bound for one synthesized playlist carried in a `data:` URI — a diagnostic
-     *  ceiling, not a gate.
-     *
-     *  Measured on the largest sampled quality of the reported video (FINDINGS-1328 §1):
-     *  1080 / 394 segments → 45 kB raw playlist (44 052 B) → **58 736 B base64** in the
-     *  `data:` URI, plus the `#EXT-X-KEY` line. 96 KiB is ~2× headroom over that, so a
-     *  normal video can never trip the warning while a manifest shape with hundreds more
-     *  segments becomes visible in logcat instead of surfacing as an unexplained
-     *  player-side failure (H5 in the S1 hypothesis table: the in-app player's tolerance
-     *  of a multi-tens-of-kB `data:` URI is unverifiable from CI).
-     *
-     *  Over-budget sources are **still emitted** — the adapter logs and emits. Dropping
-     *  them would trade a diagnosable failure for a missing source, and real long videos
-     *  already exceed the budget on shipped fixtures (`perverzija_proto_manifest.bin`
-     *  720×777 → 113 216 B, `perverzija_manifest_singleq.bin` 360×1411 → 207 484 B). */
-    const val PLAYLIST_BUDGET_BYTES = 96 * 1024
-
-    /** Base64 (RFC 4648, padded, no line breaks). android.util.Base64 first (API 1+),
-     *  java.util.Base64 only as the JVM-test fallback (API 26+, mirror of
-     *  decodeBase64 in HostRegistry.kt). */
-    fun encodeBase64NoWrap(data: ByteArray): String =
-        try {
-            android.util.Base64.encodeToString(data, android.util.Base64.NO_WRAP)
-        } catch (e: RuntimeException) {
-            java.util.Base64.getEncoder().encodeToString(data)
-        } catch (e: LinkageError) {
-            java.util.Base64.getEncoder().encodeToString(data)
-        }
-
-    /** Playlist text as a data: URI. ExoPlayer opens data: URIs natively
-     *  (DataSchemeDataSource), so the synthesized playlist travels in-band and
-     *  keeps the X-XS-P header session in one request context (FINDINGS-840 note). */
-    fun dataUri(playlist: String): String =
-        "data:application/vnd.apple.mpegurl;base64," + encodeBase64NoWrap(playlist.toByteArray(Charsets.UTF_8))
+    // Emission is an http URL, never an in-band `data:` URI: the app's player fetches
+    // every source through Cronet/OkHttp, which reject unknown schemes with
+    // net::ERR_UNKNOWN_URL_SCHEME before the HLS parser sees the playlist — the
+    // ERROR_CODE_IO_NETWORK_CONNECTION_FAILED (2001) of #840/#1328/#1353. The adapter
+    // hosts the playlist on 127.0.0.1 instead (XsftkPlaylistServer, FINDINGS-1353).
 }

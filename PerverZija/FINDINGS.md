@@ -297,6 +297,10 @@ playlists, the fallback is a per-segment presign sweep (734 sign calls at 480p) 
 is explicitly NOT shipped. In-app playback test is merge-time, not an agent deliverable.
 
 ### Code landed (TDD red → green, ADR-0005)
+> **Superseded by #1353 — see `../FINDINGS-1353.md`.** The `data:` carriage (and the
+> `encodeBase64NoWrap` / `dataUri` helpers below) is gone: the playlist is now hosted on
+> loopback because the app's player rejects a `data:` URI as 2001. The XSFTK parse
+> helpers remain current.
 - NEW `shared/src/main/kotlin/com/kraptor/XsftkParse.kt` — single source of the XSFTK
   protocol helpers: `xsftkBoot` / `protoApiUrl` / `decodeXsManifest` (moved from the
   provider parse, same package), plus `qualities`, `xsSegmentUrl`, `variantPlaylist`

@@ -158,6 +158,10 @@ pervl6.xspcdn35.click
 
 ## §5 In-band playlist budget (S3 / #1338)
 
+> **Superseded by #1353 — see `FINDINGS-1353.md`.** The 96 KiB budget (and the `data:`
+> URI it measured) was removed with the `data:` carriage; the playlist is now hosted on
+> loopback. This section stays as history of #1338.
+
 Run 2026-10-25 (`05-implement`, story S3 of #1328). Code change is one documented constant
 (`XsftkParse.PLAYLIST_BUDGET_BYTES = 96 * 1024`) plus one diagnostic log line on the real
 emission path (`PerverZijaExtractor.emitXsftk`). **Emitted bytes are unchanged** — an
