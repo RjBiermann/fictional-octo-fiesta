@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
 # Logcat → plugin-name parsing. Sourced by emulator-load.sh and test-parse.sh.
 # arg 1 = logcat file.
-# NOTE: exact upstream log line format is verified by the first manual live run
-# (ADR-0012 review finding: push dir + log format need live confirmation).
+# Two emitted shapes are supported: the tag form from current builds
+# (`I/PluginManager( 4355): Loaded plugin X successfully`) and the older
+# message-prefix form (`I/SystemOut( 1): PluginManager: Loaded plugin X ...`).
 extract_loaded() {
-  grep -oP 'PluginManager: Loaded plugin \K.*(?= successfully)' "$1" 2>/dev/null | sort -u
+  grep -oP 'PluginManager(?:\(\s*\d+\))?:\s*Loaded plugin \K.*(?= successfully)' "$1" 2>/dev/null | sort -u
 }
 
 extract_failed() {
-  grep -oP 'PluginManager: Failed to load plugin \K.*?(?=:)' "$1" 2>/dev/null | sed 's/\.cs3$//' | sort -u
+  grep -oP 'PluginManager(?:\(\s*\d+\))?:\s*Failed to load (?:plugin\s+)?\K[^:]+' "$1" 2>/dev/null | sed 's/\.cs3$//' | sort -u
 }
 
 # has_failed <log> — any explicit plugin-load failure line present?
 has_failed() {
-  grep -qP 'PluginManager: Failed to load ' "$1" 2>/dev/null
+  grep -qP 'PluginManager(?:\(\s*\d+\))?:\s*Failed to load ' "$1" 2>/dev/null
 }
