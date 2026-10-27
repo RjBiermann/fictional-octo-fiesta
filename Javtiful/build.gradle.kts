@@ -1,5 +1,5 @@
 // ! Bu araç @ByAyzen tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 20 // #1356: version bump (v20)
+version = 21 // #1359: version bump (v21)
 
 cloudstream {
     authors     = listOf("ByAyzen")
