@@ -11,25 +11,20 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * TDD for issue #1338 (S3 of the PerverZija playback-hardening epic #1328).
+ * Contract of the synthesized HLS playlists the shared `PerverZijaExtractor` emits for
+ * gated XSFTK videos (issues #845/#846, #1328, #1353).
  *
- * Every gated source ships as a synthesized HLS playlist inside a
- * `data:application/vnd.apple.mpegurl;base64,…` URI, because that is how the
- * `X-XS-P: 1` key-header session stays in one request context (FINDINGS-840).
- * Whether the in-app player accepts a multi-tens-of-kB `data:` URI is **unverifiable
- * from CI** (H5 of the S1 hypothesis table), so this story does not replace the
- * mechanism — it *bounds* it: one documented budget constant, one over-budget log line
- * on the real emission path, and the in-band playlist contract itself pinned per
- * quality.
+ * Each gated video yields one playlist per buildable quality, hosted on loopback
+ * (XsftkPlaylistServer) because the app's player fetches sources over Cronet/OkHttp and
+ * cannot open a `data:` URI (#1353). Everything *inside* the playlist is pinned here per
+ * quality: the AES-128 key line and its player host, TARGETDURATION against the longest
+ * EXTINF, MEDIA-SEQUENCE:0 as the IV contract, VOD ENDLIST, and segment order.
  *
  * Measured shape (FINDINGS-1328 §1, largest sampled quality of the reported video):
- * 1080 / 394 segments → 44 052 B raw → 58 736 B in the `data:` URI. The budget is
- * 96 KiB (~2× headroom). The shipped fixtures show why the budget may only *log*:
- * `perverzija_proto_manifest.bin` (720 × 777) is 113 216 B and
- * `perverzija_manifest_singleq.bin` (360 × 1411) is 207 484 B — both over budget on
- * real long videos, so dropping over-budget sources would lose working sources.
+ * 1080 / 394 segments → 44 052 B playlist text.
  */
-class PerverZijaPlaylistBudgetTest {
+class PerverZijaPlaylistContractTest {
+
 
     private fun fixture(name: String): String =
         javaClass.classLoader.getResource(name)!!.readText()
@@ -89,9 +84,6 @@ class PerverZijaPlaylistBudgetTest {
             XsftkParse.playableSources(f.json, f.boot, f.playerUrl).map { f to it }
         }
 
-    private fun uriBytes(playlist: String): Int =
-        XsftkParse.dataUri(playlist).toByteArray(Charsets.UTF_8).size
-
     private fun extinfDurations(playlist: String): List<Double> =
         playlist.lineSequence()
             .filter { it.startsWith("#EXTINF:") }
@@ -112,69 +104,22 @@ class PerverZijaPlaylistBudgetTest {
             .find(keyLines[0])!!.groupValues[1]
     }
 
-    // ---- 1. the documented budget, pinned by test ----------------------------
-
-    @Test fun `playlist budget is 96 KiB, above the measured maximum`() {
-        // 58 736 B measured maximum (1080 / 394 segments, FINDINGS-1328 §1) with ~2×
-        // headroom, so a normal video can never trip the diagnostic.
-        assertEquals(96 * 1024, XsftkParse.PLAYLIST_BUDGET_BYTES)
-        assertTrue(XsftkParse.PLAYLIST_BUDGET_BYTES > 58_736)
-    }
-
-    @Test fun `every buildable quality of the reported video fits the budget`() {
-        val sources = reportedSources()
-        assertEquals(listOf("1080", "720", "480"), sources.map { it.label })
-        for (source in sources) {
-            val uri = XsftkParse.dataUri(source.playlist)
-            assertTrue(
-                "q=${source.label} data: URI is ${uri.length} B " +
-                    "(budget ${XsftkParse.PLAYLIST_BUDGET_BYTES})",
-                uri.length <= XsftkParse.PLAYLIST_BUDGET_BYTES
-            )
-        }
-        // the highest quality carries the biggest in-band payload of the real fixture
-        assertEquals("1080", sources.maxByOrNull { uriBytes(it.playlist) }!!.label)
-    }
+    // ---- 1. the measured live shape ------------------------------------------
 
     /**
      * The measured live maximum (FINDINGS-1328 §1) is a 394-segment 1080 quality. The
      * shipped #906 fixture was pruned to 80 segments, so the live shape is rebuilt here
      * by cycling its own durations up to 394 entries — same durations, same id/token, so
-     * the resulting playlist reproduces the recorded size: 44 046 B raw vs 44 052 live,
-     * 58 728 B base64 vs 58 736 live (+ the 42 B `data:` prefix → 58 770 B carried).
-     * Asserting the number (not just the budget) is the point: it proves the test really
-     * exercises a large payload.
+     * the synthesized playlist reproduces the recorded payload: 44 044 B vs 44 052 live.
+     * Asserting the number is the point: it proves the fixtures exercise a large playlist.
      */
-    @Test fun `the measured 394-segment maximum is the largest payload and stays under budget`() {
+    @Test fun `the measured 394-segment maximum is reproduced by the fixture`() {
         val json = liveMaximumManifest()
         val playlist = XsftkParse.variantPlaylist(json, reportedBoot, reportedPlayerUrl, "1080")!!
         assertEquals(394, playlist.lineSequence().count { it.startsWith("#EXTINF:") })
-
-        val uri = XsftkParse.dataUri(playlist)
-        assertEquals("measured maximum carried in the data: URI", 58_770, uri.length)
-        assertTrue("must exercise a genuinely large payload (> 40 kB)", uri.length > 40 * 1024)
-        assertTrue("and stay under the budget", uri.length < XsftkParse.PLAYLIST_BUDGET_BYTES)
-        assertTrue(
-            "larger than every shipped-fixture quality",
-            uri.length > reportedSources().maxOf { uriBytes(it.playlist) }
-        )
-    }
-
-    /** A quality list that blows past the budget is still emitted (#1338: log, don't drop). */
-    @Test fun `over-budget qualities are still emitted - the budget only logs`() {
-        val single = XsftkParse.playableSources(singleQManifest(), singleQBoot, singleQPlayerUrl)
-        assertEquals(listOf("360"), single.map { it.label })
-        assertTrue(
-            "singleq fixture (360 x 1411) is over budget",
-            XsftkParse.dataUri(single[0].playlist).length > XsftkParse.PLAYLIST_BUDGET_BYTES
-        )
-
-        val proto = XsftkParse.playableSources(protoManifest(), protoBoot, protoPlayerUrl)
-        assertEquals(listOf("720", "480"), proto.map { it.label })
-        assertTrue(
-            "proto fixture (720 x 777) is over budget too",
-            proto.all { XsftkParse.dataUri(it.playlist).length > XsftkParse.PLAYLIST_BUDGET_BYTES }
-        )
+        val bytes = playlist.toByteArray(Charsets.UTF_8).size
+        assertEquals("measured maximum playlist text", 44_044, bytes)
+        assertTrue("must exercise a genuinely large playlist (> 40 kB)", bytes > 40 * 1024)
     }
 
     // ---- 2. TARGETDURATION >= the largest EXTINF -----------------------------
@@ -310,7 +255,7 @@ class PerverZijaPlaylistBudgetTest {
             val sources = XsftkParse.playableSources(case.json, reportedBoot, reportedPlayerUrl)
             assertEquals(case.label, listOf("1080", "480"), sources.map { it.label })
             for (source in sources) {
-                assertTrue(case.label, uriBytes(source.playlist) <= XsftkParse.PLAYLIST_BUDGET_BYTES)
+                assertTrue(case.label, source.playlist.contains("#EXT-X-ENDLIST"))
             }
         }
 

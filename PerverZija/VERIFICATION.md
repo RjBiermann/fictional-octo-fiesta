@@ -334,20 +334,22 @@ in the raw DOM); the shipped `PerverZijaParse.related()` dedupes it by href
 | field exposure | tags + actors on 2/2 ✓ |
 | related ×2 | 18/18 cards, titles non-empty, no self-link, no duplicate hrefs ✓ |
 | LoadResponse completeness (code half) | all 7 sampled fields populated ✓ |
-| streams | **`RESULT: FAIL` by instrument plateau**: the XSFTK sources are emitted as in-band `data:application/vnd.apple.mpegurl;base64,…` URIs, so the page has no static m3u8/mp4 for the script to fetch. The §1–§2 chain transcripts are the stronger substitute: they prove the manifest → key → segment → TS decode for both videos. |
+| streams | **`RESULT: FAIL` by instrument plateau**: the XSFTK sources are synthesized playlists hosted on loopback (since #1353, `http://127.0.0.1:<port>/<id>.m3u8`; `data:` before that), so the page has no static m3u8/mp4 for the script to fetch. The §1–§2 chain transcripts are the stronger substitute: they prove the manifest → key → segment → TS decode for both videos. |
 
 ### 5. Residual classes / limits
 
-- **In-app playback is maintainer-only.** Every check here is plain HTTP; ExoPlayer's
-  acceptance of the emitted `data:` URI on a particular device is not observable from CI
-  (H5). This lane does not pretend otherwise.
-- **`data:` playlist acceptance is untested from CI** — unchanged from the #909 record and
-  pinned by `PerverZijaPlaylistBudgetTest`. A `data:` URI is not a fetchable m3u8, so the
-  playlist itself can be byte-compared but not replayed by the verifier. The S3 budget only
-  makes an oversized payload visible in `logcat`.
+- **In-app playback is maintainer-only.** Every check here is plain HTTP; how the app's
+  player consumes the emitted source is not observable from CI. This lane does not pretend
+  otherwise.
+- **H5 is settled (2026-10-27).** The player never accepted the `data:` playlist: Cronet/
+  OkHttp reject the scheme with `net::ERR_UNKNOWN_URL_SCHEME` → 2001 on every device, which
+  is the #840/#1328/#1353 symptom. #1353 moved the emission to a loopback `http://` host and
+  the playlist contract is pinned by `PerverZijaPlaylistContractTest`; see
+  `FINDINGS-1353.md` for the emulator evidence.
 - **A device-side DNS/filter block of `*.click` (H3) cannot be fixed here.** Every roster
-  host is under `.click`; if the user still reports 2001 after this ships, H3 is the leading
-  explanation and the device request in `FINDINGS-1328.md` §7 is how to settle it.
+  host is under `.click`. H3 is *not* the #1353 cause (see the `#1353` section), but a
+  user-side filter would still remove the whole roster at once; the device request in
+  `FINDINGS-1328.md` §7 is how to settle it if it recurs.
 - **No dead candidate was observed from CI**, so this run gives no direct evidence for H1.
   `cdn[0]` answered `206` on both gated videos. A remaining device-only 2001 is therefore
   more likely H2/H3/H4/H5 than a dead primary host as seen from the runner.
@@ -357,3 +359,21 @@ in the raw DOM); the shipped `PerverZijaParse.related()` dedupes it by href
   classifies the diff as `none`, so the #921/#1334 PR-time bumper has nothing to bump;
   version 24 (from #1345) stays unchanged by hand. If the bumper were expected to fire for
   a docs-only PR, that would be a machinery finding — not a reason to edit `version` here.
+
+## #1353 — root cause of the 2001 (emulator, 2026-10-27)
+
+Device-side evidence instead of a CI replay: workspace emulator (`dev`, API 35), CloudStream
+prerelease 4.8.0-PRE, PerverZija v24 then v26, two gated videos on different player
+subdomains.
+
+| run | emitted source | result |
+|---|---|---|
+| v24 | `data:application/vnd.apple.mpegurl;base64,…` | `CronetDataSource$OpenException: net::ERR_UNKNOWN_URL_SCHEME` → `ERROR_CODE_IO_NETWORK_CONNECTION_FAILED (2001)` on every source |
+| v26 | `http://127.0.0.1:<port>/<id>.m3u8` (loopback host) | `Rendered first frame`, `PLAYING` (36 s / 15 s into 44 m videos) |
+
+So H5 was the whole answer: the app's player datasource is HTTP-only (`CronetDataSource`, else
+`OkHttpDataSource`; no `DefaultDataSource` scheme dispatch on the online path), and a `data:`
+playlist can never be opened — no network, DNS, VPN or player-engine setting can change that.
+`shared/XsftkPlaylistServer.kt` now hosts the synthesized playlist on loopback and
+`emitXsftk` emits that URL; the `data:` URI, its base64 encoder and the #1338/S3 payload
+budget were removed with it. Full evidence: `../FINDINGS-1353.md`.

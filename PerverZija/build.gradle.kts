@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 25 // #1356: version bump (v25)
+version = 26 // #1353: loopback playlist host (v26)
 
 cloudstream {
     authors     = listOf("kraptor")
