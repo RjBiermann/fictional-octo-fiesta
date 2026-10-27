@@ -108,7 +108,11 @@ subprojects {
         // but you don't need to include any of them if you don't need them.
         // https://github.com/recloudstream/cloudstream/blob/master/app/build.gradle.kts
         implementation(kotlin("stdlib")) // Adds Standard Kotlin Features
-        implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.12.0")
+        // 1.11.0 is the newest PUBLISHED coroutines release (Maven Central metadata
+        // lastUpdated 2026-05-08; 1.12.0 404s). The serialization 1.12.0 bump
+        // (#1349) dragged this coordinate to 1.12.0 too, which broke every
+        // provider's debugCompileClasspath — load check #1355.
+        implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
         implementation("com.github.Blatzar:NiceHttp:0.4.11") // HTTP Lib
         implementation("org.jsoup:jsoup:1.23.2") // HTML Parser
         // IMPORTANT: Do not bump Jackson above 2.13.1, as newer versions will
