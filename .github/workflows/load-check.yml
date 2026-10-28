@@ -16,6 +16,11 @@ on:
     # build.yml cron; queued, never cancelled mid-emulator.
     - cron: "37 4 * * *"
   workflow_dispatch:
+    inputs:
+      comment_on:
+        description: "Issue/PR number to post the lane digest to (empty = step summary only)"
+        required: false
+        default: ""
 
 concurrency:
   group: load-check
@@ -27,6 +32,8 @@ permissions:
   # (gh workflow run 05-implement relay — ADR-0019/0020). contents: read
   # covers the checkout fetch + gradle.
   contents: read
+  # the lane digest comments on the issue/PR that asked (`comment_on`); commenting on a PR
+  # goes through the issues API, so this scope covers both.
   issues: write
   actions: write
 
@@ -45,6 +52,11 @@ jobs:
 
       - name: Cross-contamination sim + prompt assertion (#894, parent #796)
         run: python3 .github/sims/cross_contamination_sim.py -v
+
+      # The load check's own parser is load-bearing (it spent 18 rounds being debugged), so its
+      # fixture self-check runs in the zero-AI lane (ADR-0005: tests run where the code runs).
+      - name: load-check log parser self-check
+        run: bash .github/load-check/scripts/test-parse.sh
 
   compile:
     runs-on: ubuntu-latest
@@ -139,6 +151,9 @@ jobs:
   load:
     needs: compile
     runs-on: ubuntu-latest
+    # Above the sum of the step ceilings (20 + 25 + 6 + digest/upload), so a slow run trips a
+    # step and still uploads diagnostics, digest and artifact.
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -149,27 +164,86 @@ jobs:
           name: load-check
           path: artifact
 
+      # The emulator job has no Android SDK of its own: the compile job gets one from
+      # setup-android, this job must too (without it `sdkmanager`/`avdmanager` are not on
+      # PATH and every run died at AVD creation: "sdkmanager: command not found").
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+
       # Step 3: KVM emulator on the ubuntu runner, load every plugin in one boot.
       - name: Setup emulator
+        timeout-minutes: 20
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          sudo apt-get update -y && sudo apt-get install -y jq
+          sudo apt-get update -y && sudo apt-get install -y jq ffmpeg
+          # GitHub-hosted runners expose /dev/kvm but the runner user is not in the kvm group,
+          # so the emulator refuses to start ("this user doesn't have permissions to use KVM").
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules > /dev/null
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "system-images;android-34;google_apis;x86_64" "platform-tools" > /dev/null
+          sdkmanager "emulator" "platform-tools" "build-tools;35.0.0" \
+            "system-images;android-34;google_apis;x86_64" > /dev/null
           echo no | avdmanager create avd -n loadcheck -k "system-images;android-34;google_apis;x86_64" -d pixel
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          # Fail here, with the reason, instead of burning the 15-minute boot window.
+          "$ANDROID_HOME/emulator/emulator" -accel-check
 
       - name: Start emulator
         run: |
+          mkdir -p loadcheck-evidence
+          # `-gpu auto` on a hosted runner resolves to swangle (software ANGLE), the only mode
+          # observed to survive rendered video: `swiftshader_indirect` aborts the emulator on the
+          # first frame, and `angle_indirect` is not a valid option for this build.
           $ANDROID_HOME/emulator/emulator -avd loadcheck -no-window -no-audio \
-            -no-boot-anim -gpu swiftshader_indirect -no-snapshot &
+            -no-boot-anim -gpu auto -no-snapshot \
+            > loadcheck-evidence/emulator.log 2>&1 &
           echo "EMULATOR_PID=$!" >> "$GITHUB_ENV"
 
       - name: Run load check
         id: check
+        timeout-minutes: 25
+        env:
+          # emulator-load.sh resolves the prerelease APK with `gh api`; without the token it
+          # exits 4 before installing the app (the emulator has already booted by then).
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ./.github/load-check/scripts/emulator-load.sh artifact/cs3
+
+      # ADR-0012 tier 2: the app's own player, on a site-free fixture. This is the only check
+      # that observes the datasource where a non-http source dies as 2001 (#1353).
+      - name: Player path probe
+        id: player_probe
+        if: always()
+        timeout-minutes: 6
+        run: |
+          ./.github/load-check/scripts/player-probe.sh loadcheck-evidence
+
+      # Why did the emulator die? One cheap snapshot, taken only when the job is already red.
+      - name: Emulator diagnostics
+        if: failure()
+        run: |
+          mkdir -p loadcheck-evidence
+          {
+            echo "## date"; date -u
+            echo "## memory"; free -h
+            echo "## emulator process"; ps -eo pid,rss,etime,cmd | grep -i "qemu-system" | grep -v grep || echo "no emulator process"
+            echo "## kernel log (oom / segv)"; sudo dmesg --ctime 2>/dev/null | tail -60 || echo "dmesg not readable"
+          } > loadcheck-evidence/diagnostics.txt 2>&1 || true
+
+      # One screen of verdict in the run summary, and a comment on the issue/PR that asked.
+      - name: Lane digest
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LOAD: ${{ steps.check.outcome }}
+          PROBE: ${{ steps.player_probe.outcome }}
+          COMMENT_ON: ${{ inputs.comment_on }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: ./.github/load-check/scripts/lane-digest.sh loadcheck-evidence
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -183,14 +257,31 @@ jobs:
         id: failure_load
         if: failure()
         env:
+          LOAD: ${{ steps.check.outcome }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           KIND: load
         run: |
+          # Only a *probe-only* failure has nothing to attribute: the load check passed and no
+          # plugin failed. A boot/SDK/install failure must still be reported (that is #1357's
+          # unattributable class), so it gets the unknown-attribution entry rather than silence.
+          if [[ ${LOAD:-} == success && ! -s loadcheck-evidence/failing-plugins.txt ]]; then
+            echo "load check passed, no failing plugin set — probe/scenario fault, nothing for the issue writer"
+            exit 0
+          fi
+          unattributable=()
+          if [[ ! -s loadcheck-evidence/failing-plugins.txt ]]; then
+            # Boot/SDK/install failed, so nothing was attributed (#1357's unattributable class).
+            # Report it, but never as `ai-fix`: that label dispatches 05-implement, and an
+            # implementation run cannot repair a runner. The writer then labels it for a human.
+            echo "unknown-attribution (load step ${LOAD:-unknown}: no plugin loaded or reported)" \
+              > loadcheck-evidence/failing-plugins.txt
+            unattributable=(--unattributable)
+          fi
           # Separate assignment from export: exporting in the same statement
           # masks the command substitution's return status (actionlint SC2155).
           JAR_SHA=$(cat artifact/jar-sha.txt 2>/dev/null || echo unknown)
           export JAR_SHA
-          ./.github/load-check/scripts/failure-issue.sh \
+          ./.github/load-check/scripts/failure-issue.sh "${unattributable[@]}" \
             --plugins <(sort -u loadcheck-evidence/failing-plugins.txt) \
             --log loadcheck-evidence/logcat.log \
             --version loadcheck-evidence/app-version.txt

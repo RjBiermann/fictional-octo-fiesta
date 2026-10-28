@@ -16,12 +16,21 @@ on:
     # the protected surface strands any other .github push (orchestrator.py,
     # audits/findings.json) on never-completing required checks — the
     # registry_sync push died exactly there (run 39607504429, spec #858).
-    paths: ['.github/**']
+    paths:
+      - '.github/**'
+      - '.pi/skills/verify-provider/**'
   pull_request:
     # Same protected-surface rule as push (#858): findings-only registry PRs
     # ([registry] lane) touch none of the old paths, so the required
     # actionlint context stayed "expected" and the PR sat BLOCKED (#859).
-    paths: ['.github/**', 'audits/**', '**/build.gradle.kts']
+    # .pi/skills/verify-provider/** is in the filter because `verify-scheme-gate` guards that
+    # script's stream-scheme gate (#1353): a job whose paths are filtered out of its own subject
+    # never runs, which is the hole this gate was added to close.
+    paths:
+      - '.github/**'
+      - 'audits/**'
+      - '**/build.gradle.kts'
+      - '.pi/skills/verify-provider/**'
   workflow_dispatch:
 
 permissions:
@@ -81,6 +90,16 @@ jobs:
       - uses: actions/checkout@v7
       - name: "Replay #797 label-event fixtures through orchestrator.py"
         run: python3 -m unittest discover -s .github/tests -p 'orchestrator_replay_test.py' -v
+
+  # The stream-scheme gate is the check that catches the whole `data:`/`blob:` class (#1353):
+  # a non-http source can never open on the app's HTTP-only datasource. Its self-check exists
+  # but ran in no workflow, so the gate could regress unnoticed — assert it here, every PR.
+  verify-scheme-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: verify.sh self-check (scheme gate + PYDOM invariants, offline)
+        run: bash .pi/skills/verify-provider/scripts/verify_selfcheck.sh
 
   dependency-review:
     if: github.event_name == 'pull_request'

@@ -205,4 +205,27 @@ bash -n "$NORMF"
 [[ "$(printf "  MiXed  CASE\ttitles " | bash "$NORMF")" == 'mixed case titles' ]] \
   || { echo "FAIL: norm whitespace/lower semantics regressed"; exit 1; }
 
+# 7. Stream scheme gate (#1353): a non-http source can never open on the app's HTTP-only
+#    datasource, so the gate must reject it outright. Asserted end-to-end through verify.sh
+#    (below) and, for the predicates that classify a page-extracted source, directly — the
+#    app-local loopback shape is not asserted end-to-end here because verifying it needs the
+#    device, so its predicate is exercised instead.
+GATE_OUT=$(mktemp /tmp/verify_gate_XXXX)
+PREDF=$(mktemp /tmp/verify_preds_XXXX.sh)
+# One trap owns every temp path this script creates (including the two fixed-name helpers),
+# so a failing case never leaves debris in /tmp for the next run to trip over.
+trap 'rm -f "$FIX" "$FIX2" "$GATE_OUT" "$PREDF" "$NORMF" "$PYDOM" "${TSVA:-}" "${TSVAD:-}" "${TSVB:-}" "${TSVBD:-}" "${TSVC:-}" "${TSVCD:-}"' EXIT
+grep -E '^is_(http|app_local)\(\) \{' "$DIR/verify.sh" > "$PREDF"
+bash -n "$PREDF" && . "$PREDF"
+is_http 'https://example.com/a.m3u8' || { echo "FAIL: is_http rejected https"; exit 1; }
+is_http 'data:application/vnd.apple.mpegurl;base64,AA' && { echo "FAIL: is_http accepted a data: URL"; exit 1; }
+is_app_local 'http://127.0.0.1:8765/p.m3u8' || { echo "FAIL: app-local loopback not recognised"; exit 1; }
+is_app_local 'https://example.com/a.m3u8' && { echo "FAIL: app-local matched a public host"; exit 1; }
+if "$DIR/verify.sh" --search-url https://example.com --video-url https://example.com/x \
+     --stream-url 'data:application/vnd.apple.mpegurl;base64,I0VYVE0zVQ' > "$GATE_OUT" 2>&1; then
+  echo "FAIL: scheme gate accepted a data: source"; exit 1
+fi
+grep -q "not http(s)" "$GATE_OUT" || { echo "FAIL: scheme gate did not explain the rejection"; exit 1; }
+grep -q "HTTP-only" "$GATE_OUT" || { echo "FAIL: scheme gate did not name the reason (HTTP-only datasource)"; exit 1; }
+
 echo "RESULT: PASS"

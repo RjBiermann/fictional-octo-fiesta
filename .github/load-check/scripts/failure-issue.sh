@@ -17,11 +17,16 @@ set -euo pipefail
 PLUGINS_FILE=
 LOG=
 VERSION_FILE=
+UNATTRIBUTABLE=
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --plugins) PLUGINS_FILE=$2; shift 2 ;;
     --log)     LOG=$2; shift 2 ;;
     --version) VERSION_FILE=$2; shift 2 ;;
+    # No plugin was ever exercised (boot/SDK/install failed): report it, but as a human
+    # decision, never as `ai-fix` — that label is what dispatches an implementation run,
+    # and an implementation run cannot fix an emulator (#1357).
+    --unattributable) UNATTRIBUTABLE=1; shift ;;
     *)         echo "unknown arg $1" >&2; exit 2 ;;
   esac
 done
@@ -38,6 +43,8 @@ mapfile -t sorted < <(printf '%s\n' "${failures[@]}" | sort -u)
 [[ ${#failures[@]} -gt 0 ]] || { echo "no failing plugins — nothing to report"; exit 0; }
 
 TITLE="Load check (${KIND}): [${sorted[*]}]"
+LABEL=ai-fix
+[[ -n $UNATTRIBUTABLE ]] && LABEL=triage/from-agent
 RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 APP_VERSION="n/a (compile failure — app never launched)"
 [[ -n $VERSION_FILE && -f $VERSION_FILE ]] && APP_VERSION=$(cat "$VERSION_FILE")
@@ -53,7 +60,12 @@ if [[ -n ${open_since[$TITLE]:-} ]]; then
   echo "existing issue for this plugin set: #$TARGET"
 else
   BODY="## $TITLE — first failure
-
+$([[ -n $UNATTRIBUTABLE ]] && echo '
+**Classification: unattributable (infrastructure).** No plugin was exercised, so this is
+not a provider verdict and it is deliberately *not* `ai-fix`: no implementation run is
+dispatched for an emulator/SDK fault (#1357). A human decides — close this when the lane
+is green again.
+')
 **Classification: Correctness.** Never Drift, never Chronic-counted — this check is
 an instrument, not the provider's fault pattern (ADR-0012). Emulator evidence is
 never **Geo-gated** evidence: the runner and app share one IP.
@@ -64,7 +76,7 @@ Failing plugin set:
 $(for s in "${sorted[@]}"; do echo "- \`$s\`"; done)
 
 Daily runs append evidence below under \`### Run\` headings."
-  URL=$(gh issue create --title "$TITLE" --label ai-fix --body "$BODY")
+  URL=$(gh issue create --title "$TITLE" --label "$LABEL" --body "$BODY")
   TARGET=${URL##*/}
   echo "created issue #$TARGET"
   # ADR-0020: the workflow's Fire step stamps status/planned + dispatches
@@ -73,7 +85,9 @@ Daily runs append evidence below under \`### Run\` headings."
   # appends evidence. GITHUB_OUTPUT is absent outside Actions.
   if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
     {
-      echo "created=true"
+      # created=true is the Fire Implement trigger (ADR-0020), so it is set for an
+      # attributable set only; an unattributable issue is created and left for a human.
+      [[ $LABEL == ai-fix ]] && echo "created=true" || echo "created=false"
       echo "issue=$TARGET"
     } >> "$GITHUB_OUTPUT"
   fi
@@ -83,9 +97,11 @@ fi
 # changed) are superseded by the fresh one. Different KINDs keep their issues —
 # compile healing while load breaks must not fragment the load evidence.
 for s in "${!open_since[@]}"; do
+  [[ -z $UNATTRIBUTABLE ]] || break   # the infra lane never supersedes plugin evidence
   [[ $s == "Load check (${KIND}): "* ]] || continue
   old=${open_since[$s]}
   [[ $s == "$TITLE" ]] && continue
+  [[ $s == *"[unattributable]"* ]] && continue  # human-owned, never closed by a plugin run
   gh issue comment "$old" \
     --body "Failing plugin set changed → superseded by #${TARGET}. Evidence history preserved here." \
     >/dev/null
