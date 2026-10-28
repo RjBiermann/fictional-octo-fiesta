@@ -21,6 +21,14 @@ on:
         description: "Issue/PR number to post the lane digest to (empty = step summary only)"
         required: false
         default: ""
+      scenario:
+        description: "Emulator scenario under .github/load-check/scenarios/ (empty = skip)"
+        required: false
+        default: ""
+      scenario_arg:
+        description: "Scenario argument, e.g. a provider name or 'all'"
+        required: false
+        default: ""
 
 concurrency:
   group: load-check
@@ -222,6 +230,28 @@ jobs:
         run: |
           ./.github/load-check/scripts/player-probe.sh loadcheck-evidence
 
+      # Anything an agent wants to prove on the emulator is a scenario script under
+      # .github/load-check/scenarios/ (ADR-0012 tier 3): it sources ui-lib.sh for the
+      # hierarchy/tap primitives and cloudstream-lib.sh for the app walk, then asserts.
+      # Off by default so the nightly stays cheap; dispatch with `scenario:` to use it.
+      - name: Emulator scenario
+        id: scenario
+        if: always() && inputs.scenario != ''
+        timeout-minutes: 25
+        env:
+          SCENARIO: ${{ inputs.scenario }}
+          SCENARIO_ARG: ${{ inputs.scenario_arg }}
+          AVD_NAME: loadcheck
+        run: |
+          # Allowlist: the input names one of the committed scenarios, it is never a path.
+          [[ "$SCENARIO" =~ ^[a-z0-9-]+$ ]] || { echo "invalid scenario name: $SCENARIO" >&2; exit 1; }
+          script=
+          for f in .github/load-check/scenarios/*.sh; do
+            [[ "$(basename "$f" .sh)" == "$SCENARIO" ]] && script=$f
+          done
+          [[ -n $script ]] || { echo "no such scenario: $SCENARIO (have: $(ls .github/load-check/scenarios | sed 's/\.sh$//' | tr '\n' ' '))" >&2; exit 1; }
+          "$script" loadcheck-evidence "$SCENARIO_ARG"
+
       # Why did the emulator die? One cheap snapshot, taken only when the job is already red.
       - name: Emulator diagnostics
         if: failure()
@@ -241,6 +271,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LOAD: ${{ steps.check.outcome }}
           PROBE: ${{ steps.player_probe.outcome }}
+          SCENARIO: ${{ steps.scenario.outcome }}
+          SCENARIO_NAME: ${{ inputs.scenario }}
+          SCENARIO_ARG: ${{ inputs.scenario_arg }}
           COMMENT_ON: ${{ inputs.comment_on }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: ./.github/load-check/scripts/lane-digest.sh loadcheck-evidence

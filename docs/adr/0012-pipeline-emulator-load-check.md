@@ -36,6 +36,13 @@ Decisions that follow:
   ANGLE). `swiftshader_indirect` aborts the emulator on the first rendered frame (empty hierarchy
   *and* empty screencap, clean dmesg); `angle_indirect` is not a valid option for this build
   (it logs "switching to 'auto'").
+- **Tier 3 (this PR): per-provider playback, dispatched.** A **Playback scenario** opens one
+  provider's real video through the app's `csshare:` deep link (one Play tap, no settings/search
+  navigation) and requires that provider's own source in logcat plus a rendered frame. Rules:
+  required evidence for a playback-symptom `ai-fix` and for a Chronic provider before a removal
+  decision, never a per-PR gate; harness code owned by the agent lane; ≤5 providers per dispatched
+  run; **an emulator death is an infrastructure fault**, reported as such (distinct exit code and
+  digest verdict), never as a provider failure.
 - **Run history.** Until 2026-10-27 the lane had never reached the emulator: the job had no
   Android SDK, no KVM access, no token for the APK lookup, and a hardcoded stable package name
   while the APK installs as `…cloudstream3.prerelease`. The parked per-issue emulator

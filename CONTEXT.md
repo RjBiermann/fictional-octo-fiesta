@@ -88,6 +88,10 @@ or UI selector. This is the layer where a `data:` source died as
 `net::ERR_UNKNOWN_URL_SCHEME` → 2001 (#1353), invisible to registration and to HTTP-side checks.
 _Avoid_: in-app test, stream test, player test
 
+**Playback scenario**:
+The emulator lane's per-provider tier: a scripted `adb`/`uiautomator` walk (`.github/load-check/scenarios/`) that opens one provider's real video inside the app — through the `csshare:` deep link, one Play tap, no settings or search navigation — then requires that provider's own source in logcat (`ExtractorLink(name=<Provider>`, `kraptor_<Provider>`) **and** a rendered frame, so another provider's video can never pass the row. Dispatched (`scenario`/`scenario_arg`), never nightly; screen XML, screenshot and logcat are uploaded. An emulator death is an **infrastructure fault** (distinct verdict, never a provider verdict). Required for a playback-symptom `ai-fix` and for a Chronic provider before a removal decision — never for every provider PR, and datacenter-IP walls are false-reds here (the Geo-gate rule applies).
+_Avoid_: in-app testing (generic), e2e test, UI test
+
 **Probe escalation**:
 The ordered fallback of probe instruments: curl → TLS-impersonated curl → browser. Escalate one step only when the cheaper one fails or the HTTP body lacks content the page visibly has; the browser is a last-resort diagnosis tool, never the default.
 _Avoid_: playwright (a tool, not the concept), browser testing
