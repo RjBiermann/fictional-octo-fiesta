@@ -65,12 +65,20 @@ The ground-truth record of a site probe: exact selectors, endpoints, headers, cu
 _Avoid_: research notes, scrape log
 
 **Verification**:
-Live-site checks (via the verify script) proving the code's selectors and stream URLs actually work. Plain HTTP only — it mirrors what the app's runtime can do, never a probe instrument (ADR-0008). Distinct from a **build**, which only proves compilation. A PR requires both.
+Live-site checks (via the verify script) proving the code's selectors and stream URLs actually work. Plain HTTP only — it mirrors what the app's runtime can do, never a probe instrument (ADR-0008); the player layer it cannot mirror is covered by **Player probe**, and a provider's end-to-end playback by a **Playback scenario**. A source the app's HTTP-only datasource can never open (`data:`/`blob:`/`file:`) is a Verification FAIL, not a limitation. Distinct from a **build**, which only proves compilation. A PR requires both.
 _Avoid_: testing, validation, smoke test
 
 **Load check**:
-An emulator-based check proving a plugin registers and loads inside the real CloudStream app — fleet-wide and scheduled (ADR-0012), running daily from `.github/workflows/load-check.yml` (zero AI: bootstrap → compile against the live unpinned pre-release jar → KVM emulator → logcat grep; local-plugin load via upstream's `deployWithAdb` mechanism, no repo server). Asserted at logcat/`uiautomator` level only. Distinct from a **build** (compile) and **Verification** (live-site selectors/streams); it shares the runner's IP, so it is never **Geo-gated** evidence. A failing plugin set lands in one open issue per sorted failing-plugin list, appended by daily runs; load failures are **Correctness** findings — never Drift, never Chronic-counted.
-_Avoid_: smoke test, emulator test, in-app testing (full in-app testing stays maintainer-only)
+The emulator lane (`.github/workflows/load-check.yml`, ADR-0012) and, specifically, its registration tier: bootstrap → compile every provider against the live unpinned pre-release jar → KVM emulator → install the prerelease app → load every `.cs3` via upstream's `deployWithAdb` mechanism. This tier asserts **registration only** (`PluginManager: Loaded plugin X successfully`), zero AI. A failing plugin set lands in one open issue per sorted failing-plugin list, appended by daily runs; a load failure is a **Correctness** finding — never Drift, never Chronic-counted. Never **Geo-gated** evidence: it shares the runner's IP.
+_Avoid_: smoke test, emulator test (the lane's other tiers are **Player probe** and **Playback scenario**); in-app playback of a named provider is a Playback scenario, not a load check
+
+**Player probe**:
+The emulator lane's site-free tier: a generated 2 s H.264/TS fixture served on the runner's loopback (`10.0.2.2` from inside the emulator) is opened through the app's own `cloudstreamplayer://` deep link, asserting `Rendered first frame` and no datasource error. Proves the app's player path — datasource, headers, media3 wiring — with no provider, site, geo or UI selector. This is the layer where a `data:` source died as `net::ERR_UNKNOWN_URL_SCHEME` → 2001 (#1353), invisible to registration and to HTTP-side checks.
+_Avoid_: in-app test (that is the Playback scenario), stream test, player test
+
+**Playback scenario**:
+The emulator lane's per-provider tier: a scripted `adb`/`uiautomator` walk (`.github/load-check/scenarios/`) that opens one provider's real video inside the app — through the `csshare:` deep link, one Play tap, no settings or search navigation — then requires that provider's own source in logcat (`ExtractorLink(name=<Provider>`, `kraptor_<Provider>`) **and** a rendered frame, so another provider's video can never pass the row. Dispatched (`scenario`/`scenario_arg`), never nightly; screen XML, screenshot and logcat are uploaded as evidence. Required for a playback-symptom `ai-fix` and for a Chronic provider before a removal decision — never for every provider PR, and datacenter-IP walls are false-reds here (Geo-gate reasoning applies).
+_Avoid_: in-app testing (generic), e2e test, UI test
 
 **Probe escalation**:
 The ordered fallback of probe instruments: curl → TLS-impersonated curl → browser. Escalate one step only when the cheaper one fails or the HTTP body lacks content the page visibly has; the browser is a last-resort diagnosis tool, never the default.

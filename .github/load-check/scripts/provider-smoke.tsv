@@ -1,0 +1,6 @@
+# In-app playback smoke rows (ADR-0012 amended):
+#   <provider API name> TAB <video page URL> TAB <expected title substring>
+# Opened through the app's own `csshare:` deep link, so a row costs no UI navigation.
+# Add a row only after the provider's chain is verified (verify-provider) — the smoke
+# proves the app consumes the emitted source.
+PerverZija	https://tube.perverzija.com/tabooheat-jazmine-cruz-and-cory-chase-my-step-moms-hot-friend-part-1-3/	TabooHeat – Jazmine Cruz And Cory Chase – My Step Moms Hot Friend Part 1-3

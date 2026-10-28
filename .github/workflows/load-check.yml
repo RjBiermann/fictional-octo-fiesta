@@ -16,6 +16,19 @@ on:
     # build.yml cron; queued, never cancelled mid-emulator.
     - cron: "37 4 * * *"
   workflow_dispatch:
+    inputs:
+      scenario:
+        description: "Emulator scenario under .github/load-check/scenarios/ (empty = skip)"
+        required: false
+        default: ""
+      scenario_arg:
+        description: "Scenario argument, e.g. a provider name or 'all'"
+        required: false
+        default: ""
+      comment_on:
+        description: "Issue/PR number to post the lane digest to (empty = step summary only)"
+        required: false
+        default: ""
 
 concurrency:
   group: load-check
@@ -28,6 +41,9 @@ permissions:
   # covers the checkout fetch + gradle.
   contents: read
   issues: write
+  # The lane digest comments on the issue/PR that asked (`comment_on`); a PR is an issue in
+  # the API but needs this scope too.
+  pull-requests: write
   actions: write
 
 jobs:
@@ -45,6 +61,11 @@ jobs:
 
       - name: Cross-contamination sim + prompt assertion (#894, parent #796)
         run: python3 .github/sims/cross_contamination_sim.py -v
+
+      # The load check's own parser is load-bearing (18 rounds of debugging it), so its
+      # fixture self-check runs in the zero-AI lane (ADR-0005: tests run where the code runs).
+      - name: load-check log parser self-check
+        run: bash .github/load-check/scripts/test-parse.sh
 
   compile:
     runs-on: ubuntu-latest
@@ -139,6 +160,10 @@ jobs:
   load:
     needs: compile
     runs-on: ubuntu-latest
+    # Above the sum of the step ceilings (setup 20 + load check 25 + probe 6 + scenario 25 +
+    # digest/upload), so a slow run trips a step, not the job: a job-timeout cancel skips the
+    # diagnostics, digest and artifact upload, i.e. the failure leaves no evidence.
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -149,27 +174,117 @@ jobs:
           name: load-check
           path: artifact
 
+      # The emulator job has no Android SDK of its own: the compile job gets one from
+      # setup-android, this job must too (without it `sdkmanager`/`avdmanager` are not on
+      # PATH and every run died at AVD creation: "sdkmanager: command not found").
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+
       # Step 3: KVM emulator on the ubuntu runner, load every plugin in one boot.
       - name: Setup emulator
+        timeout-minutes: 20
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          sudo apt-get update -y && sudo apt-get install -y jq
+          sudo apt-get update -y && sudo apt-get install -y jq ffmpeg
+          # GitHub-hosted runners expose /dev/kvm but the runner user is not in the kvm
+          # group, so the emulator refuses to start ("this user doesn't have permissions
+          # to use KVM"). This udev rule is the documented fix; it has no effect on hosts
+          # where KVM is genuinely absent (the -accel-check below then fails fast).
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules > /dev/null
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "system-images;android-34;google_apis;x86_64" "platform-tools" > /dev/null
+          sdkmanager "emulator" "platform-tools" "build-tools;35.0.0" \
+            "system-images;android-34;google_apis;x86_64" > /dev/null
           echo no | avdmanager create avd -n loadcheck -k "system-images;android-34;google_apis;x86_64" -d pixel
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          # Fail here, with the reason, instead of burning the 15-minute boot window.
+          "$ANDROID_HOME/emulator/emulator" -accel-check
 
       - name: Start emulator
         run: |
+          mkdir -p loadcheck-evidence
+          # `-gpu auto` on a hosted runner resolves to swangle (software ANGLE) and that is
+          # the mode that survives rendered video here: `swiftshader_indirect` aborts the
+          # emulator on the first frame, and `angle_indirect` is rejected as an invalid option
+          # ("switching to 'auto'"). See emulator-restart.sh for the same default.
           $ANDROID_HOME/emulator/emulator -avd loadcheck -no-window -no-audio \
-            -no-boot-anim -gpu swiftshader_indirect -no-snapshot &
+            -no-boot-anim -gpu auto -no-snapshot \
+            > loadcheck-evidence/emulator.log 2>&1 &
           echo "EMULATOR_PID=$!" >> "$GITHUB_ENV"
 
       - name: Run load check
         id: check
+        timeout-minutes: 25
+        env:
+          # emulator-load.sh resolves the prerelease APK with `gh api`; without the token
+          # it exits 4 before installing the app (the emulator has already booted by then).
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ./.github/load-check/scripts/emulator-load.sh artifact/cs3
+
+      # ADR-0012 extension (#1353): registration proves nothing about the layer that
+      # broke playback — the provider chain was green end-to-end while the app rejected
+      # the emitted `data:` playlist at the datasource (Cronet ERR_UNKNOWN_URL_SCHEME →
+      # 2001). Plays a local fixture through the app's own player and asserts a frame.
+      - name: Player path probe
+        id: player_probe
+        if: always()
+        timeout-minutes: 6
+        run: |
+          ./.github/load-check/scripts/player-probe.sh loadcheck-evidence
+
+      # Anything an agent wants to prove on the emulator is a scenario script under
+      # .github/load-check/scenarios/ (ADR-0012 amended): it sources ui-lib.sh for the
+      # hierarchy/tap primitives and cloudstream-lib.sh for the app walk, then asserts.
+      # Off by default so the nightly run stays cheap; dispatch with `scenario:` to use it.
+      - name: Emulator scenario
+        id: scenario
+        if: always() && inputs.scenario != ''
+        timeout-minutes: 25
+        env:
+          SCENARIO: ${{ inputs.scenario }}
+          SCENARIO_ARG: ${{ inputs.scenario_arg }}
+          AVD_NAME: loadcheck
+        run: |
+          # Allowlist: the input names one of the committed scenarios, it is never a path.
+          [[ "$SCENARIO" =~ ^[a-z0-9-]+$ ]] || { echo "invalid scenario name: $SCENARIO" >&2; exit 1; }
+          script=
+          for f in .github/load-check/scenarios/*.sh; do
+            [[ "$(basename "$f" .sh)" == "$SCENARIO" ]] && script=$f
+          done
+          [[ -n $script ]] || { echo "no such scenario: $SCENARIO (have: $(ls .github/load-check/scenarios | sed 's/\.sh$//' | tr '\n' ' '))" >&2; exit 1; }
+          "$script" loadcheck-evidence "$SCENARIO_ARG"
+      # Why did the emulator die? One cheap snapshot, taken only when the job is already red.
+      - name: Emulator diagnostics
+        if: failure()
+        run: |
+          mkdir -p loadcheck-evidence
+          {
+            echo "## date"; date -u
+            echo "## memory"; free -h
+            echo "## emulator process"; ps -eo pid,rss,etime,cmd | grep -i "qemu-system" | grep -v grep || echo "no emulator process"
+            echo "## kernel log (oom / segv)"; sudo dmesg --ctime 2>/dev/null | tail -60 || echo "dmesg not readable"
+          } > loadcheck-evidence/diagnostics.txt 2>&1 || true
+
+      # Closes the loop for the asker (agent lane or maintainer): one screen of verdict in the
+      # run summary, and a comment on the issue/PR that asked when `comment_on` is set.
+      - name: Lane digest
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LOAD: ${{ steps.check.outcome }}
+          PROBE: ${{ steps.player_probe.outcome }}
+          SCENARIO: ${{ steps.scenario.outcome }}
+          SCENARIO_NAME: ${{ inputs.scenario }}
+          SCENARIO_ARG: ${{ inputs.scenario_arg }}
+          COMMENT_ON: ${{ inputs.comment_on }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: ./.github/load-check/scripts/lane-digest.sh loadcheck-evidence
+
       - name: Upload evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -186,6 +301,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           KIND: load
         run: |
+          # A player-probe-only failure has no failing plugin set; the issue writer keys
+          # on plugin names, so report nothing rather than "unknown-attribution".
+          [[ -s loadcheck-evidence/failing-plugins.txt ]] || {
+            echo "no failing plugin set — nothing for the issue writer"; exit 0; }
           # Separate assignment from export: exporting in the same statement
           # masks the command substitution's return status (actionlint SC2155).
           JAR_SHA=$(cat artifact/jar-sha.txt 2>/dev/null || echo unknown)

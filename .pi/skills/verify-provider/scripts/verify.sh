@@ -59,7 +59,8 @@ while [[ $# -gt 0 ]]; do
     --video-poster-selector) VIDEO_POSTER_SEL="$2"; shift 2;;
     --video-plot-selector) VIDEO_PLOT_SEL="$2"; shift 2;;
     --stream-selector) STREAM_SELECTOR="$2"; shift 2;;
-    --stream-url) STREAM_URL_OVERRIDES+=("$2"); shift 2;;
+    --stream-url) STREAM_URL_OVERRIDES+=("$2"); shift 2;;  # must be http(s) — see the
+                          # scheme gate below (#1353)
     --stream-quality-attr) QUALITY_ATTR="$2"; shift 2;;
     --related-selector) RELATED_SELECTOR="$2"; shift 2;;
     --provider-src) PROVIDER_SRC="$2"; shift 2;;
@@ -75,6 +76,19 @@ done
 if [[ $(printf '%s\n' "${VIDEO_URLS[@]}" | sort | uniq -d | wc -l) -gt 0 ]]; then
   echo "FAIL: duplicate --video-url inputs (self-comparison would fake-FAIL distinctness)" >&2; exit 2
 fi
+# scheme gate (#1353): CloudStream's player fetches every source through an HTTP-only
+# datasource (Cronet, else OkHttp; no DefaultDataSource scheme dispatch on the online path),
+# so a source the provider emits as data:/blob:/file: can never play — it dies as
+# net::ERR_UNKNOWN_URL_SCHEME -> ERROR_CODE_IO_NETWORK_CONNECTION_FAILED (2001) on the
+# device while every HTTP-side check stays green. That is a provider defect, not a plateau.
+for su in "${STREAM_URL_OVERRIDES[@]:-}"; do
+  [[ -z "$su" ]] && continue
+  [[ "$su" =~ ^[Hh][Tt][Tt][Pp][Ss]?:// ]] && continue
+  echo "FAIL: --stream-url is not http(s): ${su:0:80}" >&2
+  echo "      CloudStream's player datasource is HTTP-only — a non-HTTP source can never" >&2
+  echo "      play (issue #1353, FINDINGS-1353.md). Emit an http(s) URL the app can open." >&2
+  exit 2
+done
 [[ -n "$VIDEO_TITLE_SEL" ]] || VIDEO_TITLE_SEL="meta[property=og:title]"
 [[ -n "$VIDEO_POSTER_SEL" ]] || VIDEO_POSTER_SEL="meta[property=og:image]"
 [[ -n "$VIDEO_PLOT_SEL" ]] || VIDEO_PLOT_SEL="meta[property=og:description]"
@@ -488,6 +502,7 @@ for i in "${!VIDEO_URLS[@]}"; do
     surls=($(embed_stream_url "$F" || true))
     [[ ${#surls[@]} -gt 0 ]] && echo "  (two-hop embed resolved: ${surls[0]:0:80}…)"
   fi
+  app_local=0
   if [[ ${#surls[@]} -eq 0 ]]; then
     echo "FAIL: no absolute stream URL extracted from $STREAM_SELECTOR ($VU)"; fail=1
   fi
@@ -497,6 +512,15 @@ for i in "${!VIDEO_URLS[@]}"; do
   for su in "${surls[@]:-}"; do
     [[ -z "$su" ]] && continue
     py path "$su" >> "$SP"
+    # app-local source: a playlist the app itself hosts on loopback (XsftkPlaylistServer,
+    # #1353). The runner cannot reach the device's 127.0.0.1 by design, so curling it is a
+    # guaranteed 000 — that is not a provider defect and not Blocked: its evidence is the
+    # emulator Playback scenario (ADR-0012), recorded in VERIFICATION.
+    if [[ "$su" =~ ^[Hh][Tt][Tt][Pp][Ss]?://(127\.0\.0\.1|localhost|\[::1\])(:|/) ]]; then
+      echo "NOTE stream is app-local (loopback host) — not fetchable from the runner; evidence is the Playback scenario: ${su:0:80}"
+      app_local=1
+      continue
+    fi
     hdr=$(curl -sL "${HEADERS[@]}" -H "Range: bytes=0-64" -o /dev/null -w '%{http_code} %{content_type}' --max-time 30 "$su") || hdr="000 ERR"
     if [[ "$hdr" == 403* || "$hdr" == 000* ]]; then
       # sora-style CDNs 403 without a Referer and occasionally 403/timeout on a dead
@@ -519,6 +543,7 @@ for i in "${!VIDEO_URLS[@]}"; do
       echo "FAIL stream request ($VU: $su → $hdr)"; fail=1
     fi
   done
+  (( app_local == 1 )) && echo "  check 3: app-local source(s) — evidence is the emulator Playback scenario"
   d=$(sort "$SP" | uniq -d)
   if [[ -n "$d" ]]; then echo "FAIL duplicate stream paths within $VU:"; echo "$d"; fail=1; fi
   awk -v v="video$i" '{print v"\t"$0}' "$SP" >> /tmp/verify_all_streams.tsv

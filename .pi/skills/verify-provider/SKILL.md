@@ -105,7 +105,16 @@ title across distinct hrefs is site content, not a defect; recs never link the v
   endpoint", "site does not expose X" — never unstated.
 - PASS/FAIL per check with the request evidence printed; copy the output into the PR as proof.
 - Exit code: 0 only if all checks pass. On FAIL, fix the provider (or FINDINGS) and re-run —
-  do not open a PR with failing checks. A stream that 403/451s from the runner but is evidence
+  do not open a PR with failing checks. A stream surface the verifier cannot fetch is a
+  **FAIL**, never an "instrument plateau": either the provider emits a URL the app's HTTP-only
+  datasource can open, or it ships broken (#1353 — four rounds were hardened around a `data:`
+  playlist the player could never open). `--stream-url` is scheme-gated to http(s) for that
+  reason; when the emitted URL is genuinely unobservable from the runner, name the cheapest
+  experiment that settles the cause in FINDINGS and run it before the next hardening story.
+  One legitimate case: an **app-local** source (the provider hosts its own playlist on
+  `127.0.0.1` inside the app, #1353) is not fetchable from the runner by design — the script
+  prints `NOTE stream is app-local` and check 3 continues. Its evidence is the emulator
+  Playback scenario (ADR-0012), recorded in VERIFICATION; it is neither a FAIL nor Blocked. A stream that 403/451s from the runner but is evidence
   of an access wall (challenge page body, 451) may be recorded as **Blocked** for that video
   with the response evidence — only after re-testing via FINDINGS' alternate embed; a broken
   selector or wrong content-type is a FAIL, never Blocked.
