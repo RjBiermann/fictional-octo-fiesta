@@ -59,7 +59,8 @@ while [[ $# -gt 0 ]]; do
     --video-poster-selector) VIDEO_POSTER_SEL="$2"; shift 2;;
     --video-plot-selector) VIDEO_PLOT_SEL="$2"; shift 2;;
     --stream-selector) STREAM_SELECTOR="$2"; shift 2;;
-    --stream-url) STREAM_URL_OVERRIDES+=("$2"); shift 2;;
+    --stream-url) STREAM_URL_OVERRIDES+=("$2"); shift 2;;  # must be http(s) — see the
+                          # scheme gate below (#1353)
     --stream-quality-attr) QUALITY_ATTR="$2"; shift 2;;
     --related-selector) RELATED_SELECTOR="$2"; shift 2;;
     --provider-src) PROVIDER_SRC="$2"; shift 2;;
@@ -75,11 +76,27 @@ done
 if [[ $(printf '%s\n' "${VIDEO_URLS[@]}" | sort | uniq -d | wc -l) -gt 0 ]]; then
   echo "FAIL: duplicate --video-url inputs (self-comparison would fake-FAIL distinctness)" >&2; exit 2
 fi
+# scheme gate (#1353): CloudStream's player fetches every source through an HTTP-only
+# datasource (Cronet, else OkHttp; no DefaultDataSource scheme dispatch on the online path),
+# so a source the provider emits as data:/blob:/file: can never play — it dies as
+# net::ERR_UNKNOWN_URL_SCHEME -> ERROR_CODE_IO_NETWORK_CONNECTION_FAILED (2001) on the
+# device while every HTTP-side check stays green. That is a provider defect, not a plateau.
+is_http() { [[ "$1" =~ ^[Hh][Tt][Tt][Pp][Ss]?:// ]]; }
+is_app_local() { [[ "$1" =~ ^[Hh][Tt][Tt][Pp][Ss]?://(127\.0\.0\.1|localhost|\[::1\])(:|/) ]]; }
+for su in "${STREAM_URL_OVERRIDES[@]:-}"; do
+  [[ -z "$su" ]] && continue
+  is_http "$su" && continue
+  echo "FAIL: --stream-url is not http(s): ${su:0:80}" >&2
+  echo "      CloudStream's player datasource is HTTP-only — a non-HTTP source can never" >&2
+  echo "      play (issue #1353, FINDINGS-1353.md). Emit an http(s) URL the app can open." >&2
+  exit 2
+done
 [[ -n "$VIDEO_TITLE_SEL" ]] || VIDEO_TITLE_SEL="meta[property=og:title]"
 [[ -n "$VIDEO_POSTER_SEL" ]] || VIDEO_POSTER_SEL="meta[property=og:image]"
 [[ -n "$VIDEO_PLOT_SEL" ]] || VIDEO_PLOT_SEL="meta[property=og:description]"
 
 fail=0
+app_local=0   # loopback/app-hosted streams this run could not assert (Blocked, not FAIL)
 
 # ── python helper: selector counting / extraction / normalization / duplicate detection ──
 # ponytail: regex "DOM" — a card is the LAST selector part's opening tag through its closing
@@ -496,6 +513,21 @@ for i in "${!VIDEO_URLS[@]}"; do
   SP=/tmp/verify_streams_$i.paths; : > "$SP"
   for su in "${surls[@]:-}"; do
     [[ -z "$su" ]] && continue
+    # app-local source: a playlist the app itself hosts on loopback (XsftkPlaylistServer,
+    # #1353). The runner cannot reach the device's 127.0.0.1 by design, so this check cannot
+    # assert it either way — it is BLOCKED (not FAIL, and never a silent pass), pending the
+    # emulator playback tier. It is also kept out of the duplicate-path bookkeeping below,
+    # which only exists to compare fetchable paths.
+    if ! is_http "$su"; then
+      echo "FAIL: extracted stream is not http(s) — the app's player datasource is HTTP-only, so this source can never play (#1353): ${su:0:60}"
+      fail=1
+      continue
+    fi
+    if is_app_local "$su"; then
+      echo "BLOCKED: app-local stream (loopback host) — not fetchable from the runner, playback unverified until the emulator tier ships (#1360): ${su:0:80}"
+      app_local=$((app_local + 1))
+      continue
+    fi
     py path "$su" >> "$SP"
     hdr=$(curl -sL "${HEADERS[@]}" -H "Range: bytes=0-64" -o /dev/null -w '%{http_code} %{content_type}' --max-time 30 "$su") || hdr="000 ERR"
     if [[ "$hdr" == 403* || "$hdr" == 000* ]]; then
@@ -653,4 +685,15 @@ if [[ -n "$LOAD_RESPONSE" ]]; then
   fi
 fi
 
-if (( fail )); then echo "RESULT: FAIL"; exit 1; else echo "RESULT: PASS"; fi
+if (( fail )); then
+  echo "RESULT: FAIL"
+  (( app_local > 0 )) && echo "  ($app_local app-local stream(s) additionally Blocked, pending #1360)"
+  exit 1
+fi
+if (( app_local > 0 )); then
+  # A PASS that hides an unasserted stream would be a false green: report it as Blocked, which
+  # is what it is. FINDINGS/VERIFICATION must record the reason.
+  echo "RESULT: PASS ($app_local app-local stream(s) Blocked, pending the emulator playback tier #1360)"
+  exit 0
+fi
+echo "RESULT: PASS"
