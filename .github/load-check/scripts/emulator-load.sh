@@ -13,18 +13,19 @@
 #
 # Usage: emulator-load.sh <cs3-dir>
 # Inputs: running emulator (workflow starts it), ANDROID_HOME, GH_TOKEN.
-# Exit 1 with loadcheck-evidence/failing-plugins.txt populated on failure.
+# Exit 1 with loadcheck-evidence/failing-plugins.txt populated on failure, or with
+# loadcheck-evidence/unattributable.txt written when no plugin could be attributed (the
+# issue writer files those for a human instead of firing an implementation run).
 set -euo pipefail
 
 CS3_DIR=$1
 source "$(dirname "$0")/parse-log.sh"
 EVIDENCE=loadcheck-evidence
 mkdir -p "$EVIDENCE"
-PKG=com.lagradost.cloudstream3
 
 # ---- wait for boot --------------------------------------------------------
 deadline=$((SECONDS + 900))
-until [[ $(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r') == 1 ]]; do
+until [[ $(timeout 30 adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r') == 1 ]]; do
   [[ $SECONDS -lt $deadline ]] || { echo "emulator did not boot within 15 min" >&2; exit 1; }
   sleep 10
 done
@@ -40,6 +41,15 @@ VERSION=$("$AAPT" dump badging "$EVIDENCE/app-prerelease.apk" 2>/dev/null \
   | sed -n "s/.*versionName='\([^']*\)'.*/\1/p" | head -1) || true
 [[ -n ${VERSION:-} ]] || VERSION="latest-prerelease (versionName unparsable)"
 printf '%s\n' "$VERSION" > "$EVIDENCE/app-version.txt"
+# The prerelease APK installs as com.lagradost.cloudstream3.prerelease, not the stable
+# package — a hardcoded name launches nothing and every plugin then "fails" to load.
+PKG=$("$AAPT" dump badging "$EVIDENCE/app-prerelease.apk" 2>/dev/null \
+  | sed -n "s/^package: name='\([^']*\)'.*/\1/p" | head -1) || true
+[[ -n ${PKG:-} ]] || PKG=$(adb shell pm list packages 2>/dev/null \
+  | sed -n "s/^package:\(com\.lagradost\.cloudstream3.*\)$/\1/p" | head -1 | tr -d '\r')
+[[ -n ${PKG:-} ]] || { echo "cannot determine the CloudStream package name" >&2; exit 1; }
+printf '%s\n' "$PKG" > "$EVIDENCE/app-package.txt"
+echo "package: $PKG"
 adb install -r -t "$EVIDENCE/app-prerelease.apk"
 
 # ---- logcat capture starts BEFORE the app touches anything ----------------
@@ -48,6 +58,15 @@ adb logcat -v time > "$EVIDENCE/logcat.log" &
 LOGCAT_PID=$!
 trap 'kill "$LOGCAT_PID" 2>/dev/null || true' EXIT
 
+# ---- all-files access: without it the app lists 0 files in its plugin folder ----
+# A fresh install has no storage grant, so the external plugin dir reads as empty and
+# every plugin "fails" to load (measured: "Files in '/storage/emulated/0/Cloudstream3/
+# plugins' folder: 0"). The install-time dialog is not tap-able in CI, so apply the
+# app-op directly.
+adb shell appops set "$PKG" MANAGE_EXTERNAL_STORAGE allow
+adb shell pm grant "$PKG" android.permission.READ_EXTERNAL_STORAGE 2>/dev/null || true
+adb shell pm grant "$PKG" android.permission.WRITE_EXTERNAL_STORAGE 2>/dev/null || true
+
 # ---- push every plugin, then upstream's own reload intent -----------------
 adb shell mkdir -p /storage/emulated/0/Cloudstream3/plugins
 for f in "$CS3_DIR"/*.cs3; do
@@ -55,11 +74,11 @@ for f in "$CS3_DIR"/*.cs3; do
 done
 adb shell "for f in /storage/emulated/0/Cloudstream3/plugins/*.cs3; do chmod -w \"\$f\"; done" || true
 
-adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null || true
+timeout 60 adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null || true
 sleep 8
 # Exactly upstream DeployWithAdbTask's args: `start -a android.intent.action.VIEW
 # -d cloudstreamapp:` — no trailing package argument.
-adb shell am start -a android.intent.action.VIEW -d 'cloudstreamapp:' >/dev/null || true
+timeout 60 adb shell am start -a android.intent.action.VIEW -d 'cloudstreamapp:' >/dev/null || true
 
 # ---- wait until every plugin reports or the deadline hits -----------------
 mapfile -t expected < <(cd "$CS3_DIR" && ls *.cs3 | sed 's/\.cs3$//' | sort)
@@ -98,9 +117,11 @@ sort -u -o "$EVIDENCE/failing-plugins.txt" "$EVIDENCE/failing-plugins.txt"
 
 if [[ $timed_out -eq 1 ]]; then
   echo "TIMED OUT waiting for plugin registration — check logcat.log" >&2
-  [[ -s $EVIDENCE/failing-plugins.txt ]] || { \
-    echo "no per-plugin failures logged; plugin set unchanged (${#expected[@]} expected)" \
-       > "$EVIDENCE/failing-plugins.txt"; }
+  # Never a plugin name, never in the plugin file: unreadable registration means the runner
+  # never exercised these plugins, so nothing here is a provider verdict (#1357).
+  [[ -s $EVIDENCE/failing-plugins.txt ]] || \
+    echo "registration timed out with no per-plugin failure; plugin set unchanged (${#expected[@]} expected)" \
+      > "$EVIDENCE/unattributable.txt"
 fi
 
 if [[ -s $EVIDENCE/failing-plugins.txt ]]; then
