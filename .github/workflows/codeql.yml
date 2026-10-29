@@ -54,6 +54,12 @@ jobs:
     # codeql/java/tools/codeql-java-agent.jar and running javap -c on the
     # version-limit class — the defaultAcceptableVersionLimitStr constant
     # is the limit; plain strings won't see compressed class-file constants).
+    # Deliberately no `gradle/actions/setup-gradle` here. It was tried (#1375) and measured at
+    # 344s cold → 313s warm for this step, i.e. ~30s for one more Gradle-home entry on a repo
+    # already at the 10 GB cache ceiling — and `setup-gradle` also restores the *shared*
+    # build-cache bundle, which is a CodeQL extraction hazard: a `compile*Kotlin FROM-CACHE`
+    # task runs no `kotlinc`, so the scan can fail with "No source code was seen during the
+    # build". Cold Gradle here is the cheaper side of both trades.
     - name: Build for scan
       if: matrix.build-mode == 'manual'
       run: |
