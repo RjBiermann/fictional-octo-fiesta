@@ -49,20 +49,39 @@ RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 APP_VERSION="n/a (compile failure — app never launched)"
 [[ -n $VERSION_FILE && -f $VERSION_FILE ]] && APP_VERSION=$(cat "$VERSION_FILE")
 
+# The identity that files load-check issues (load-check.yml runs under GITHUB_TOKEN; every
+# `Load check (...)` issue in this repo carries it). Extend this list only when another token
+# actually files here — a producer-less entry would just widen the trust surface (#1374 review).
+LANE_AUTHORS='app/github-actions'
+
 declare -A open_since=() # title -> number, open lane-owned issues
-while IFS=$'\t' read -r num title labels; do
+# Field order matters: `read` with a tab IFS collapses runs of tabs, so an empty field in the
+# middle would swallow the next one — the empty-prone field goes last, and a null author (a
+# deleted account) is projected to "-" so it cannot collapse into the labels column either.
+# Fail closed: a failed listing yields an empty map, which would re-file AND re-fire on every
+# run (#1365's symptom, green test suite) — so an unreadable list is an error, not "no issues".
+LISTED=$(mktemp)
+trap 'rm -f "$LISTED"' EXIT
+gh issue list --state open --limit 200 --json number,title,labels,author \
+  --jq '.[] | [.number,.title,(.author.login // "-"),([.labels[].name]|join(","))] | @tsv' > "$LISTED" \
+  || { echo "FAIL: could not list open issues — refusing to file a duplicate" >&2; exit 1; }
+while IFS=$'\t' read -r num title author labels; do
   # `]]` here would never match: the title ends with a single `]` (see TITLE). This glob
   # decides dedup, so getting it wrong re-opened the same failing set on every run (#1365).
   [[ $title == "Load check ("*"]" ]] || continue
   # Ownership gate: titles come from every open issue in a public repo while this map drives
   # `gh issue comment`/`gh issue close` and the `created=true` Fire trigger, so only issues
-  # this lane created (it always applies one of these labels) may be matched. Labels are
-  # maintainer-applied, so a third party's same-title issue can neither absorb the evidence
-  # nor silence the self-healing dispatch (#1373 review).
-  [[ ,$labels, == *,ai-fix,* || ,$labels, == *,triage/from-agent,* ]] || continue
+  # this lane owns may be matched. Two signals, because each alone has a known hole:
+  #   - author identity, allowlisted to the token that actually files here (GITHUB_TOKEN →
+  #     `app/github-actions`, per LANE_AUTHORS). `is_bot` alone would trust every app installed
+  #     on the repo, which is more than "this lane" (#1374 review);
+  #   - the lane's own labels, because humans relabel and an issue that loses its label must
+  #     still dedup or the duplicates of #1365 come straight back.
+  # A stranger's same-title issue matches neither, so it can neither absorb the evidence nor
+  # silence the self-healing dispatch.
+  [[ ",$LANE_AUTHORS," == *",$author,"* || ,$labels, == *,ai-fix,* || ,$labels, == *,triage/from-agent,* ]] || continue
   open_since[$title]=$num
-done < <(gh issue list --state open --limit 200 --json number,title,labels \
-  --jq '.[] | [.number,.title,([.labels[].name]|join(","))] | @tsv')
+done < "$LISTED"
 
 if [[ -n ${open_since[$TITLE]:-} ]]; then
   TARGET=${open_since[$TITLE]}
