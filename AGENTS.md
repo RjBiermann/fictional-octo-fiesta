@@ -92,6 +92,14 @@ rule). rtk filters bash output before the agent reads it (ADR-0009).
 - **Commands**: `/retry`, `/triage`, `/plan`, `/review` (maintainer+;
   gh-aw role gates). `/repair` died with devloop — repair happens through
   06-review → 07-fix-loop rounds.
+- **A hand-delivery names its story.** When the maintainer opens and merges a PR
+  themselves (`maint/…`), the body carries `Fixes #N` — that keyword is what makes
+  the merge a Delivery the machinery can see (it reads GitHub's
+  `closingIssuesReferences`, not prose). The author gate applies to the *pending*
+  case only — an open PR claiming a story must be agent- or owner-authored
+  (`GH_AW_ORCH_OWNER`), because pending content is not evidence; a **merged** PR
+  needs no author gate, the merge is the maintainer's decision. Without the keyword
+  the story stays open and may be fired twice (#915).
 - **Humans merge, and humans apply trigger labels.** No agent ever merges,
   approves, closes a PR, or applies a trigger label.
 

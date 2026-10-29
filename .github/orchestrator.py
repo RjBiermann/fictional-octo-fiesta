@@ -1172,12 +1172,79 @@ def _delivery_record(num, cs=None, labels=()):
     return None
 
 
+# pr number -> the numbers GitHub reports it closing, scoped to one orchestrator pass.
+# Without it every story re-queries the same PR (7 subprocess calls per closeout pass,
+# scaling with open issues — #1380 round-2 nit).
+_CLOSES_CACHE = {}
+
+
+def _closes_cache_reset():
+    _CLOSES_CACHE.clear()
+
+
+def _github_closes(pr, num):
+    """True when GitHub itself reports that `pr` closes story `num`.
+
+    `closingIssuesReferences` is the field GitHub computes from the PR body
+    (`Fixes #N`), scoped to same-repo refs and the default branch — the record
+    to trust instead of re-parsing prose (#1376 spent nine review rounds
+    discovering every way that parse can be wrong; #1379 chose this). GraphQL
+    because REST's pull payload does not carry the field (checked:
+    `has("closingIssuesReferences") == false`).
+
+    Only asked for a PR whose body or title names the story at all — `#N` or the
+    `/issues/N` URL form (`Fixes https://github.com/o/r/issues/N` carries no
+    `#N`, and a pre-filter must never veto the authority it fronts) — so an
+    unrelated PR costs no API call.
+
+    The parse is defensive: a GraphQL error payload (`{"data": null}`, e.g. a
+    rate limit) or an invisible repository (`{"repository": null}`) reads as
+    "not reported closing" — never as a crash that aborts a whole conveyor
+    pass. Same safe shape as `parent_of()`."""
+    body = pr.get("body") or ""
+    title = pr.get("title") or ""
+    # every closing form GitHub accepts: `#900`, `GH-900`, a full issue URL
+    forms = (f"#{num}", f"/issues/{num}")
+    if not any(form in body or form in title for form in forms) \
+            and f"GH-{num}".lower() not in (body + title).lower():
+        return False
+    cached = _CLOSES_CACHE.get(pr["number"])
+    if cached is not None:
+        return num in cached
+    out = run(["gh", "api", "graphql", "-f",
+               "query=query($o:String!,$r:String!,$n:Int!){repository(owner:$o,"
+               "name:$r){pullRequest(number:$n){closingIssuesReferences(first:50)"
+               "{nodes{number}}}}",
+               # the repository owner, not OWNER (the owner-*actor* config, empty
+               # when GH_AW_ORCH_OWNER is unset)
+               "-f", f"o={REPO.split('/', 1)[0]}", "-f", f"r={REPO.split('/', 1)[-1]}",
+               "-F", f"n={pr['number']}"])
+    try:
+        data = json.loads(out or "{}")
+        pull = ((data.get("data") or {}).get("repository") or {}).get("pullRequest") or {}
+        nodes = (pull.get("closingIssuesReferences") or {}).get("nodes") or []
+    except (ValueError, TypeError, AttributeError):
+        # still cached: fail-closed for this pass, but one query per PR, not one per
+        # (PR, story) during a rate-limit episode
+        _CLOSES_CACHE[pr["number"]] = frozenset()
+        return False
+    closed = frozenset(n["number"] for n in nodes
+                       if isinstance(n, dict) and isinstance(n.get("number"), int))
+    _CLOSES_CACHE[pr["number"]] = closed
+    return num in closed
+
+
 def _merged_pr_for_story(num):
-    """The merged delivery of story `num` — ADR-0007's closeout record."""
+    """The merged delivery of story `num` — ADR-0007's closeout record. Two
+    shapes count: the agent branch pattern, and GitHub's own closing record
+    (`_github_closes`) — a maintainer hand-delivery on `maint/…` carries no
+    issue segment, and its `Fixes #N` is the Delivery (#915)."""
     pat = _delivered_branch_pat(num)
     merged = api("pulls?state=closed&per_page=60") or []
     for pr in merged:
-        if pat.search(pr.get("head", {}).get("ref", "")) and pr.get("merged_at"):
+        if not pr.get("merged_at"):
+            continue
+        if pat.search(pr.get("head", {}).get("ref", "")) or _github_closes(pr, num):
             return pr["number"]
     return None
 
@@ -1193,6 +1260,7 @@ def closeout_healer():
     follow-up: #809/#781/#777 carry no S<n> prefix in their titles and
     were invisible to the story filter — the straggler class persists
     whenever 12-post-merge fails, which is exactly when this heals)."""
+    _closes_cache_reset()
     if not OWNER:
         return
     open_issues = [i for i in (api("issues?state=open&per_page=100") or [])
@@ -1256,9 +1324,18 @@ def _fallback_delivery(num, cs=None):
 
 
 def _open_pr_for_story(num):
+    """An open Delivery of story `num` — same two shapes as the merged arm: a
+    Delivery exists in both states, so a shape recognised in one is recognised
+    in the other (#915/#1358)."""
     pat = _delivered_branch_pat(num)
     for pr in open_pulls():
-        if pat.search(pr.get("head", {}).get("ref", "")):
+        # `_fixable_pr` is the trust anchor for BOTH routes: a stranger's fork PR can
+        # be named `devloop/issue-N-evil` as easily as it can say `Fixes #N`, and
+        # either would stall the conveyor while it stays open (#1380 rounds 2-3).
+        # Real deliveries are agent PRs or owner hand-deliveries, both `_fixable_pr`,
+        # and `05-implement` creates them with `draft: false`, so no delivery drops.
+        if _fixable_pr(pr) and (pat.search(pr.get("head", {}).get("ref", ""))
+                                or _github_closes(pr, num)):
             return pr["number"]
     return None
 
@@ -1406,6 +1483,7 @@ def _branch_pending(story, stories, comments_fn):
 
 
 def plan_loop_surrogate():
+    _closes_cache_reset()
     if not FIRE_PLAN:
         return
     issues = api("issues?state=open&per_page=50") or []

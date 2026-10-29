@@ -1,5 +1,13 @@
 # Issue closeout on human-merged devloop PRs
 
+> Amended 2026-10-29 (#1380): the merge that closes a story is no longer only a
+> `devloop/issue-N` PR. A maintainer may hand-deliver on a `maint/…` branch; that
+> merge is the same verdict when the PR names its story with a closing keyword
+> (`Fixes #N`), because the machinery reads GitHub's `closingIssuesReferences`
+> rather than parsing the body. The convention lives in `AGENTS.md`, the term in
+> `CONTEXT.md` (*Delivery*), and the rule below applies unchanged — the carve-out
+> is "a human merged the story's delivery", whichever branch carried it.
+
 A guardrail in this pipeline is "an agent never closes an issue it was
 spawned from". v0.3.3 adds a carve-out with the same precedent as
 ADR-0003's close-on-retry: when a human merges a `devloop/issue-N` PR,

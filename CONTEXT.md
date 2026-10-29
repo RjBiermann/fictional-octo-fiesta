@@ -116,7 +116,7 @@ Region-dependent catalog or streams — the runner's IP country sees different (
 _Avoid_: region lock, geo block (implies refusal; a Geo-gate varies content)
 
 **Delivery**:
-The mechanical commit-and-PR step performed by the workflow (the `deliver-pr` action), never by the agent: commit the working tree to `ai/issue-N`, force-push, create-or-update the PR. A run that produces changes but no Delivery is a failed run.
+The mechanical commit-and-PR step performed by the workflow (the `deliver-pr` action), never by the agent: commit the working tree to `ai/issue-N`, force-push, create-or-update the PR. A run that produces changes but no Delivery is a failed run. A maintainer may also **hand-deliver** — open and merge the PR themselves on a `maint/…` branch; that counts as the same Delivery when the PR body names the story with a closing keyword (`Fixes #N`), because the machinery reads GitHub's own `closingIssuesReferences` rather than guessing at prose. A hand-delivery without that keyword is not recognised, and the story stays open (fail-visible: at worst a duplicate fire, never a wrong close).
 _Avoid_: push, publish, ship
 
 **Closeout**:
