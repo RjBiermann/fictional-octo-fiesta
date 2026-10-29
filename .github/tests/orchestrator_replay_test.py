@@ -31,6 +31,7 @@ import copy
 import importlib.util
 import json
 import os
+import time
 import unittest
 from unittest import mock
 
@@ -571,6 +572,168 @@ class TestDeliveryRecognition(ReplayCase):
         orchestrator.plan_loop_surrogate()
         self.assertIn(("04-plan.lock.yml", "issue", 900), self.fires,
                       "an undelivered fresh trigger must still plan")
+
+
+# PR #914 — the delivery #915 actually records, verbatim from the API: an OWNER
+# hand-delivery on `maint/s2-grammar` that carries **no** closing keyword and no
+# agent branch segment (`closingIssuesReferences: []`). Round 6's blocker was
+# that fixtures were synthetic while this recorded shape stayed unrecognised.
+PR_914 = {
+    "number": 914,
+    "title": "[impl] S2 (#898, spec #847): pin the machine-verdict producer grammar",
+    "head": {"ref": "maint/s2-grammar"},
+    "base": {"ref": "main"},
+    "user": {"login": "RjBiermann"},
+    "merged_at": "2026-10-23T04:43:44Z",
+    "closingIssuesReferences": [],
+    "body": (
+        "## Provenance\n\n"
+        "Hand-delivered (owner carve-out, maintenance round): S2's lane run failed "
+        "**twice** with silent-empty agent exits (03:11Z, 04:18Z — `content: []`, zero "
+        "safe-outputs; the failure issue is #904). Empty runs post no budget stamps, so "
+        "the attempt ledger is blind to this loop — the ledger gap is filed separately "
+        "(#913); this story's work lands now.\n\n"
+        "## The change\n\n"
+        "One paragraph in `05-implement.md` + recompiled lock: conditional fan-out "
+        "stories post the machine-verdict anchor the S1 branch executor (#901, merged) "
+        "parses:\n\n"
+        "`## Probe verdict — <chain> (#<probe>): **<fixable|not fixable>**`\n\n"
+        "## Refs\n\n"
+        "#898 (this story) #847 (parent spec) #901 (S1 executor) "
+        "#904 (failure issue — closes via this merge's closeout) #913 (ledger gap)"
+    ),
+}
+
+
+class TestRecordedOwnerHandDelivery(ReplayCase):
+    """#915's recorded delivery (PR #914) must be recognised at both states.
+
+    The closing keyword covers PRs that say `Closes #N`; #914 says nothing of
+    the sort. What it does carry is the lane's own announcement of the story it
+    delivers — the parenthesised title anchor and the `#N (this story)` marker —
+    and recognising *that* is what closes the #915 loop. Everything here is the
+    recorded payload, not a synthetic shape."""
+
+    def setUp(self):
+        db = {n: {"number": n, "state": "open", "title": f"issue {n}",
+                  "body": "", "labels": []} for n in (898, 913, 847, 901, 904)}
+        db[898]["labels"] = [{"name": "ai-fix"}]
+        self.world = {"owner": PR_914["user"]["login"], "issues": {str(k): v for k, v in db.items()},
+                      "pulls": {"open": [], "closed": []}, "comments": {}}
+        super().setUp(loader=lambda: self.world)
+        self.fires = []
+        self.comments = []
+        def _api(path, *a, **k):
+            if path.startswith("issues?state=open"):
+                return [self.world["issues"][str(n)] for n in sorted(db)]
+            return self._fake_api(path, *a, **k)
+
+        self.patches += [
+            mock.patch.object(orchestrator, "api", _api),
+            # no network in a unit test: `parent_of`'s sub-issue fallback shells
+            # out to `gh api graphql` per story per pass
+            mock.patch.object(orchestrator, "parent_of", lambda *a, **k: None),
+            mock.patch.object(orchestrator, "all_stories",
+                              lambda *a, **k: [self.world["issues"][str(n)] for n in sorted(db)]),
+            mock.patch.object(orchestrator, "comments", lambda n, *a, **k: []),
+            mock.patch.object(orchestrator, "post_comment",
+                              lambda n, b, *a, **k: self.comments.append((n, b))),
+            mock.patch.object(orchestrator, "_fire_workflow",
+                              lambda lock, t, n, *a, **k: self.fires.append((lock, t, n))),
+        ]
+        for p in self.patches[-6:]:
+            p.start()
+        self.addCleanup(mock.patch.stopall)
+
+    def _record(self, board, **overrides):
+        pr = copy.deepcopy(PR_914)
+        pr.update(overrides)
+        self.world["pulls"][board].append(pr)
+        return pr
+
+    def test_recorded_pr_914_is_story_898s_delivery(self):
+        """The behaviour #915 records: #914 merged, #898 recognised, no re-fire."""
+        self._record("closed")
+        self.assertEqual(orchestrator._merged_pr_for_story(898), 914)
+
+    def test_recorded_pr_914_open_is_story_898s_delivery(self):
+        """Same recognition one state earlier: a Delivery exists while open."""
+        self._record("open", merged_at=None)
+        self.assertEqual(orchestrator._open_pr_for_story(898), 914)
+        orchestrator.plan_loop_surrogate()
+        self.assertNotIn(("04-plan.lock.yml", "issue", 898), self.fires,
+                         "#914's shape must not be planned again (#1358 + #915)")
+
+    def test_recorded_pr_914_refs_line_does_not_retire_its_other_refs(self):
+        """The Refs line names five issues and delivers one. Only `(this story)`
+        and the title anchor count — `#913 (ledger gap)` is explicitly not closed,
+        and closeout_healer closes what this returns."""
+        self._record("closed")
+        for other in (913, 847):
+            self.assertIsNone(orchestrator._merged_pr_for_story(other),
+                              f"#914 does not deliver #{other}")
+
+    def test_title_anchor_alone_recognises_the_story(self):
+        """The `(issue #N, attempt M)` era of hand-delivery titles announces the
+        story without any body marker — this arm is load-bearing on its own."""
+        self._record("closed", title="[impl] Cat3Movie deep pass (issue #645, attempt 2)",
+                     body="No story marker in this body.")
+        self.assertEqual(orchestrator._merged_pr_for_story(645), 914)
+
+    def test_body_story_marker_alone_recognises_the_story(self):
+        """And the `#N (this story)` marker does the same for titles that carry no
+        paren anchor at all."""
+        self._record("closed", title="maintenance: fold the producer grammar in",
+                     body="Refs\n\n#898 (this story) #847 (parent spec)")
+        self.assertEqual(orchestrator._merged_pr_for_story(898), 914)
+
+    def test_a_repair_round_mention_in_a_title_is_not_a_delivery(self):
+        """`(#1376 round-4 nit)` names the thing being repaired, so the paren
+        anchor must be a closed reference list, not prose after `(#N`."""
+        self._record("closed", title="fix(orchestrator): repair (#1376 round-4 nit)")
+        self.assertIsNone(orchestrator._merged_pr_for_story(1376))
+
+    def test_foreign_author_hand_delivery_is_not_a_delivery(self):
+        """OWNER is the trust anchor (`_fixable_pr`'s); a fork PR shaped like
+        #914 must not retire a story."""
+        self._record("closed", user={"login": "someone-else"})
+        self.assertIsNone(orchestrator._merged_pr_for_story(898))
+
+    def test_hand_delivery_on_a_side_branch_is_not_a_delivery(self):
+        self._record("closed", base={"ref": "release/1.x"})
+        self.assertIsNone(orchestrator._merged_pr_for_story(898))
+
+    def test_quoted_story_marker_is_not_a_delivery(self):
+        """A doc PR *quoting* the marker delivers nothing (round-4 class)."""
+        self._record("closed", title="docs: hand-delivery example",
+                     body="```\n#898 (this story)\n```")
+        self.assertIsNone(orchestrator._merged_pr_for_story(898))
+
+
+class TestUntrustedBodyCost(unittest.TestCase):
+    """`_closing_keyword_nums` runs on PR bodies, and since round 5 that
+    includes *open* PRs from forks — so an adversarial 65 KB body must stay
+    cheap (the security scan measured 20-50 s at `67e46d2`)."""
+
+    def _elapsed(self, body):
+        start = time.time()
+        orchestrator._closing_keyword_nums(body)
+        return time.time() - start
+
+    def test_pathological_bodies_stay_linear(self):
+        cap = 65536
+        for body in ("Fixes #1 " * (cap // 9),
+                     "Fixes " + " " * cap,
+                     "Fixes #900" + " " * cap,
+                     "<!-- " * (cap // 5),
+                     "```\n" * (cap // 4),
+                     "Closes #1," * (cap // 10)):
+            self.assertLess(self._elapsed(body), 2.0,
+                            f"{len(body)}-byte body took too long")
+
+    def test_realistic_body_still_parses(self):
+        self.assertEqual(orchestrator._closing_keyword_nums(
+            "## Notes\n\nDoes not fix #900; fixes #901.\n\nCloses #902\n"), {901, 902})
 
 
 if __name__ == "__main__":

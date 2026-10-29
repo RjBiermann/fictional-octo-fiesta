@@ -1142,11 +1142,16 @@ def _fixable_pr(pr):
 
 
 def _closing_keyword_nums(text):
-    """Issue numbers a PR body closes, using GitHub's own anchor: the keyword
-    immediately followed by the reference (`fixes #12`), never keyword-with-prose
-    (`this does not fix #12`). A comma/`and`-separated ref list closes every ref
-    in it, and a cross-repo ref (`owner/repo#12`) closes that other repo's issue,
-    not a story here.
+    """Issue numbers a PR body closes, using GitHub's auto-close anchor: the
+    keyword immediately followed by the reference (`fixes #12`), never
+    keyword-with-prose (`this does not fix #12`). A comma/`and`-separated ref
+    list closes every ref in it, and a cross-repo ref (`owner/repo#12`) closes
+    that other repo's issue, not a story here.
+
+    Parity caveat: GitHub's `closingIssuesReferences` lists *issues*, whereas a
+    ref here is a bare `#N` in a namespace shared by issues and pull requests —
+    so a reference to a pull request counts too (one divergence in 200 merged
+    PRs, #606). Inert for every caller: they all ask about story issues.
 
     Quoted anchors do not count: fenced blocks, inline code spans and HTML
     comments are stripped first, because a body that *describes* `Closes #12`
@@ -1157,8 +1162,8 @@ def _closing_keyword_nums(text):
     contraction (the apostrophe is normalised, so the curly `won’t` counts too),
     `fail(ed|s|ing) to` / `unable to` cover the periphrastic forms, and its scope
     is the current clause — bounded by `, ; . ! ?`, newlines and a contrastive
-    conjunction — so one adverb cannot defeat it and a negation about one issue
-    cannot swallow the next real `fixes #901`.
+    conjunction, within a 300-character window — so one adverb cannot defeat it
+    and a negation about one issue cannot swallow the next real `fixes #901`.
     """
     nums = set()
     body = _unquoted(text or "").replace("\u2019", "'")
@@ -1173,20 +1178,52 @@ def _closing_keyword_nums(text):
     return nums
 
 
+def _strip_spans(text, opener, closer):
+    """Drop `opener`…`closer` spans; an unterminated `opener` drops the rest.
+
+    Linear (`str.find`), where a lazy regex would retry from every opener and go
+    quadratic on an unterminated run — which is reachable from any fork PR body
+    now that the open arm reads bodies (#1376 security flag). Dropping the tail
+    is also the fail-closed direction: unmatched text never becomes an anchor."""
+    out = []
+    i = 0
+    while True:
+        j = text.find(opener, i)
+        if j < 0:
+            out.append(text[i:])
+            return "".join(out)
+        out.append(text[i:j])
+        k = text.find(closer, j + len(opener))
+        if k < 0:
+            return "".join(out)
+        i = k + len(closer)
+
+
 def _unquoted(text):
     """Drop fenced code blocks, inline code spans and HTML comments."""
-    out = _FENCE_RE.sub(" ", text)
-    out = _INLINE_CODE_RE.sub(" ", out)
-    return _HTML_COMMENT_RE.sub(" ", out)
+    out = _strip_spans(text, "```", "```")
+    out = _strip_spans(out, "~~~", "~~~")
+    out = _strip_spans(out, "<!--", "-->")
+    # inline spans stay line-scoped (`[^`\n]*`), so one stray backtick cannot
+    # swallow the closing lines that follow on later lines
+    return "\n".join(_strip_spans(line, "`", "`") for line in out.split("\n"))
+
+
+# A clause is a sentence fragment; the window bounds the per-match rescans that
+# made `_closing_clause` O(n²) on a separator-free 65 KB body (#1376 security
+# flag). Negation further back than this in one unpunctuated run is not prose a
+# reader would read as negating the keyword.
+_CLAUSE_WINDOW = 300
 
 
 def _closing_clause(text, pos):
     """The clause ending at `pos`: after the last clause/sentence boundary and
     after the last contrastive conjunction. `does not fix #900, but fixes #901`
     negates only #900; `I can't reproduce it but this fixes #900` is positive."""
-    start = 0
+    lo = max(0, pos - _CLAUSE_WINDOW)
+    start = lo
     for sep in ".!?;,\n":
-        start = max(start, text.rfind(sep, 0, pos) + 1)
+        start = max(start, text.rfind(sep, lo, pos) + 1)
     clause = text[start:pos]
     contrast = None
     for contrast in _CONTRASTIVE_RE.finditer(clause):
@@ -1194,40 +1231,85 @@ def _closing_clause(text, pos):
     return clause[contrast.end():] if contrast else clause
 
 
+# Gaps are bounded (`[ \t]{0,4}`): an unbounded `[ \t]*:?[ \t]*` backtracks
+# quadratically over a whitespace run with no reference behind it, on a body any
+# fork PR can supply (#1376 security flag). Real bodies never separate a keyword
+# from its reference by more than a tab or two.
 _CLOSING_KEYWORD_RE = re.compile(
-    r"(?i)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b[ \t]*:?[ \t]*"
+    r"(?i)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b[ \t]{0,4}:?[ \t]{0,4}"
     # The list needs an explicit same-line separator (`,` `;` or `and`). Whitespace alone —
     # and any `\s`, which spans newlines — would absorb a bare `#N` on a following line:
     # "Closes #900\n\n#901 is a follow-up, not closed here" would retire #901 (#1376 round-5).
-    r"(?P<refs>#\d+(?:(?:[ \t]*[,;][ \t]*|[ \t]+and[ \t]+)(?:and[ \t]+)?#\d+)*)")
+    r"(?P<refs>#\d{1,6}(?!\d)(?:(?:[ \t]{0,4}[,;][ \t]{0,4}|[ \t]{1,4}and[ \t]{1,4})"
+    r"(?:and[ \t]{1,4})?#\d{1,6}(?!\d))*)")
 # Negation by class: the `'t` suffix, the plain negators, and periphrastic ones.
 _CLOSING_NEGATION_RE = re.compile(
-    r"(?i)(?:['\u2019]t\b|\bnot\b|\bnever\b|\bno\s+longer\b|\bnor\b|\bcannot\b"
-    r"|\bfail(?:ed|s|ing)?\s+to\b|\bunable\s+to\b)")
+    r"(?i)(?:['\u2019]t\b|\bnot\b|\bnever\b|\bno\s{1,4}longer\b|\bnor\b|\bcannot\b"
+    r"|\bfail(?:ed|s|ing)?\s{1,4}to\b|\bunable\s{1,4}to\b)")
 _CONTRASTIVE_RE = re.compile(
     r"(?i)\b(?:but|however|yet|although|though|whereas|nevertheless)\b")
-_FENCE_RE = re.compile(r"```.*?```|~~~.*?~~~", re.S)
-_INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
-_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
+# The lane's own announcement of the story a hand-delivery delivers: the
+# parenthesised title anchor (`[impl] S2 (#898, spec #847)`, `… (issue #645,
+# attempt 2)`, and the squash form `… (#1373)`), and the body's `#N (this
+# story)` marker. Both require a *closed* ref — prose after `(#N`, as in
+# `repair (#1376 round-4 nit)`, is a mention of the thing being repaired, not a
+# delivery of story 1376.
+_OWNER_TITLE_ANCHOR_RE = re.compile(r"\((?:#|issue #)(\d{1,6})(?=[,;)])", re.I)
+_OWNER_STORY_MARKER_RE = re.compile(r"#(\d{1,6})[ \t]*\(this story\)", re.I)
+
+
+def _owner_announces_story(pr, num):
+    """True when an OWNER-authored PR announces itself as `num`'s delivery.
+
+    This is the #915 shape: PR #914 (`maint/s2-grammar`, owner hand-delivery)
+    has no agent branch segment and no closing keyword, so both earlier anchors
+    miss it while `Closes #915` would have closed the issue. What it does carry
+    is the lane's own announcement — `[impl] S2 (#898, spec #847)` in the title
+    and `#898 (this story)` in the body.
+
+    OWNER only (the `_fixable_pr` trust anchor) and structural only: a
+    maintenance PR that merely *lists* issues in a Refs section
+    (`#913 (ledger gap)`) announces nothing, and its refs retire nothing."""
+    if (pr.get("user") or {}).get("login") != OWNER:
+        return False
+    for m in _OWNER_TITLE_ANCHOR_RE.finditer(pr.get("title") or ""):
+        if int(m.group(1)) == num:
+            return True
+    for m in _OWNER_STORY_MARKER_RE.finditer(_unquoted(pr.get("body") or "")):
+        if int(m.group(1)) == num:
+            return True
+    return False
+
+
+def _delivery_anchor(pr, num):
+    """True when `pr` names `num` as the story it delivers, by body or title.
+
+    Shared by the open and merged arms: a Delivery exists in both states, so a
+    shape recognised in one must be recognised in the other (#915/#1358). Both
+    anchors are default-branch only — GitHub auto-closes only there, and a
+    merge to a side branch is not a delivery. A payload that omits `base`
+    counts as *not* a delivery: missing evidence must not widen a matcher whose
+    output `closeout_healer` acts on."""
+    if ((pr.get("base") or {}).get("ref") or "") != "main":
+        return False
+    return (num in _closing_keyword_nums(pr.get("body") or "")
+            or _owner_announces_story(pr, num))
 
 
 def _merged_pr_for_story(num):
-    """The merged delivery of story `num` — ADR-0007's closeout record. Two
-    shapes count: the agent branch pattern, and a merged PR whose body carries
-    the closing keyword for `num` (#915 — recognising an owner hand-delivery is
-    still recognising a Delivery, CONTEXT.md)."""
+    """The merged delivery of story `num` — ADR-0007's closeout record. Three
+    shapes count: the agent branch pattern, a merged PR whose body carries the
+    closing keyword for `num`, and an OWNER hand-delivery's own announcement of
+    it (#915 — recognising a hand-delivery is still recognising a Delivery,
+    CONTEXT.md)."""
     pat = _delivered_branch_pat(num)
     merged = api("pulls?state=closed&per_page=60") or []
     for pr in merged:
         if not pr.get("merged_at"):
             continue
-        ref = pr.get("head", {}).get("ref", "")
-        if pat.search(ref):
+        if pat.search(pr.get("head", {}).get("ref", "")):
             return pr["number"]
-        # The closing keyword only auto-closes on the default branch, so a
-        # `Closes #N` merged into a side branch is not a delivery (yet).
-        if (pr.get("base") or {}).get("ref") == "main" \
-                and num in _closing_keyword_nums(pr.get("body") or ""):
+        if _delivery_anchor(pr, num):
             return pr["number"]
     return None
 
@@ -1306,16 +1388,14 @@ def _fallback_delivery(num, cs=None):
 
 
 def _open_pr_for_story(num):
-    """An open Delivery of story `num`. Both shapes count, as in the merged
-    guard: the agent branch pattern and the owner hand-delivery's body anchor
-    (#915 one state earlier — a delivery exists while its PR is open, so
-    planning it again is the same mis-fire)."""
+    """An open Delivery of story `num`. The same shapes as the merged guard,
+    through the same `_delivery_anchor` (#915 one state earlier — a delivery
+    exists while its PR is open, so planning it again is the same mis-fire)."""
     pat = _delivered_branch_pat(num)
     for pr in open_pulls():
         if pat.search(pr.get("head", {}).get("ref", "")):
             return pr["number"]
-        if (pr.get("base") or {}).get("ref") == "main" \
-                and num in _closing_keyword_nums(pr.get("body") or ""):
+        if _delivery_anchor(pr, num):
             return pr["number"]
     return None
 
