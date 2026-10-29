@@ -49,13 +49,20 @@ RUN_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 APP_VERSION="n/a (compile failure — app never launched)"
 [[ -n $VERSION_FILE && -f $VERSION_FILE ]] && APP_VERSION=$(cat "$VERSION_FILE")
 
-declare -A open_since=() # title -> number, open issues tagged load-check
-while IFS=$'\t' read -r num title; do
+declare -A open_since=() # title -> number, open lane-owned issues
+while IFS=$'\t' read -r num title labels; do
   # `]]` here would never match: the title ends with a single `]` (see TITLE). This glob
   # decides dedup, so getting it wrong re-opened the same failing set on every run (#1365).
-  [[ $title == "Load check ("*"]" ]] && open_since[$title]=$num
-done < <(gh issue list --state open --limit 200 --json number,title \
-  --jq '.[] | [.number,.title] | @tsv')
+  [[ $title == "Load check ("*"]" ]] || continue
+  # Ownership gate: titles come from every open issue in a public repo while this map drives
+  # `gh issue comment`/`gh issue close` and the `created=true` Fire trigger, so only issues
+  # this lane created (it always applies one of these labels) may be matched. Labels are
+  # maintainer-applied, so a third party's same-title issue can neither absorb the evidence
+  # nor silence the self-healing dispatch (#1373 review).
+  [[ ,$labels, == *,ai-fix,* || ,$labels, == *,triage/from-agent,* ]] || continue
+  open_since[$title]=$num
+done < <(gh issue list --state open --limit 200 --json number,title,labels \
+  --jq '.[] | [.number,.title,([.labels[].name]|join(","))] | @tsv')
 
 if [[ -n ${open_since[$TITLE]:-} ]]; then
   TARGET=${open_since[$TITLE]}
@@ -98,6 +105,8 @@ fi
 # Pointers: other open load-check issues of the SAME KIND (their plugin set
 # changed) are superseded by the fresh one. Different KINDs keep their issues —
 # compile healing while load breaks must not fragment the load evidence.
+# `open_since` holds lane-owned issues only, so this never comments on or closes
+# someone else's issue.
 for s in "${!open_since[@]}"; do
   [[ -z $UNATTRIBUTABLE ]] || break   # the infra lane never supersedes plugin evidence
   [[ $s == "Load check (${KIND}): "* ]] || continue
