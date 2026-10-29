@@ -396,6 +396,9 @@ class TestDeliveryRecognition(ReplayCase):
 
         self.patches += [
             mock.patch.object(orchestrator, "api", _api),
+            # no network in a unit test: `parent_of`'s sub-issue fallback shells
+            # out to `gh api graphql` per story per pass (#1376 round-7 nit)
+            mock.patch.object(orchestrator, "parent_of", lambda *a, **k: None),
             mock.patch.object(orchestrator, "all_stories", lambda *a, **k: [story]),
             mock.patch.object(orchestrator, "comments", lambda n, *a, **k: []),
             mock.patch.object(orchestrator, "post_comment",
@@ -403,7 +406,7 @@ class TestDeliveryRecognition(ReplayCase):
             mock.patch.object(orchestrator, "_fire_workflow",
                               lambda lock, t, n, *a, **k: self.fires.append((lock, t, n))),
         ]
-        for p in self.patches[-5:]:
+        for p in self.patches[-6:]:
             p.start()
         self.addCleanup(mock.patch.stopall)
 
@@ -687,6 +690,11 @@ class TestRecordedOwnerHandDelivery(ReplayCase):
                      body="Refs\n\n#898 (this story) #847 (parent spec)")
         self.assertEqual(orchestrator._merged_pr_for_story(898), 914)
 
+    def test_story_ref_after_the_impl_prefix_is_a_delivery(self):
+        self._record("closed", title="[impl] S2: pin the producer grammar (#898)",
+                     body="No story marker in this body.")
+        self.assertEqual(orchestrator._merged_pr_for_story(898), 914)
+
     def test_a_repair_round_mention_in_a_title_is_not_a_delivery(self):
         """`(#1376 round-4 nit)` names the thing being repaired, so the paren
         anchor must be a closed reference list, not prose after `(#N`."""
@@ -707,6 +715,45 @@ class TestRecordedOwnerHandDelivery(ReplayCase):
         """A doc PR *quoting* the marker delivers nothing (round-4 class)."""
         self._record("closed", title="docs: hand-delivery example",
                      body="```\n#898 (this story)\n```")
+        self.assertIsNone(orchestrator._merged_pr_for_story(898))
+
+    def test_prose_describing_the_story_marker_is_not_a_delivery(self):
+        """Only fenced/inline quoting was stripped, so a *sentence* describing
+        `#898 (this story)` still counted — the marker is a statement, and here it
+        is the object of one (#1376 round-7). The recorded #914 Refs line starts
+        with the marker (`#898 (this story) #847 …`), so statement position is
+        what separates use from description."""
+        self._record("closed", title="fix(orchestrator): recognise the marker",
+                     body="PR #914 announced #898 (this story) so the guard now "
+                          "recognises hand-deliveries.")
+        self.assertIsNone(orchestrator._merged_pr_for_story(898))
+
+    # --- round 7: the title arm must carry a *delivery* signal -----------
+    def test_owner_title_that_merely_mentions_an_issue_is_not_a_delivery(self):
+        """The live false positives: #1370 (`… (#1353)`) and #1374 (`… (#1373)`)
+        are merged OWNER PRs that name an issue without delivering it, both with
+        `closingIssuesReferences: []`. `closeout_healer` closes what this returns,
+        so a bare mention on the destructive path is the round-1 over-match class
+        again (#1376 round-7 blocker)."""
+        self._record("closed", title="ci(emulator): gate non-http stream URLs; "
+                                      "make the load-check lane actually run (#1353)",
+                     body="Partially addresses the lane; the rest is follow-up.")
+        self.assertIsNone(orchestrator._merged_pr_for_story(1353))
+        self._record("closed", title="fix(load-check): keep dedup working after a "
+                                      "human relabels a lane issue (#1373)")
+        self.assertIsNone(orchestrator._merged_pr_for_story(1373))
+
+    def test_owner_title_without_the_lane_delivery_prefix_is_not_a_delivery(self):
+        """The reviewer's acceptance shape: not `[impl]`-family ⇒ no title anchor."""
+        self._record("closed", title="maintenance: document the open question (#900)")
+        self.assertIsNone(orchestrator._merged_pr_for_story(900))
+
+    def test_revert_of_a_delivery_is_not_a_delivery(self):
+        """`Revert "[impl] S2 (#898, spec #847) …"` names the reverted delivery, so
+        reverting one must not count as delivering the story again (#1376 round-7)."""
+        self._record("closed", title='Revert "[impl] S2 (#898, spec #847): pin the '
+                                      'machine-verdict producer grammar" (#914)',
+                     body="This reverts commit abc1234.")
         self.assertIsNone(orchestrator._merged_pr_for_story(898))
 
 
@@ -734,6 +781,39 @@ class TestUntrustedBodyCost(unittest.TestCase):
     def test_realistic_body_still_parses(self):
         self.assertEqual(orchestrator._closing_keyword_nums(
             "## Notes\n\nDoes not fix #900; fixes #901.\n\nCloses #902\n"), {901, 902})
+
+    # --- round 7 nit: a pass multiplies bodies × stories ------------------
+    def _prs(self, body, n=50):
+        return [{"number": 1000 + i, "head": {"ref": f"patch-{i}"},
+                 "base": {"ref": "main"}, "user": {"login": "drive-by"},
+                 "title": "drive-by", "body": body} for i in range(n)]
+
+    def test_drive_by_bodies_that_never_mention_the_story_cost_nothing(self):
+        """50 open fork PRs (the `per_page=50` ceiling) with 70 KB adversarial
+        bodies that name no #900 must not cost a parse each: `_open_pr_for_story`
+        is called several times per story per pass, and the pass is
+        `cancel-in-progress` under a 10-minute window. Bodies are distinct, so
+        the per-body memo cannot be what makes this cheap."""
+        prs = self._prs("Fixes #1 " * 7000)
+        for i, pr in enumerate(prs):
+            pr["body"] += "x" * i
+        with mock.patch.object(orchestrator, "open_pulls", lambda: prs):
+            start = time.time()
+            self.assertIsNone(orchestrator._open_pr_for_story(900))
+            elapsed = time.time() - start
+        self.assertLess(elapsed, 1.0, f"50 non-matching bodies took {elapsed:.1f}s")
+
+    def test_a_body_is_parsed_once_per_pass_not_once_per_call_site(self):
+        """An adversarial body that *does* name the story is parsed once and the
+        result reused, so the multiplication is by body, not by call site."""
+        slow = "Fixes #1 " * 5000 + "\nsee #900\n"
+        prs = self._prs(slow)
+        with mock.patch.object(orchestrator, "open_pulls", lambda: prs):
+            start = time.time()
+            for _ in range(3):  # three call sites in one pass
+                self.assertIsNone(orchestrator._open_pr_for_story(900))
+            elapsed = time.time() - start
+        self.assertLess(elapsed, 3.0, f"50 PRs × 3 call sites took {elapsed:.1f}s")
 
 
 if __name__ == "__main__":

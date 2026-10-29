@@ -35,6 +35,7 @@ import subprocess
 import sys
 import time
 from datetime import datetime
+from functools import lru_cache
 
 REPO = os.environ.get("GITHUB_REPOSITORY", "")
 PROXY_PAT = os.environ.get("GH_AW_PROXY_PAT", "")
@@ -1164,6 +1165,10 @@ def _closing_keyword_nums(text):
     is the current clause — bounded by `, ; . ! ?`, newlines and a contrastive
     conjunction, within a 300-character window — so one adverb cannot defeat it
     and a negation about one issue cannot swallow the next real `fixes #901`.
+
+    Returns an immutable set and is memoised per body text (see below): callers
+    only ever test membership, and the same body is consulted from several call
+    sites per pass.
     """
     nums = set()
     body = _unquoted(text or "").replace("\u2019", "'")
@@ -1175,7 +1180,17 @@ def _closing_keyword_nums(text):
             # would degrade a whole orchestrator pass (#1376 round-4 nit)
             if len(digits) <= 6:
                 nums.add(int(digits))
-    return nums
+    return frozenset(nums)
+
+
+# One parse per body per pass (#1376 round-7 nit): the open arm reads
+# fork-supplied bodies and both arms are consulted from several call sites
+# (`chain_driver`, `audit_story_closeout`, `plan_loop_surrogate`), so without
+# this a 50-PR window of crafted bodies multiplies the per-body cost by the
+# number of call sites and can push a pass past its 10-minute window. Keyed by
+# body text, so a changed body is always re-parsed; bounded so the cache cannot
+# retain an unbounded amount of untrusted body text.
+_closing_keyword_nums = lru_cache(maxsize=256)(_closing_keyword_nums)
 
 
 def _strip_spans(text, opener, closer):
@@ -1255,7 +1270,20 @@ _CONTRASTIVE_RE = re.compile(
 # `repair (#1376 round-4 nit)`, is a mention of the thing being repaired, not a
 # delivery of story 1376.
 _OWNER_TITLE_ANCHOR_RE = re.compile(r"\((?:#|issue #)(\d{1,6})(?=[,;)])", re.I)
-_OWNER_STORY_MARKER_RE = re.compile(r"#(\d{1,6})[ \t]*\(this story\)", re.I)
+# The title anchor only counts in the lane's own delivery-title family. A bare
+# parenthesised ref is how this repo's OWNER titles cite *any* issue or PR
+# (#1370 `… (#1353)`, #1374 `… (#1373)`, both `closingIssuesReferences: []`),
+# and `closeout_healer` closes what that recognises — a mention is not a
+# delivery (#1376 round-7 blocker). `[impl] ` is the lane's contract, not a
+# phrasing: 05-implement.md sets `title-prefix: "[impl] "` on every delivery PR.
+_OWNER_DELIVERY_TITLE_RE = re.compile(r"\s*\[impl\]", re.I)
+# The marker is a *statement*, so it is anchored to statement position: the
+# first ref on its line (after an optional list bullet). #914's Refs line is
+# `#898 (this story) #847 (parent spec) …`; a sentence that merely names the
+# marker (`PR #914 announced #898 (this story)`) is a description of it, and
+# only quoting-stripping separated the two before (#1376 round-7).
+_OWNER_STORY_MARKER_RE = re.compile(
+    r"(?m)^[ \t]{0,4}(?:[-*+][ \t]{1,4})?#(\d{1,6})[ \t]*\(this story\)", re.I)
 
 
 def _owner_announces_story(pr, num):
@@ -1269,12 +1297,18 @@ def _owner_announces_story(pr, num):
 
     OWNER only (the `_fixable_pr` trust anchor) and structural only: a
     maintenance PR that merely *lists* issues in a Refs section
-    (`#913 (ledger gap)`) announces nothing, and its refs retire nothing."""
+    (`#913 (ledger gap)`) announces nothing, and its refs retire nothing. The
+    title anchor is scoped to the lane's `[impl]` delivery-title family, so an
+    OWNER title that cites an issue or PR without delivering it (#1370, #1374)
+    retires nothing; the body marker is scoped to statement position, so a
+    sentence that describes the marker is not one that uses it."""
     if (pr.get("user") or {}).get("login") != OWNER:
         return False
-    for m in _OWNER_TITLE_ANCHOR_RE.finditer(pr.get("title") or ""):
-        if int(m.group(1)) == num:
-            return True
+    title = pr.get("title") or ""
+    if _OWNER_DELIVERY_TITLE_RE.match(title):
+        for m in _OWNER_TITLE_ANCHOR_RE.finditer(title):
+            if int(m.group(1)) == num:
+                return True
     for m in _OWNER_STORY_MARKER_RE.finditer(_unquoted(pr.get("body") or "")):
         if int(m.group(1)) == num:
             return True
@@ -1289,10 +1323,21 @@ def _delivery_anchor(pr, num):
     anchors are default-branch only — GitHub auto-closes only there, and a
     merge to a side branch is not a delivery. A payload that omits `base`
     counts as *not* a delivery: missing evidence must not widen a matcher whose
-    output `closeout_healer` acts on."""
+    output `closeout_healer` acts on.
+
+    Parsing is skipped unless the story is referenced at all: a body or title
+    with no `#N` cannot name `num` under any anchor, and a supplied substring
+    scan is far cheaper than running the closing-keyword regex over 50 open
+    fork bodies (#1376 round-7 nit). The zero-padded form is included so the
+    short-circuit cannot narrow the anchors behind it."""
     if ((pr.get("base") or {}).get("ref") or "") != "main":
         return False
-    return (num in _closing_keyword_nums(pr.get("body") or "")
+    body = pr.get("body") or ""
+    title = pr.get("title") or ""
+    if not (any(f"#{ref}" in body or f"#{ref}" in title
+                for ref in (num, f"0{num}"))):
+        return False
+    return (num in _closing_keyword_nums(body)
             or _owner_announces_story(pr, num))
 
 
