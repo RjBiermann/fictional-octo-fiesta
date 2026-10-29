@@ -1172,12 +1172,46 @@ def _delivery_record(num, cs=None, labels=()):
     return None
 
 
+def _github_closes(pr, num):
+    """True when GitHub itself reports that `pr` closes story `num`.
+
+    `closingIssuesReferences` is the field GitHub computes from the PR body
+    (`Fixes #N`), scoped to same-repo refs and the default branch — the record
+    to trust instead of re-parsing prose (#1376 spent nine review rounds
+    discovering every way that parse can be wrong; #1379 chose this). GraphQL
+    because REST's pull payload does not carry the field (checked:
+    `has("closingIssuesReferences") == false`).
+
+    Only asked for a PR whose body or title mentions the story at all, so an
+    unrelated PR costs no API call."""
+    ref = f"#{num}"
+    if ref not in (pr.get("body") or "") and ref not in (pr.get("title") or ""):
+        return False
+    out = run(["gh", "api", "graphql", "-f",
+               "query=query($o:String!,$r:String!,$n:Int!){repository(owner:$o,"
+               "name:$r){pullRequest(number:$n){closingIssuesReferences(first:50)"
+               "{nodes{number}}}}",
+               "-f", f"o={OWNER}", "-f", f"r={REPO.split('/', 1)[-1]}",
+               "-F", f"n={pr['number']}"])
+    try:
+        nodes = (json.loads(out or "{}").get("data", {}).get("repository", {})
+                 .get("pullRequest", {}).get("closingIssuesReferences", {}).get("nodes") or [])
+    except ValueError:
+        return False
+    return any((n or {}).get("number") == num for n in nodes)
+
+
 def _merged_pr_for_story(num):
-    """The merged delivery of story `num` — ADR-0007's closeout record."""
+    """The merged delivery of story `num` — ADR-0007's closeout record. Two
+    shapes count: the agent branch pattern, and GitHub's own closing record
+    (`_github_closes`) — a maintainer hand-delivery on `maint/…` carries no
+    issue segment, and its `Fixes #N` is the Delivery (#915)."""
     pat = _delivered_branch_pat(num)
     merged = api("pulls?state=closed&per_page=60") or []
     for pr in merged:
-        if pat.search(pr.get("head", {}).get("ref", "")) and pr.get("merged_at"):
+        if not pr.get("merged_at"):
+            continue
+        if pat.search(pr.get("head", {}).get("ref", "")) or _github_closes(pr, num):
             return pr["number"]
     return None
 
@@ -1256,9 +1290,12 @@ def _fallback_delivery(num, cs=None):
 
 
 def _open_pr_for_story(num):
+    """An open Delivery of story `num` — same two shapes as the merged arm: a
+    Delivery exists in both states, so a shape recognised in one is recognised
+    in the other (#915/#1358)."""
     pat = _delivered_branch_pat(num)
     for pr in open_pulls():
-        if pat.search(pr.get("head", {}).get("ref", "")):
+        if pat.search(pr.get("head", {}).get("ref", "")) or _github_closes(pr, num):
             return pr["number"]
     return None
 

@@ -450,5 +450,60 @@ class TestPlanLoopDeliveryGuard(ReplayCase):
                       "an undelivered fresh trigger must still plan")
 
 
+class TestHandDeliveryClosingRecord(ReplayCase):
+    """#915 via the record GitHub computes (#1379 option A): a maintainer
+    hand-delivery on `maint/…` has no issue segment, so its merge is a Delivery
+    only if its body names the story — and `closingIssuesReferences` is where
+    GitHub records that. Parsing the body ourselves is what #1376 spent nine
+    review rounds getting wrong."""
+
+    def setUp(self):
+        self.world = {"owner": "RjBiermann", "issues": {}, "pulls": {"open": [], "closed": []},
+                      "comments": {}}
+        super().setUp(loader=lambda: self.world)
+        self.queries = []
+        self.closing = [900]
+
+        def _run(cmd, **kw):
+            self.queries.append(cmd)
+            nodes = [{"number": n} for n in self.closing]
+            return json.dumps({"data": {"repository": {"pullRequest":
+                                                       {"closingIssuesReferences":
+                                                        {"nodes": nodes}}}}})
+
+        patcher = mock.patch.object(orchestrator, "run", _run)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _pr(self, board, ref, body="", merged_at=None):
+        pr = {"number": 914, "head": {"ref": ref}, "base": {"ref": "main"}, "body": body,
+              "title": "S2 grammar", "user": {"login": self.owner}}
+        if merged_at:
+            pr["merged_at"] = merged_at
+        self.world["pulls"][board].append(pr)
+
+    def test_merged_hand_delivery_counts_when_github_says_it_closed_the_story(self):
+        self._pr("closed", "maint/s2-grammar", "Ships S2 grammar.\n\nFixes #900",
+                 merged_at="2026-10-23T05:00:00Z")
+        self.assertEqual(orchestrator._merged_pr_for_story(900), 914)
+        self.assertTrue(self.queries, "the closing record must be consulted")
+
+    def test_merged_pr_that_github_does_not_report_closing_is_not_a_delivery(self):
+        self.closing = []
+        self._pr("closed", "maint/s2-grammar", "Mentions #900 in passing, closes nothing",
+                 merged_at="2026-10-23T05:00:00Z")
+        self.assertIsNone(orchestrator._merged_pr_for_story(900))
+
+    def test_open_hand_delivery_counts_too(self):
+        self._pr("open", "maint/s2-grammar", "Fixes #900")
+        self.assertEqual(orchestrator._open_pr_for_story(900), 914)
+
+    def test_unrelated_pr_costs_no_query(self):
+        self._pr("closed", "maint/unrelated", "No story reference here",
+                 merged_at="2026-10-23T05:00:00Z")
+        self.assertIsNone(orchestrator._merged_pr_for_story(900))
+        self.assertEqual(self.queries, [], "a PR that never names the story needs no API call")
+
+
 if __name__ == "__main__":
     unittest.main()
