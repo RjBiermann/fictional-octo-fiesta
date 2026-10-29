@@ -1141,6 +1141,37 @@ def _fixable_pr(pr):
     return (pr.get("user") or {}).get("login") == OWNER
 
 
+DELIVERY_REVIEW_LABELS = ("status/in-review", "status/ready-to-merge", "status/conflict")
+
+
+def _delivery_record(num, cs=None, labels=()):
+    """The delivery record for story `num`, or None: open PR, merged PR, fallback
+    review issue, or a review-family label. One predicate because `_fire_implement`
+    and the plan loop must not drift — they had already (round-1 finding on #1378).
+
+    The labels are here because a delivery branch need not carry a hash:
+    `_delivered_branch_pat` requires `issue-N-<hash>`, while this lane's own
+    branches (`devloop/issue-1358`, #1359, #1312) are hashless. A review-family
+    label cannot exist before a delivery, so it is evidence, not a guess.
+
+    `_fire_implement` does not use this: its merged arm must first honour the
+    owner re-arm carve-out (`_stamped_after_merge`), so its ordering is
+    deliberately different rather than drifted."""
+    open_pr = _open_pr_for_story(num)
+    if open_pr:
+        return open_pr
+    merged = _merged_pr_for_story(num)
+    if merged:
+        return merged
+    fb = _fallback_delivery(num, cs)
+    if fb:
+        return fb
+    for name in DELIVERY_REVIEW_LABELS:
+        if name in labels:
+            return name
+    return None
+
+
 def _merged_pr_for_story(num):
     """The merged delivery of story `num` — ADR-0007's closeout record."""
     pat = _delivered_branch_pat(num)
@@ -1408,6 +1439,17 @@ def plan_loop_surrogate():
                   "implement fired directly (plan loop skipped)")
             continue
         if fresh_trigger and not r1:
+            # A label that lands while the fix lane is already shipping is not a reason to
+            # plan: /plan round 1 fired nine minutes after review stamped status/in-review
+            # with the delivery PR waiting (#1358). Guarded on delivery existence, not on
+            # labels — status/queued is both an IN_FLIGHT label and ADR-0018's trigger stamp,
+            # so a label guard would silence planning for every fresh story.
+            # All three delivery records `_fire_implement` honours, or the #1358 race
+            # stays live on the protected-files path: a fix that gh-aw routes to a fallback
+            # review issue (ADR-0020, #1264→#1271) has neither an open nor a merged PR.
+            if _delivery_record(n, cs, labels):
+                print(f"[orchestrator] {n}: fresh trigger but a delivery exists — /plan NOT fired")
+                continue
             _fire_plan(n, 1)
             continue
         if not r1:
