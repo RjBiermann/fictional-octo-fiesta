@@ -363,5 +363,92 @@ class TestFallbackReceiptGuard(ReplayCase):
         self.assertNotIn(1264, closed)
 
 
+class TestPlanLoopDeliveryGuard(ReplayCase):
+    """#1358, recorded live: a load-check issue carrying `ai-fix` got a /plan round 1
+    nine minutes *after* the review lane stamped `status/in-review`, with its delivery PR
+    open for review. The fresh-trigger branch had no delivery guard."""
+
+    def setUp(self):
+        story = {"number": 900, "state": "open", "title": "story", "body": "no parent here",
+                 "labels": [{"name": "ai-fix"}]}
+        self.world = {"owner": "RjBiermann", "issues": {"900": story},
+                      "pulls": {"open": [], "closed": []}, "comments": {}}
+        super().setUp(loader=lambda: self.world)
+        self.fires = []
+        self.comments = []
+
+        def _api(path, *a, **k):
+            if path.startswith("issues?state=open"):
+                return [story]      # the harness's own projection drops labels
+            return self._fake_api(path, *a, **k)
+
+        extra = [
+            # `parent_of()` falls through to `gh api graphql` for a body with no parent link;
+            # this suite is network-free by contract (sibling suite patches `run` likewise).
+            # real run() returns stdout as a string; the consumers swallow failures
+            mock.patch.object(orchestrator, "run", lambda *a, **k: ""),
+            mock.patch.object(orchestrator, "api", _api),
+            mock.patch.object(orchestrator, "all_stories", lambda *a, **k: [story]),
+            mock.patch.object(orchestrator, "comments", lambda n, *a, **k: []),
+            mock.patch.object(orchestrator, "post_comment",
+                              lambda n, b, *a, **k: self.comments.append((n, b))),
+            mock.patch.object(orchestrator, "_fire_workflow",
+                              lambda lock, t, n, *a, **k: self.fires.append((lock, t, n))),
+        ]
+        for p in extra:
+            p.start()
+        self.addCleanup(mock.patch.stopall)
+
+    def _pr(self, board, ref):
+        self.world["pulls"][board].append(
+            {"number": 914, "head": {"ref": ref}, "base": {"ref": "main"}, "body": "",
+             "user": {"login": self.owner}, "draft": False})
+
+    def test_plan_round_not_fired_when_delivery_pr_is_open(self):
+        self._pr("open", "devloop/issue-900-abc123")
+        orchestrator.plan_loop_surrogate()
+        self.assertNotIn(("04-plan.lock.yml", "issue", 900), self.fires,
+                         "a fresh trigger must not plan a story whose delivery PR is open")
+        self.assertFalse([c for c in self.comments if "/plan fired" in c[1]],
+                         "no plan-round marker either")
+
+    def test_plan_round_not_fired_when_delivery_was_a_fallback_review_issue(self):
+        """The third delivery record: gh-aw routes a protected-files fix to a fallback
+        review issue (ADR-0020, #1264→#1271), so no PR exists while the work is in
+        review. Guarding on PRs alone leaves the #1358 race live on that path."""
+        receipt = ("> [!NOTE]\n> The pull request was not created — a fallback review issue "
+                   "was created instead due to protected file changes: [#1271]"
+                   "(https://github.com/o/r/issues/1271)")
+        patcher = mock.patch.object(orchestrator, "comments", lambda n, *a, **k: (
+            [{"body": receipt, "created_at": "2026-10-23T04:00:00Z"}] if n == 900 else []))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        orchestrator.plan_loop_surrogate()
+        self.assertNotIn(("04-plan.lock.yml", "issue", 900), self.fires,
+                         "a fallback-delivered story must not be planned again")
+
+    def test_plan_round_not_fired_when_delivery_already_merged(self):
+        """The merged arm of the predicate: deleting it must fail here."""
+        self._pr("closed", "devloop/issue-900-abc123")
+        self.world["pulls"]["closed"][0]["merged_at"] = "2026-10-23T05:00:00Z"
+        orchestrator.plan_loop_surrogate()
+        self.assertNotIn(("04-plan.lock.yml", "issue", 900), self.fires,
+                         "a merged delivery must not be planned again")
+
+    def test_plan_round_not_fired_when_review_label_present(self):
+        """Hashless branches (`devloop/issue-1358`, #1359, #1312) match the delivery
+        pattern never; a review-family label is the evidence a delivery exists."""
+        self.world["issues"]["900"]["labels"] = [{"name": "ai-fix"},
+                                                 {"name": "status/in-review"}]
+        orchestrator.plan_loop_surrogate()
+        self.assertNotIn(("04-plan.lock.yml", "issue", 900), self.fires,
+                         "a story in review must not be planned")
+
+    def test_plan_round_still_fires_without_any_delivery(self):
+        orchestrator.plan_loop_surrogate()
+        self.assertIn(("04-plan.lock.yml", "issue", 900), self.fires,
+                      "an undelivered fresh trigger must still plan")
+
+
 if __name__ == "__main__":
     unittest.main()
