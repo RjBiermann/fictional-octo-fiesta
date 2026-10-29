@@ -463,14 +463,20 @@ class TestHandDeliveryClosingRecord(ReplayCase):
         super().setUp(loader=lambda: self.world)
         self.queries = []
         self.closing = [900]
+        self.payload = None
 
         def _run(cmd, **kw):
             self.queries.append(cmd)
+            if self.payload is not None:
+                return self.payload
             nodes = [{"number": n} for n in self.closing]
             return json.dumps({"data": {"repository": {"pullRequest":
                                                        {"closingIssuesReferences":
                                                         {"nodes": nodes}}}}})
 
+        repo = mock.patch.object(orchestrator, "REPO", f"{self.owner}/fictional-octo-fiesta")
+        repo.start()
+        self.addCleanup(repo.stop)
         patcher = mock.patch.object(orchestrator, "run", _run)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -503,6 +509,38 @@ class TestHandDeliveryClosingRecord(ReplayCase):
                  merged_at="2026-10-23T05:00:00Z")
         self.assertIsNone(orchestrator._merged_pr_for_story(900))
         self.assertEqual(self.queries, [], "a PR that never names the story needs no API call")
+
+    def test_query_names_the_owner_repo_and_pr(self):
+        """The stub used to ignore its argv, so nothing pinned *which* PR was
+        asked about — a wrong repo or PR number would have passed."""
+        self._pr("closed", "maint/s2-grammar", "Fixes #900",
+                 merged_at="2026-10-23T05:00:00Z")
+        self.assertEqual(orchestrator._merged_pr_for_story(900), 914)
+        cmd = " ".join(self.queries[0])
+        self.assertIn(f"o={self.owner}", cmd)
+        self.assertIn("r=fictional-octo-fiesta", cmd)
+        self.assertIn("n=914", cmd)
+
+    def test_url_form_closing_keyword_is_not_vetoed_by_the_prefilter(self):
+        """`Fixes https://github.com/o/r/issues/900` carries no `#900`, and the
+        cheap pre-filter must never answer in place of GitHub's record."""
+        self._pr("closed", "maint/s2-grammar",
+                 "Fixes https://github.com/RjBiermann/fictional-octo-fiesta/issues/900",
+                 merged_at="2026-10-23T05:00:00Z")
+        self.assertEqual(orchestrator._merged_pr_for_story(900), 914)
+
+    def test_graphql_error_payloads_read_as_not_closing_not_a_crash(self):
+        """`{"data": null}` (rate limit) and `{"repository": null}` (repo
+        invisible to the token) must not raise AttributeError — that aborts the
+        whole conveyor pass, not just this story."""
+        for payload in ('{"data": null}',
+                        '{"data": {"repository": null}}',
+                        '{"data": {"repository": {"pullRequest": null}}}',
+                        "not json"):
+            self.payload = payload
+            self._pr("closed", "maint/s2-grammar", "Fixes #900",
+                     merged_at="2026-10-23T05:00:00Z")
+            self.assertIsNone(orchestrator._merged_pr_for_story(900), payload)
 
 
 if __name__ == "__main__":
