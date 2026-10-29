@@ -1172,6 +1172,16 @@ def _delivery_record(num, cs=None, labels=()):
     return None
 
 
+# pr number -> the numbers GitHub reports it closing, scoped to one orchestrator pass.
+# Without it every story re-queries the same PR (7 subprocess calls per closeout pass,
+# scaling with open issues — #1380 round-2 nit).
+_CLOSES_CACHE = {}
+
+
+def _closes_cache_reset():
+    _CLOSES_CACHE.clear()
+
+
 def _github_closes(pr, num):
     """True when GitHub itself reports that `pr` closes story `num`.
 
@@ -1193,22 +1203,35 @@ def _github_closes(pr, num):
     pass. Same safe shape as `parent_of()`."""
     body = pr.get("body") or ""
     title = pr.get("title") or ""
-    hashtag, url_ref = f"#{num}", f"/issues/{num}"
-    if not any(ref in body or ref in title for ref in (hashtag, url_ref)):
+    # every closing form GitHub accepts: `#900`, `GH-900`, a full issue URL
+    forms = (f"#{num}", f"/issues/{num}")
+    if not any(form in body or form in title for form in forms) \
+            and f"GH-{num}".lower() not in (body + title).lower():
         return False
+    cached = _CLOSES_CACHE.get(pr["number"])
+    if cached is not None:
+        return num in cached
     out = run(["gh", "api", "graphql", "-f",
                "query=query($o:String!,$r:String!,$n:Int!){repository(owner:$o,"
                "name:$r){pullRequest(number:$n){closingIssuesReferences(first:50)"
                "{nodes{number}}}}",
-               "-f", f"o={OWNER}", "-f", f"r={REPO.split('/', 1)[-1]}",
+               # the repository owner, not OWNER (the owner-*actor* config, empty
+               # when GH_AW_ORCH_OWNER is unset)
+               "-f", f"o={REPO.split('/', 1)[0]}", "-f", f"r={REPO.split('/', 1)[-1]}",
                "-F", f"n={pr['number']}"])
     try:
         data = json.loads(out or "{}")
-        refs = ((data.get("data") or {}).get("repository") or {}).get("pullRequest") or {}
-        nodes = (refs.get("closingIssuesReferences") or {}).get("nodes") or []
+        pull = ((data.get("data") or {}).get("repository") or {}).get("pullRequest") or {}
+        nodes = (pull.get("closingIssuesReferences") or {}).get("nodes") or []
     except (ValueError, TypeError, AttributeError):
+        # still cached: fail-closed for this pass, but one query per PR, not one per
+        # (PR, story) during a rate-limit episode
+        _CLOSES_CACHE[pr["number"]] = frozenset()
         return False
-    return any(isinstance(n, dict) and n.get("number") == num for n in nodes)
+    closed = frozenset(n["number"] for n in nodes
+                       if isinstance(n, dict) and isinstance(n.get("number"), int))
+    _CLOSES_CACHE[pr["number"]] = closed
+    return num in closed
 
 
 def _merged_pr_for_story(num):
@@ -1237,6 +1260,7 @@ def closeout_healer():
     follow-up: #809/#781/#777 carry no S<n> prefix in their titles and
     were invisible to the story filter — the straggler class persists
     whenever 12-post-merge fails, which is exactly when this heals)."""
+    _closes_cache_reset()
     if not OWNER:
         return
     open_issues = [i for i in (api("issues?state=open&per_page=100") or [])
@@ -1305,7 +1329,13 @@ def _open_pr_for_story(num):
     in the other (#915/#1358)."""
     pat = _delivered_branch_pat(num)
     for pr in open_pulls():
-        if pat.search(pr.get("head", {}).get("ref", "")) or _github_closes(pr, num):
+        # `_fixable_pr` is the trust anchor for BOTH routes: a stranger's fork PR can
+        # be named `devloop/issue-N-evil` as easily as it can say `Fixes #N`, and
+        # either would stall the conveyor while it stays open (#1380 rounds 2-3).
+        # Real deliveries are agent PRs or owner hand-deliveries, both `_fixable_pr`,
+        # and `05-implement` creates them with `draft: false`, so no delivery drops.
+        if _fixable_pr(pr) and (pat.search(pr.get("head", {}).get("ref", ""))
+                                or _github_closes(pr, num)):
             return pr["number"]
     return None
 
@@ -1453,6 +1483,7 @@ def _branch_pending(story, stories, comments_fn):
 
 
 def plan_loop_surrogate():
+    _closes_cache_reset()
     if not FIRE_PLAN:
         return
     issues = api("issues?state=open&per_page=50") or []

@@ -77,6 +77,12 @@ class ReplayCase(unittest.TestCase):
         self.labels = []     # (num, name)
         self.fires = []      # (lock, item_type, item_number)
 
+        # the closing-record cache lives for one orchestrator pass; a test is a new
+        # pass, so a cached empty answer must not leak between cases
+        orchestrator._closes_cache_reset()
+        # and no fixture may reach the network: `run` is a repo-facing channel like
+        # `api`, so a body that triggers a graph query returns nothing here
+        self.patches_run = mock.patch.object(orchestrator, "run", lambda *a, **k: "")
         self.patches = [
             mock.patch.object(orchestrator, "OWNER", self.owner),
             mock.patch.object(orchestrator, "open_pulls",
@@ -95,6 +101,7 @@ class ReplayCase(unittest.TestCase):
                                   self.fires.append((lock, item_type, item_number))),
             mock.patch.object(orchestrator, "api", self._fake_api),
         ]
+        self.patches.append(self.patches_run)
         for p in self.patches:
             p.start()
         self.addCleanup(mock.patch.stopall)
@@ -500,9 +507,91 @@ class TestHandDeliveryClosingRecord(ReplayCase):
                  merged_at="2026-10-23T05:00:00Z")
         self.assertIsNone(orchestrator._merged_pr_for_story(900))
 
+    def test_query_names_the_repository_owner_not_the_actor_config(self):
+        """`OWNER` is the owner-*actor* config (`GH_AW_ORCH_OWNER`), which is empty
+        when unset — asking `repository(owner:"")` makes the feature silently inert.
+        The query must use the repository owner (#1380 finding), so this test makes
+        the two deliberately different."""
+        self._pr("open", "maint/s2-grammar", "Fixes #900")
+        # repo owner and actor config made deliberately different
+        patcher = mock.patch.object(orchestrator, "REPO", "acme/fictional-octo-fiesta")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.assertNotEqual(self.owner, "acme", "the fixture owner must differ from the repo owner")
+        orchestrator._open_pr_for_story(900)
+        argv = " ".join(self.queries[-1])
+        self.assertIn("o=acme", argv)
+        self.assertIn("r=fictional-octo-fiesta", argv)
+        self.assertIn("n=914", argv)
+        self.assertNotIn(f"o={self.owner}", argv, "the actor config is not the repository owner")
+
     def test_open_hand_delivery_counts_too(self):
         self._pr("open", "maint/s2-grammar", "Fixes #900")
         self.assertEqual(orchestrator._open_pr_for_story(900), 914)
+
+    def test_untrusted_author_cannot_claim_a_delivery(self):
+        """The closing record is PR *content*, so the open arm needs the repo's
+        trust anchor: a stranger's `patch-1` PR saying `Fixes #900` must not stall
+        the conveyor while it stays open (#1380 round-2 blocker)."""
+        self._pr("open", "patch-1", "Fixes #900")
+        self.world["pulls"]["open"][0]["user"] = {"login": "random-contributor"}
+        self.assertIsNone(orchestrator._open_pr_for_story(900))
+        self.assertFalse(orchestrator._fixable_pr(self.world["pulls"]["open"][0]))
+
+    def test_one_query_per_pr_per_pass_not_per_story(self):
+        """Every story re-querying the same PR is 7 subprocess calls per closeout
+        pass today, scaling with open issues (#1380 nit)."""
+        self.closing = [900, 901, 902]
+        self._pr("closed", "maint/s2-grammar", "Fixes #900, #901, #902",
+                 merged_at="2026-10-23T05:00:00Z")
+        for story in (900, 901, 902):
+            self.assertEqual(orchestrator._merged_pr_for_story(story), 914)
+        self.assertEqual(len(self.queries), 1, "one query covers every story on the PR")
+
+    def test_agent_delivery_branch_still_counts(self):
+        """The gate's positive control: `_fixable_pr` sits on `_fire_implement`'s
+        delivered-guard now, so an over-tight gate would re-fire Implement over every
+        open agent delivery — and only this suite runs in CI (#1380 round-4 finding)."""
+        self._pr("open", "devloop/issue-900-abc123")
+        self.world["pulls"]["open"][0]["user"] = {"login": "github-actions[bot]"}
+        self.assertTrue(orchestrator._fixable_pr(self.world["pulls"]["open"][0]))
+        self.assertEqual(orchestrator._open_pr_for_story(900), 914)
+
+    def test_fork_pr_named_like_a_delivery_branch_cannot_claim_one(self):
+        """A stranger can name a fork head `devloop/issue-900-evil` as easily as they
+        can write `Fixes #900`; both routes need the trust anchor (#1380 round 3)."""
+        self._pr("open", "devloop/issue-900-evil")
+        self.world["pulls"]["open"][0]["user"] = {"login": "random-contributor"}
+        self.assertIsNone(orchestrator._open_pr_for_story(900))
+
+    def test_gh_dash_closing_form_is_not_vetoed_by_the_prefilter(self):
+        """GitHub accepts `GH-900`; the prefilter must not veto a form the record counts."""
+        self._pr("closed", "maint/s2-grammar", "Fixes GH-900",
+                 merged_at="2026-10-23T05:00:00Z")
+        self.assertEqual(orchestrator._merged_pr_for_story(900), 914)
+
+    def test_each_pass_requeries_the_closing_record(self):
+        """The per-pass cache must be cleared between passes, or a pass reads the
+        previous one's answer (and deleting the resets would leave the suite green)."""
+        self._pr("closed", "maint/s2-grammar", "Fixes #900",
+                 merged_at="2026-10-23T05:00:00Z")
+        self.assertEqual(orchestrator._merged_pr_for_story(900), 914)
+        self.closing = []            # GitHub now reports nothing
+        orchestrator.closeout_healer()   # a new pass clears the cache
+        self.assertIsNone(orchestrator._merged_pr_for_story(900))
+
+    def test_error_payload_is_cached_too(self):
+        """A rate-limit episode must not turn into one query per (PR, story): the
+        error path caches `frozenset()` and stays fail-closed (#1380 nit)."""
+        # `{"data": null}` parses to an empty list, not an error; a rate limit is
+        # usually malformed output like this
+        self.payload = "not json"
+        self.closing = [900, 901, 902]
+        self._pr("closed", "maint/s2-grammar", "Fixes #900, #901, #902",
+                 merged_at="2026-10-23T05:00:00Z")
+        for story in (900, 901, 902):
+            self.assertIsNone(orchestrator._merged_pr_for_story(story))
+        self.assertEqual(len(self.queries), 1, "an error answer is cached for the pass")
 
     def test_unrelated_pr_costs_no_query(self):
         self._pr("closed", "maint/unrelated", "No story reference here",
@@ -533,13 +622,14 @@ class TestHandDeliveryClosingRecord(ReplayCase):
         """`{"data": null}` (rate limit) and `{"repository": null}` (repo
         invisible to the token) must not raise AttributeError — that aborts the
         whole conveyor pass, not just this story."""
+        self._pr("closed", "maint/s2-grammar", "Fixes #900",
+                 merged_at="2026-10-23T05:00:00Z")
         for payload in ('{"data": null}',
                         '{"data": {"repository": null}}',
                         '{"data": {"repository": {"pullRequest": null}}}',
                         "not json"):
             self.payload = payload
-            self._pr("closed", "maint/s2-grammar", "Fixes #900",
-                     merged_at="2026-10-23T05:00:00Z")
+            orchestrator._closes_cache_reset()   # a payload is a new pass
             self.assertIsNone(orchestrator._merged_pr_for_story(900), payload)
 
 
