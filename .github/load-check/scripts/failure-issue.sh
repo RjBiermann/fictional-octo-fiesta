@@ -51,7 +51,9 @@ APP_VERSION="n/a (compile failure — app never launched)"
 
 declare -A open_since=() # title -> number, open issues tagged load-check
 while IFS=$'\t' read -r num title; do
-  [[ $title == "Load check ("*"]]" ]] && open_since[$title]=$num
+  # `]]` here would never match: the title ends with a single `]` (see TITLE). This glob
+  # decides dedup, so getting it wrong re-opened the same failing set on every run (#1365).
+  [[ $title == "Load check ("*"]" ]] && open_since[$title]=$num
 done < <(gh issue list --state open --limit 200 --json number,title \
   --jq '.[] | [.number,.title] | @tsv')
 

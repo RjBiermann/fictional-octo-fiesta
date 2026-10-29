@@ -55,10 +55,13 @@ jobs:
       - name: Cross-contamination sim + prompt assertion (#894, parent #796)
         run: python3 .github/sims/cross_contamination_sim.py -v
 
-      # The load check's own parser is load-bearing (it spent 18 rounds being debugged), so its
-      # fixture self-check runs in the zero-AI lane (ADR-0005: tests run where the code runs).
-      - name: load-check log parser self-check
-        run: bash .github/load-check/scripts/test-parse.sh
+      # The lane's own shell is load-bearing (the parser spent 18 rounds being debugged, and the
+      # issue writer's dedup/attribution contracts each broke once unnoticed), so their
+      # self-checks run in the zero-AI lane (ADR-0005: tests run where the code runs).
+      - name: load-check self-checks
+        run: |
+          bash .github/load-check/scripts/test-parse.sh
+          bash .github/load-check/scripts/test-issue-writer.sh
 
   compile:
     runs-on: ubuntu-latest
@@ -133,11 +136,20 @@ jobs:
           KIND: compile
           JAR_SHA: ${{ steps.bootstrap.outputs.jar_sha }}
         run: |
-          ./.github/load-check/scripts/failure-issue.sh \
-            --plugins <( { sed -n 's/> Task :\([A-Za-z0-9]*\):make FAILED/\1/p' compile.log | sort -u; } > failing-plugins.txt; \
-              [[ -s failing-plugins.txt ]] || { \
-                echo 'unknown-attribution (root-level failure: no per-provider FAILED task line)' > failing-plugins.txt; }; \
-              cat failing-plugins.txt ) \
+          # A root-level failure (`:make` never ran) names no provider, so it is not a provider
+          # verdict (#1357). It is filed for a human instead of firing a fix run — same
+          # `unattributable` contract the load lane uses, so nothing has to match prose.
+          sed -n 's/> Task :\([A-Za-z0-9]*\):make FAILED/\1/p' compile.log | sort -u > failing-plugins.txt
+          unattributable=()
+          if [[ -s failing-plugins.txt ]]; then
+            rm -f unattributable.txt   # attributed again: a stale marker would mislabel this set
+          else
+            echo "root-level compile failure: no per-provider FAILED task line" > unattributable.txt
+            echo "unattributable" > failing-plugins.txt
+            unattributable=(--unattributable)
+          fi
+          ./.github/load-check/scripts/failure-issue.sh "${unattributable[@]}" \
+            --plugins failing-plugins.txt \
             --log compile.log
 
       - name: Fire Implement (ADR-0020 — dispatch is the fire, labels are state)
