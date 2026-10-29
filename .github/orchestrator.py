@@ -1141,12 +1141,93 @@ def _fixable_pr(pr):
     return (pr.get("user") or {}).get("login") == OWNER
 
 
+def _closing_keyword_nums(text):
+    """Issue numbers a PR body closes, using GitHub's own anchor: the keyword
+    immediately followed by the reference (`fixes #12`), never keyword-with-prose
+    (`this does not fix #12`). A comma/`and`-separated ref list closes every ref
+    in it, and a cross-repo ref (`owner/repo#12`) closes that other repo's issue,
+    not a story here.
+
+    Quoted anchors do not count: fenced blocks, inline code spans and HTML
+    comments are stripped first, because a body that *describes* `Closes #12`
+    (a table row, a docstring quote) is not a body that uses it — and this
+    function's output drives `closeout_healer`, which closes stories.
+
+    Negation is matched by *class*: the `'t` suffix covers every English
+    contraction (the apostrophe is normalised, so the curly `won’t` counts too),
+    `fail(ed|s|ing) to` / `unable to` cover the periphrastic forms, and its scope
+    is the current clause — bounded by `, ; . ! ?`, newlines and a contrastive
+    conjunction — so one adverb cannot defeat it and a negation about one issue
+    cannot swallow the next real `fixes #901`.
+    """
+    nums = set()
+    body = _unquoted(text or "").replace("\u2019", "'")
+    for m in _CLOSING_KEYWORD_RE.finditer(body):
+        if _CLOSING_NEGATION_RE.search(_closing_clause(body, m.start())):
+            continue
+        for digits in re.findall(r"#(\d+)", m.group("refs")):
+            # an unbounded int() on body text raises on absurd digit runs, which
+            # would degrade a whole orchestrator pass (#1376 round-4 nit)
+            if len(digits) <= 6:
+                nums.add(int(digits))
+    return nums
+
+
+def _unquoted(text):
+    """Drop fenced code blocks, inline code spans and HTML comments."""
+    out = _FENCE_RE.sub(" ", text)
+    out = _INLINE_CODE_RE.sub(" ", out)
+    return _HTML_COMMENT_RE.sub(" ", out)
+
+
+def _closing_clause(text, pos):
+    """The clause ending at `pos`: after the last clause/sentence boundary and
+    after the last contrastive conjunction. `does not fix #900, but fixes #901`
+    negates only #900; `I can't reproduce it but this fixes #900` is positive."""
+    start = 0
+    for sep in ".!?;,\n":
+        start = max(start, text.rfind(sep, 0, pos) + 1)
+    clause = text[start:pos]
+    contrast = None
+    for contrast in _CONTRASTIVE_RE.finditer(clause):
+        pass
+    return clause[contrast.end():] if contrast else clause
+
+
+_CLOSING_KEYWORD_RE = re.compile(
+    r"(?i)\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b[ \t]*:?[ \t]*"
+    # The list needs an explicit same-line separator (`,` `;` or `and`). Whitespace alone —
+    # and any `\s`, which spans newlines — would absorb a bare `#N` on a following line:
+    # "Closes #900\n\n#901 is a follow-up, not closed here" would retire #901 (#1376 round-5).
+    r"(?P<refs>#\d+(?:(?:[ \t]*[,;][ \t]*|[ \t]+and[ \t]+)(?:and[ \t]+)?#\d+)*)")
+# Negation by class: the `'t` suffix, the plain negators, and periphrastic ones.
+_CLOSING_NEGATION_RE = re.compile(
+    r"(?i)(?:['\u2019]t\b|\bnot\b|\bnever\b|\bno\s+longer\b|\bnor\b|\bcannot\b"
+    r"|\bfail(?:ed|s|ing)?\s+to\b|\bunable\s+to\b)")
+_CONTRASTIVE_RE = re.compile(
+    r"(?i)\b(?:but|however|yet|although|though|whereas|nevertheless)\b")
+_FENCE_RE = re.compile(r"```.*?```|~~~.*?~~~", re.S)
+_INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
+_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
+
+
 def _merged_pr_for_story(num):
-    """The merged delivery of story `num` — ADR-0007's closeout record."""
+    """The merged delivery of story `num` — ADR-0007's closeout record. Two
+    shapes count: the agent branch pattern, and a merged PR whose body carries
+    the closing keyword for `num` (#915 — recognising an owner hand-delivery is
+    still recognising a Delivery, CONTEXT.md)."""
     pat = _delivered_branch_pat(num)
     merged = api("pulls?state=closed&per_page=60") or []
     for pr in merged:
-        if pat.search(pr.get("head", {}).get("ref", "")) and pr.get("merged_at"):
+        if not pr.get("merged_at"):
+            continue
+        ref = pr.get("head", {}).get("ref", "")
+        if pat.search(ref):
+            return pr["number"]
+        # The closing keyword only auto-closes on the default branch, so a
+        # `Closes #N` merged into a side branch is not a delivery (yet).
+        if (pr.get("base") or {}).get("ref") == "main" \
+                and num in _closing_keyword_nums(pr.get("body") or ""):
             return pr["number"]
     return None
 
@@ -1225,9 +1306,16 @@ def _fallback_delivery(num, cs=None):
 
 
 def _open_pr_for_story(num):
+    """An open Delivery of story `num`. Both shapes count, as in the merged
+    guard: the agent branch pattern and the owner hand-delivery's body anchor
+    (#915 one state earlier — a delivery exists while its PR is open, so
+    planning it again is the same mis-fire)."""
     pat = _delivered_branch_pat(num)
     for pr in open_pulls():
         if pat.search(pr.get("head", {}).get("ref", "")):
+            return pr["number"]
+        if (pr.get("base") or {}).get("ref") == "main" \
+                and num in _closing_keyword_nums(pr.get("body") or ""):
             return pr["number"]
     return None
 
@@ -1408,6 +1496,18 @@ def plan_loop_surrogate():
                   "implement fired directly (plan loop skipped)")
             continue
         if fresh_trigger and not r1:
+            # A label applied while the fix lane was already shipping is not a reason to
+            # plan: /plan round 1 fired nine minutes after review stamped status/in-review
+            # (#1358). Guarding on delivery existence rather than on labels, because
+            # status/queued is both an IN_FLIGHT label and ADR-0018's trigger stamp — a
+            # label guard would silence planning for every fresh story.
+            # Stricter than _fire_implement's guard on purpose: a deliberate re-arm is a
+            # `status/planned` stamp, which `_fire_implement` reconciles through
+            # `_stamped_after_merge` — that path never needs a plan round, so the plan guard
+            # does not carve re-arm out.
+            if _open_pr_for_story(n) or _merged_pr_for_story(n):
+                print(f"[orchestrator] {n}: fresh trigger but a delivery PR exists — /plan NOT fired")
+                continue
             _fire_plan(n, 1)
             continue
         if not r1:

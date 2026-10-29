@@ -363,5 +363,215 @@ class TestFallbackReceiptGuard(ReplayCase):
         self.assertNotIn(1264, closed)
 
 
+class TestDeliveryRecognition(ReplayCase):
+    """#915 + #1358, both recorded as live mis-fires.
+
+    #915: an owner hand-delivery (`maint/s2-grammar`, PR #914) carries no
+    `issue-N-` segment, so `_merged_pr_for_story` never saw it and Implement
+    re-fired for a story that was already merged.
+
+    #1358: `/plan` round 1 fired nine minutes *after* the review lane had
+    stamped `status/in-review` and the delivery PR was open for review, because
+    the fresh-trigger branch had no delivery guard.
+
+    Fixtures here are synthetic on purpose: both are shapes the recorded wave
+    did not contain (the wave's deliveries all used agent branch names)."""
+
+    def setUp(self):
+        story = {"number": 900, "state": "open", "title": "story", "body": "no parent here",
+                 "labels": [{"name": "ai-fix"}]}
+        self.world = {"owner": "RjBiermann", "issues": {"900": story},
+                      "pulls": {"open": [], "closed": []},
+                      "comments": {}}
+        super().setUp(loader=lambda: self.world)
+        self.fires = []
+        self.comments = []
+        def _api(path, *a, **k):
+            # the harness's own list projection drops labels, and the fresh-trigger
+            # branch is driven by them
+            if path.startswith("issues?state=open"):
+                return [story]
+            return self._fake_api(path, *a, **k)
+
+        self.patches += [
+            mock.patch.object(orchestrator, "api", _api),
+            mock.patch.object(orchestrator, "all_stories", lambda *a, **k: [story]),
+            mock.patch.object(orchestrator, "comments", lambda n, *a, **k: []),
+            mock.patch.object(orchestrator, "post_comment",
+                              lambda n, b, *a, **k: self.comments.append((n, b))),
+            mock.patch.object(orchestrator, "_fire_workflow",
+                              lambda lock, t, n, *a, **k: self.fires.append((lock, t, n))),
+        ]
+        for p in self.patches[-5:]:
+            p.start()
+        self.addCleanup(mock.patch.stopall)
+
+    def _pr(self, board, ref, body="", merged_at=None, base="main"):
+        pr = {"number": 914, "head": {"ref": ref}, "body": body, "base": {"ref": base},
+              "user": {"login": self.owner}, "draft": False}
+        if merged_at:
+            pr["merged_at"] = merged_at
+        self.world["pulls"][board].append(pr)
+        return pr
+
+    # --- #915: owner hand-delivery is a delivery -------------------------
+    def test_owner_merged_pr_closing_the_story_counts_as_delivered(self):
+        self._pr("closed", "maint/s2-grammar", body="Implements the story.\n\nFixes #900",
+                 merged_at="2026-10-23T05:00:00Z")
+        self.assertEqual(orchestrator._merged_pr_for_story(900), 914,
+                         "an owner PR merged with `Fixes #900` is the story's delivery (#915)")
+
+    def test_merged_pr_without_branch_shape_or_keyword_is_not_a_delivery(self):
+        self._pr("closed", "maint/unrelated", body="Refactor only, no story closed",
+                 merged_at="2026-10-23T05:00:00Z")
+        self.assertIsNone(orchestrator._merged_pr_for_story(900),
+                          "widening must not claim an unrelated merged PR")
+
+    def test_negated_keyword_is_prose_not_a_delivery(self):
+        """`This does not fix #900` must not retire an open story: closeout_healer
+        closes what `_merged_pr_for_story` reports, so an over-match is destructive."""
+        self._pr("closed", "maint/unrelated", merged_at="2026-10-23T05:00:00Z",
+                 body="Unrelated refactor. This does not fix #900; tracked separately.")
+        self.assertIsNone(orchestrator._merged_pr_for_story(900))
+        self.assertNotIn(900, orchestrator._closing_keyword_nums(
+            "Unrelated refactor. This does not fix #900; tracked separately."))
+
+    def test_comma_separated_closing_list_covers_every_story(self):
+        """`Closes #900, #901` is two deliveries — missing the second is #915 again."""
+        self.assertEqual(orchestrator._closing_keyword_nums("Closes #900, #901"), {900, 901})
+        self.assertEqual(orchestrator._closing_keyword_nums("Closes #900 and #901"), {900, 901})
+        # a cross-repo ref closes that repo's issue, never a story here
+        self.assertEqual(orchestrator._closing_keyword_nums("Fixes \nopa/other#900"), set())
+
+    def test_adverb_between_negation_and_keyword_is_still_prose(self):
+        """A 24-char window before the keyword is defeated by one adverb; negation
+        is read across the clause instead (#1376 round-2 blocker)."""
+        for body in ("This does not fully fix #900",
+                     "This won't fully close #900",
+                     "This is not enough to fix #900",
+                     "it does not actually fix #900",
+                     # negation by class, not by an enumerated list (#1376 round 3)
+                     "I couldn't fix #900",
+                     "We haven\u2019t fixed #900",
+                     "This wasn't going to fix #900",
+                     "We mustn't close #900",
+                     "Failed to fix #900",
+                     "Unable to close #900"):
+            self.assertEqual(orchestrator._closing_keyword_nums(body), set(), body)
+        self._pr("closed", "maint/unrelated", merged_at="2026-10-23T05:00:00Z",
+                 body="Unrelated refactor. This does not fully fix #900; tracked separately.")
+        self.assertIsNone(orchestrator._merged_pr_for_story(900))
+
+    def test_negation_of_one_issue_does_not_swallow_another(self):
+        """Clause-scoped negation must not discard a real delivery the #915 guard
+        depends on (#1376 round-3 blocker)."""
+        self.assertEqual(orchestrator._closing_keyword_nums(
+            "This does not fix #900, but it fixes #901"), {901})
+        self.assertEqual(orchestrator._closing_keyword_nums(
+            "This is not related to #899, but fixes #900"), {900})
+        self.assertEqual(orchestrator._closing_keyword_nums(
+            "Does not fix #900; fixes #901"), {901})
+        self._pr("closed", "maint/unrelated", merged_at="2026-10-23T05:00:00Z",
+                 body="Does not fix #899; fixes #900")
+        self.assertEqual(orchestrator._merged_pr_for_story(900), 914)
+
+    def test_ref_list_needs_an_explicit_same_line_separator(self):
+        """Whitespace alone must not extend the list: a bare `#N` on the next line is
+        a different topic, and absorbing it retires a story the body says stays open
+        (#1376 round-5 blocker)."""
+        self.assertEqual(orchestrator._closing_keyword_nums(
+            "Closes #900\n\n#901 is a follow-up, not closed here."), {900})
+        self.assertEqual(orchestrator._closing_keyword_nums("Closes #900\n#901"), {900})
+        self.assertEqual(orchestrator._closing_keyword_nums("Closes #900 #901"), {900})
+        # explicit separators still collect the list
+        for body in ("Closes #900, #901", "Closes #900; #901", "Closes #900 and #901",
+                     "Closes #900, and #901"):
+            self.assertEqual(orchestrator._closing_keyword_nums(body), {900, 901}, body)
+        # and through the decision boundary: the follow-up is not delivered
+        self._pr("closed", "maint/unrelated", merged_at="2026-10-23T05:00:00Z",
+                 body="Implements the story.\n\nCloses #900\n\n#901 is a follow-up, untouched.")
+        self.assertEqual(orchestrator._merged_pr_for_story(900), 914)
+        self.assertIsNone(orchestrator._merged_pr_for_story(901))
+
+    def test_open_owner_hand_delivery_blocks_planning(self):
+        """The open arm must see the #915 shape too: a Delivery exists while its PR
+        is open, so a fresh trigger must not plan it again (#1376 round-5 carried)."""
+        self._pr("open", "maint/s2-grammar", body="Fixes #900")
+        self.assertEqual(orchestrator._open_pr_for_story(900), 914)
+        orchestrator.plan_loop_surrogate()
+        self.assertNotIn(("04-plan.lock.yml", "issue", 900), self.fires)
+
+    def test_merged_pr_without_base_is_not_a_delivery(self):
+        """Missing `base` is missing evidence on the destructive path (#1376 nit)."""
+        pr = self._pr("closed", "maint/unrelated", body="Fixes #900",
+                      merged_at="2026-10-23T05:00:00Z")
+        pr.pop("base")
+        self.assertIsNone(orchestrator._merged_pr_for_story(900))
+
+    def test_quoted_anchor_is_not_a_delivery(self):
+        """A body that *describes* `Closes #900` is not one that uses it — this PR's
+        own description is the live instance (#1376 round-4 blocker)."""
+        for body in ("```\nCloses #900\n```",
+                     "~~~\nCloses #900\n~~~",
+                     "use `Closes #900` there",
+                     "<!-- Closes #900 -->",
+                     "| `Closes #900, #901` | recognised only 900 | both |"):
+            self.assertEqual(orchestrator._closing_keyword_nums(body), set(), body)
+        # a real closing line alongside a quoted one still counts
+        self.assertEqual(orchestrator._closing_keyword_nums(
+            "| `Closes #900` | quote |\n\nCloses #915\nCloses #1358"), {915, 1358})
+
+    def test_contrastive_conjunction_scopes_the_negation(self):
+        """`I can't reproduce it but this fixes #900` is positive (#1376 round-4 nit)."""
+        self.assertEqual(orchestrator._closing_keyword_nums(
+            "I can't reproduce it but this fixes #900"), {900})
+        self.assertEqual(orchestrator._closing_keyword_nums(
+            "Not the cause, however it fixes #901"), {901})
+
+    def test_absurd_digit_run_does_not_raise(self):
+        """An unbounded int() would degrade a whole orchestrator pass (#1376 nit)."""
+        self.assertEqual(orchestrator._closing_keyword_nums("Fixes #" + "9" * 5000), set())
+
+    def test_cross_repo_ref_is_not_a_local_delivery(self):
+        """`Fixes opa/other#900` closes the *other* repo's #900 (#1376 round-2)."""
+        self.assertEqual(orchestrator._closing_keyword_nums("Fixes opa/other#900"), set())
+        self._pr("closed", "maint/unrelated", merged_at="2026-10-23T05:00:00Z",
+                 body="Fixes upstream/other#900")
+        self.assertIsNone(orchestrator._merged_pr_for_story(900))
+
+    def test_closing_keyword_on_a_side_branch_is_not_a_delivery(self):
+        """GitHub only auto-closes on the default branch, so a side-branch merge
+        carrying the keyword leaves the story open — and re-firing is then correct."""
+        self._pr("closed", "maint/side", body="Fixes #900",
+                 merged_at="2026-10-23T05:00:00Z", base="release/1.x")
+        self.assertIsNone(orchestrator._merged_pr_for_story(900))
+
+    def test_closing_keyword_for_another_story_does_not_match(self):
+        self._pr("closed", "maint/unrelated", body="Fixes #901", merged_at="2026-10-23T05:00:00Z")
+        self.assertIsNone(orchestrator._merged_pr_for_story(900))
+
+    # --- #1358: no plan round for a story already in delivery ------------
+    def test_plan_round_not_fired_when_delivery_pr_is_open(self):
+        self._pr("open", "devloop/issue-900-abc123")
+        orchestrator.plan_loop_surrogate()
+        self.assertNotIn(("04-plan.lock.yml", "issue", 900), self.fires,
+                         "a fresh trigger must not plan a story whose delivery PR is open (#1358)")
+        self.assertFalse([c for c in self.comments if "/plan fired" in c[1]],
+                         "no plan-round marker either")
+
+    def test_plan_round_not_fired_when_owner_delivery_already_merged(self):
+        """The merged half of the guard is the #915 shape: delete it and this fails."""
+        self._pr("closed", "maint/s2-grammar", body="Fixes #900",
+                 merged_at="2026-10-23T05:00:00Z")
+        orchestrator.plan_loop_surrogate()
+        self.assertNotIn(("04-plan.lock.yml", "issue", 900), self.fires,
+                         "a merged owner delivery must not be planned again")
+
+    def test_plan_round_still_fires_without_any_delivery(self):
+        orchestrator.plan_loop_surrogate()
+        self.assertIn(("04-plan.lock.yml", "issue", 900), self.fires,
+                      "an undelivered fresh trigger must still plan")
+
+
 if __name__ == "__main__":
     unittest.main()
