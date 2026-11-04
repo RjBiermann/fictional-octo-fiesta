@@ -297,7 +297,7 @@ playlists, the fallback is a per-segment presign sweep (734 sign calls at 480p) 
 is explicitly NOT shipped. In-app playback test is merge-time, not an agent deliverable.
 
 ### Code landed (TDD red → green, ADR-0005)
-> **Superseded by #1353 — see `../FINDINGS-1353.md`.** The `data:` carriage (and the
+> **Superseded by #1353 — see `../docs/archive/findings/FINDINGS-1353.md`.** The `data:` carriage (and the
 > `encodeBase64NoWrap` / `dataUri` helpers below) is gone: the playlist is now hosted on
 > loopback because the app's player rejects a `data:` URI as 2001. The XSFTK parse
 > helpers remain current.
@@ -325,7 +325,7 @@ is explicitly NOT shipped. In-app playback test is merge-time, not an agent deli
 
 ## FINDINGS-906 — failing-class census (2026-10-23, census story #906, parent #903)
 
-Full report: `FINDINGS-906.md` at the repo root. Headline: **335/336 sampled video pages are
+Full report: `docs/archive/findings/FINDINGS-906.md`. Headline: **335/336 sampled video pages are
 green through their live chain from CI; the reported #903 URL is green.** Two player generations
 coexist — XSFTK gated (319) and legacy video.js (16) — and they use **opposite CDN layouts**:
 gated videos serve only `/<id>/<q>_enc/…` (legacy `/<q>/…` is the 404 decoy), legacy videos serve

@@ -345,11 +345,11 @@ in the raw DOM); the shipped `PerverZijaParse.related()` dedupes it by href
   OkHttp reject the scheme with `net::ERR_UNKNOWN_URL_SCHEME` → 2001 on every device, which
   is the #840/#1328/#1353 symptom. #1353 moved the emission to a loopback `http://` host and
   the playlist contract is pinned by `PerverZijaPlaylistContractTest`; see
-  `FINDINGS-1353.md` for the emulator evidence.
+  `docs/archive/findings/FINDINGS-1353.md` for the emulator evidence.
 - **A device-side DNS/filter block of `*.click` (H3) cannot be fixed here.** Every roster
   host is under `.click`. H3 is *not* the #1353 cause (see the `#1353` section), but a
   user-side filter would still remove the whole roster at once; the device request in
-  `FINDINGS-1328.md` §7 is how to settle it if it recurs.
+  `docs/archive/findings/FINDINGS-1328.md` §7 is how to settle it if it recurs.
 - **No dead candidate was observed from CI**, so this run gives no direct evidence for H1.
   `cdn[0]` answered `206` on both gated videos. A remaining device-only 2001 is therefore
   more likely H2/H3/H4/H5 than a dead primary host as seen from the runner.
@@ -376,4 +376,4 @@ So H5 was the whole answer: the app's player datasource is HTTP-only (`CronetDat
 playlist can never be opened — no network, DNS, VPN or player-engine setting can change that.
 `shared/XsftkPlaylistServer.kt` now hosts the synthesized playlist on loopback and
 `emitXsftk` emits that URL; the `data:` URI, its base64 encoder and the #1338/S3 payload
-budget were removed with it. Full evidence: `../FINDINGS-1353.md`.
+budget were removed with it. Full evidence: `../docs/archive/findings/FINDINGS-1353.md`.

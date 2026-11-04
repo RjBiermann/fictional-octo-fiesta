@@ -167,7 +167,7 @@ slug (`{slug}-{year}.html`). Provider maps `this.year` from it (issue #233 gap 3
 
 ## Refresh 2026-10-17 (issue #654 — audit + fix deep pass, verdict ok)
 
-Full evidence: `FINDINGS-654.md` (repo root). Summary:
+Full evidence: `docs/archive/findings/FINDINGS-654.md`. Summary:
 
 - **Search pagination restored on the site** — the #408 contract is observed reversed:
   `/page/{N}/?s=` serves real disjoint results again (taboo → "Page 2 of 3", p1/p2/p3
