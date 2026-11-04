@@ -483,7 +483,7 @@ the link headers is #909's live-verification scope.
 
 ## FINDINGS-909 — S4 live verification of the #903 failing set (2026-10-23, implement story #909)
 
-Full evidence: `PerverZija/VERIFICATION.md`. Headlines:
+Full evidence: `docs/archive/providers/PerverZija/VERIFICATION.md`. Headlines:
 
 - **Reported #903 URL green end-to-end**: `playboyplus-natalia-starr-giddy-up` → boot
   `71eee742…` → 3238 B XOR manifest → `1080/720/480` → `op=key` 16 B → seg-0 of all

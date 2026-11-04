@@ -10,7 +10,8 @@ and endpoint in provider code must exist in FINDINGS evidence. Never guess.
 
 ## Output
 
-A `FINDINGS.md` in the provider directory with this structure:
+A `FINDINGS.md` under `docs/archive/providers/<Provider>/` — run reports live in the
+archive, never inside the provider directory (#923) — with this structure:
 
 ```markdown
 # FINDINGS — <site name>
