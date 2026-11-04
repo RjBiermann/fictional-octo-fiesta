@@ -8,7 +8,7 @@ import java.util.Calendar
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 
-// Same KVS engine as Porntrex (porntrex-box markup), see Javbangers/FINDINGS.md.
+// Same KVS engine as Porntrex (porntrex-box markup), see docs/archive/providers/Javbangers/FINDINGS.md.
 class Javbangers : MainAPI() {
     override var mainUrl = "https://www.javbangers.com"
     override var name = "Javbangers"

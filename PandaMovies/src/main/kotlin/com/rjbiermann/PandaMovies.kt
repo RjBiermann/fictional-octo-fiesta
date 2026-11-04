@@ -8,8 +8,8 @@ import com.kraptor.registerHostExtractors
 
 /**
  * PandaMovies (pandamovies.pw) — issue #421. WordPress + PsyPlay movie theme; movies embed
- * host registry. See FINDINGS-555.md (2026-10-13 rewrite, issue #555) and the
- * run8 FINDINGS.md in this directory.
+ * host registry. See `docs/archive/providers/PandaMovies/FINDINGS-555.md` (2026-10-13
+ * rewrite, issue #555) and the run8 `FINDINGS.md` beside it.
  */
 class PandaMovies : MainAPI() {
     override var mainUrl = "https://pandamovies.pw"

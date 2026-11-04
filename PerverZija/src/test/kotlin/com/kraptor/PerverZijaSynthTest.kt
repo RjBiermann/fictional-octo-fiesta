@@ -11,8 +11,9 @@ import org.junit.Test
  * TDD for issue #845 (fix story of #840): wire the XSFTK chain into playback.
  *
  * Live-verified 2026-10-21 (perv.xtremestream.xyz, rkprime-abella scene; transcript in
- * PerverZija/FINDINGS.md FINDINGS-845): the per-segment sign/sep round-trip is NOT needed
- * for native playback — the AES-128-CBC segment files live OPEN on the CDN at
+ * docs/archive/providers/PerverZija/FINDINGS.md, FINDINGS-845): the per-segment sign/sep
+ * round-trip is NOT needed for native playback — the AES-128-CBC segment files live OPEN on
+ * the CDN at
  *
  *     https://<cdn-host>/cdn/down/<video_id>/<q>_enc/<q><i>.html      (200, no token)
  *

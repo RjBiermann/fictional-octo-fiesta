@@ -8,7 +8,7 @@ import org.junit.Test
  * Issue #518: video details page showed no poster (black) on plain/library loads because
  * the video page embeds no image of the current video. The player embed carries the
  * video's own cover — hqwo iframe src: img=<b64>; mydaddy embed body: poster="//…".
- * Fixtures are real probe captures (HQPorner/FINDINGS-518.md).
+ * Fixtures are real probe captures (docs/archive/providers/HQPorner/FINDINGS-518.md).
  */
 class PlayerPosterParseTest {
 
