@@ -1214,7 +1214,7 @@ def _github_closes(pr, num):
     out = run(["gh", "api", "graphql", "-f",
                "query=query($o:String!,$r:String!,$n:Int!){repository(owner:$o,"
                "name:$r){pullRequest(number:$n){closingIssuesReferences(first:50)"
-               "{nodes{number}}}}",
+               "{nodes{number}}}}}",
                # the repository owner, not OWNER (the owner-*actor* config, empty
                # when GH_AW_ORCH_OWNER is unset)
                "-f", f"o={REPO.split('/', 1)[0]}", "-f", f"r={REPO.split('/', 1)[-1]}",
