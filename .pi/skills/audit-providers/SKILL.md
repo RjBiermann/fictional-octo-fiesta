@@ -6,7 +6,7 @@ description: Fleet-wide audit of all CloudStream providers in this repo — cana
 # Provider Fleet Audit
 
 Audit every provider's live site and leave three artifacts on the run branch:
-`FINDINGS-<issue>.md` (evidence), `audits/findings.json` (registry update),
+`docs/archive/findings/FINDINGS-<issue>.md` (evidence), `audits/findings.json` (registry update),
 and updated finding issues. No provider code changes — artifacts only.
 
 This skill composes [site-probe](../site-probe/SKILL.md) per provider. All
@@ -85,7 +85,8 @@ Before filing a new finding issue for a provider:
 - Update `audits/findings.json` (providers, standing_issue links, drift
   counts, `last_runs` entry with `false_positives` list — start it empty,
   fill it from review).
-- Write `FINDINGS-<issue>.md`; cross-check it against findings.json.
+- Write `docs/archive/findings/FINDINGS-<issue>.md` (run reports live in the archive,
+  never at the repo root — #922); cross-check it against findings.json.
 - Run `scripts/check-findings.sh` — it must pass; it is also the delivery
   gate (`pipeline.verify`).
 - PR body: per-provider verdict table, findings created/updated, canary

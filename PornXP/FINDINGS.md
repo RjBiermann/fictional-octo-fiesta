@@ -4,7 +4,7 @@
 
 ## 2026-10-16 deep pass (#632) — all surfaces healthy, verdict ok, no code change
 
-See `FINDINGS-632.md` at the repo root for full evidence. Summary:
+See `docs/archive/findings/FINDINGS-632.md` for full evidence. Summary:
 - Home p1/p3 href-disjoint (36 cards each); search `/tags/` p1/p2 href-disjoint + site `>` next control.
 - **Quick-search: NO distinct quick-search endpoint** (2.js only rewrites the form submit to `/tags/`; `/co/` is an empty 200 click counter). Provider's `quickSearch() = search(q,1)` fallback stays correct.
 - Streams: `<source>` mp4 206 video/mp4, Referer optional (bare request also serves). CDN subdomain rotates between rounds (`ce.` → `cdrn.` → `xxx.`.pornxp.sh) — provider extracts `src` from the live page, never hardcodes the host; keep it that way.

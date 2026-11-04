@@ -9,7 +9,7 @@ curl_cffi/chrome (the instrument real clients present). Historical note: this fi
 pre-#524 "BLOCKED from CI" record was the same unscreened challenge artifact; retired by
 the escalation ladder protocol.
 
-Full run evidence: `FINDINGS-644.md` (repo root). Run report in
+Full run evidence: `docs/archive/findings/FINDINGS-644.md`. Run report in
 `audits/findings.json` → providers.FullPorner + last_runs.
 
 ## Engine fingerprint

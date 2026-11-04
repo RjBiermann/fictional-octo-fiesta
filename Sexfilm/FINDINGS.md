@@ -167,7 +167,7 @@ for this provider.
 
 ## Deep audit (issue #634, 2026-10-16)
 Full-surface deep pass — verdict `ok`, tier `plain-curl`, 0 confirmed conditions, no version
-bump (12). Full transcript: FINDINGS-634.md at repo root. Registry: run18, `last_deep`
+bump (12). Full transcript: docs/archive/findings/FINDINGS-634.md. Registry: run18, `last_deep`
 2026-10-16.
 
 - **Two-step cookie-jar handshake (2026-09-29 note) NOT reproduced**: a single fresh
@@ -199,7 +199,7 @@ bump (12). Full transcript: FINDINGS-634.md at repo root. Registry: run18, `last
 
 ## Poster recurrence hardening (issue #521, 2026-09-30)
 Blank posters reported again 6 days after #493. Re-probe (full transcript in
-FINDINGS-521.md at repo root): site side unchanged and healthy — same single host
+docs/archive/findings/FINDINGS-521.md): site side unchanged and healthy — same single host
 sex-empire.org, thumb + og:image paths all 200 webp, complete TLS chains, no mirror
 hosts. NOT-REPRO ×2 ⇒ probable cause is the app's default image-request headers
 tripping Cloudflare bot-filtering on the reporter's network. Fix: `Parse.posterHeaders`
