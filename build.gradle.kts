@@ -128,7 +128,7 @@ subprojects {
         // kotlinx-serialization jars satisfy Voe's @Serializable companions.
         testImplementation(files(configurations.getByName("cloudstream")))
         testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.12.0")
-        testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.12.0")
+        testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.13.0")
     }
 
 }
