@@ -82,7 +82,10 @@ never fix inline.
 2. Implement; run the repo's own test command (from AGENTS.md/README).
 3. `create-pull-request` — the PR body MUST include a "## Provenance"
    section: this workflow run URL, the trigger issue number, and your
-   stamp (`gh-aw budget:` line per the budget protocol).
+   stamp (`gh-aw budget:` line per the budget protocol) — plus one closing
+   keyword line `Fixes #<trigger issue>`: `closingIssuesReferences` is what
+   07-fix-loop Rule 0 and 12-post-merge read (#1366), and "Related to #N"
+   leaves it empty so the closeout rides on prose.
    **Never set the `base` field.** The safe-output layer fills the
    default (main); an explicit `base` — including habit-typed `master` —
    is rejected and the code push is lost (observed twice, 2026-10-16:

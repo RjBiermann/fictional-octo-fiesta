@@ -395,6 +395,15 @@ def approve_companion_runs():
 
 
 # ---------------------------------------------------------- merge readiness
+# Check-runs the conveyor itself creates on PR events. Its concurrency
+# group cancels them mid-run on agent PRs, and `cancelled` is in the bad
+# set below — so one cancelled `orchestrate` check pinned readiness off
+# for the whole PR (2026-11-18 #1411, and #1389 since 2026-11-04). The
+# conveyor's own run says nothing about the diff, so it is not readiness
+# evidence.
+SELF_CHECK_NAMES = frozenset({"orchestrate"})
+
+
 def _effective_ready(num, mstate):
     """A PR is effectively ready when every check finished green/skipped.
     Bot PRs sit `blocked`/`unstable` forever (skipped gh-aw head-sha runs,
@@ -412,6 +421,8 @@ def _effective_ready(num, mstate):
     cr = api(f"commits/{sha}/check-runs?per_page=100") or {}
     bad = ("failure", "timed_out", "cancelled", "action_required", "stale")
     for c in (cr.get("check_runs") or []):
+        if (c.get("name") or "") in SELF_CHECK_NAMES:
+            continue
         # REST check-run status is lowercase (queued/in_progress/completed);
         # comparing raw "COMPLETED" never matched, so the blocked/unstable
         # readiness path always failed and no readiness ping ever fired.
@@ -2113,6 +2124,69 @@ def wave_driver():
             print(f"[orchestrator] epic #{epic}: wave-stamped #{n} (cap {cap})")
 
 
+def _branch_moved_after(num, iso_ts):
+    """True when PR `num`'s head commit is newer than `iso_ts`.
+
+    The only way a repair consumes a verdict is by pushing to the branch;
+    a Rule 0 abort posts a stamp and leaves the head untouched. Judging
+    "served" by whether the run's `agent` job executed counted those
+    aborts as consumption, so a blocker verdict could never re-fire — and
+    never reached the marker cap that escalates to a human (#1411: agent
+    success + no push, verdict stranded). Branch movement is the
+    observable proof of consumption.
+
+    Reads the head commit, not the commit list: `pulls/{n}/commits` pages
+    at 100 and a long-lived PR would never look served.
+
+    Ceiling: compares commit dates, not the sha; a rewrite that keeps
+    older dates would read as unserved (re-fires once more, never wrong
+    about having pushed).
+    """
+    if not iso_ts:
+        return False
+    pr = api(f"pulls/{num}")
+    if pr is None:
+        return True          # unreadable: skip the sweep, never re-fire blind
+    head = (pr.get("head") or {}).get("sha") or ""
+    if not head:
+        return True          # unexpected payload: same fail-closed rule
+    raw = api(f"commits/{head}")
+    if raw is None:
+        return True          # same fail-closed reason
+    commit = raw.get("commit") or {}
+    dates = [((commit.get(k) or {}).get("date") or "")
+             for k in ("committer", "author")]
+    return max(dates or [""]) > iso_ts
+
+
+def _repair_in_flight():
+    """A 07-fix-loop run is still running.
+
+    The surrogate's fire marker is itself an issue_comment on the PR, so
+    95 re-enters the sweep seconds later. Without this guard the second
+    pass dispatches again, and 07's concurrency group is shared and
+    cancel-in-progress — the second dispatch cancels the repair that has
+    not pushed yet, and the marker cap then escalates a PR that was never
+    actually repaired once (#1415 review). The lock is global and
+    unfiltered by time because the group is: dispatch runs key on
+    `refs/heads/main`, so ANY running repair is the one a new dispatch
+    would cancel, however old it is.
+    """
+    out = run(["gh", "run", "list", "--workflow", "07-fix-loop.lock.yml",
+               "--limit", "10", "--json", "status"]).strip()
+    # Fail closed: an unreadable run list must not read as "nothing running".
+    # Skipping one sweep costs hours; dispatching over a live repair kills it.
+    try:
+        rows = json.loads(out or "") if out.strip() else None
+    except ValueError:
+        rows = None
+    if rows is None:
+        print("[orchestrator] fix surrogate: cannot read 07-fix-loop runs — "
+              "skipping this sweep (never dispatch over a live repair)")
+        return True
+    return any((r.get("status") or "") != "completed" for r in rows)
+
+
 # --------------------------------------------------- fix-loop surrogate
 def fix_surrogate():
     """GitHub's loop-prevention swallows `pull_request_review` events for
@@ -2122,6 +2196,11 @@ def fix_surrogate():
     documented dispatch exception) — no owner-PAT stub review, no owner
     identity. Dedupe via the marker comment on the issue thread; bounded
     by the fix loop's own cycle cap + status/fixing-stuck."""
+    # Dispatch registration is asynchronous, so a PR handled later in this
+    # same sweep cannot see the run a moment-earlier PR just started — and
+    # 07's concurrency group is shared and cancel-in-progress, so that
+    # second dispatch would kill the first repair. At most one per sweep.
+    dispatched = False
     for pr in open_pulls():
         if not _fixable_pr(pr):
             continue
@@ -2154,33 +2233,14 @@ def fix_surrogate():
         low = verdict.lower()
         if "blocker" not in low or any(s in low for s in ("0 blockers", "no blockers", "pass, no blockers")):
             continue
-        # dedupe: a verdict is served only when a fix-loop run created
-        # after it actually EXECUTED its agent. Marker comments alone lie:
-        # the dispatched run can be swallowed by the fix loop's cooldown
-        # (activation skips agent) while the marker was already posted —
-        # #851 stranded exactly that way, and re-fires were blocked
-        # forever. Cap: 2 fires per verdict, then escalate to the human
-        # via status/fixing-stuck.
+        # Dedupe on consumption, and never dispatch over a live repair:
+        # the fire marker is an issue_comment, so the sweep re-enters
+        # seconds later and a second dispatch would cancel the first
+        # (shared cancel-in-progress group).
         fire_marker = f"{MARK} fix-loop re-fired for the verdict at {vtime}"
         cs = comments(num)
         markers = sum(1 for c in cs if fire_marker in (c.get("body") or ""))
-        served = False
-        rl = run(["gh", "run", "list", "--workflow", "07-fix-loop.lock.yml",
-                  "--limit", "15", "--json", "databaseId,createdAt"]).strip()
-        try:
-            rl = json.loads(rl or "[]")
-        except ValueError:
-            rl = []
-        for r in rl:
-            if r.get("createdAt", "") <= vtime:
-                continue
-            jobs = api_run_jobs(r["databaseId"])
-            if any((j.get("name") == "agent" and
-                    (j.get("conclusion") or "") != "skipped")
-                   for j in jobs):
-                served = True
-                break
-        if served:
+        if dispatched or _repair_in_flight() or _branch_moved_after(num, vtime):
             continue
         if markers >= 2:
             if "status/fixing-stuck" not in [l.get("name") for l in (api(f"issues/{num}") or {}).get("labels", [])]:
@@ -2192,16 +2252,9 @@ def fix_surrogate():
         ok = dispatch_ok(["gh", "workflow", "run", "07-fix-loop.lock.yml",
                           "--ref", "main", "-R", REPO,
                           "-f", f"aw_context={json.dumps({'item_type': 'pull_request', 'item_number': num})}"])
-        print(f"[orchestrator] fix surrogate on PR #{num}: {'fired' if ok else 'failed: ' + out[:120]}")
-
-
-def api_run_jobs(run_id):
-    """Jobs of a workflow run (actions read scope). [] on any failure."""
-    out = run(["gh", "api", f"repos/{REPO}/actions/runs/{run_id}/jobs?per_page=100"])
-    try:
-        return (json.loads(out or "{}").get("jobs") or [])
-    except ValueError:
-        return []
+        dispatched = dispatched or ok
+        print(f"[orchestrator] fix surrogate on PR #{num}: "
+              f"{'fired' if ok else 'dispatch FAILED'}")
 
 
 def _preflight_labels():

@@ -36,8 +36,12 @@ safe-outputs:
 # Review (command — findings only; ADR-0001 semantics)
 
 The `/review` command re-fires a review round on the PR the command was
-posted on (PR comments are issue_comments in GitHub's model) or the PR
-referenced by the command args. Same contract as the auto-review (06):
+posted on, or the PR referenced by the command args. **Post it as an inline
+review comment** (`pull_request_review_comment`): gh-aw compiles the
+`issue_comment` arm with `github.event.issue.pull_request == null`, so a
+`/review` typed into a PR conversation is skipped before activation — every
+06b run since 2026-11-16 skipped, including the owner's 2026-11-19 command
+on #1406's PR #1411. Same contract as the auto-review (06):
 review that PR's current diff against its spec issue and prior findings;
 **findings only** — you never push, edit, close, merge, or fix.
 
