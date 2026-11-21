@@ -1,6 +1,9 @@
 # FINDINGS — PornHub (pornhub.com)
 
-Probe date: 2026-11-18, from the CI runner (GitHub Actions, `Ubuntu` runner IP). S3's live
+Probe date: 2026-11-18, from the CI runner (GitHub Actions, `Ubuntu` runner IP) — **region not
+recorded for that probe**, and do not infer it from this date: the 2026-11-18 runner that saw
+the listing gate is a different egress (§Risks runner A), so the S1 transcript below is neither
+that gated run nor evidence of a particular region. S3's live
 probes ran 2026-11-21; S4's closeout probes ran **2026-11-21 04:14–04:35 UTC from a US
 (Virginia) egress** (`ipinfo.io` → `"country": "US"`, `"region": "Virginia"`, AS8075) — record
 the egress with every listing claim, because `/video` is **geo/egress-gated** (§Risks/blockers).
@@ -100,7 +103,8 @@ $ curl -s -A "$UA" "https://www.pornhub.com/video?o=cm" \
 
 Page-1 card counts: 31 cards on each row's page 1, 43 on each page 2 (page 1 carries ad slots).
 
-Transcript (runner, 2026-11-18 — container-scoped counts, page-2 disjointness, row overlap):
+Transcript (runner, 2026-11-18 — region not recorded for this probe; container-scoped counts,
+page-2 disjointness, row overlap):
 
 ```
 GET https://www.pornhub.com/video -> HTTP 200; cards: 31
@@ -370,7 +374,7 @@ Exposure inventory, explicit per field (`LoadResponse` field → what the page a
 | `posterUrl` | yes, 5/5 | `meta[property=og:image]` (+ JSON-LD `thumbnailUrl`) | signed, shard/rendition vary per fetch; compare the asset path |
 | `plot` | yes, 5/5 — **generated, not authored** | `meta[property=og:description]` (fallback `meta[name=description]`, same string) | the site exposes **no owner-written synopsis**; carry the generated string verbatim, never invent one |
 | `tags` | yes, 5/5 | `div.categoriesWrapper a[data-label=category]` + `div.tagsWrapper a[data-label=tag]` | 9–13 categories + 13–16 tags per page; distinct set is 22–27 |
-| `actors` | yes — **absent on no-credit uploads** | `div.pornstarsWrapper a.pstar-list-btn` | 1–2 on the 5 sampled; the wrapper is not rendered at all when no model is credited (6 of the 8 Top Rated page-1 cards sampled had zero, e.g. `6ac3b4323d75f`), so the fixture `video-page-2.html` shape is real and `actors` is legitimately empty there |
+| `actors` | yes — **absent on no-credit uploads** | `div.pornstarsWrapper a.pstar-list-btn` | 1–2 on the five §Video pages sampled; uploads that credit nobody render **no wrapper at all**, so `actors` is legitimately empty there — the shape pinned by the `video-page-2.html` fixture |
 | `duration` | yes, 5/5 | JSON-LD `VideoObject.duration` (ISO-8601, `PT00H15M00S`) | no DOM attribute; flashvars `video_duration` (900) is the fallback and agrees |
 | `year` | yes, 5/5 | JSON-LD `VideoObject.uploadDate` (`2026-11-17T04:35:53+00:00`) | no DOM attribute either |
 | `recommendations` | yes, 5/5 | `ul#relatedVideosListing li.pcVideoListItem` | 35 cards per page, all distinct, never the page's own viewkey (§Related videos) |
@@ -417,7 +421,8 @@ HTTP 404  # flashvars=False, <title>Page Not Found</title>
 ```
 
 A geo wall (`video_unavailable_country: "true"`) was **not observed** from the runner's IPs
-across ~50 sampled pages on 2026-11-18 and again on all 5 S4 pages on 2026-11-21 (US egress;
+across ~50 sampled pages on 2026-11-18 (region not recorded) and again on all 5 S4 pages on
+2026-11-21 (US/Virginia egress;
 `"video_unavailable": false`, `"video_unavailable_country": false` on every one). The
 flashvars flags are still honoured by the parser (site documentation shape), but there is no
 recorded geo-walled *watch* page — stated, not fabricated. The **listing** gate is a different
@@ -509,15 +514,22 @@ highest URLs distinct 5/5 by path; every path is <videoId>-specific
 RESULT: PASS
 ```
 
-**`height` is the encoded resolution on style A, the ladder label on style B.** The same video
-reports `1080/240/480/720` under a style-B assignment (`hv-h`, `?h=…`) but
-`1920/426/852/1280` under style A (`ev-h`, `?validfrom…hash`), while the path stays
-`1080P_4000K_…` in both. `Parse.qualityOf` passes the page's own `height` through as the
-`ExtractorLink.quality` int, so the player's quality ordering sees 1920/1280/852/426 instead of
-1080/720/480/240 on style-A pages. Every probed leg served real video either way — recorded as
-an observation for the quality-priority surface, not as a playback defect. `/video/get_media`
-on the same pages returns the same convention (`240/480/720/1080` on four, `426/852/1280/1920`
-on `6acf5129bd5a5`), so the fallback path inherits it.
+**`height` is not the same convention on every page.** All five S4 reads above are style A
+(each page was re-fetched until a 200-answering signing shape), yet four report ladder heights
+(`[1080,240,480,720]`; `[240,480,720]` on `6ac3a3b42e432`) and only `6acf5129bd5a5` reports
+`[1920,426,852,1280]`. The S3 resolve block above is likewise all style A (every leg 200) and
+reports `[240,480,720,1080]` on four of five. So the signing shape does **not** select the
+convention — style-A pages split 4:1 here. The numbers also differ in dimension:
+`1920/1280/852/426` are the standard pixel **widths** of 1080p/720p/480p/240p, while
+`1080/720/480/240` are the **heights**. What was measured is "some pages put the pixel width in
+`height`, others the ladder height, per video/asset"; the cause is not established by this
+data, and no A/B transcript exists (the S4 loop's re-fetch counts record attempts to land
+style A, not a style-B measurement). `Parse.qualityOf` passes the page's own `height` through
+as the `ExtractorLink.quality` int, so the player's quality ordering can see 1920/1280/852/426
+instead of 1080/720/480/240 on such pages. Every probed leg served real video either way —
+recorded as an observation for the quality-priority surface, not as a playback defect.
+`/video/get_media` on the same pages shows the same split (`240/480/720/1080` on four,
+`426/852/1280/1920` on `6acf5129bd5a5`), so the fallback path inherits it.
 
 `/video/get_media` fallback re-probed with S4's cookie jar (watch page's own `Set-Cookie`
 replayed):
@@ -644,17 +656,20 @@ Newest, `search=starbucks`), the search page-1/page-2 pair, the home page-1/page
   was recorded from a gated egress (the gate is decided server-side per egress IP).
   `Blocked: geo/SFW gate (302 -> / + ph-redirect: 1041, no unlock)` — a gated egress cannot
   verify the four home rows, and no re-probe is worth running from it.
-- **Geo wall on watch pages not observed.** ~50 pages on 2026-11-18 and all 5 S4 pages on
-  2026-11-21 carried `video_unavailable_country: "false"` (and `video_unavailable: false`);
+- **Geo wall on watch pages not observed.** ~50 pages on 2026-11-18 (region not recorded) and
+  all 5 S4 pages on 2026-11-21 carried `video_unavailable_country: "false"` (and `video_unavailable: false`);
   the parser still honours both flags, but there is no recorded geo-walled sample. Removed
   (404) and premium (200, no flashvars) walls are recorded in §Video pages and both drop the
   card (`load()` → `null`). This is a **different** flag from the listing gate above.
-- **Quality ints inherit the page's `height` field, which differs per signing shape.** Style-A
-  pages report encoded resolutions (`1920/426/852/1280`), style-B pages the ladder labels
-  (`1080/240/480/720`), for the same `1080P_4000K_…` path. `Parse.qualityOf` passes the value
-  through as `ExtractorLink.quality`, so the quality-ordering surface can see 1920/1280/852/426
-  instead of 1080/720/480/240. Every leg still served video in both shapes; recorded so a
-  "quality sort looks odd" report is diagnosed from this transcript (§Stream sources).
+- **Quality ints inherit the page's `height` field, which is not consistent per page.** Most
+  probed pages report ladder heights (`1080/240/480/720` on four of the five S4 style-A reads,
+  `240/480/720/1080` on four of the S3 reads), but `6acf5129bd5a5` reports pixel widths
+  (`1920/426/852/1280`) for the same `1080P_4000K_…` path. The signing shape does not explain
+  the split — every one of those reads is style A — and no A/B transcript exists; the cause is
+  unestablished. `Parse.qualityOf` passes the value through as `ExtractorLink.quality`, so the
+  quality-ordering surface can see 1920/1280/852/426 instead of 1080/720/480/240. Every leg
+  still served video; recorded so a "quality sort looks odd" report is diagnosed from
+  §Stream sources.
 - Chrome desktop UA used for every request (`Mozilla/5.0 … Chrome/124.0 Safari/537.36`); no
   Referer or cookie was required for any S1/S2 surface.
 - **Mobile UA gets a different, thinner page.** A mobile Chrome UA still gets `var flashvars`
