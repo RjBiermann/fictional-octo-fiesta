@@ -52,9 +52,19 @@ OWNER = os.environ.get("GH_AW_ORCH_OWNER", "")
 
 MARK = "[orchestrator]"
 
-# What a 06-review verdict comment looks like. Used to skip work-attempt
-# stamps when scanning the PR thread for the newest verdict (#1420).
-VERDICT_HINT = re.compile(r"(?i)\bverdict\b|## 06-review|\bblockers?\b")
+# What a 06-review verdict comment looks like — the gate for the thread scan.
+# It must admit EVERY verdict shape, pass or blocker: a gate narrower than
+# _blocker_verdict() makes a clearing verdict invisible, so `_latest_verdict()`
+# falls back to the older blocker and a passed PR keeps re-firing (#1469 R5).
+VERDICT_HINT = re.compile(
+    # Verdict line in every markdown dress: **Verdict:** / ## Verdict: / - Verdict:
+    r"(?im)^[\s#>*_`+-]*\**\s*verdict\b"
+    # A review heading: ## Review — / ## 06-review — / ### Blockers
+    r"|^\s*#{1,4}\s*(?:\d{2}[a-z]?-\s*)?(?:review|blockers?)\b"
+    # Free-form review prose that opens with it: "Round 2 review — 0 blockers."
+    r"|^\s*(?:round\s+\d+\s+)?review\b"
+    r"|^\s*\**blockers?\b"
+)
 
 # 06-review states its verdict in the opening block; the heading/count
 # fallbacks below read only that far, so a blocker quoted deep in the body
@@ -562,6 +572,25 @@ def merge_readiness():
             print(f"[orchestrator] PR #{num}: stale status/conflict label "
                   f"cleared (state={mstate})" if out == "" else
                   f"[orchestrator] PR #{num}: status/conflict clear rc!=0")
+        thread = api(f"issues/{num}/comments?per_page=100")
+        if thread is None:
+            # unreadable thread: readiness must not read that as "no findings"
+            print(f"[orchestrator] PR #{num}: comment thread unreadable — not ready")
+            continue
+        verdict_body, vtime = _latest_verdict(thread)
+        if _blocker_verdict(verdict_body.lower()):
+            # readiness reads check conclusions; a live blocker verdict is
+            # not a check. A "ready" label over it is actively misleading —
+            # PR #1466 was labelled 3 minutes after its blocker (2026-11-21)
+            # and kept the label when the repair round failed.
+            if "status/ready-to-merge" in labels:
+                run(["gh", "api", "-X", "DELETE",
+                     f"repos/{REPO}/issues/{num}/labels/status%2Fready-to-merge"])
+                print(f"[orchestrator] PR #{num}: stale status/ready-to-merge "
+                      f"cleared — blocker verdict outstanding")
+            else:
+                print(f"[orchestrator] PR #{num}: blocker verdict outstanding — not ready")
+            continue
         if "status/fixing-stuck" in labels:
             # the lane declared this needs a human; readiness must not
             # override that with green checks (#1405)
@@ -593,11 +622,16 @@ def merge_readiness():
                 print(f"[orchestrator] PR #{num}: auto-merge queued (spec approved)")
                 continue
         sha = ((d.get("head") or {}).get("sha") or "")[:12]
-        marker = f"ready @{OWNER} — all checks green at `{sha}`"
+        # Anchored on the verdict, not just the sha: after a blocker clears
+        # the label, a re-review at the SAME head must be able to label again
+        # (the stale "ready … at <sha>" comment otherwise suppresses it
+        # forever — #1469 R4's deadlock).
+        marker = (f"ready @{OWNER} — all checks green at `{sha}`; "
+                  f"verdict {vtime or 'none'}")
         if _has_marker(comments(num), marker):
             continue
         label_issue(num, "status/ready-to-merge")
-        post_comment(num, f"{MARK} ready @{OWNER} — all checks green at `{sha}`; please review and merge when ready.")
+        post_comment(num, f"{MARK} {marker} — please review and merge when ready.")
         print(f"[orchestrator] PR #{num}: tagged {OWNER} for merge")
 
 
@@ -2212,6 +2246,31 @@ def wave_driver():
             print(f"[orchestrator] epic #{epic}: wave-stamped #{n} (cap {cap})")
 
 
+def _latest_verdict(thread):
+    """(body, created_at) of the newest 06-review verdict comment, or ("", "").
+
+    A verdict is recognised by its heading ("## Review — …", "**Verdict:** …"),
+    never by a mention: the work-attempt stamp also says "06-review round 1",
+    and reading it as the verdict shadows the blocker it points at (#1420's
+    shape, again, on PR #1466).
+    """
+    for c in reversed(thread):
+        if (c.get("user") or {}).get("login") != "github-actions[bot]":
+            continue
+        body = c.get("body") or ""
+        if "fix-loop re-fired for the verdict at" in body:
+            continue
+        # The gate admits every verdict shape (above); the predicate decides
+        # only when the shape is unrecognised. The single bot comment that is
+        # NOT a verdict is 06-review's work-attempt stamp — unless the verdict
+        # is embedded in it (#1411 posted stamp and verdict combined).
+        is_stamp = body.lstrip().startswith("gh-aw budget:")
+        if VERDICT_HINT.search(body) or (not is_stamp
+                                         and _blocker_verdict(body.lower())):
+            return body, c.get("created_at", "")
+    return "", ""
+
+
 def _branch_moved_after(num, iso_ts):
     """True when PR `num`'s head commit is newer than `iso_ts`.
 
@@ -2305,27 +2364,7 @@ def fix_surrogate():
         # zero-findings round is still applied (#851 round 3: "hold
         # ready-to-merge", blocker outstanding). The last bot comment is
         # the verdict; the label is stale display state.
-        verdict, vtime = "", ""
-        for c in reversed(comments(num)):
-            if (c.get("user") or {}).get("login") != "github-actions[bot]":
-                continue
-            body = c.get("body") or ""
-            # skip the surrogate's own fire-marker comments — they carry
-            # no verdict text and would mask the verdict they point to
-            # (observed on #851: marker posted, cooldown ate the fire,
-            # marker became "the verdict").
-            if "fix-loop re-fired for the verdict at" in body:
-                continue
-            # 06-review posts its work-attempt stamp as a SEPARATE comment
-            # about a second after the verdict, so "the last bot comment" is
-            # often the stamp (#1420: blocker at 04:45:03, stamp at 04:45:04,
-            # surrogate read the stamp, never fired, never escalated). Only a
-            # comment that reads like a verdict can be one.
-            if not VERDICT_HINT.search(body):
-                continue
-            verdict = body
-            vtime = c.get("created_at", "")
-            break
+        verdict, vtime = _latest_verdict(comments(num))
         low = verdict.lower()
         if not _blocker_verdict(low):
             continue

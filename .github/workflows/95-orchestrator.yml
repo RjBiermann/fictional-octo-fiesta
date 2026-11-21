@@ -42,6 +42,17 @@ env:
 jobs:
   orchestrate:
     runs-on: ubuntu-latest
+    # The comment trigger exists for HUMAN round answers ("approved", a
+    # decision tag) so they resolve in seconds. Agent/machinery comments are
+    # churn by this file's own account — and with `cancel-in-progress: true`
+    # each one killed the sweep that the previous comment had just started:
+    # 87 of the last 100 conveyor runs were cancelled, which is why a close
+    # comment could post with no close behind it (2026-11-21). The schedule
+    # re-derives state, so skipping bot comments loses no work.
+    if: >-
+      github.event_name != 'issue_comment'
+      || github.event.comment.user.type != 'Bot'
+    
     steps:
       - uses: actions/checkout@v7
         with:
