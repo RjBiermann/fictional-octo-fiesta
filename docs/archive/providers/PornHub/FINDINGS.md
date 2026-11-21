@@ -230,11 +230,12 @@ RESULT: PASS
 
 ### Related videos
 
-- **Does not paginate.** The `ul#relatedVideosListing` block is a fixed 35-card selection: no
-  `link rel=next`, no `div.pagination3`/`li.page_next` inside or after it, no AJAX "load more"
-  hook (a scan of the 200 KB following the container finds no pagination control). So
-  `LoadResponse.recommendations` carries the whole block and there is no related page-2 URL to
-  record — an explicit absence, not an omission (§Related videos).
+- **Does not paginate.** The `ul#relatedVideosListing` block is a fixed selection (35 cards on
+  the S4 sample, 36 on S3 — the size drifts with the site's own content): no `link rel=next`, no
+  `div.pagination3`/`li.page_next` inside or after it, no AJAX "load more" hook (a scan of the
+  200 KB following the container finds no pagination control). So `LoadResponse.recommendations`
+  carries the whole block and there is no related page-2 URL to record — an explicit absence,
+  not an omission (markup and transcripts: §Related videos).
 
 ## Search
 
@@ -377,7 +378,7 @@ Exposure inventory, explicit per field (`LoadResponse` field → what the page a
 | `actors` | yes — **absent on no-credit uploads** | `div.pornstarsWrapper a.pstar-list-btn` | 1–2 on the five §Video pages sampled; uploads that credit nobody render **no wrapper at all**, so `actors` is legitimately empty there — the shape pinned by the `video-page-2.html` fixture |
 | `duration` | yes, 5/5 | JSON-LD `VideoObject.duration` (ISO-8601, `PT00H15M00S`) | no DOM attribute; flashvars `video_duration` (900) is the fallback and agrees |
 | `year` | yes, 5/5 | JSON-LD `VideoObject.uploadDate` (`2026-11-17T04:35:53+00:00`) | no DOM attribute either |
-| `recommendations` | yes, 5/5 | `ul#relatedVideosListing li.pcVideoListItem` | 35 cards per page, all distinct, never the page's own viewkey (§Related videos) |
+| `recommendations` | yes, 5/5 | `ul#relatedVideosListing li.pcVideoListItem` | 35 cards on the S4 sample (36 on S3), all distinct, never the page's own viewkey (§Related videos) |
 | `score` | **exposed but not populated** | `div.rating-container` / `span.votesUp[data-rating]` (`data-rating="122"` on `6afbd8a1f2e9e`) and `div.ratingInfo` | the provider leaves `LoadResponse.score` unset — a documented non-population, not a site gap. Recorded so a future story can wire it without re-probing. |
 | channel / uploader | **exposed but not populated** | JSON-LD `VideoObject.creator.name` (e.g. `Unrated Stories`) + `creator.url` | `LoadResponse` carries no studio/channel field for a movie; actors are the model list, not the channel |
 | `backgroundPosterUrl` / `logoUrl` | **not exposed** | — | no per-video backdrop or logo in the desktop markup; the theme's own art is site chrome |
@@ -453,7 +454,8 @@ RESULT: PASS
 Pagination: **the related block does not paginate** — there is no `link rel=next`, no
 `div.pagination3`/`li.page_next` inside or after the block (a scan of the 200 KB following the
 container finds no pagination control), and no AJAX "load more" hook on it. The block is a
-fixed 35-card selection; `LoadResponse.recommendations` carries exactly that.
+fixed selection whose size drifts with the site's own content — 35 cards on the S4 sample, 36
+on the S3 sample (§Video pages); `LoadResponse.recommendations` carries exactly that.
 
 **verify.sh plateau:** `--related-selector` cannot be used on this site — card identity is the
 `?viewkey=` query and verify.sh's `url_path` strips the query, so all 35 cards normalize to
