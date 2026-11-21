@@ -152,10 +152,12 @@ class HQPorner : MainAPI() {
     // ponytail: black details-page poster on plain/library loads (issue #518) — the video page
     // embeds no image of the current video (no og:image, only other cards' covers). The player
     // embed carries the video's own cover: hqwo iframe src has img=<b64 cover> (no extra fetch),
-    // mydaddy embed body has poster="//s62.bigcdn.cc/pubs/<key>/main.jpg". Null on any failure —
-    // feed loads keep the kraptor-embedded poster and pay no extra request.
+    // mydaddy embed body has poster="//s62.bigcdn.cc/pubs/<key>/main.jpg", flyflv body has
+    // poster="https://static.flyflv.com/movies/…/<id>/thumbs/12.jpg" (#1439: the flyflv
+    // generation is selected now, so the existing PlayerPosterParse covers it too). Null on
+    // any failure — feed loads keep the kraptor-embedded poster and pay no extra request.
     private suspend fun playerPoster(document: Document, pageUrl: String): String? {
-        val iframe = fixUrlNull(document.selectFirst("iframe[src*=mydaddy], iframe[src*=hqwo]")?.attr("src")) ?: return null
+        val iframe = fixUrlNull(document.selectFirst(PLAYER_IFRAME)?.attr("src")) ?: return null
         val cover = PlayerPosterParse.fromSrc(iframe)
         if (cover != null) return cover
         val body = app.get(iframe, referer = pageUrl + "/", headers = mapOf("User-Agent" to FIREFOX_UA)).text
@@ -171,15 +173,28 @@ class HQPorner : MainAPI() {
             "Referer" to "${mainUrl}/",
         )).document
 
-        // ponytail: two player domains in the wild — recent videos embed mydaddy.cc,
-        // older uploads (e.g. 39719-Maria_Ozawa_2 from issue #431) embed hqwo.cc; hqwo bodies carry the same a href='…/pubs/<key>/<res>.mp4' markup the shared MyDaddyExtractor regex parses
-        val iframe = fixUrlNull(document.selectFirst("iframe[src*=mydaddy], iframe[src*=hqwo]")?.attr("src")) ?: ""
+        // ponytail: three player domains in the wild (#1439 census: 54-page sample →
+        // mydaddy 36 / hqwo 13 / flyflv 5) — recent videos embed mydaddy.cc, older uploads
+        // (e.g. 39719-Maria_Ozawa_2 from issue #431) embed hqwo.cc (same a href='/pubs/…mp4'
+        // markup the shared MyDaddyExtractor parses), and Twistys-era uploads embed
+        // www.flyflv.com (source-tag grammar, shared FlyFlv adapter).
+        val iframe = fixUrlNull(document.selectFirst(PLAYER_IFRAME)?.attr("src")) ?: return false
 
 //        Log.d("kraptor_$name", "iframe = ${iframe}")
 
-        loadExtractor(iframe, "${mainUrl}/", subtitleCallback, callback)
+        // count real emissions: a matched-but-empty extractor is not a successful load
+        var sources = 0
+        val matched = loadExtractor(iframe, "${mainUrl}/", subtitleCallback) { link ->
+            sources++
+            callback.invoke(link)
+        }
 
-        return true
+        return matched && sources > 0
+    }
+
+    private companion object {
+        // one selector for every player generation the site serves (see loadLinks)
+        const val PLAYER_IFRAME = "iframe[src*=mydaddy], iframe[src*=hqwo], iframe[src*=flyflv]"
     }
 }
 // Pure Parse (issue #642): video-page detail fields under the 2026-10 grammar.

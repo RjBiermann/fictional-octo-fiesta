@@ -195,6 +195,31 @@ class HostRegistryTest {
     }
 
     /**
+     * (g) Issue #1439 (HQPorner video-source audit): the catalogue is served by three
+     * player generations. mydaddy.cc was the only one with a registry row — hqwo.cc (the
+     * older uploads, same single-quoted mp4 quality anchors as mydaddy) scored 71 on the
+     * framework's Levenshtein mirror fallback (<80 threshold) and flyflv had no row at
+     * all, so every hqwo/flyflv video emitted zero links. Pin an explicit row for each
+     * host the provider forwards, so dispatch never depends on fuzzy matching.
+     */
+    @Test
+    fun `hqporner player generations have explicit registry rows`() {
+        val hosts = rows.map { host(it.mainUrl) }.toSet()
+        val missing = listOf("mydaddy.cc", "hqwo.cc", "www.flyflv.com").filter { it !in hosts }
+        assertTrue(
+            "HQPorner player hosts have no registry row (loadExtractor drops those videos): $missing",
+            missing.isEmpty()
+        )
+        // hqwo shares the mydaddy grammar — one adapter family, no duplicated extractor.
+        assertTrue(rows.single { host(it.mainUrl) == "hqwo.cc" } is MyDaddyExtractor)
+        assertTrue(rows.single { host(it.mainUrl) == "mydaddy.cc" } is MyDaddyExtractor)
+        // the third generation has its own source-tag grammar.
+        assertTrue(rows.single { host(it.mainUrl) == "www.flyflv.com" } is FlyFlv)
+        assertTrue(HubEmbeds.covered("https://hqwo.cc/player/b214fc93241fe8cc9eacac028a8de065?img=x"))
+        assertTrue(HubEmbeds.covered("https://www.flyflv.com/movies/player/5135"))
+    }
+
+    /**
      * (c) Naming collisions across code paths (issue #347 P0-11) are
      * intentional — but only the documented ones. Names are user-facing in
      * CloudStream's source list; mirror families legitimately share a display
