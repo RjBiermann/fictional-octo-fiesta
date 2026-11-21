@@ -53,6 +53,21 @@ CI (`.github/workflows/build.yml`) builds all providers on push to `master`/`mai
 - **TDD-first** (ADR-0005): extract parsing into pure Parse functions and test them first (red → green, JUnit4) against fixtures in `src/test/resources/`; `shared/src/test/kotlin` runs with every provider's `test` task. No HTTP mocking — `MainAPI`/HTTP flows stay covered by pipeline Verification, not unit tests.
 - **Drift recurrence means brittleness, not bad luck.** A provider with three or more closed drift / broken-provider issues gets a hardening fix on its next `ai-fix` — structural matching, multi-host fallback, or a shared/ extension when evidence shows the root cause there — never another point-in-time selector swap. At four or more, the provider is **Chronic** (see CONTEXT.md): a removal candidate, which stays a maintainer decision (`ai-remove`).
 
+### Run reports are transient (noise-free repository)
+
+Run reports — root-level `FINDINGS-<issue>.md` and provider-level `FINDINGS.md` /
+`VERIFICATION.md` — are **transient run artifacts, never a final state**: not at the repo
+root, not inside a provider directory.
+
+- Completed reports are archived under `docs/archive/findings/` (root-level runs) or
+  `docs/archive/providers/<Provider>/` (provider-level runs) — in the same PR as the work,
+  or in a follow-up tidy commit. Reference them by that path from code comments.
+- During a run, the engine lane's partial-result `FINDINGS-` carrier at the root stays
+  allowed (wall-terminate safety), but it must not survive the merge.
+- Machine dirs (`.pi/`, `.agents/`, `audits/`, `skills/`, `scripts/`) stay where they are —
+  pipeline-critical, ADR-0011. This convention touches no `.github/**` file; `audits/`
+  (including `audits/findings.json`) is out of scope for any report move.
+
 ## Agent skills
 
 ### AI pipeline (gh-aw lane)
