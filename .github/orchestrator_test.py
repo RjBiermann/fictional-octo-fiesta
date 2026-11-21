@@ -1138,3 +1138,80 @@ class TestReadinessMarkerAnchorsOnVerdict(unittest.TestCase):
                 mock.patch.object(orchestrator, "print", prints.append, create=True):
             orchestrator.merge_readiness()
         self.assertTrue(any("unreadable" in str(p) for p in prints), prints)
+
+
+class TestConflictWatchUnknownState(unittest.TestCase):
+    """PR #1466: `mergeable_state` read "unknown" (actor-cold cache) while the
+    branch really conflicted, and a strictly-dirty gate meant the conflict was
+    never looked at — every sweep logged readiness only. The local merge-tree
+    is cache-free, so "unknown" must fall through to it."""
+
+    PR = {"number": 1466, "user": {"login": "rjbiermann-machinery[bot]"},
+          "head": {"ref": "devloop/issue-1439-x"}, "draft": False}
+
+    def run_watch(self, mstate, files):
+        resolved = []
+        with mock.patch.object(orchestrator, "open_pulls", lambda: [self.PR]), \
+                mock.patch.object(orchestrator, "_pr_labels_map", lambda n: {}), \
+                mock.patch.object(orchestrator, "_pl", lambda a, **k: (0, "")), \
+                mock.patch.object(orchestrator, "api",
+                                  lambda p: {"mergeable_state": mstate}), \
+                mock.patch.object(orchestrator, "_conflict_files", lambda b: files), \
+                mock.patch.object(orchestrator, "_auto_resolve_conflict",
+                                  lambda b: resolved.append(b) or True), \
+                mock.patch.object(orchestrator, "post_comment", lambda n, b: None), \
+                mock.patch.object(orchestrator, "run", lambda c, **k: ""):
+            orchestrator.conflict_watch()
+        return resolved
+
+    def test_unknown_state_still_finds_the_mechanical_class(self):
+        resolved = self.run_watch("unknown", frozenset({"PornHub/build.gradle.kts"}))
+        self.assertEqual(resolved, ["devloop/issue-1439-x"])
+
+    def test_unknown_state_with_a_clean_tree_does_nothing(self):
+        self.assertEqual(self.run_watch("unknown", frozenset()), [])
+
+    def test_unknown_state_with_a_non_mechanical_conflict_hands_off(self):
+        # the fix must still reach the 14-rebase handoff for real conflicts
+        posted, labelled = [], []
+        with mock.patch.object(orchestrator, "open_pulls", lambda: [self.PR]), \
+                mock.patch.object(orchestrator, "_pr_labels_map", lambda n: {}), \
+                mock.patch.object(orchestrator, "_pl", lambda a, **k: (0, "")), \
+                mock.patch.object(orchestrator, "api",
+                                  lambda p: {"mergeable_state": "unknown"}), \
+                mock.patch.object(orchestrator, "_conflict_files",
+                                  lambda b: frozenset({"HQPorner/src/main/kotlin/X.kt"})), \
+                mock.patch.object(orchestrator, "_auto_resolve_conflict",
+                                  lambda b: self.fail("non-mechanical conflict resolved")), \
+                mock.patch.object(orchestrator, "comments", lambda n: []), \
+                mock.patch.object(orchestrator, "post_comment",
+                                  lambda n, b: posted.append(b)), \
+                mock.patch.object(orchestrator, "run",
+                                  lambda c, **k: labelled.append(c) or ""):
+            orchestrator.conflict_watch()
+        self.assertTrue(any("merge conflict detected" in b for b in posted), posted)
+        self.assertTrue(any("status/conflict" in " ".join(c) for c in labelled),
+                        labelled)
+
+    def test_dirty_with_empty_files_still_hands_off(self):
+        # unreadable merge-tree under "dirty" used to reach the handoff; the
+        # unknown-state no-op must not swallow it
+        posted = []
+        with mock.patch.object(orchestrator, "open_pulls", lambda: [self.PR]), \
+                mock.patch.object(orchestrator, "_pr_labels_map", lambda n: {}), \
+                mock.patch.object(orchestrator, "_pl", lambda a, **k: (0, "")), \
+                mock.patch.object(orchestrator, "api",
+                                  lambda p: {"mergeable_state": "dirty"}), \
+                mock.patch.object(orchestrator, "_conflict_files",
+                                  lambda b: frozenset()), \
+                mock.patch.object(orchestrator, "comments", lambda n: []), \
+                mock.patch.object(orchestrator, "post_comment",
+                                  lambda n, b: posted.append(b)), \
+                mock.patch.object(orchestrator, "run", lambda c, **k: ""):
+            orchestrator.conflict_watch()
+        self.assertTrue(any("unresolvable via merge-tree" in b for b in posted),
+                        posted)
+
+    def test_mergeable_states_are_left_alone(self):
+        for state in ("blocked", "unstable", "clean", "behind"):
+            self.assertEqual(self.run_watch(state, frozenset({"x.kt"})), [], state)

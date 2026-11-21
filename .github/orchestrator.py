@@ -2072,10 +2072,20 @@ def conflict_watch():
                       f"merge-tree — status/conflict label cleared")
                 continue
         d = api(f"pulls/{num}") or {}
-        if d.get("mergeable_state") != "dirty":
+        mstate = (d.get("mergeable_state") or "").lower()
+        # "unknown" is the actor-cold mergeability cache, not "no conflict":
+        # GITHUB_TOKEN reads it indefinitely, so a strictly-dirty gate means
+        # the conflict is never even looked at (PR #1466 sat conflicted across
+        # sweeps while every log line only reported readiness). Fall through
+        # to the local merge-tree — which is cache-free — and let it decide.
+        if mstate not in ("dirty", "unknown"):
             continue
         _pl(["git", "fetch", "origin", branch])
         files = _conflict_files(branch)
+        if not files and mstate == "unknown":
+            continue          # cache-free read says clean
+        # NB: "dirty" with an empty file set is NOT a no-op — that is the
+        # unreadable-merge-tree case, and it keeps the handoff path below.
         if files and all(f == FINDINGS_PATH
                          or any(f.endswith(suf) for suf in REGISTRY_VERSION_SUFFIXES)
                          for f in files):
