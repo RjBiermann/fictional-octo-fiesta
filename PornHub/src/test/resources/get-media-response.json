@@ -1,0 +1,54 @@
+[
+  {
+    "group": 1,
+    "height": 240,
+    "width": 426,
+    "defaultQuality": false,
+    "format": "mp4",
+    "videoUrl": "https://ev.phncdn.com/c6541/videos/202611/16/69408235/240P_1000K_69408235.mp4?validfrom=1795224600&validto=1795231800&rate=500k&burst=2000k&ip=64.236.143.213&ipa=1&hash=2OVCsYD%2FYTMuX750O8JhKkmxrYc%3D",
+    "quality": "240",
+    "segmentFormats": {
+      "audio": "aac",
+      "video": "mp4"
+    }
+  },
+  {
+    "group": 1,
+    "height": 480,
+    "width": 852,
+    "defaultQuality": false,
+    "format": "mp4",
+    "videoUrl": "https://ev.phncdn.com/c6541/videos/202611/16/69408235/480P_2000K_69408235.mp4?validfrom=1795224600&validto=1795231800&rate=500k&burst=2000k&ip=64.236.143.213&ipa=1&hash=wjNIiHh18PbOnloKhiqAnrvlh2M%3D",
+    "quality": "480",
+    "segmentFormats": {
+      "audio": "aac",
+      "video": "mp4"
+    }
+  },
+  {
+    "group": 1,
+    "height": 720,
+    "width": 1280,
+    "defaultQuality": true,
+    "format": "mp4",
+    "videoUrl": "https://ev.phncdn.com/c6541/videos/202611/16/69408235/720P_4000K_69408235.mp4?validfrom=1795224600&validto=1795231800&rate=500k&burst=2000k&ip=64.236.143.213&ipa=1&hash=dt5eZDeqcUitHr4gjlGQR6EGzBs%3D",
+    "quality": "720",
+    "segmentFormats": {
+      "audio": "aac",
+      "video": "mp4"
+    }
+  },
+  {
+    "group": 1,
+    "height": 1080,
+    "width": 1920,
+    "defaultQuality": false,
+    "format": "mp4",
+    "videoUrl": "https://ev.phncdn.com/c6541/videos/202611/16/69408235/1080P_4000K_69408235.mp4?validfrom=1795224600&validto=1795231800&rate=50000k&burst=50000k&ip=64.236.143.213&ipa=1&hash=%2FPMRwjjsUfEqD9DTRWt0rnpbhcc%3D",
+    "quality": "1080",
+    "segmentFormats": {
+      "audio": "aac",
+      "video": "mp4"
+    }
+  }
+]

@@ -2,9 +2,9 @@
 
 Probe date: 2026-11-18, from the CI runner (GitHub Actions, `Ubuntu` runner IP — EU/US,
 see Risks). Stories S1–S4 of the PornHub spec (#1406) fill this document; S1 (§Engine
-fingerprint, §Homepage, §Pagination (home)) and S2 (§Search, §Pagination (search), §Quick
-search) are complete and verified; S3 (§Video pages, related, streams) and S4 (closeout)
-append their sections.
+fingerprint, §Homepage, §Pagination (home)), S2 (§Search, §Pagination (search), §Quick
+search) and S3 (§Video pages, §Stream sources, §Headers) are complete; S3's live probes ran
+2026-11-21; S4 (closeout) completes the document.
 
 ## Engine fingerprint
 
@@ -246,11 +246,153 @@ https://www.pornhub.com/api/v1/video/search?search=teen -> HTTP 404
 https://www.pornhub.com/suggest?q=teen -> HTTP 404
 ```
 
-## Video pages / Related videos / Stream sources / Headers
+## Video pages
 
-Deferred to S3 (#1409) and S4 (#1410). Card-level evidence carried into S3: `viewkey` is the
-video identity, listing cards expose duration + views (above), and poster URLs are **signed**
-(`?hdnea=st=…~exp=…`) — regenerated on every fetch, never cacheable across runs.
+Watch page = `https://www.pornhub.com/view_video.php?viewkey=<vkey>` (HTTP 200, ~1.3 MB).
+**Desktop markup only:** a mobile Chrome UA gets a different mobile page with no
+`h1.title`/`pornstarsWrapper`; curl's, OkHttp's and the app's default UA all get the desktop
+page (`okhttp/4.12.0` re-confirmed). Every selector below is from that desktop page.
+
+| Field | Selector / source | Notes |
+|---|---|---|
+| title | `h1.title span.inlineFree` | fallback `meta[property=og:title]` (same string) |
+| poster | `meta[property=og:image]` | signed, `pix-egi`/`pix-cdn77` alternate; compare the asset path, never the URL |
+| plot | `meta[property=og:description]` | the site exposes **no owner-written synopsis**; the generated `"Watch <title> on Pornhub.com, …"` string is the only description and is carried verbatim (never invented) |
+| tags | `div.categoriesWrapper a[data-label=category]` + `div.tagsWrapper a[data-label=tag]` | both feed `LoadResponse.tags`; categories first (13/14 cat + 14/16 tag links on the sampled pages) |
+| actors | `div.pornstarsWrapper a.pstar-list-btn` | anchor text is the model name (`Indica Marie`); uploads that credit nobody render **no wrapper** → empty actor list (fixture `video-page-2.html`) |
+| duration | JSON-LD `VideoObject` `"duration":"PT00H16M50S"` | no DOM attribute carries it; `JsonLdParse.minutes` floors to minutes (repo convention); flashvars `video_duration` (seconds) is the fallback |
+| year | JSON-LD `"uploadDate":"2026-06-18T00:26:47+00:00"` | `JsonLdParse.year`; no DOM attribute carries it either |
+| related videos | `ul#relatedVideosListing li.pcVideoListItem` | same card shape as the listing; the block also carries ad `<li class='js-nativeTjVideoGrid js_promoItem'>` slots (no `view_video` link) which the card parser drops |
+
+All-or-none exposure on 5 sampled pages (2026-11-21): title/poster/plot 5/5, `tags` 5/5,
+`actors` 5/5 (all five sampled uploads credit at least one model; a no-credit upload is the
+`video-page-2.html` fixture shape), related block 5/5 (36 cards each).
+
+```
+$ for vk in 6a80b72923d3f 6aefb497a0734 6aa3d2b52e477 ph5db33702d8ca6 6a333a768c26c; do
+    curl -s -A "$UA" "https://www.pornhub.com/view_video.php?viewkey=$vk" …
+  done
+6a80b72923d3f  title='Perfect Little Model Makes Love To Giant Cock'                  dur=PT00H23M06S year=2026 tags=16 actors=1 related=36 self_in_related=False
+6aefb497a0734  title='Big Tits Stepsister Wants Some Help From Stepbro - Charli O - …' dur=PT00H23M11S year=2026 tags=8  actors=1 related=36 self_in_related=False
+6aa3d2b52e477  title='A Hardcore Pee Gangbang for Brazilian Slut Cintia Lara'       dur=PT00H16M47S year=2026 tags=15 actors=2 related=36 self_in_related=False
+ph5db33702d8ca6 title='HOW DOES IT FIT! TEEN PIPER PERRI SQUIRTS &amp; GETS …'        dur=PT00H42M22S year=2019 tags=17 actors=2 related=36 self_in_related=False
+6a333a768c26c  title='Picking Up My Step Sister From Starbucks | Perfect Tits | …'   dur=PT00H16M50S year=2026 tags=14 actors=2 related=36 self_in_related=False
+distinct titles 5/5; distinct poster asset paths 5/5; distinct viewkeys 5; related cards distinct within page
+RESULT: PASS
+```
+
+### Walled pages (recorded samples)
+
+A premium video answers **HTTP 200** with `og:*` metas, `i.premiumIconTitleOnVideo` and
+`div.premiumLockedPartners`, but **no `var flashvars_` blob** — the paywall wall. A removed /
+invalid viewkey answers **HTTP 404 `Page Not Found`**, also with no flashvars blob. Both →
+`Parse.videoDetails` returns `null`, so the app drops the card instead of throwing:
+
+```
+$ curl -s -o w.html -w 'HTTP %{http_code}\n' -A "$UA" "https://www.pornhub.com/view_video.php?viewkey=64894d8f6af1f"
+HTTP 200  # premium: flashvars=False premiumLock=True premiumIconTitle=True  (Brazzers title retained in og:title)
+$ curl -s -o w.html -w 'HTTP %{http_code}\n' -A "$UA" "https://www.pornhub.com/view_video.php?viewkey=0000000000000"
+HTTP 404  # flashvars=False, <title>Page Not Found</title>
+```
+
+A geo wall (`video_unavailable_country: "true"`) was **not observed** from the runner's EU/US
+IP across ~50 sampled pages; the flashvars flags are still honoured by the parser (site
+documentation shape), but there is no recorded geo-walled sample — stated, not fabricated.
+
+## Stream sources
+
+The player config is a single-line `var flashvars_<videoId> = { … };` blob on the watch page
+(desktop markup). Its `mediaDefinitions` array is the source list:
+
+| entry | format | height | videoUrl |
+|---|---|---|---|
+| 1 | `hls` | 240 | `…/240P_1000K_<id>.mp4/master.m3u8?…` |
+| 2 | `hls` | 480 | `…/480P_2000K_<id>.mp4/master.m3u8?…` |
+| 3 | `hls` | 720 | `…/720P_4000K_<id>.mp4/master.m3u8?…` |
+| 4 *(often)* | `hls` | 1080 | `…/1080P_4000K_<id>.mp4/master.m3u8?…` |
+| last | `mp4` | source height | `https://www.pornhub.com/video/get_media?s=…&v=<vkey>&e=0&t=p`, `remote: true` |
+
+- **HLS, not progressive mp4.** Every `hls` entry's `videoUrl` is a master playlist
+  (`master.m3u8`, `Content-Type: application/vnd.apple.mpegurl`) — the provider emits one
+  `ExtractorLink` per HLS entry with `type = ExtractorLinkType.M3U8` and the entry's own
+  `height` as quality (`Parse.qualityOf`; `Qualities` values are pixel heights). The entry
+  `quality` field is a string (`"720"`); `height` is the int actually used.
+- **Fresh every call.** URLs are signed and short-lived (`validfrom`/`validto`, ~2 h);
+  `loadLinks` re-fetches the watch page and re-parses `flashvars` on every invocation — no
+  cached URL is ever reused. `mediaPriority: "hls"` on every sampled page.
+- **`/video/get_media` fallback.** The `remote: true` mp4 leg carries the documented fallback
+  endpoint. It answers a JSON array of progressive mp4 legs (240/480/720/1080,
+  `Content-Type: video/mp4`). It is only used when the flashvars carries **no HLS leg**, and
+  it needs the watch page's own session cookies — a cookie-less GET answers `[]`
+  (`ss`/`sessid` are the load-bearing cookies; the provider forwards `response.cookies`).
+
+Resolve loop (2026-11-21, page re-fetched fresh per video, then every emitted quality probed):
+
+```
+6a80b72923d3f  highest 1080 → 200 application/vnd.apple.mpegurl; all [240,480,720,1080] → 200 mpegurl
+6aefb497a0734  highest 1080 → 200 application/vnd.apple.mpegurl; all [240,480,720,1080] → 200 mpegurl
+6aa3d2b52e477  highest 1080 → 200 application/vnd.apple.mpegurl; all [240,480,720,1080] → 200 mpegurl
+ph5db33702d8ca6 highest 1080 → 200 application/vnd.apple.mpegurl; all [240,480,720,1080] → 200 mpegurl
+6a333a768c26c  highest  720 → 200 application/vnd.apple.mpegurl; all [240,480,720]       → 200 mpegurl
+no two videos share a stream path; every path is <videoId>-specific
+RESULT: PASS
+```
+
+### CDN host lottery (risk, see Risks)
+
+The same video's `mediaDefinitions` URLs are assigned one of two signing/CDN shapes per page
+fetch: **style A** on `ev-h`/`em-h-phncdn.com` (`?validfrom=…&validto=…&hash=…`) answers 200,
+**style B** on `hv-h`/`hm-h`/`km-h` (`?h=…&e=…&f=1`) answers **410 text/plain** (Cloudflare
+edge, `__cf_bm` set). The assignment flips per request (measured ~50/50; the 5-video PASS
+above needed 5/0/2/4/1 page re-fetches to land style A). Style-B tokens are host-bound
+(replaying the same query on `ev-h` → 470), so the provider cannot rewrite the host.
+
+**What the provider does with a dead shape (repaired on review of #1419):** `loadLinks` probes
+the HLS legs of the page fetch it just made and emits only legs whose master playlist answers
+2xx (`Parse.playableHls` + `PornHub.isPlayable`). A shape that answers nothing falls through to
+the `/video/get_media` mp4 legs instead of handing the player unresolvable URLs. The probe runs
+per call, so it follows the device's own assignment rather than the runner's.
+
+## Headers / referer
+
+- Every S1–S3 surface (listings, search, watch pages, flashvars) answered to a plain GET with a
+desktop UA and **no cookies**; the age/consent cookie (`age_verified=1`, `platform=pc`) was
+**not needed** and is not sent by the provider for page loads.
+- The one cookie-dependent surface is the `/video/get_media` fallback (above): the provider
+  forwards the watch page's `Set-Cookie` map (`ss`, `sessid`, …) on that call only.
+- Playback referer: the app's default is used; the HLS masters above answer 200 with
+  `Referer: https://www.pornhub.com/` (the provider sets `referer = mainUrl/` on every link).
+
+### Verification note (S3)
+
+verify.sh ran with 5 watch pages drawn from 5 different surfaces (home, Most Viewed, Top Rated,
+Newest, `search=starbucks`), the search page-1/page-2 pair, the home page-1/page-2 pair, and
+`--related-selector`/`--video-tags-selector`/`--video-actors-selector`:
+
+- `div#player` matched 3/3 per watch page; title (5/5), poster (5/5), plot (5/5) exposed;
+  `tags` and `actors` present on **all 5** pages; check 6 reports every requested LoadResponse
+  field populated (recommendations/tags/plot/duration/year/actors).
+- Streams: flashvars JSON escapes slashes (`https:\/\/…`), so verify.sh's page-level m3u8
+  regex cannot see the emitted links — the run used the documented position-matched
+  `--stream-url` override, each URL resolved live through the **provider's own** flashvars
+  parse (the highest HLS of that page). All five → **206 `application/vnd.apple.mpegurl`**;
+  the resolve loop separately probed *every* emitted quality (240/480/720/1080) → 200 (see
+  §Stream sources). No stream path is shared by two videos.
+- **Instrument plateau:** card/video identity is the `?viewkey=` query, and verify.sh's
+  `url_path` drops the query → every href normalises to `/view_video.php`. That one root
+  cause makes check-1/1a duplicate detection, check-3 href identity, the related
+  self/duplicate checks and check-5 agreement false-FAIL. Substituted with the same mechanics
+  keyed on `viewkey` (transcript below): search p1 32 / p2 44 cards, all distinct within a
+  page, **0 shared** between pages; home p1 32 / p2 44, **0 shared**; the five sampled videos
+  have 5 distinct titles, 5 distinct poster asset paths and 5 distinct viewkeys; each related
+  block's 36 cards are distinct and never repeat the page's own viewkey. Precedent for the
+  substitution: `docs/archive/providers/PerverZija/FINDINGS.md` (§Verification) and
+  `docs/archive/providers/Javmost/FINDINGS.md`.
+- Walled: the premium sample (`64894d8f6af1f`, HTTP 200, no flashvars) and the removed sample
+  (`0000000000000`, HTTP 404) both return `null` from `Parse.videoDetails` — pinned by
+  `PornHubLoadParseTest` against `video-page-walled.html`.
+- Gates: `./gradlew PornHub:test` green (161 tests incl. the S3 suite), `./gradlew PornHub:make`
+  BUILD SUCCESSFUL.
 
 ## Risks / blockers
 
@@ -266,6 +408,44 @@ video identity, listing cards expose duration + views (above), and poster URLs a
 - **Ad slots**: `li.sniperModeEngaged` (and other promo `li`s) carry no video link; they are
   dropped by the link selector, not by position.
 - **Geo**: probed from the CI runner (EU/US GitHub Actions IP); no geo-wall or age gate
-  observed on `/video`, listings, or the sort rows. Video/stream surfaces are S3's to probe.
+  observed on `/video`, listings, sort rows, or the S3 watch pages (see the geo note in Risks).
 - Chrome desktop UA used for every request (`Mozilla/5.0 … Chrome/124.0 Safari/537.36`); no
   Referer or cookie was required for any S1/S2 surface.
+- **Mobile UA gets a different watch page.** A mobile Chrome UA serves a page without
+  `h1.title`/`pornstarsWrapper`; curl, OkHttp and the app's default UA all get the desktop
+  markup the S3 selectors target (re-confirmed `okhttp/4.12.0`). Recorded so a future UA change
+  is diagnosed from here, not from a silent empty `load()`.
+- **CDN host lottery on watch pages (S3).** `mediaDefinitions` HLS URLs come in two signing
+  shapes per fetch: style A (`ev-h`/`em-h`, `validfrom…hash`) → **200
+  `application/vnd.apple.mpegurl`**; style B (`hv-h`/`hm-h`/`km-h`, `h…e…f=1`) → **410
+  text/plain** (Cloudflare edge, `__cf_bm`). Measured ~50/50; style-B tokens are host-bound
+  (same query on `ev-h` → 470), so the provider emits the page's URLs verbatim and cannot
+  normalise them. Verification re-fetches the page until style A (5/0/2/4/1 attempts on the
+  five sampled videos) and proves every quality resolves. **Repaired on review of #1419:**
+  `loadLinks` probes the legs of the page fetch it just made and emits only the ones that answer
+  2xx; a dead shape now falls through to `/video/get_media` instead of emitting URLs the player
+  cannot open (§Stream sources). Whether a *style-A* assignment is what a device gets in-app is
+  a maintainer emulator note, not a code path.
+- **Signed/rotating media URLs (watch pages).** HLS masters and posters carry signed query
+  tokens (`validfrom`/`validto` ~2 h, or `h`/`e`) and rotate on every page fetch; `loadLinks`
+  resolves fresh on every call and never caches a stream URL.
+- **`/video/get_media` needs session cookies.** A cookie-less GET answers `[]`; the watch
+  page's `ss`/`sessid` cookies make it return the mp4 array. Only the fallback path forwards
+  them, so a cookie-less environment degrades to "no fallback links", never to wrong URLs.
+- **Plot is boilerplate.** The site exposes no owner-written synopsis; `LoadResponse.plot` is
+  the generated `og:description` (`Watch <title> on Pornhub.com, …`) carried verbatim. A real
+  per-video description is not exposed (stated here instead of fabricated).
+- **Geo wall not observed.** ~50 sampled pages from the runner's EU/US IP carried
+  `video_unavailable_country: "false"`; the parser still honours the flag, but there is no
+  recorded geo-walled sample. Removed (404) and premium (200, no flashvars) walls are
+  recorded in §Video pages and both drop the card (`load()` → `null`).
+- **`duration`/`year` are script-embedded.** They live in the JSON-LD `VideoObject` (and
+  flashvars `video_duration`), not in a DOM attribute — verify.sh's `--video-duration-selector`
+  / `--video-year-selector` cannot assert them; they are covered by the Parse fixtures
+  (`PT00H16M50S` → 16 min, `uploadDate` → 2026) plus the §Video pages transcript.
+- **verify.sh's identity model flattens PornHub's video ids (instrument plateau).** Card and
+  video identity lives in the `?viewkey=` **query string**; verify.sh's `url_path` strips the
+  query, so every card/video normalises to `/view_video.php`. Check-1/1a duplicate detection,
+  check-3 href identity, the related self/duplicate checks and check-5 agreement all
+  false-FAIL on that one root cause — they were substituted with the viewkey-keyed equivalents
+  (see Verification note (S3)). Same plateau class as PerverZija/Javmost FINDINGS.
