@@ -1,4 +1,4 @@
-version = 20 // #1359: version bump (v20)
+version = 21 // #1466: version bump (v21)
 
 cloudstream {
     authors     = listOf("ai-builder")

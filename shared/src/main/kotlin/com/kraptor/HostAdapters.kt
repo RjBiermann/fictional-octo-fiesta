@@ -33,6 +33,33 @@ fun cfChallenge(
     }
 }
 
+/**
+ * Pure Parse (issue #1439): the mydaddy-family player body — served by BOTH mydaddy.cc
+ * (recent uploads) and hqwo.cc (older uploads) — lists every quality as a single-quoted
+ * download anchor inside its no-HTML5 fallback:
+ *
+ *   <a href='//s62.bigcdn.cc/pubs/<key>/360.mp4' style='color:#ddd'>360p</a>
+ *
+ * The filename stem is the quality token (360/720/1080/2160). Non-URL anchors are dropped
+ * so a future single-quoted `href='#'` control can never become a bogus source. Live
+ * fixture: src/test/resources/issue1439/hqwo_player.html (HQPorner probe, 2026-11-21).
+ */
+object MyDaddyParse {
+    // quality stays the raw token ("360"/"720"/"1080"/"2160") — a pure Parse never touches
+    // the framework's quality helper (its static init pulls the whole extractor table).
+    data class Stream(val url: String, val quality: String)
+
+    private val anchor = Regex("a href='([^']*)'", RegexOption.IGNORE_CASE)
+    private val absolute = Regex("^(https?:)?//", RegexOption.IGNORE_CASE)
+
+    fun streams(body: String): List<Stream> = anchor.findAll(body)
+        .map { it.groupValues[1].trim() }
+        .filter { absolute.containsMatchIn(it) }
+        .map { Stream(it, it.substringAfterLast("/").substringBefore(".")) }
+        .distinctBy { it.url }
+        .toList()
+}
+
 open class MyDaddyExtractor : ExtractorApi() {
     override val name = "MyDaddy"
     override val mainUrl = "https://mydaddy.cc"
@@ -46,23 +73,82 @@ open class MyDaddyExtractor : ExtractorApi() {
     ) {
         val response = app.get(url, referer = referer).text
 
-        val regex = Regex(pattern = "a href='([^']*)'", options = setOf(RegexOption.IGNORE_CASE))
-
-        val videolar = regex.findAll(response)
-
-        videolar.forEach { video ->
-            val video = video.groupValues[1]
+        MyDaddyParse.streams(response).forEach { stream ->
             callback.invoke(newExtractorLink(
                 this.name,
                 this.name,
-                fixUrl(video),
+                fixUrl(stream.url),
                 type = INFER_TYPE
             ) {
                 this.referer = "$referer"
-                this.quality = getQualityFromName(video.substringAfterLast("/").substringBefore("."))
+                this.quality = getQualityFromName(stream.quality)
             })
         }
 
+    }
+}
+
+// hqwo.cc — HQPorner's older uploads (issue #1439): the player body is the same mydaddy
+// template (single-quoted /pubs/<key>/<res>.mp4 anchors, 360/720 only), so it rides the
+// same adapter — but loadExtractor dispatches by registered-mainUrl prefix, and the
+// framework's Levenshtein mirror fallback scored 71 (<80) for hqwo targets. Without this
+// row every hqwo-hosted video emitted zero links.
+class Hqwo : MyDaddyExtractor() {
+    override val name = "HQWO"
+    override val mainUrl = "https://hqwo.cc"
+}
+
+/**
+ * Pure Parse (issue #1439): the FLYFLV embed — HQPorner's third player generation
+ * (Twistys-era uploads, e.g. /hdporn/65989-… → //www.flyflv.com/movies/player/5135) —
+ * lists qualities as `<source src='//video.flyflv.com/…' type='video/mp4' label='720p'>`.
+ * Attribute order varies, the label carries the quality, the filename is the fallback,
+ * and the stream host (video.flyflv.com) differs from the player host. Live fixture:
+ * src/test/resources/issue1439/flyflv_player.html (HQPorner probe, 2026-11-21).
+ */
+object FlyFlvParse {
+    // raw label ("720p"/"360p") or filename stem fallback — pure data, no framework helper
+    data class Stream(val url: String, val quality: String)
+
+    private val sourceTag = Regex("<source\\b[^>]*>", RegexOption.IGNORE_CASE)
+    private val srcAttr = Regex("\\bsrc\\s*=\\s*['\"]([^'\"]+)['\"]", RegexOption.IGNORE_CASE)
+    private val labelAttr = Regex("\\blabel\\s*=\\s*['\"]([^'\"]*)['\"]", RegexOption.IGNORE_CASE)
+
+    fun streams(body: String): List<Stream> = sourceTag.findAll(body).mapNotNull { tag ->
+        val html = tag.value
+        val url = srcAttr.find(html)?.groupValues?.get(1)?.replace("&amp;", "&")?.trim()
+            ?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+        val label = labelAttr.find(html)?.groupValues?.get(1)
+        Stream(url, label ?: url.substringAfterLast("/").substringBefore("."))
+    }.distinctBy { it.url }.toList()
+}
+
+class FlyFlv : ExtractorApi() {
+    override val name = "FlyFlv"
+    override val mainUrl = "https://www.flyflv.com"
+    override val requiresReferer = true
+
+    override suspend fun getUrl(
+        url: String,
+        referer: String?,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        val response = app.get(url, referer = referer).text
+
+        FlyFlvParse.streams(response).forEach { stream ->
+            callback.invoke(newExtractorLink(
+                this.name,
+                this.name,
+                fixUrl(stream.url),
+                type = INFER_TYPE
+            ) {
+                // #1439 live check: video.flyflv.com 403s a hqporner Referer (the incoming
+                // provider referer) and serves 206 on the flyflv origin — emit flyflv's own.
+                this.referer = "$mainUrl/"
+                this.quality = getQualityFromName(stream.quality)
+            })
+        }
     }
 }
 

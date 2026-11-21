@@ -183,6 +183,13 @@ internal fun sharedHostRegistry(): List<ExtractorApi> = listOf(
         // primary fallback host and no row answered cloudwish.xyz.
         CloudWish(),
         MyDaddyExtractor(),
+        // #1439: HQPorner's catalogue is served by three player generations — hqwo.cc
+        // (older uploads, same mydaddy anchor grammar) and www.flyflv.com (a third
+        // player, source-tag grammar) had no row, so loadExtractor prefix dispatch
+        // (fuzzy fallback scored 71/78, under the 80 threshold) dropped those videos
+        // entirely. Explicit rows, never fuzzy matching.
+        Hqwo(),
+        FlyFlv(),
         Vidara(),
         VidaraSo(),
         Javhdz(),
