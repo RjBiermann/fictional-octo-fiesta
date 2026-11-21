@@ -1,0 +1,52 @@
+# /review relay (#1412).
+#
+# 06b-command-review cannot fire on a PR conversation comment: gh-aw compiles
+# the slash_command's issue_comment arm with `issue.pull_request == null`, so
+# every `/review` typed into a PR was skipped before activation (100 runs, 0
+# fired, including the owner's command on #1411). Only an inline
+# `pull_request_review_comment` activates it — an unintuitive place to put a
+# round request.
+#
+# This relay is plain Actions, not a gh-aw workflow: it takes the command on
+# the PR conversation, and dispatches 06-review through the ADR-0019 channel
+# (workflow_dispatch + aw_context), which is the path 07 already uses.
+name: Review command relay
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  actions: write        # gh workflow run
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: review-command-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  relay:
+    # PR conversation only, maintainers only, and a bare command or an
+    # argument form — never an arbitrary comment that merely starts with it.
+    if: >-
+      github.event.issue.pull_request != null
+      && (github.event.comment.body == '/review'
+          || startsWith(github.event.comment.body, '/review ')
+          || startsWith(github.event.comment.body, '/review\n')
+          || startsWith(github.event.comment.body, '/review\r'))
+      && contains(fromJSON('["OWNER","MEMBER"]'),
+                  github.event.comment.author_association)
+      && github.event.issue.state == 'open'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch 06-review for this PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          gh workflow run 06-review.lock.yml --ref main --repo "$REPO" \
+            -f "aw_context={\"item_type\":\"pull_request\",\"item_number\":${PR}}"
+          echo "dispatched 06-review for PR #${PR}"

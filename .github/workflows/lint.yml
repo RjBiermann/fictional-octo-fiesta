@@ -20,17 +20,10 @@ on:
       - '.github/**'
       - '.pi/skills/verify-provider/**'
   pull_request:
-    # Same protected-surface rule as push (#858): findings-only registry PRs
-    # ([registry] lane) touch none of the old paths, so the required
-    # actionlint context stayed "expected" and the PR sat BLOCKED (#859).
-    # .pi/skills/verify-provider/** is in the filter because `verify-scheme-gate` guards that
-    # script's stream-scheme gate (#1353): a job whose paths are filtered out of its own subject
-    # never runs, which is the hole this gate was added to close.
-    paths:
-      - '.github/**'
-      - 'audits/**'
-      - '**/build.gradle.kts'
-      - '.pi/skills/verify-provider/**'
+    # No paths filter: required contexts that a filter can suppress leave
+    # the PR BLOCKED forever (#859 registry PRs, #1420 docs-only PRs). A
+    # list that must enumerate every surface is the bug — every job here
+    # is seconds long, so run them on every PR.
   workflow_dispatch:
 
 permissions:
@@ -38,7 +31,9 @@ permissions:
 
 jobs:
   actionlint:
-    if: github.event_name != 'pull_request'
+    # Required context on PRs too: the pull_request exemption made the check
+    # a permanent SKIP, so a PR editing workflow YAML was never linted
+    # before merge (#1438 review).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -75,6 +70,38 @@ jobs:
           if [[ -n "$bad" ]]; then
             echo "$bad"
             echo "::error::Jackson must not be bumped past 2.13.1 — newer versions break older Android devices"
+            exit 1
+          fi
+
+  # The orchestrator's unit suite ran in no CI job, so every rule it pins
+  # (Rule 0 derivation, surrogate consumption/dedupe, readiness, parent
+  # lookup) was local-only — the 2026-11-21 pipeline fixes each grew tests
+  # that nothing executed (#1438 review).
+  orchestrator-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: "orchestrator unit suite"
+        run: python3 -m unittest discover -s .github -p 'orchestrator_test.py' -v
+
+  # #1390 recurred twice (#372): a hardcoded provider count in AGENTS.md
+  # drifts silently. Assert it instead of trusting the last editor.
+  provider-count:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: "AGENTS.md provider count matches the tree"
+        run: |
+          actual=$(ls -d */build.gradle.kts | wc -l)
+          stated=$(grep -oE 'containing [0-9]+ NSFW' AGENTS.md | grep -oE '[0-9]+' || true)
+          if [[ -z "$stated" ]]; then
+            echo "::error::could not find '<n> containing … NSFW' in AGENTS.md — keep that phrasing so the count stays asserted"
+            exit 1
+          fi
+          echo "tree=$actual AGENTS.md=$stated"
+          if [[ "$actual" != "$stated" ]]; then
+            echo "::error::AGENTS.md says $stated providers, the tree builds $actual — update the number in the same PR that adds/removes a provider"
             exit 1
           fi
 

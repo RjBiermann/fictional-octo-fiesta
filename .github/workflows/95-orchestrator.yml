@@ -33,7 +33,23 @@ permissions:
   actions: write
 
 concurrency:
-  group: orchestrator
+  # Concurrency is evaluated when the run starts, before any job `if`, so a
+  # bot-triggered run would still cancel the live sweep even though its job
+  # is skipped. The churn channels get their own group: those runs cancel
+  # each other and never touch the real one (87 of the last 100 runs were
+  # cancelled before this split, #1437/#1467).
+  #
+  # Scoped to the churn channels only: bot `issues: labeled` (the
+  # status/queued -> ai-fix path) and bot merge events (genuine chain
+  # advance) stay on the real group, and human comments still supersede each
+  # other, which is what CONTEXT.md's "add/remove pairs cannot interleave"
+  # invariant relies on.
+  group: >-
+    orchestrator-${{
+    ((github.event_name == 'issue_comment' && github.event.comment.user.type == 'Bot')
+    || (github.event_name == 'pull_request_review' && github.event.review.user.type == 'Bot')
+    || (github.event_name == 'issues' && github.event.action == 'opened'
+    && github.event.issue.user.type == 'Bot')) && 'noop' || 'main' }}
   cancel-in-progress: true
 
 env:
@@ -42,6 +58,28 @@ env:
 jobs:
   orchestrate:
     runs-on: ubuntu-latest
+    # The comment trigger exists for HUMAN round answers ("approved", a
+    # decision tag) so they resolve in seconds. Agent/machinery comments are
+    # churn by this file's own account — and with `cancel-in-progress: true`
+    # each one killed the sweep that the previous comment had just started:
+    # 87 of the last 100 conveyor runs were cancelled, which is why a close
+    # comment could post with no close behind it (2026-11-21). The schedule
+    # re-derives state, so skipping bot comments loses no work.
+    # The churn channels must not EXECUTE either: a skipped run under a
+    # separate concurrency group would otherwise sweep CONCURRENTLY with the
+    # real one, and this sweep is read-then-act with no in-script lock
+    # (duplicate Implement fires, double surrogate dispatch, label
+    # delete/add races). Verdicts still reach fix_surrogate() through the
+    # issue comments it reads, so skipping these costs nothing.
+    if: >-
+      (github.event_name != 'issue_comment'
+       || github.event.comment.user.type != 'Bot')
+      && (github.event_name != 'pull_request_review'
+          || github.event.review.user.type != 'Bot')
+      && (github.event_name != 'issues'
+          || github.event.action != 'opened'
+          || github.event.issue.user.type != 'Bot')
+    
     steps:
       - uses: actions/checkout@v7
         with:

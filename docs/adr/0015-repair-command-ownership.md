@@ -17,7 +17,9 @@ Decided:
   (`06`, `06b`) and never re-fires from comments.
 
 Consequence: repairs requested mid-stream ride the review round (a
-`/review` command re-fires `06b`, whose findings wake the fix loop) or
+`/review` command relays a review round through `06c` → `06-review` since
+2026-11-21 — gh-aw cannot activate a slash command on a PR conversation
+comment, #1412 — whose findings wake the fix loop) or
 wait for the 90-sweeper's stuck-label re-fire. The gh-aw pipeline needs
 no comment-driven repair path; the repair agent's authority is unchanged
 (safe-output push caps, cycle-4 escalation to the human).

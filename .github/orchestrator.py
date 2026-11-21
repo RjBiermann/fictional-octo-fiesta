@@ -35,6 +35,7 @@ import subprocess
 import sys
 import time
 from datetime import datetime
+from urllib.parse import quote
 
 REPO = os.environ.get("GITHUB_REPOSITORY", "")
 PROXY_PAT = os.environ.get("GH_AW_PROXY_PAT", "")
@@ -51,9 +52,95 @@ OWNER = os.environ.get("GH_AW_ORCH_OWNER", "")
 
 MARK = "[orchestrator]"
 
-# What a 06-review verdict comment looks like. Used to skip work-attempt
-# stamps when scanning the PR thread for the newest verdict (#1420).
-VERDICT_HINT = re.compile(r"(?i)\bverdict\b|## 06-review|\bblockers?\b")
+# What a 06-review verdict comment looks like — the gate for the thread scan.
+# It must admit EVERY verdict shape, pass or blocker: a gate narrower than
+# _blocker_verdict() makes a clearing verdict invisible, so `_latest_verdict()`
+# falls back to the older blocker and a passed PR keeps re-firing (#1469 R5).
+VERDICT_HINT = re.compile(
+    # Verdict line in every markdown dress: **Verdict:** / ## Verdict: / - Verdict:
+    r"(?im)^[\s#>*_`+-]*\**\s*verdict\b"
+    # A review heading: ## Review — / ## 06-review — / ### Blockers
+    r"|^\s*#{1,4}\s*(?:\d{2}[a-z]?-\s*)?(?:review|blockers?)\b"
+    # Free-form review prose that opens with it: "Round 2 review — 0 blockers."
+    r"|^\s*(?:round\s+\d+\s+)?review\b"
+    r"|^\s*\**blockers?\b"
+)
+
+# 06-review states its verdict in the opening block; the heading/count
+# fallbacks below read only that far, so a blocker quoted deep in the body
+# cannot re-fire a repair (PR #1438 rounds 3-4).
+VERDICT_HEADER_CHARS = 600
+
+# The verdict contract: 06-review opens with a machine-readable marker.
+# Prose mentions of the word are not assertions ("`negated_blocker` was
+# body-wide", "not a blocker", "blocker resolved"), and a false fire is NOT
+# cheap — two of them apply status/fixing-stuck, a terminal needs-human
+# label. So the predicate requires a positive marker, and only free-form
+# verdicts without one fall back to heading/count shapes.
+VERDICT_MARKER = re.compile(
+    r"(?im)^[\s#>*_`-]*verdict[\s*_`:]*"
+    r"(?:[\u2014\u2013-]+\s*)?\s*\**\s*"
+    r"(?P<neg>no\s+)?(?:(?:one|two|three|[1-9]\d*)\s+)?blockers?\b(?!-free)")
+POSITIVE_BLOCKER = (
+    # **Blocker (1)** / **Blockers:** — but not **Blockers: none** and not
+    # a resolved/fixed phrase (#1438 rounds 7-8).
+    re.compile(r"(?i)\*\*blockers?\b(?!-free)"
+               r"(?![*_`]*\s*[:(]?\s*0\b)"
+               r"(?![*_`]*\s*[:\u2014\u2013-]?\s*"
+               r"(?:none\b|no\b|resolved\b|fixed\b|cleared\b|addressed\b))"),
+    re.compile(r"(?i)\bblockers?\s*[:(]\s*[1-9]\d*"),        # Blocker (2) / Blockers: 2
+    re.compile(r"(?<![\w.-])[1-9]\d*\s+blockers?\b"),        # 2 blockers
+)
+# A section heading that opens with the word: bare ("### Blockers") is read
+# by its content line, with prose ("### Blocker — the rows parse empty") is
+# an assertion in itself.
+BLOCKER_HEADING = re.compile(r"(?im)^\s*#{2,4}\s*blockers?\b(.*)$")
+BARE_HEADING = re.compile(r"(?i)^[\s:>*_`-]*$")
+# The content line must BE the negation ("None.", "**None.**"), not merely
+# start with it: "No rows parse from the listing." is a blocker (#1438 R10).
+HEADING_SAYS_NONE = re.compile(
+    r"(?i)^[\W_]*(?:none|no|nothing|zero|0)[\W_]*$")
+# A heading tail that only reports a pass. "resolved/fixed/…" may lead the
+# tail and then carry prose ("— the endpoint now 200s"); a bare negation may
+# not ("— no fallback exists" is an assertion, #1438 R10).
+HEADING_CLEARS_IT = re.compile(
+    r"(?i)^[\s:\u2014\u2013-]*(?:(?:resolved|fixed|cleared|addressed)\b"
+    r"|(?:none|no|nothing|zero|0)[\W_]*$)")
+
+
+def _blocker_verdict(verdict_low):
+    """True when the verdict asserts a blocker.
+
+    Marker first (the contract), then explicit positive shapes, then a
+    `### Blocker(s)` heading read by its content line. Silently ignores
+    prose that merely contains the word — see the comment above.
+    """
+    # Header only, and never a blockquote: a quoted prior-round verdict
+    # ("carry prior findings between rounds") must not outvote the current
+    # one (PR #1438 round 7).
+    for line in verdict_low[:VERDICT_HEADER_CHARS].splitlines():
+        if line.lstrip().startswith(">"):
+            continue
+        m = VERDICT_MARKER.match(line)
+        if m:
+            return not m.group("neg")
+    for rx in POSITIVE_BLOCKER:
+        if rx.search(verdict_low[:VERDICT_HEADER_CHARS]):
+            return True
+    lines = verdict_low[:VERDICT_HEADER_CHARS].splitlines()
+    for i, line in enumerate(lines):
+        m = BLOCKER_HEADING.match(line)
+        if not m:
+            continue
+        tail = m.group(1)
+        if not BARE_HEADING.match(tail):
+            if HEADING_CLEARS_IT.search(tail):
+                continue
+            return True                      # heading carries the assertion
+        after = next((l.strip() for l in lines[i + 1:] if l.strip()), "")
+        if not HEADING_SAYS_NONE.match(after):
+            return True
+    return False
 REGISTRY_PATH = os.environ.get("GH_AW_REGISTRY_PATH", "")
 # Adopters whose conflict surface is exactly an append-only JSON registry
 # get the deterministic auto-merge; anything else stays human.
@@ -339,7 +426,8 @@ def parent_of(story):
     out = run(["gh", "api", "graphql", "-f",
                "query=query($o:String!,$r:String!,$n:Int!){repository(owner:$o,"
                "name:$r){issue(number:$n){parent{number}}}}",
-               "-f", f"o={OWNER}", "-f", f"r={REPO.split('/', 1)[-1]}",
+               "-f", f"o={REPO.split('/', 1)[0]}",
+               "-f", f"r={REPO.split('/', 1)[-1]}",
                "-F", f"n={story['number']}"])
     try:
         data = json.loads(out or "{}")
@@ -450,7 +538,8 @@ def _pr_labels_map(nums):
     out = run(["gh", "api", "graphql", "-f",
                f"query=query($o:String!,$r:String!){{repository(owner:$o,"
                f"name:$r){{{parts}}}}}",
-               "-f", f"o={OWNER}", "-f", f"r={REPO.split('/', 1)[-1]}"])
+               "-f", f"o={REPO.split('/', 1)[0]}",
+               "-f", f"r={REPO.split('/', 1)[-1]}"])
     try:
         repo = ((json.loads(out or "{}").get("data") or {}).get("repository") or {})
     except ValueError:
@@ -483,6 +572,30 @@ def merge_readiness():
             print(f"[orchestrator] PR #{num}: stale status/conflict label "
                   f"cleared (state={mstate})" if out == "" else
                   f"[orchestrator] PR #{num}: status/conflict clear rc!=0")
+        thread = api(f"issues/{num}/comments?per_page=100")
+        if thread is None:
+            # unreadable thread: readiness must not read that as "no findings"
+            print(f"[orchestrator] PR #{num}: comment thread unreadable — not ready")
+            continue
+        verdict_body, vtime = _latest_verdict(thread)
+        if _blocker_verdict(verdict_body.lower()):
+            # readiness reads check conclusions; a live blocker verdict is
+            # not a check. A "ready" label over it is actively misleading —
+            # PR #1466 was labelled 3 minutes after its blocker (2026-11-21)
+            # and kept the label when the repair round failed.
+            if "status/ready-to-merge" in labels:
+                run(["gh", "api", "-X", "DELETE",
+                     f"repos/{REPO}/issues/{num}/labels/status%2Fready-to-merge"])
+                print(f"[orchestrator] PR #{num}: stale status/ready-to-merge "
+                      f"cleared — blocker verdict outstanding")
+            else:
+                print(f"[orchestrator] PR #{num}: blocker verdict outstanding — not ready")
+            continue
+        if "status/fixing-stuck" in labels:
+            # the lane declared this needs a human; readiness must not
+            # override that with green checks (#1405)
+            print(f"[orchestrator] PR #{num}: status/fixing-stuck — not ready")
+            continue
         if not _effective_ready(num, mstate):
             print(f"[orchestrator] PR #{num}: mergeable_state={mstate} — not ready")
             continue
@@ -509,11 +622,16 @@ def merge_readiness():
                 print(f"[orchestrator] PR #{num}: auto-merge queued (spec approved)")
                 continue
         sha = ((d.get("head") or {}).get("sha") or "")[:12]
-        marker = f"ready @{OWNER} — all checks green at `{sha}`"
+        # Anchored on the verdict, not just the sha: after a blocker clears
+        # the label, a re-review at the SAME head must be able to label again
+        # (the stale "ready … at <sha>" comment otherwise suppresses it
+        # forever — #1469 R4's deadlock).
+        marker = (f"ready @{OWNER} — all checks green at `{sha}`; "
+                  f"verdict {vtime or 'none'}")
         if _has_marker(comments(num), marker):
             continue
         label_issue(num, "status/ready-to-merge")
-        post_comment(num, f"{MARK} ready @{OWNER} — all checks green at `{sha}`; please review and merge when ready.")
+        post_comment(num, f"{MARK} {marker} — please review and merge when ready.")
         print(f"[orchestrator] PR #{num}: tagged {OWNER} for merge")
 
 
@@ -2128,6 +2246,31 @@ def wave_driver():
             print(f"[orchestrator] epic #{epic}: wave-stamped #{n} (cap {cap})")
 
 
+def _latest_verdict(thread):
+    """(body, created_at) of the newest 06-review verdict comment, or ("", "").
+
+    A verdict is recognised by its heading ("## Review — …", "**Verdict:** …"),
+    never by a mention: the work-attempt stamp also says "06-review round 1",
+    and reading it as the verdict shadows the blocker it points at (#1420's
+    shape, again, on PR #1466).
+    """
+    for c in reversed(thread):
+        if (c.get("user") or {}).get("login") != "github-actions[bot]":
+            continue
+        body = c.get("body") or ""
+        if "fix-loop re-fired for the verdict at" in body:
+            continue
+        # The gate admits every verdict shape (above); the predicate decides
+        # only when the shape is unrecognised. The single bot comment that is
+        # NOT a verdict is 06-review's work-attempt stamp — unless the verdict
+        # is embedded in it (#1411 posted stamp and verdict combined).
+        is_stamp = body.lstrip().startswith("gh-aw budget:")
+        if VERDICT_HINT.search(body) or (not is_stamp
+                                         and _blocker_verdict(body.lower())):
+            return body, c.get("created_at", "")
+    return "", ""
+
+
 def _branch_moved_after(num, iso_ts):
     """True when PR `num`'s head commit is newer than `iso_ts`.
 
@@ -2221,29 +2364,9 @@ def fix_surrogate():
         # zero-findings round is still applied (#851 round 3: "hold
         # ready-to-merge", blocker outstanding). The last bot comment is
         # the verdict; the label is stale display state.
-        verdict, vtime = "", ""
-        for c in reversed(comments(num)):
-            if (c.get("user") or {}).get("login") != "github-actions[bot]":
-                continue
-            body = c.get("body") or ""
-            # skip the surrogate's own fire-marker comments — they carry
-            # no verdict text and would mask the verdict they point to
-            # (observed on #851: marker posted, cooldown ate the fire,
-            # marker became "the verdict").
-            if "fix-loop re-fired for the verdict at" in body:
-                continue
-            # 06-review posts its work-attempt stamp as a SEPARATE comment
-            # about a second after the verdict, so "the last bot comment" is
-            # often the stamp (#1420: blocker at 04:45:03, stamp at 04:45:04,
-            # surrogate read the stamp, never fired, never escalated). Only a
-            # comment that reads like a verdict can be one.
-            if not VERDICT_HINT.search(body):
-                continue
-            verdict = body
-            vtime = c.get("created_at", "")
-            break
+        verdict, vtime = _latest_verdict(comments(num))
         low = verdict.lower()
-        if "blocker" not in low or any(s in low for s in ("0 blockers", "no blockers", "pass, no blockers")):
+        if not _blocker_verdict(low):
             continue
         # Dedupe on consumption, and never dispatch over a live repair:
         # the fire marker is an issue_comment, so the sweep re-enters
@@ -2255,9 +2378,21 @@ def fix_surrogate():
         if dispatched or _repair_in_flight() or _branch_moved_after(num, vtime):
             continue
         if markers >= 2:
-            if "status/fixing-stuck" not in [l.get("name") for l in (api(f"issues/{num}") or {}).get("labels", [])]:
+            plabels = {l.get("name") for l in (api(f"issues/{num}") or {}).get("labels", [])}
+            if "status/fixing-stuck" not in plabels:
+                # same clearable set as 90-sweeper / 07 step 2 (#1405): an
+                # earlier pass's readiness label must not survive a terminal
+                # needs-human stamp
                 run(["gh", "api", "-X", "POST", f"repos/{REPO}/issues/{num}/labels",
                      "-f", "labels[]=status/fixing-stuck"])
+                # then drop what it replaces — the add above is the retry
+                # point, so a failure never leaves the item stateless
+                for lb in sorted(plabels & {"status/in-review", "status/fixing",
+                                            "status/ready-to-merge"}):
+                    # 'status/x' carries a '/', which is a path separator in
+                    # the REST route — unencoded it 404s and run() only logs
+                    run(["gh", "api", "-X", "DELETE",
+                         f"repos/{REPO}/issues/{num}/labels/{quote(lb, safe='')}"])
                 print(f"[orchestrator] PR #{num}: 2 unserved fix-loop fires — status/fixing-stuck")
             continue
         post_comment(num, fire_marker + " — dispatch fires 07 (machine relay, ADR-0019)")
