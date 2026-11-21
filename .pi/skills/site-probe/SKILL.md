@@ -190,5 +190,5 @@ heavier one first:
    there is IP/UA-bound and dies off the runner — record the diagnosis, expect Blocked.
 
 Install-on-demand: the scripts check for their dependency and print the install line when
-missing (`pip install curl_cffi` / `pip install playwright && playwright install chromium`).
+missing (`pip install curl_cffi` / `pip install playwright && playwright install chromium`). The system interpreter is often externally managed, so install into a venv and run the script with `PYTHON=/path/to/venv/bin/python` — `impersonate.sh` honours it for both the check and the run.
 Nothing is pre-provisioned.
