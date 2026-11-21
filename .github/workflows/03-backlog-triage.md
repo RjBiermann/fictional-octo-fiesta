@@ -36,6 +36,10 @@ safe-outputs:
     target: "*"
   link-sub-issue:
     max: 10
+    # Without an explicit target the safe-outputs layer defaults to the
+    # triggering item, so every sub-issue link on the scheduled sweep died
+    # with "Target is triggering" (#1395).
+    target: "*"
   create-issue:
     max: 1
     title-prefix: "[backlog-report] "

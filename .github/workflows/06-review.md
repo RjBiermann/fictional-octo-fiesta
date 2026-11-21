@@ -45,6 +45,14 @@ safe-outputs:
 
 # Review (findings only; ADR-0001 semantics preserved)
 
+**Verdict contract.** Open the verdict with a machine-readable marker on its
+own line — `**Verdict: blocker**` or `**Verdict:** no blockers` — before any
+prose. `fix_surrogate()` reads that marker to decide whether a repair round
+fires; prose that merely contains the word ("`negated_blocker` was
+body-wide", "no blocker remains", "round-1 blocker resolved") must not read
+as an assertion, and a false fire costs two dispatches plus a terminal
+`status/fixing-stuck` label.
+
 Full-peer review, like a human senior reviewer would:
 
 - **Verdict per PR comment thread**: blockers (wrong, unsafe, dead on

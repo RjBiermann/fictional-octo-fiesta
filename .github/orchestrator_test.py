@@ -550,11 +550,12 @@ class TestFixSurrogateDedupe(unittest.TestCase):
 
     VERDICT = "## Review\n\n**Verdict: blocker** — rows parse empty."
 
-    def run_surrogate(self, markers, branch_moved, in_flight=False, tail=()):
+    def run_surrogate(self, markers, branch_moved, in_flight=False, tail=(),
+                      verdict=None):
         posted, fired, cmds = [], [], []
         pr = {"number": 1411, "user": {"login": "rjbiermann-machinery[bot]"},
               "head": {"ref": "devloop/issue-1407-c141da7ff2421900"}}
-        thread = [bot_comment(self.VERDICT)]
+        thread = [bot_comment(verdict or self.VERDICT)]
         thread += [bot_comment(f"{orchestrator.MARK} fix-loop re-fired for "
                               f"the verdict at 2026-11-18T23:49:02Z")] * markers
         thread += list(tail)
@@ -580,6 +581,33 @@ class TestFixSurrogateDedupe(unittest.TestCase):
         posted, fired, _ = self.run_surrogate(markers=1, branch_moved=False)
         self.assertEqual(len(fired), 1, "unserved verdict must re-fire")
         self.assertEqual(len(posted), 1)
+
+    def test_resolved_blocker_line_does_not_fire(self):
+        # PR #1420 round 2's header: a PASS that names the blocker it fixed
+        posted, fired, _ = self.run_surrogate(
+            markers=0, branch_moved=False,
+            verdict="## 06-review — findings (round 2)\n\n"
+                    "**Round-1 blocker resolved.** The fixed-35 wording is "
+                    "gone.\n\n**Verdict: no blockers.**")
+        self.assertEqual(fired, [], "a resolved-blocker pass must not fire")
+
+    def test_body_blocker_after_a_pass_header_does_not_fire(self):
+        # the header is authoritative; 06-review always states it up top
+        posted, fired, _ = self.run_surrogate(
+            markers=0, branch_moved=False,
+            verdict="## 06-review — findings (round 3)\n\n"
+                    "**Verdict:** no blockers.\n\n" + ("x" * 600) +
+                    "\n\n**Blocker** — quoted from round 1 for context.")
+        self.assertEqual(fired, [])
+
+    def test_real_blocker_survives_a_negated_phrase_elsewhere(self):
+        # line-scoped, not body-wide: swallowing this verdict would strand
+        # the blocker (#1420's class), while a needless fire is cheap
+        posted, fired, _ = self.run_surrogate(
+            markers=0, branch_moved=False,
+            verdict="## Review\n\n**Blocker** — rows parse empty.\n\n"
+                    "No blockers were found on load/streams.")
+        self.assertEqual(len(fired), 1)
 
     def test_verdict_followed_by_budget_stamp_still_fires(self):
         # 06-review posts its work-attempt stamp as a separate comment a
@@ -737,3 +765,134 @@ class TestRepairInFlight(unittest.TestCase):
                                    lambda cmd, **kw: payload):
                 self.assertTrue(
                     orchestrator._repair_in_flight(), payload)
+
+
+class TestParentOfOwner(unittest.TestCase):
+    """#1381: the sub-issue fallback queried repository(owner: OWNER) — the
+    optional actor override, empty whenever GH_AW_ORCH_OWNER is unset, so
+    the GraphQL query returned nothing and the straggler class (#845/#844)
+    re-opened silently. The repo owner is the only owner that can hold the
+    repo's issues."""
+
+    def query_args(self, owner_env):
+        seen = []
+
+        def fake_run(cmd, **kw):
+            seen.append(" ".join(cmd))
+            return json.dumps({"data": {"repository": {
+                "issue": {"parent": {"number": 664}}}}})
+
+        with mock.patch.object(orchestrator, "REPO", "someone/some-repo"), \
+                mock.patch.object(orchestrator, "OWNER", owner_env), \
+                mock.patch.object(orchestrator, "run", fake_run):
+            return orchestrator.parent_of(
+                {"number": 900, "body": "no parent anchor in this body"}), seen
+
+    def test_owner_falls_back_to_the_repo_owner(self):
+        got, seen = self.query_args("")
+        self.assertEqual(got, 664)
+        self.assertIn("o=someone", seen[0])
+        self.assertIn("r=some-repo", seen[0])
+
+    def test_actor_override_never_reaches_the_owner_argument(self):
+        # OWNER is an actor identity, not a repository owner; it must not be
+        # what the query asks for
+        got, seen = self.query_args("some-actor")
+        self.assertEqual(got, 664)
+        self.assertNotIn("o=some-actor", seen[0])
+
+
+class TestBlockerVerdictShapes(unittest.TestCase):
+    """The verdict-predicate contract, pinned.
+
+    A false fire is not cheap: two of them apply status/fixing-stuck, the
+    terminal needs-human label (fix_surrogate's marker cap). So only a
+    positive marker or an explicit positive shape asserts a blocker; prose
+    that merely contains the word stays silent. Shapes transcribed from
+    #1411, #1420, #1422 and #1438 (all rounds)."""
+
+    FIRES = [
+        "**Verdict: blocker on the S1 live verification; not ready-to-merge.**",
+        "**Verdict:** blocker — rows parse empty.",
+        "**Verdict: Blocker (1) — not ready-to-merge.**",
+        "**Verdict: 2 blockers.** Both are the change's own stated goals.",
+        "**Verdict: 1 blocker + 2 non-blocking findings.**",
+        "### Blocker — the row endpoint redirects away from the listing\n\n"
+        "Every row uses a /video URL.",
+        "### Blockers\n\n1. one-state-label invariant",
+        "## Review\n\n**Blocker** — rows parse empty.",
+        "**Blocker** — not a blocker for playback, but the rows parse empty.",
+        "**Blockers:** 2\n\n- a\n- b",
+        "**Verdict**: blocker — the row endpoint redirects.",
+        "## Verdict: blocker",
+        "**Verdict — blocker**\n\nrows parse empty",
+        "**Verdict: blockers**",
+        "**Verdict — blockers.**",
+        "**Verdict: one blocker** — rows parse empty.",
+        "**Verdict: 3 blockers.**",
+        "### Blocker — rows parse empty",
+        "### Blocker — no fallback exists; the rows parse empty.",
+        "### Blocker — 0 results returned for every search.",
+        "### Blockers\nNo rows parse from the listing.",
+        "### Blockers\n**No** fallback exists.",
+        "### Blockers\n0 results returned.",
+    ]
+
+    SILENT = [
+        "**Verdict:** no blockers. All three round-1 findings are resolved.",
+        "**Verdict: no blockers — 3 non-blocking findings, posted inline.**",
+        "**Round-1 blocker resolved.** The fixed-35 wording is gone.\n\n"
+        "**Verdict: no blockers.**",
+        "### Blockers\nNone.",
+        "### Blockers\n**None.**",
+        "## Review\n\nsecurity/flagged stands, no blocker.",
+        "Verdict: not a blocker.",
+        "2. **`negated_blocker` was body-wide** — fixed.",
+        "no outstanding blockers on the remaining surfaces",
+        "Blockers: none.",
+        "**Blockers: none**",
+        "**Blockers: 0**",
+        "**Blocker resolved** — the row endpoint now 200s.",
+        "**Verdict: 0 blockers.**",
+        "**Verdict: 0 blocker.**",
+        "### Blocker resolved — the row endpoint now 200s.",
+        "**Blockers** — none.",
+        "**Blocker (0)**",
+        "**Verdict: blocker-free.**",
+        "### Blockers\n**None.**",
+        # a quoted prior-round verdict must not outvote the current one
+        "> **Verdict: blocker** — quoted from round 1\n\n"
+        "**Verdict:** no blockers.\n\nAll three findings are fixed.",
+    ]
+
+    def test_recorded_blocker_shapes_fire(self):
+        for shape in self.FIRES:
+            self.assertTrue(orchestrator._blocker_verdict(shape.lower()), shape)
+
+    def test_recorded_pass_shapes_stay_silent(self):
+        for shape in self.SILENT:
+            self.assertFalse(orchestrator._blocker_verdict(shape.lower()), shape)
+
+
+class TestMergeReadinessRespectsFixingStuck(unittest.TestCase):
+    """A PR the lane declared needs-human must not be reported ready, however
+    green its checks are (#1405: a pass round's ready-to-merge label can
+    otherwise survive the escalation)."""
+
+    def test_fixing_stuck_pr_is_skipped(self):
+        printouts = []
+        pr = {"number": 1438, "user": {"login": "rjbiermann-machinery[bot]"},
+              "head": {"ref": "devloop/issue-1410-x"}}
+        with mock.patch.object(orchestrator, "open_pulls", lambda: [pr]), \
+                mock.patch.object(orchestrator, "_pr_labels_map",
+                                  lambda nums: {1438: {"status/fixing-stuck"}}), \
+                mock.patch.object(orchestrator, "_effective_ready", lambda n, s: True), \
+                mock.patch.object(orchestrator, "api", lambda p: {"mergeable_state": "clean"}), \
+                mock.patch.object(orchestrator, "label_issue",
+                                  lambda n, l: self.fail("labelled a needs-human PR")), \
+                mock.patch.object(orchestrator, "post_comment",
+                                  lambda n, b: self.fail("pinged a needs-human PR")), \
+                mock.patch.object(orchestrator, "print", printouts.append, create=True):
+            orchestrator.merge_readiness()
+        self.assertEqual(len(printouts), 1, printouts)
+        self.assertIn("fixing-stuck", printouts[0])

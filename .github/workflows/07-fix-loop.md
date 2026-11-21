@@ -52,8 +52,15 @@ safe-outputs:
     allowed: [status/fixing, status/fixing-stuck]
     max: 2
   remove-labels:
-    allowed: [status/fixing]
-    max: 1
+    # "*" because relay-fired runs (workflow_dispatch, ADR-0019) have no
+    # triggering item to resolve against — same reason add-comment has it.
+    target: "*"
+    # status/in-review is the lane's own state (05-implement sets it), so
+    # escalation must be able to drop it before adding the terminal label —
+    # #1405's one-state-label invariant. status/planned|queued are the
+    # maintainer's / orchestrator's and stay OFF this list.
+    allowed: [status/fixing, status/in-review, status/ready-to-merge]
+    max: 3
   add-comment:
     max: 2
     # Relay-fired (ADR-0019): "*" targets the payload's explicit item_number —
@@ -120,8 +127,17 @@ in this run, derive the expected identity from your own context and assert it:
 1. Re-derive findings from the current review comments + diff; a PR with
    a stale/empty diff aborts loudly (never pass on unverifiable state).
 2. If this would be cycle 4 or later (count work-attempt stamps on the
-   issue), stop: add `status/fixing-stuck`, comment "needs human" with
-   the stamp evidence, and do nothing else.
+   issue), stop: add `status/fixing-stuck` first, then remove
+   `status/fixing`, `status/in-review` and `status/ready-to-merge` (add
+   before remove, so a failed add is retryable and the item is never left
+   stateless). Those three are the only state labels this lane may remove —
+   a pass round's readiness label must not survive a needs-human
+   escalation, or `merge_readiness()` can auto-merge a stranded PR.
+   Leave `status/planned` / `status/queued` alone (clearing those disarms
+   the sweep that fires this lane) and leave `status/conflict` to
+   conflict_watch. One state label per item, including at escalation
+   (#1405).
+   Comment "needs human" with the stamp evidence, and do nothing else.
 3. Otherwise: add `status/fixing`, fix **only** the findings (scope
    discipline: new discoveries go to `create-issue`, max 2, linked —
    never fixed inline), verify before requesting delivery, and request

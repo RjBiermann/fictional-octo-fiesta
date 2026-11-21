@@ -145,8 +145,20 @@ jobs:
                   # 1) Attempt caps -> escalate
                   if st and budget >= cap_max:
                       if "status/fixing-stuck" not in labels:
+                          # One state label at a time (#1405). Add first, then
+                          # drop what it replaces: the add is the retry point,
+                          # so a failure never leaves the item stateless.
+                          # planned/queued are the arming states (clearing
+                          # them disarms this sweep's own dispatch) and
+                          # status/conflict belongs to conflict_watch — the
+                          # same set 07's escalation clears.
                           gh("issue","edit",str(n),"--repo",repo,
                              "--add-label","status/fixing-stuck")
+                          for lb in sorted(st & {"status/in-review",
+                                                 "status/fixing",
+                                                 "status/ready-to-merge"}):
+                              gh("issue","edit",str(n),"--repo",repo,
+                                 "--remove-label",lb)
                           gh("issue","comment",str(n),"--repo",repo,
                              "--body",f"{pref} escalated: {budget} attempts ({len(refires)} sweep re-fires); needs human.")
                       continue
