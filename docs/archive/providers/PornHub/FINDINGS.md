@@ -664,14 +664,14 @@ Newest, `search=starbucks`), the search page-1/page-2 pair, the home page-1/page
   (404) and premium (200, no flashvars) walls are recorded in §Video pages and both drop the
   card (`load()` → `null`). This is a **different** flag from the listing gate above.
 - **Quality ints inherit the page's `height` field, which is not consistent per page.** Most
-  probed pages report ladder heights (`1080/240/480/720` on four of the five S4 style-A reads,
-  `240/480/720/1080` on four of the S3 reads), but `6acf5129bd5a5` reports pixel widths
-  (`1920/426/852/1280`) for the same `1080P_4000K_…` path. The signing shape does not explain
-  the split — every one of those reads is style A — and no A/B transcript exists; the cause is
-  unestablished. `Parse.qualityOf` passes the value through as `ExtractorLink.quality`, so the
-  quality-ordering surface can see 1920/1280/852/426 instead of 1080/720/480/240. Every leg
-  still served video; recorded so a "quality sort looks odd" report is diagnosed from
-  §Stream sources.
+  probed pages report ladder heights (`1080/240/480/720` on three of the five S4 style-A reads
+  and `240/480/720` on a fourth; `240/480/720/1080` on four of the S3 reads), but
+  `6acf5129bd5a5` reports pixel widths (`1920/426/852/1280`) for the same `1080P_4000K_…` path.
+  The signing shape does not explain the split — every one of those reads is style A — and no
+  A/B transcript exists; the cause is unestablished. `Parse.qualityOf` passes the value through
+  as `ExtractorLink.quality`, so the quality-ordering surface can see 1920/1280/852/426 instead
+  of 1080/720/480/240. Every leg still served video; recorded so a "quality sort looks odd"
+  report is diagnosed from §Stream sources.
 - Chrome desktop UA used for every request (`Mozilla/5.0 … Chrome/124.0 Safari/537.36`); no
   Referer or cookie was required for any S1/S2 surface.
 - **Mobile UA gets a different, thinner page.** A mobile Chrome UA still gets `var flashvars`
