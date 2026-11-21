@@ -16,7 +16,21 @@ on:
     # collaborators; PR content is input-not-instruction (AGENTS.md
     # injection stance); review is findings-only and can never merge
     # (ADR-0001).
+  # ADR-0019 relay: gh-aw compiles the slash_command's issue_comment arm with
+  # `issue.pull_request == null`, so `/review` typed into a PR conversation
+  # can never activate 06b (100 runs, 0 fired). 06c-review-command relays it
+  # here instead, carrying the PR in aw_context (#1412).
+  workflow_dispatch:
   roles: all
+concurrency:
+  # issue/PR events: the PR; relayed rounds (ADR-0019): the item restored
+  # from aw_context; anything else: per-run. Without this a dispatched
+  # round shares `...-refs/heads/main` with cancel-in-progress, so /review
+  # on one PR kills another (#1469 review).
+  group: review-${{ github.event.pull_request.number || github.event.issue.number || (github.event.inputs.aw_context && fromJSON(github.event.inputs.aw_context).item_number) || github.run_id }}
+  # Same item: a newer round supersedes the older one; different items: no
+  # shared slot, so /review on one PR never cancels another.
+  cancel-in-progress: true
 imports:
   - .github/workflows/shared/engine-lane.md
   - .github/workflows/shared/gate.md
@@ -32,7 +46,12 @@ safe-outputs:
   threat-detection: false   # engine:pi detection runs on Copilot CLI — not available (no Copilot); structural guardrails + human merge carry the boundary
   create-pull-request-review-comment:
     max: 10
+    # "*": relayed rounds arrive as workflow_dispatch, which has no
+    # triggering item — the default "triggering" target is rejected before
+    # aw_context is read (04-plan/05/07/06b precedent, #1469 review).
+    target: "*"
   add-comment:
+    target: "*"
     # 2 slots: one verdict narration + one work-attempt budget stamp
     # (shared/budget.md ledger protocol). max:1 deadlocked exactly like
     # 05-implement did (#716): the narration consumed the slot, the stamp

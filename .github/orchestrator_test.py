@@ -873,6 +873,99 @@ class TestBlockerVerdictShapes(unittest.TestCase):
         for shape in self.SILENT:
             self.assertFalse(orchestrator._blocker_verdict(shape.lower()), shape)
 
+    # Pass verdicts that a thread scan must still see; the rest of SILENT is
+    # prose that merely mentions the word (a bullet, a negation) and is not a
+    # verdict at all.
+    PASS_VERDICTS = [
+        "**Verdict:** no blockers. All three round-1 findings are resolved.",
+        "**Verdict: no blockers — 3 non-blocking findings, posted inline.**",
+        "## Verdict: no blockers",
+        "### Verdict — no blockers",
+        "# Verdict: 0 blockers",
+        "Round 2 review — 0 blockers.",
+        "### Blockers\nNone.",
+    ]
+
+    def test_every_pinned_shape_survives_the_thread_scan(self):
+        """The gate must admit every verdict shape, or `_latest_verdict()`
+        falls back to an older verdict and re-fires on a PR that passed
+        (#1469 R5)."""
+        for shape in self.FIRES + self.PASS_VERDICTS:
+            thread = [{"body": shape, "user": {"login": "github-actions[bot]"},
+                       "created_at": "2026-11-21T20:00:00Z"}]
+            body, _ = orchestrator._latest_verdict(thread)
+            self.assertEqual(body, shape, shape)
+
+
+class TestVerdictScanShapes(unittest.TestCase):
+    """#1466: the work-attempt stamp says "06-review round 1 on #1466", so a
+    scan keyed on mentions read the stamp as the verdict and skipped the
+    blocker under it. Only a heading/marker is a verdict."""
+
+    VERDICT = "## Review — 1 blocker (registry-entry anchor)\n\nbody"
+    STAMP = ("gh-aw budget: attempt=3 kind=review run=https://x credits=1 "
+             "**06-review round 1 on #1466 — findings only, nothing pushed.**")
+
+    def thread(self, *bodies):
+        return [{"body": b, "user": {"login": "github-actions[bot]"},
+                 "created_at": "2026-11-21T19:32:3%dZ" % i}
+                for i, b in enumerate(bodies)]
+
+    def test_stamp_mention_is_not_a_verdict(self):
+        body, _ = orchestrator._latest_verdict(self.thread(self.VERDICT,
+                                                           self.STAMP))
+        self.assertEqual(body, self.VERDICT)
+        self.assertTrue(orchestrator._blocker_verdict(body.lower()))
+
+    def test_marker_heading_is_a_verdict(self):
+        body, _ = orchestrator._latest_verdict(
+            self.thread("**Verdict: blocker** — rows parse empty."))
+        self.assertTrue(orchestrator._blocker_verdict(body.lower()))
+
+    def test_newest_verdict_wins(self):
+        body, _ = orchestrator._latest_verdict(
+            self.thread(self.VERDICT, "## Review — findings (round 2)\n\n"
+                                      "**Verdict:** no blockers."))
+        self.assertFalse(orchestrator._blocker_verdict(body.lower()))
+
+    def test_list_and_quote_forms_are_verdicts(self):
+        for body in ("- **Verdict: blocker** — rows parse empty.",
+                     "> **Verdict:** no blockers.",
+                     "* Verdict: blocker (2) on streams."):
+            self.assertTrue(orchestrator.VERDICT_HINT.search(body), body)
+
+    def test_stamp_still_not_a_verdict(self):
+        self.assertFalse(orchestrator.VERDICT_HINT.search(self.STAMP))
+
+    def test_no_verdict_at_all(self):
+        self.assertEqual(orchestrator._latest_verdict(self.thread(self.STAMP)),
+                         ("", ""))
+
+
+class TestMergeReadinessRespectsBlockerVerdict(unittest.TestCase):
+    """A green-checks PR with a live blocker verdict must not be labelled
+    ready (PR #1466 was, 3 minutes after its blocker)."""
+
+    def test_blocker_verdict_withholds_the_label(self):
+        pr = {"number": 1466, "user": {"login": "rjbiermann-machinery[bot]"},
+              "head": {"ref": "devloop/issue-1439-x"}}
+        with mock.patch.object(orchestrator, "open_pulls", lambda: [pr]), \
+                mock.patch.object(orchestrator, "_pr_labels_map", lambda n: {}), \
+                mock.patch.object(orchestrator, "_effective_ready",
+                                  lambda n, s: True), \
+                mock.patch.object(orchestrator, "api", lambda p: (
+                    [{"body": "## Review — 1 blocker\n\nregistry entry unanchored",
+                      "user": {"login": "github-actions[bot]"},
+                      "created_at": "2026-11-21T19:32:35Z"}]
+                    if p.startswith("issues/") and "/comments" in p
+                    else {"mergeable_state": "clean"})), \
+                mock.patch.object(orchestrator, "label_issue",
+                                  lambda n, l: self.fail("labelled a blocked PR")), \
+                mock.patch.object(orchestrator, "post_comment",
+                                  lambda n, b: self.fail("pinged a blocked PR")), \
+                mock.patch.object(orchestrator, "print", lambda *a, **k: None):
+            orchestrator.merge_readiness()
+
 
 class TestMergeReadinessRespectsFixingStuck(unittest.TestCase):
     """A PR the lane declared needs-human must not be reported ready, however
@@ -887,7 +980,8 @@ class TestMergeReadinessRespectsFixingStuck(unittest.TestCase):
                 mock.patch.object(orchestrator, "_pr_labels_map",
                                   lambda nums: {1438: {"status/fixing-stuck"}}), \
                 mock.patch.object(orchestrator, "_effective_ready", lambda n, s: True), \
-                mock.patch.object(orchestrator, "api", lambda p: {"mergeable_state": "clean"}), \
+                mock.patch.object(orchestrator, "api", lambda p: (
+                    [] if "/comments" in p else {"mergeable_state": "clean"})), \
                 mock.patch.object(orchestrator, "label_issue",
                                   lambda n, l: self.fail("labelled a needs-human PR")), \
                 mock.patch.object(orchestrator, "post_comment",
@@ -896,3 +990,151 @@ class TestMergeReadinessRespectsFixingStuck(unittest.TestCase):
             orchestrator.merge_readiness()
         self.assertEqual(len(printouts), 1, printouts)
         self.assertIn("fixing-stuck", printouts[0])
+
+
+class TestReadinessRelabelAfterBlocker(unittest.TestCase):
+    """#1469 R4/R5: three sweeps on one PR — pass labels it, a blocker clears
+    the label, a pass at the SAME head (the /review-without-a-push case) must
+    label it again. The thread accumulates posted comments and the label set
+    is modelled, so suppression is exercised rather than assumed."""
+
+    PR = {"number": 1466, "user": {"login": "rjbiermann-machinery[bot]"},
+          "head": {"ref": "devloop/issue-1439-x"}}
+    SHA = "ac8cf79d6355"
+
+    def sweep(self, state, verdict_body=None, vtime=None):
+        if verdict_body is not None:
+            state["thread"].append({"body": verdict_body,
+                                    "user": {"login": "github-actions[bot]"},
+                                    "created_at": vtime})
+
+        def api(path):
+            if "/comments" in path:
+                return state["thread"]
+            if path.startswith("pulls/"):
+                return {"mergeable_state": "clean", "head": {"sha": self.SHA}}
+            if path.startswith("commits/"):
+                return {"commit": {"committer": {"date": "2026-11-21T18:00:00Z"}}}
+            return {}
+
+        def label_issue(n, l):
+            state["labelled"].append(l)
+            state["labels"].add(l)
+
+        def post_comment(n, body):
+            state["posted"].append(body)
+            state["thread"].append({"body": body,
+                                    "user": {"login": "github-actions[bot]"},
+                                    "created_at": "2026-11-21T21:00:0%d Z" % len(state["posted"])})
+
+        with mock.patch.object(orchestrator, "open_pulls", lambda: [self.PR]), \
+                mock.patch.object(orchestrator, "_pr_labels_map",
+                                  lambda n: ({1466: set(state["labels"])}
+                                             if state["labels"] else {})), \
+                mock.patch.object(orchestrator, "_effective_ready", lambda n, s: True), \
+                mock.patch.object(orchestrator, "api", api), \
+                mock.patch.object(orchestrator, "label_issue", label_issue), \
+                mock.patch.object(orchestrator, "post_comment", post_comment), \
+                mock.patch.object(orchestrator, "run",
+                                  lambda cmd, **kw: state["deleted"].append(cmd) or ""), \
+                mock.patch.object(orchestrator, "print", lambda *a, **k: None):
+            orchestrator.merge_readiness()
+
+    def test_blocker_clears_then_a_later_pass_relabels_at_the_same_head(self):
+        state = {"thread": [], "labels": set(), "labelled": [], "posted": [],
+                 "deleted": []}
+        self.sweep(state, "**Verdict:** no blockers.", "2026-11-21T17:00:00Z")
+        self.assertEqual(state["labelled"], ["status/ready-to-merge"])
+
+        state["labelled"].clear()
+        self.sweep(state, "**Verdict: blocker** — registry unanchored.",
+                   "2026-11-21T19:00:00Z")
+        self.assertEqual(state["labelled"], [])
+        self.assertTrue(any("ready-to-merge" in " ".join(c) for c in state["deleted"]))
+
+        state["labels"].clear()
+        self.sweep(state, "**Verdict:** no blockers.", "2026-11-21T20:00:00Z")
+        self.assertEqual(state["labelled"], ["status/ready-to-merge"],
+                         "a pass at the same head must re-label")
+
+
+class TestMergeReadinessRespectsFixingStuck(unittest.TestCase):
+    """A PR the lane declared needs-human must not be reported ready, however
+    green its checks are (#1405: a pass round's ready-to-merge label can
+    otherwise survive the escalation)."""
+
+    def test_fixing_stuck_pr_is_skipped(self):
+        printouts = []
+        pr = {"number": 1438, "user": {"login": "rjbiermann-machinery[bot]"},
+              "head": {"ref": "devloop/issue-1410-x"}}
+        with mock.patch.object(orchestrator, "open_pulls", lambda: [pr]), \
+                mock.patch.object(orchestrator, "_pr_labels_map",
+                                  lambda nums: {1438: {"status/fixing-stuck"}}), \
+                mock.patch.object(orchestrator, "_effective_ready", lambda n, s: True), \
+                mock.patch.object(orchestrator, "api", lambda p: (
+                    [] if "/comments" in p else {"mergeable_state": "clean"})), \
+                mock.patch.object(orchestrator, "label_issue",
+                                  lambda n, l: self.fail("labelled a needs-human PR")), \
+                mock.patch.object(orchestrator, "post_comment",
+                                  lambda n, b: self.fail("pinged a needs-human PR")), \
+                mock.patch.object(orchestrator, "print", printouts.append, create=True):
+            orchestrator.merge_readiness()
+        self.assertEqual(len(printouts), 1, printouts)
+        self.assertIn("fixing-stuck", printouts[0])
+
+
+class TestReadinessMarkerAnchorsOnVerdict(unittest.TestCase):
+    """#1469 R4: the "ready … at <sha>" comment suppressed re-labelling after
+    a blocker cleared the label and a re-review passed at the SAME head (the
+    /review-without-a-push case)."""
+
+    def components(self, verdict_body, vtime, seen):
+        pr = {"number": 1466, "user": {"login": "rjbiermann-machinery[bot]"},
+              "head": {"ref": "devloop/issue-1439-x"}}
+        thread = ([{"body": verdict_body, "user": {"login": "github-actions[bot]"},
+                    "created_at": vtime}] if verdict_body else [])
+
+        def api(path):
+            if "/comments" in path:
+                return thread
+            if path.startswith("pulls/"):
+                return {"mergeable_state": "clean",
+                        "head": {"sha": "ac8cf79d6355"}}
+            return {}
+
+        def post_comment(n, body):
+            seen.append(body)
+
+        with mock.patch.object(orchestrator, "open_pulls", lambda: [pr]), \
+                mock.patch.object(orchestrator, "_pr_labels_map", lambda n: {}), \
+                mock.patch.object(orchestrator, "_effective_ready", lambda n, s: True), \
+                mock.patch.object(orchestrator, "comments", lambda n: thread), \
+                mock.patch.object(orchestrator, "api", api), \
+                mock.patch.object(orchestrator, "label_issue", lambda n, l: None), \
+                mock.patch.object(orchestrator, "post_comment", post_comment), \
+                mock.patch.object(orchestrator, "print", lambda *a, **k: None):
+            orchestrator.merge_readiness()
+
+    def test_marker_differs_per_verdict_at_the_same_head(self):
+        seen = []
+        self.components("**Verdict:** no blockers.", "2026-11-21T17:00:00Z", seen)
+        self.components("**Verdict:** no blockers.", "2026-11-21T19:00:00Z", seen)
+        self.assertEqual(len(seen), 2, seen)
+        self.assertNotEqual(seen[0], seen[1])
+        for body in seen:
+            self.assertIn("verdict 2026-11-21T", body)
+
+    def test_unreadable_thread_withholds_readiness(self):
+        pr = {"number": 1466, "user": {"login": "rjbiermann-machinery[bot]"},
+              "head": {"ref": "devloop/issue-1439-x"}}
+        prints = []
+        with mock.patch.object(orchestrator, "open_pulls", lambda: [pr]), \
+                mock.patch.object(orchestrator, "_pr_labels_map", lambda n: {}), \
+                mock.patch.object(orchestrator, "api", lambda p: None), \
+                mock.patch.object(orchestrator, "label_issue",
+                                  lambda n, l: self.fail("labelled without reading the thread")), \
+                mock.patch.object(orchestrator, "post_comment",
+                                  lambda n, b: self.fail("pinged without reading the thread")), \
+                mock.patch.object(orchestrator, "print", prints.append, create=True):
+            orchestrator.merge_readiness()
+        self.assertTrue(any("unreadable" in str(p) for p in prints), prints)
