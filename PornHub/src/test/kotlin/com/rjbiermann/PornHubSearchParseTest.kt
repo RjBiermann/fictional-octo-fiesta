@@ -3,6 +3,7 @@ package com.rjbiermann
 import com.kraptor.DistinctBar
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -62,6 +63,24 @@ class PornHubSearchParseTest {
             url, search1().first().url)
         assertTrue("search card metadata: duration", card.durationMinutes != null)
         assertTrue("search card metadata: views", card.views != null)
+    }
+
+    @Test fun `every search poster carries the site Referer`() {
+        // Same hotlink matrix as the listing: a pix-cdn77 still answers 403 without a
+        // Referer (FINDINGS §Listing), and search came back 100% that shard for the reporter.
+        val videos = search1()
+        assertTrue("search results must carry the poster header",
+            videos.all { it.posterHeaders == mapOf("Referer" to "$BASE/") })
+        assertEquals(mapOf("Referer" to "$BASE/"), Parse.posterHeaders)
+    }
+
+    @Test fun `the pix-cdn77 search still keeps its signature verbatim`() {
+        val raw = Regex("""https://pix-cdn77\.phncdn\.com/[^"]+\?hash=[^"&]+&validto=\d+""")
+            .find(fixture("search-page-1.html"))!!.value
+        val emitted = search1().firstOrNull { it.posterUrl == raw }
+        assertNotNull("the pix-cdn77 result must survive parse", emitted)
+        assertEquals("the site Referer rides along", mapOf("Referer" to "$BASE/"),
+            emitted!!.posterHeaders)
     }
 
     @Test fun `hasNext follows the site's own rel=next link`() {

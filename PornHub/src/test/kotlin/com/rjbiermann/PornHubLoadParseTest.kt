@@ -59,6 +59,24 @@ class PornHubLoadParseTest {
         assertTrue("related videos from ul#relatedVideosListing", details.related.size >= 3)
     }
 
+    @Test fun `load poster and related cards carry the site Referer`() {
+        // pix-cdn77 answers 403 without a Referer (FINDINGS §Listing). The load seam is
+        // pure, so the header wiring is testable without HTTP mocking.
+        val details = details1()!!
+        val response = kotlinx.coroutines.runBlocking {
+            PornHub().parseLoadResponse("$BASE/view_video.php?viewkey=6a333a768c26c", details)
+        }
+        assertEquals("the load poster stays the parsed og:image verbatim",
+            details.poster, response.posterUrl)
+        assertEquals(mapOf("Referer" to "$BASE/"), response.posterHeaders)
+        val related = response.recommendations.orEmpty()
+        assertTrue("related cards exist", related.isNotEmpty())
+        assertTrue("every related card carries the header",
+            related.all { it.posterHeaders == mapOf("Referer" to "$BASE/") })
+        assertEquals("related posters stay verbatim",
+            details.related.map { it.poster }, related.map { it.posterUrl })
+    }
+
     @Test fun `watch page 2 parses without performer credits`() {
         val details = details2()
         assertNotNull("video-page-2 must parse", details)

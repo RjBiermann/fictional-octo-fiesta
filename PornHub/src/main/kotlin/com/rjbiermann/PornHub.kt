@@ -40,6 +40,13 @@ object Parse {
     const val BASE = "https://www.pornhub.com"
 
     /**
+     * `pix-cdn77.phncdn.com` serves the still only when a Referer is present (403 without one,
+     * 200 with any Referer); the signature query stays load-bearing either way (FINDINGS
+     * §Listing — CDN shard & hotlink matrix).
+     */
+    val posterHeaders = mapOf("Referer" to "$BASE/")
+
+    /**
      * The listing block. Scoping to `ul#videoCategory` is load-bearing: the header's
      * "Hottest" dropdown renders the same `li.pcVideoListItem` cards on every page, so a
      * bare `li.pcVideoListItem` would return those duplicates on every row and page.
@@ -296,10 +303,37 @@ fun MainAPI.parseVideoCards(html: String, search: Boolean = false): List<SearchR
         try {
             newMovieSearchResponse(card.title, card.url, TvType.NSFW) {
                 this.posterUrl = card.poster
+                this.posterHeaders = Parse.posterHeaders
             }
         } catch (e: Exception) {
             null
         }
+    }
+
+/**
+ * Parse seam: [Parse.VideoDetails] → [LoadResponse], no HTTP — so the poster-header wiring is
+ * testable without mocking. The load poster and every recommendation card carry
+ * [Parse.posterHeaders] because the app's image loader sends no Referer (FINDINGS §Listing).
+ */
+suspend fun MainAPI.parseLoadResponse(url: String, details: Parse.VideoDetails): LoadResponse =
+    newMovieLoadResponse(details.title, url, TvType.NSFW, url) {
+        this.posterUrl = details.poster
+        this.posterHeaders = Parse.posterHeaders
+        this.plot = details.plot
+        this.tags = details.tags
+        this.duration = details.durationMinutes
+        this.year = details.year
+        this.recommendations = details.related.mapNotNull { card ->
+            try {
+                newMovieSearchResponse(card.title, card.url, TvType.NSFW) {
+                    this.posterUrl = card.poster
+                    this.posterHeaders = Parse.posterHeaders
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+        addActors(details.actors.map { Actor(it) })
     }
 
 class PornHub : MainAPI() {
@@ -344,23 +378,7 @@ class PornHub : MainAPI() {
     // (FINDINGS §Video pages: premium pages answer 200 with no flashvars blob).
     override suspend fun load(url: String): LoadResponse? {
         val details = Parse.videoDetails(app.get(url).text) ?: return null
-        return newMovieLoadResponse(details.title, url, TvType.NSFW, url) {
-            this.posterUrl = details.poster
-            this.plot = details.plot
-            this.tags = details.tags
-            this.duration = details.durationMinutes
-            this.year = details.year
-            this.recommendations = details.related.mapNotNull { card ->
-                try {
-                    newMovieSearchResponse(card.title, card.url, TvType.NSFW) {
-                        this.posterUrl = card.poster
-                    }
-                } catch (e: Exception) {
-                    null
-                }
-            }
-            addActors(details.actors.map { Actor(it) })
-        }
+        return parseLoadResponse(url, details)
     }
 
     override suspend fun loadLinks(
