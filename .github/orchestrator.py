@@ -50,6 +50,10 @@ TAG_OWNER = os.environ.get("GH_AW_ORCH_TAG_OWNER", "true") == "true"
 OWNER = os.environ.get("GH_AW_ORCH_OWNER", "")
 
 MARK = "[orchestrator]"
+
+# What a 06-review verdict comment looks like. Used to skip work-attempt
+# stamps when scanning the PR thread for the newest verdict (#1420).
+VERDICT_HINT = re.compile(r"(?i)\bverdict\b|## 06-review|\bblockers?\b")
 REGISTRY_PATH = os.environ.get("GH_AW_REGISTRY_PATH", "")
 # Adopters whose conflict surface is exactly an append-only JSON registry
 # get the deterministic auto-merge; anything else stays human.
@@ -2221,13 +2225,21 @@ def fix_surrogate():
         for c in reversed(comments(num)):
             if (c.get("user") or {}).get("login") != "github-actions[bot]":
                 continue
+            body = c.get("body") or ""
             # skip the surrogate's own fire-marker comments — they carry
             # no verdict text and would mask the verdict they point to
             # (observed on #851: marker posted, cooldown ate the fire,
             # marker became "the verdict").
-            if "fix-loop re-fired for the verdict at" in (c.get("body") or ""):
+            if "fix-loop re-fired for the verdict at" in body:
                 continue
-            verdict = (c.get("body") or "")
+            # 06-review posts its work-attempt stamp as a SEPARATE comment
+            # about a second after the verdict, so "the last bot comment" is
+            # often the stamp (#1420: blocker at 04:45:03, stamp at 04:45:04,
+            # surrogate read the stamp, never fired, never escalated). Only a
+            # comment that reads like a verdict can be one.
+            if not VERDICT_HINT.search(body):
+                continue
+            verdict = body
             vtime = c.get("created_at", "")
             break
         low = verdict.lower()

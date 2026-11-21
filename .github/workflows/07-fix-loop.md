@@ -97,10 +97,11 @@ in this run, derive the expected identity from your own context and assert it:
   - `BR` carries an issue segment — `devloop/issue-<k>-` or `ai/issue-<k>-`
     (the delivery shapes the conveyor admits) → `k` must equal `N` exactly.
     A branch naming a different issue FAILS.
-  - `BR` carries no issue segment (owner hand-deliveries: `maint/…`, `fix/…`)
-    → `N` must come from the PR's own naming (`Fixes #N` / provenance) and
-    the PR must not name a *different* story. No segment and no named story
-    FAILS — no derivable identity.
+  - `BR` carries no issue segment → allowed ONLY for an owner hand-delivery
+    (`gh pr view <PR> --json author` = the repository owner): `N` must then
+    come from the PR's own naming (`Fixes #N` / provenance) and must not be a
+    *different* story. An agent-shaped branch with no segment, or no named
+    story at all, FAILS — no derivable identity.
 - **Assert (secondary — confirms).** the PR resolves to the same story: its
   body carries `Fixes #<N>` (or names `<N>` in its title/provenance), or
   `gh pr view <PR> --json closingIssuesReferences` lists `<N>`. Implement PRs
