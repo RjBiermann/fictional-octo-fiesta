@@ -77,20 +77,41 @@ The push is this lane's only irreversible act, so it never rides on a guess
 about whose branch it targets. Before ANY `push-to-pull-request-branch` call
 in this run, derive the expected identity from your own context and assert it:
 
-- **Derive.** `N` = this run's `aw_context.item_number` (the issue the relay
-  dispatched for; on an event trigger, the number in the PR's closing-issue
-  link). `PR` = the PR whose branch you are about to push. `BR` = that PR's
-  head branch.
-- **Assert (primary — must hold).** `BR` starts with `devloop/issue-<N>-`: the
-  fixed issue segment `<N>` must equal the aw_context item exactly. A branch
-  naming a different issue, or carrying no issue segment at all, FAILS.
-- **Assert (secondary — confirms).** `gh pr view <PR> --json
-  closingIssuesReferences` lists `<N>` — the PR and this run resolve to the
-  same spec issue.
+- **Assert (target identity — must hold, before `N` is derived).** `PR` = the
+  PR whose branch you are about to push, `BR` = that PR's head branch. `PR`
+  must be the PR **this run was dispatched for**: its number equals the
+  context's pull-request-number (or, on an event trigger, the event's
+  `pull_request.number`). `push_to_pull_request_branch` accepts an explicit
+  `pull_request_number`, so without this assertion everything below is true
+  by construction for whatever target you pick. A different target FAILS.
+- **Derive.** With `PR` fixed, `N` is the story it delivers:
+  - your context names a **pull-request-number** (the fix surrogate dispatches
+    that way, ADR-0019 — the number is a PR, never an issue, #1398) → `N` =
+    the story `PR` delivers: the issue segment in `BR` (`devloop/issue-<k>-`
+    or `ai/issue-<k>-`), else the story its body names (`Fixes #N`, else its
+    provenance issue number).
+  - your context names an **issue-number** → `N` = that issue.
+  - neither (an event trigger) → `N` = `BR`'s issue segment, else the story
+    the PR body names.
+- **Assert (primary — must hold).** `N` is the story `BR` really delivers:
+  - `BR` carries an issue segment — `devloop/issue-<k>-` or `ai/issue-<k>-`
+    (the delivery shapes the conveyor admits) → `k` must equal `N` exactly.
+    A branch naming a different issue FAILS.
+  - `BR` carries no issue segment (owner hand-deliveries: `maint/…`, `fix/…`)
+    → `N` must come from the PR's own naming (`Fixes #N` / provenance) and
+    the PR must not name a *different* story. No segment and no named story
+    FAILS — no derivable identity.
+- **Assert (secondary — confirms).** the PR resolves to the same story: its
+  body carries `Fixes #<N>` (or names `<N>` in its title/provenance), or
+  `gh pr view <PR> --json closingIssuesReferences` lists `<N>`. Implement PRs
+  are not required to carry a closing keyword (#1366), so a missing closing
+  reference alone is NOT a mismatch — a PR naming a *different* story is.
 - **On mismatch: NO push call is made.** Post exactly one `add_comment` on
-  issue `<N>` — the owner issue, never the PR — carrying the mismatch
-  evidence: this run's URL, `aw_context` item `<N>`, the target PR `<PR>`, the
-  target branch `<BR>`, and which assertion failed. Then stop loudly. That
+  issue `<N>` — the owner issue, never the PR; when `N` is not derivable
+  there is no issue to stamp, so post it on the PR — carrying the mismatch
+  evidence: this run's URL, your context's item number, the derived story
+  `<N>`, the target PR `<PR>`, the target branch `<BR>`, and which assertion
+  failed. Then stop loudly. That
   stamp is the only artifact: no state-label churn, no second target, no retry
   of the push. A bad-context run must be cheap to retry and trivial to audit —
   this abort stamp is what makes it both.

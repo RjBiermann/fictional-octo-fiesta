@@ -494,3 +494,214 @@ class TestMachineryAppIdentity(unittest.TestCase):
               "head": {"ref": "devloop/issue-892-abcdef"}}
         self.assertFalse(orchestrator._agent_pr(pr))
         self.assertFalse(orchestrator._fixable_pr(pr))
+
+
+def bot_comment(body):
+    """A comment as the gh-aw verdict bot posts it (login, not just type —
+    fix_surrogate keys on the login, so the `comment()` fixture above is
+    not usable here)."""
+    return {"body": body, "user": {"login": "github-actions[bot]",
+                                   "type": "Bot"},
+            "created_at": "2026-11-18T23:49:02Z"}
+
+
+class TestEffectiveReady(unittest.TestCase):
+    """A cancelled conveyor self-check must not pin readiness (#1411).
+
+    `orchestrate` runs on PR events and its concurrency group cancels it
+    mid-run; `cancelled` is in the bad-conclusion set, so readiness never
+    fired for the PR (#1411, and #1389 since 2026-11-04)."""
+
+    def ready(self, runs, mstate="unstable"):
+        def fake_api(path):
+            if path.startswith("pulls/"):
+                return {"head": {"sha": "959aa36"}}
+            return {"check_runs": runs}
+        with mock.patch.object(orchestrator, "api", fake_api):
+            return orchestrator._effective_ready(1411, mstate)
+
+    def check(self, name, conclusion, status="completed"):
+        return {"name": name, "status": status, "conclusion": conclusion}
+
+    def test_cancelled_orchestrate_does_not_block(self):
+        self.assertTrue(self.ready([self.check("orchestrate", "cancelled"),
+                                    self.check("verify", "success")]))
+
+    def test_cancelled_real_check_still_blocks(self):
+        self.assertFalse(self.ready([self.check("orchestrate", "cancelled"),
+                                     self.check("CodeQL", "cancelled")]))
+
+    def test_failed_check_still_blocks(self):
+        self.assertFalse(self.ready([self.check("verify", "failure")]))
+
+    def test_clean_needs_no_scan(self):
+        with mock.patch.object(orchestrator, "api") as api:
+            self.assertTrue(orchestrator._effective_ready(1, "clean"))
+            api.assert_not_called()
+
+
+class TestFixSurrogateDedupe(unittest.TestCase):
+    """An aborted repair (no push) must not count as consumed (#1411).
+
+    fix_surrogate used to call a verdict served when the dispatched run's
+    `agent` job executed — a Rule 0 abort does exactly that (success, no
+    push), so the blocker verdict on #1411 never re-fired and never hit
+    the marker cap that escalates."""
+
+    VERDICT = "## Review\n\n**Verdict: blocker** — rows parse empty."
+
+    def run_surrogate(self, markers, branch_moved, in_flight=False):
+        posted, fired, cmds = [], [], []
+        pr = {"number": 1411, "user": {"login": "rjbiermann-machinery[bot]"},
+              "head": {"ref": "devloop/issue-1407-c141da7ff2421900"}}
+        thread = [bot_comment(self.VERDICT)]
+        thread += [bot_comment(f"{orchestrator.MARK} fix-loop re-fired for "
+                              f"the verdict at 2026-11-18T23:49:02Z")] * markers
+        with mock.patch.object(orchestrator, "open_pulls", lambda: [pr]), \
+                mock.patch.object(orchestrator, "_fixable_pr", lambda p: True), \
+                mock.patch.object(orchestrator, "comments", lambda n: thread), \
+                mock.patch.object(orchestrator, "_repair_in_flight",
+                                  lambda: in_flight), \
+                mock.patch.object(orchestrator, "_branch_moved_after",
+                                  lambda n, ts: branch_moved), \
+                mock.patch.object(orchestrator, "api",
+                                  lambda p: {"labels": []}), \
+                mock.patch.object(orchestrator, "post_comment",
+                                  lambda n, b: posted.append(b)), \
+                mock.patch.object(orchestrator, "run",
+                                  lambda cmd, **kw: cmds.append(cmd) or ""), \
+                mock.patch.object(orchestrator, "dispatch_ok",
+                                  lambda cmd, **kw: fired.append(cmd) or True):
+            orchestrator.fix_surrogate()
+        return posted, fired, cmds
+
+    def test_aborted_repair_refires(self):
+        posted, fired, _ = self.run_surrogate(markers=1, branch_moved=False)
+        self.assertEqual(len(fired), 1, "unserved verdict must re-fire")
+        self.assertEqual(len(posted), 1)
+
+    def test_pushed_repair_is_served(self):
+        posted, fired, _ = self.run_surrogate(markers=1, branch_moved=True)
+        self.assertEqual(fired, [])
+        self.assertEqual(posted, [])
+
+    def test_one_dispatch_per_sweep(self):
+        # registration is async: a second PR in the same sweep would
+        # cancel the first repair through 07's shared concurrency group
+        fired = []
+        prs = [{"number": n, "user": {"login": "github-actions[bot]"},
+                "head": {"ref": f"devloop/issue-{n}-x"}} for n in (1407, 1409)]
+        thread = [bot_comment(self.VERDICT)]
+        with mock.patch.object(orchestrator, "open_pulls", lambda: prs), \
+                mock.patch.object(orchestrator, "_fixable_pr", lambda p: True), \
+                mock.patch.object(orchestrator, "comments", lambda n: thread), \
+                mock.patch.object(orchestrator, "_repair_in_flight",
+                                  lambda: False), \
+                mock.patch.object(orchestrator, "_branch_moved_after",
+                                  lambda n, ts: False), \
+                mock.patch.object(orchestrator, "api", lambda p: {"labels": []}), \
+                mock.patch.object(orchestrator, "post_comment", lambda n, b: None), \
+                mock.patch.object(orchestrator, "run", lambda cmd, **kw: ""), \
+                mock.patch.object(orchestrator, "dispatch_ok",
+                                  lambda cmd, **kw: fired.append(cmd) or True):
+            orchestrator.fix_surrogate()
+        self.assertEqual(len(fired), 1, fired)
+
+    def test_in_flight_repair_blocks_a_second_dispatch(self):
+        # the fire marker is an issue_comment, so the sweep re-enters
+        # seconds later — that pass must not cancel the running repair
+        posted, fired, _ = self.run_surrogate(markers=1, branch_moved=False,
+                                              in_flight=True)
+        self.assertEqual(fired, [])
+        self.assertEqual(posted, [])
+
+    def test_two_unserved_fires_escalate_to_human(self):
+        posted, fired, cmds = self.run_surrogate(markers=2, branch_moved=False)
+        self.assertEqual(fired, [])
+        self.assertEqual(posted, [])
+        self.assertTrue(any("status/fixing-stuck" in " ".join(c)
+                            for c in cmds), cmds)
+
+
+class TestBranchMovedAfter(unittest.TestCase):
+    def moved(self, commit_date):
+        def fake_api(path):
+            if path.startswith("pulls/"):
+                return {"head": {"sha": "959aa36"}}
+            return {"commit": {"committer": {"date": commit_date},
+                                "author": {"date": commit_date}}}
+        with mock.patch.object(orchestrator, "api", fake_api):
+            return orchestrator._branch_moved_after(1411,
+                                                    "2026-11-18T23:49:02Z")
+
+    def test_commit_after_verdict_is_consumption(self):
+        self.assertTrue(self.moved("2026-11-19T00:41:00Z"))
+
+    def test_no_commit_after_verdict_is_unserved(self):
+        self.assertFalse(self.moved("2026-11-18T23:29:57Z"))
+
+    def test_reads_head_commit_not_a_paged_list(self):
+        # a >100-commit PR must still be detectable — the head commit is
+        # fetched directly instead of page 1 of pulls/{n}/commits
+        seen = []
+
+        def fake_api(path):
+            seen.append(path)
+            if path.startswith("pulls/"):
+                return {"head": {"sha": "959aa36"}}
+            return {"commit": {"committer": {"date": "2026-11-19T00:41Z"}}}
+        with mock.patch.object(orchestrator, "api", fake_api):
+            orchestrator._branch_moved_after(1411, "2026-11-18T23:49:02Z")
+        self.assertIn("commits/959aa36", seen)
+        self.assertFalse(any("/commits?" in p for p in seen), seen)
+
+    def test_missing_verdict_time_fails_closed(self):
+        with mock.patch.object(orchestrator, "api") as api:
+            self.assertFalse(orchestrator._branch_moved_after(1411, ""))
+            api.assert_not_called()
+
+    def test_api_failure_skips_the_sweep(self):
+        # None = rate-limited/failed read; re-firing blind could cancel a
+        # live repair, so an unreadable PR reads as "skip this sweep"
+        with mock.patch.object(orchestrator, "api", lambda p: None):
+            self.assertTrue(orchestrator._branch_moved_after(
+                1411, "2026-11-18T23:49:02Z"))
+
+
+class TestRepairInFlight(unittest.TestCase):
+    """07's concurrency group is shared and cancel-in-progress, so a
+    dispatch while a repair runs kills it (#1415 review)."""
+
+    VERDICT_TS = "2026-11-18T23:49:02Z"
+
+    def in_flight(self, *rows):
+        payload = json.dumps([{"status": s} for s in rows])
+        with mock.patch.object(orchestrator, "run", lambda cmd, **kw: payload):
+            return orchestrator._repair_in_flight()
+
+    def test_running_repair_blocks(self):
+        self.assertTrue(self.in_flight("in_progress"))
+
+    def test_queued_repair_blocks(self):
+        self.assertTrue(self.in_flight("queued"))
+
+    def test_finished_repair_does_not_block(self):
+        self.assertFalse(self.in_flight("completed"))
+
+    def test_any_running_repair_blocks_even_if_old(self):
+        # dispatch runs key the concurrency group on refs/heads/main, so an
+        # older running repair is still the one a new dispatch cancels
+        self.assertTrue(self.in_flight("in_progress", "completed"))
+
+    def test_empty_run_list(self):
+        with mock.patch.object(orchestrator, "run", lambda cmd, **kw: "[]"):
+            self.assertFalse(orchestrator._repair_in_flight())
+
+    def test_unreadable_run_list_fails_closed(self):
+        # "" = gh run list failed; reading it as "nothing running" would
+        # dispatch over a live repair and cancel it (rate limits hit this)
+        for payload in ("", "not json"):
+            with mock.patch.object(orchestrator, "run",
+                                   lambda cmd, **kw: payload):
+                self.assertTrue(
+                    orchestrator._repair_in_flight(), payload)
