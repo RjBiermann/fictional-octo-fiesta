@@ -23,7 +23,7 @@ Per-issue ceiling on Attempts per calendar day (0 = unlimited). The runaway-spen
 _Avoid_: rate limit, quota
 
 **Round**:
-One review pass over a pull request. Bounded at two rounds, tracked by a round label. A Round is spent only by a completed pass — a Superseded or failed run spends nothing.
+One review pass over a pull request. Bounded by the workflow's attempt budget (`shared/budget.md`), not by a round label — no workflow applies an `ai-review-round-*` label, and repair rounds are bounded by the work-attempt cycle instead. A Round is spent only by a completed pass — a Superseded or failed run spends nothing.
 _Avoid_: iteration, loop
 
 **Superseded**:
@@ -45,7 +45,7 @@ A pipeline-initiated redo of a build whose branch can no longer land cleanly: th
 _Avoid_: retry (that is the human Command), re-run
 
 **Re-fire**:
-Re-running an Agent run for an existing issue or PR, via a Command. The new run Supersedes the previous one. A Builder Re-fire clears the PR's Rounds (a fresh build gets a fresh review budget); a Reviewer Re-fire still respects the Round cap.
+Re-running an Agent run for an existing issue or PR, via a Command. The new run Supersedes the previous one. A Builder Re-fire starts the delivery's attempt budget over (a fresh build gets a fresh budget); a Reviewer Re-fire still spends against the same `shared/budget.md` attempts, because no round counter exists to reset.
 _Avoid_: retrigger, retry (retry is the command name, not the concept)
 
 **Removal**:
@@ -164,12 +164,12 @@ The mechanical post-run check that issues an Agent run's verdict. Delivery is th
 _Avoid_: CI gate, quality gate
 
 **Task run**:
-An Agent run executing a fully specified issue (labeled `ready-for-agent`) with a generic prompt — the issue body is the task spec. Uses the Builder runtime; may apply non-trigger labels only.
+An Agent run executing a fully specified issue (labeled `ready-for-agent`) with a generic prompt — the issue body is the task spec. May apply non-trigger labels only. (The Builder runtime was removed with the `agent-runtime` action, #361 / ADR-0004.)
 _Avoid_: audit run (an audit is one kind of task run)
 
 **Audit**:
 An Agent run measuring providers against their live sites on three independent axes: Correctness (code vs the CloudStream contract), Drift (code vs the live site), and Data-completeness (code vs what the site exposes). Measure-only: it never fixes in-run — every finding becomes a Fix request, and the fixes ride separate Implement runs. Fired two ways: a maintenance dispatch (`scope` = one provider or empty for the repo) or a fully specified audit issue; either way the run is one provider per agent, never a sweep inside one agent.
-_Avoid_: health check (that is the Monitor's Drift probe), review, site audit (site is the thing audited, provider is the unit)
+_Avoid_: health check, review, site audit (site is the thing audited, provider is the unit)
 
 **Correctness**:
 The audit axis measuring provider code against the CloudStream extension contract: wrong field mapping, URLs that don't resolve as the app expects, empty or misordered lists on valid pages, malformed links. A Correctness finding must be provable at code level against a real site response — never "the app shows it weird"; the fix must go red→green on a Fixture.
@@ -184,11 +184,11 @@ A cheap scheduled per-provider live check (search + one video page + one stream)
 _Avoid_: monitoring, health check (the report is a Health report; the probe is the action)
 
 **Health report**:
-The twice-weekly (Mon + Thu) verdict table the Monitor posts on the `provider-health` tracking issue: per provider, OK / GAP (a Drift finding) / Blocked.
+The weekly open-issue state table `90-sweeper` posts on Mondays: every open issue with its labels. It is not a per-provider verdict table — that shape belonged to the retired `provider-health` tracker (#157) and no workflow produces it.
 _Avoid_: status update, monitor output
 
 **Chronic**:
-A provider that keeps failing the Drift probe after fixes merge — measured as four or more closed drift issues on its name. The Health report flags a Chronic provider as a removal candidate; the Removal decision stays maintainer-only. Before that threshold, recurring drift obliges a hardening fix (structural matching, multi-host fallback) instead of another point fix — see AGENTS.md, "Drift recurrence".
+A provider that keeps failing the Drift probe after fixes merge — measured as four or more closed drift issues on its name. Crossing that threshold makes it a removal candidate; nothing flags it automatically (the per-provider verdict table went with the retired `provider-health` tracker, #157), and the Removal decision stays maintainer-only. Before that threshold, recurring drift obliges a hardening fix (structural matching, multi-host fallback) instead of another point fix — see AGENTS.md, "Drift recurrence".
 _Avoid_: repeat offender, unstable (rot is the site's doing, not the code's)
 
 **Triage**:
@@ -200,7 +200,7 @@ A `needs-info` issue closed by the stale bot after the reporter stays silent pas
 _Avoid_: stale (the bot's mark, not the outcome), auto-close, abandonment
 
 **Engine lane**:
-The single model/provider lane every agent workflow runs through — pi over the OpenCode Go gateway (`openai/deepseek-v4.1-flash`), declared once in `shared/engine-lane.md` with one secret, one network allowlist entry, and `reasoning: false` by deliberate choice (ADR-0016).
+The single model/provider lane every agent workflow runs through — pi over the OpenCode Go gateway (`openai/deepseek-v4.1-flash`), declared once in `shared/engine-lane.md` with one secret, one network allowlist entry, and `reasoning: false` by deliberate choice (ADR-0016). Reviewer and Builder share it, so review is not cross-family; restoring that means giving `06-review` / `06b` their own model, which amends ADR-0016 first.
 _Avoid_: model chain (historical), fallback chain, model pool, provider list
 
 ### Provider code

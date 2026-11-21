@@ -7,13 +7,21 @@
 # prints: status line + headers on stderr, response body on stdout
 set -euo pipefail
 
-if ! python3 -c 'import curl_cffi' 2>/dev/null; then
-  echo "impersonate.sh: curl_cffi missing. Install it, then re-run:" >&2
-  echo "  pip install curl_cffi" >&2
+# PYTHON lets a venv carry curl_cffi (the common case: the system
+# interpreter is externally managed, so a wheel cannot be installed into it).
+PYTHON="${PYTHON:-python3}"
+if ! command -v "$PYTHON" >/dev/null 2>&1; then
+  echo "impersonate.sh: interpreter '$PYTHON' not found (PYTHON=$PYTHON)" >&2
+  exit 2
+fi
+if ! "$PYTHON" -c 'import curl_cffi' 2>/dev/null; then
+  echo "impersonate.sh: curl_cffi missing for $PYTHON. Install it, then re-run:" >&2
+  echo "  $PYTHON -m pip install curl_cffi" >&2
+  echo "  # or point at a venv:  PYTHON=/path/to/venv/bin/python impersonate.sh ..." >&2
   exit 2
 fi
 
-exec python3 - "$@" <<'EOF'
+exec "$PYTHON" - "$@" <<'EOF'
 import sys
 from curl_cffi import requests
 
