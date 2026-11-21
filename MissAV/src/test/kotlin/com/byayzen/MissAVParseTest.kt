@@ -110,6 +110,16 @@ class MissAVParseTest {
         )
     }
 
+    /** The config may append a signature to the playlist URL (`?token=…&exp=…`); the emitted
+     *  link must carry it, or the stream 403s — the same failure class this run fixes. */
+    @Test fun `playlist url keeps a query signature the config appends`() {
+        val signed = "https://c.surrit.com/ab2b36f7-e1df-467e-8589-87d1f991d6ae/playlist.m3u8?token=abc123&exp=1795000000"
+        assertEquals(signed, MissAVParse.parsePlaylistUrl("source='$signed';source842=''"))
+        // the apex form is signed the same way
+        val apexSigned = "https://surrit.com/93153cd4-152a-4710-a15b-fb092b1f322a/playlist.m3u8#t=10"
+        assertEquals(apexSigned, MissAVParse.parsePlaylistUrl("source='$apexSigned'"))
+    }
+
     /** Older/other pack shapes carry only the bare id — keep the legacy apex form so a
      *  config change degrades to the pre-#1440 behaviour instead of emitting no link. */
     @Test fun `playlist url falls back to the legacy apex form without an absolute url`() {

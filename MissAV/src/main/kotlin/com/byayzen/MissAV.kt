@@ -35,7 +35,7 @@ object MissAVParse {
 
     /** Player config URL / bare id inside the unpacked pack. */
     private val playlistUrl = Regex(
-        """https?://[^"'\s\\]+/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/playlist\.m3u8""",
+        """https?://[^"'\s\\]+/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/playlist\.m3u8[^"'\s\\]*""",
         RegexOption.IGNORE_CASE
     )
     private val playlistId = Regex("""/([a-f0-9\-]{36})/""", RegexOption.IGNORE_CASE)
@@ -43,8 +43,9 @@ object MissAVParse {
     /** Stream URL from the unpacked player config (issue #1440). The pack names its own
      *  bucket host — `c.surrit.com` on ~77% of the catalogue, the apex on the rest — and an id
      *  minted in one bucket 403s on the other host (Aliyun `BucketPunish`), so the site's own
-     *  URL is taken verbatim instead of being rebuilt against a hardcoded host. A pack that
-     *  carries only a bare id keeps the legacy apex form (pre-#1440 behaviour). */
+     *  URL is taken verbatim instead of being rebuilt against a hardcoded host — including any
+     *  `?query`/`#fragment` signature the config appends, which a name-only match would drop.
+     *  A pack that carries only a bare id keeps the legacy apex form (pre-#1440 behaviour). */
     fun parsePlaylistUrl(unpacked: String?): String? {
         if (unpacked.isNullOrBlank()) return null
         playlistUrl.find(unpacked)?.let { return it.value }
