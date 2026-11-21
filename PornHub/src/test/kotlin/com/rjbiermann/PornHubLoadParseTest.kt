@@ -13,10 +13,13 @@ import org.junit.Test
  * Watch-page fixtures are the verbatim blocks the load/loadLinks Parse seams read (FINDINGS
  * §Video pages):
  *  - `video-page-1.html` — `https://www.pornhub.com/view_video.php?viewkey=6a333a768c26c`:
- *    head `og:*`/`name=description` metas, the JSON-LD `VideoObject`, `div.title-container`,
- *    `div.pornstarsWrapper` (2 models), `div.categoriesWrapper`, `div.tagsWrapper`, the
- *    `<ul id="relatedVideosListing">` opening + its first three cards, and the full
- *    `var flashvars_<id>` blob (3 HLS legs + the remote `/video/get_media` leg).
+ *    the contiguous page cut the load/loadLinks Parse seams read — head `og:*`/`name=description`
+ *    metas, the JSON-LD `VideoObject`, `div.title-container`, `div.pornstarsWrapper` (2 models),
+ *    `div.categoriesWrapper`, `div.tagsWrapper`, the under-player share/user rows, the
+ *    `<ul id="relatedVideosListing">` and its first three cards, and the full
+ *    `var flashvars_<id>` blob (3 HLS legs + the remote `/video/get_media` leg). The unused
+ *    per-view `var RATE_VARS` rating-token block is omitted: nothing parses it and its `token`
+ *    string tripped SonarCloud's hard-coded-secret gate.
  *  - `video-page-2.html` — `...?viewkey=6ae50ab253d9f`: same blocks, **no** pornstarsWrapper
  *    (the uploader credits no models) and 3 HLS legs.
  *  - `video-page-walled.html` — `...?viewkey=64894d8f6af1f`, a premium video: 200 with

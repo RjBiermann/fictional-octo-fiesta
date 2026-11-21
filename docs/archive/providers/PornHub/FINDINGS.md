@@ -68,7 +68,8 @@ with the `page` query parameter. Selector for every row (no per-row difference):
   the same string (31/31) and is the fallback.
 - poster: the card's first `<img>`. Listing cards carry the still in **`src`** (absolute,
   `pix*.phncdn.com/…/rs:fit:320:180` + a signature — `?hdnea=st=…~exp=…~hmac=…` on `pix-fl`,
-  `?hash=…&validto=…` on `pix-cdn77`; see the shard matrix below); `data-mediumthumb` holds the
+  `?hash=…&validto=…` on `pix-cdn77`; legacy `ei` stills are unsigned; see the shard matrix
+  below); `data-mediumthumb` holds the
   identical URL. `data-image` / `data-src` / `data-original` appear on the *dropdown* card
   shape and are absent here, so the parser probes that chain first and falls through to `src`.
   `data-pix=""` and `data-mediabook` (a 180P **webm preview**, not a still) are never posters.
@@ -170,8 +171,10 @@ fetch 2  GET /video -> HTTP 200 1206504B  cards 31  stills 62  pix-fl 62
 fetch 3  GET /video -> HTTP 200 1204367B  cards 31  stills 62  pix-cdn77 62
 ```
 
-So one fetch is entirely `pix-fl` and the next entirely `pix-cdn77`: the CDN family changes
-between fetches, and the **signature shape changes with it** — `?hdnea=st=…~exp=…~hmac=…` on
+So in this `/video` sample one fetch is entirely `pix-fl` and the next entirely `pix-cdn77`
+(the pinned search pair is *mixed* — 24 `pix-cdn77` + 7 legacy `ei` on page 1, 36 `pix-fl` +
+7 `ei` on page 2; see §Fixture vintage), so the signed CDN family can change between fetches,
+and the **signature shape changes with it** — `?hdnea=st=…~exp=…~hmac=…` on
 `pix-fl`, `?hash=…&validto=…` on `pix-cdn77`. Both must be emitted verbatim.
 
 **The reporter's repro** (`GET /video/search?search=george+uhl` → HTTP 200, 1,121,476 B):
@@ -181,8 +184,9 @@ result block ul#videoSearchResult: cards 38, listing stills 38 — pix-cdn77 38 
 signature shape: ?hash=…&validto=… (47 still URLs on the page, all that shape)
 ```
 
-**Hotlink matrix.** One `pix-cdn77` and one `pix-fl` still from the same probe, `curl` with no
-cookie jar:
+**Hotlink matrix.** One `pix-cdn77`, one `pix-fl`, and one legacy `ei` still (the third family
+mixed into the pinned search fixtures), `curl` with no cookie jar (the `ei` URL is unsigned and
+was fetched with the desktop UA):
 
 | still | Referer | result |
 |---|---|---|
@@ -199,11 +203,15 @@ cookie jar:
 | `pix-fl` + signature | `https://evil.example/` | **200** `image/jpeg` 11,462 B |
 | `pix-fl`, query stripped | none | **470** `text/html` 422 B |
 | `pix-fl`, query stripped | `https://www.pornhub.com/` | **470** `text/html` 421 B |
+| `ei` (legacy, unsigned) | none | **200** `image/jpeg` 19,153 B |
+| `ei` | `https://www.pornhub.com/` | **200** `image/jpeg` 19,153 B |
+| `ei` | `https://evil.example/` | **200** `image/jpeg` 19,153 B |
 
 Two rules, both load-bearing:
 
 1. **`Referer` is a presence check, not a value check.** `pix-cdn77` answers 200 to any Referer
-   (a non-PornHub origin included) and 403 with none; `pix-fl` answers 200 either way.
+   (a non-PornHub origin included) and 403 with none; `pix-fl` and unsigned `ei` answer 200
+   either way.
 2. **The signature is required.** Stripping `?hash=…` / `?hdnea=…` turns a 200 into 403
    (`pix-cdn77`) or 470 (`pix-fl`) *even with* a valid Referer — the "emit the unsigned still"
    idea is refuted; emit the parsed URL verbatim.
@@ -244,8 +252,10 @@ Refreshed for S1 (2026-11-21, same cut, query signatures verbatim):
 - `home-page-1.html`, `home-page-2.html` — the verbatim `ul#videoCategory` block of `/video`
   page 1 and page 2 from a **`pix-cdn77`** fetch pair (0 shared viewkeys);
 - `search-page-1.html` — the verbatim canonical/next head lines + `ul#videoSearchResult` block,
-  **`pix-cdn77`**; `search-page-2.html` refreshed as the same-session page-2 pair (`pix-fl`),
-  so the referer-free shape stays covered and "page 2 does not repeat page 1" still holds;
+  **24 `pix-cdn77` + 7 legacy `ei` stills** (mixed family, as the live page served it);
+  `search-page-2.html` refreshed as the same-session page-2 pair, **36 `pix-fl` + 7 legacy
+  `ei`**, so the referer-free shapes stay covered and "page 2 does not repeat page 1" still
+  holds. Only the `/video` pair is 100 % one signed family;
 - `video-page-1.html` — the same `viewkey=6a333a768c26c` watch page as before, re-fetched
   (`pix-egi` `og:image`, 3 HLS legs + the remote `/video/get_media` leg).
 
@@ -728,9 +738,11 @@ Newest, `search=starbucks`), the search page-1/page-2 pair, the home page-1/page
 ## Risks / blockers
 
 - **Hotlink-protected still shard + missing `Referer` (the real blank-thumbnail cause, S1 of
-  #1468).** Listing stills come from one CDN family per fetch: `pix-cdn77` (signed
+  #1468).** The signed listing stills come from one CDN family per fetch (a page can also mix
+  in legacy `ei` stills): `pix-cdn77` (signed
   `?hash=…&validto=…`) answers **403** with no `Referer` and **200** once any `Referer` is
-  present; `pix-fl` (`?hdnea=st=…~exp=…~hmac=…`) answers 200 either way (§Homepage matrix).
+  present; `pix-fl` (`?hdnea=st=…~exp=…~hmac=…`) and unsigned `ei` answer 200 either way
+  (§Homepage matrix).
   CloudStream's image path sent no `Referer`, so a `pix-cdn77` search/home fetch rendered
   blank. The failure mode is **not** "signature expired → re-parse": stripping the signed
   query makes both shards fail (`pix-cdn77` 403, `pix-fl` 470) *even with* a Referer. Parse the
