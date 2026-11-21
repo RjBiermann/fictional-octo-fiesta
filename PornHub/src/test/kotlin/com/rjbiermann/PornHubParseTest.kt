@@ -50,6 +50,27 @@ class PornHubParseTest {
         }
     }
 
+    @Test fun `every home poster carries the site Referer`() {
+        // CloudStream's image loader sends no Referer; pix-cdn77 answers 403 without one
+        // (FINDINGS §Listing — CDN shard & hotlink matrix).
+        val videos = page1()
+        assertTrue("home rows must carry the poster header",
+            videos.all { it.posterHeaders == mapOf("Referer" to "$BASE/") })
+        assertEquals(mapOf("Referer" to "$BASE/"), Parse.posterHeaders)
+    }
+
+    @Test fun `the pix-cdn77 home still keeps its signature verbatim`() {
+        // The refreshed home fixture is a pix-cdn77 fetch. Stripping `hash=`/`validto=`
+        // answers 403 even with a Referer, so the emitted URL must be the markup value.
+        val raw = Regex("""https://pix-cdn77\.phncdn\.com/[^"]+\?hash=[^"&]+&validto=\d+""")
+            .find(fixture("home-page-1.html"))!!.value
+        assertTrue("fixture still exposes the signature shape", raw.contains("hash="))
+        val emitted = page1().firstOrNull { it.posterUrl == raw }
+        assertNotNull("the pix-cdn77 card must survive parse", emitted)
+        assertEquals("the site Referer rides along", mapOf("Referer" to "$BASE/"),
+            emitted!!.posterHeaders)
+    }
+
     @Test fun `card metadata is read where the card exposes it`() {
         val cards = Parse.cards(fixture("home-page-1.html"))
         assertTrue(cards.isNotEmpty())

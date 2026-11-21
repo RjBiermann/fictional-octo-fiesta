@@ -1,4 +1,4 @@
-version = 4 // #1473: version bump (v4)
+version = 5 // #1472: Referer posterHeaders on every poster surface (v5)
 
 cloudstream {
     authors     = listOf("RjBiermann")

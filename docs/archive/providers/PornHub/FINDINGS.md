@@ -160,7 +160,8 @@ card count as their evidence (same treatment recorded in
 Probe date **2026-11-21 20:44–21:06 UTC**, CI runner egress `20.171.39.91` (`ipinfo.io` →
 `"city": "Phoenix", "region": "Arizona", "country": "US"`, AS8075 Microsoft) — record the
 egress with every listing claim, as §Risks asks. This is the evidence the #1468
-blank-thumbnail report stands on; it changes **no** provider logic (S2 owns the fix).
+blank-thumbnail report stands on; S1 changed **no** provider logic (S2, #1472, ships the
+header fix).
 
 **The still shard is assigned per fetch.** Desktop UA, stills inside `ul#videoCategory` that
 carry `rs:fit:320:180`:
@@ -217,8 +218,8 @@ Two rules, both load-bearing:
    idea is refuted; emit the parsed URL verbatim.
 
 The app's image loader sends no `Referer`, which is why a `pix-cdn77` fetch is blank in the app
-while a `pix-fl` fetch is not. The fix (S2) is one header at the poster emission sites — not a
-selector change, not a URL rewrite, not a proxy.
+while a `pix-fl` fetch is not. The shipped fix (S2, #1472) is one header at the poster emission
+sites — not a selector change, not a URL rewrite, not a proxy.
 
 **Watch-page `og:image`** (`GET /view_video.php?viewkey=6a333a768c26c` ×3):
 
@@ -746,7 +747,8 @@ Newest, `search=starbucks`), the search page-1/page-2 pair, the home page-1/page
   CloudStream's image path sent no `Referer`, so a `pix-cdn77` search/home fetch rendered
   blank. The failure mode is **not** "signature expired → re-parse": stripping the signed
   query makes both shards fail (`pix-cdn77` 403, `pix-fl` 470) *even with* a Referer. Parse the
-  still verbatim and send the site `Referer` on image loads (S2 owns the header wiring). Never
+  still verbatim and send the site `Referer` on image loads (S2 shipped it as
+  `Parse.posterHeaders` on every poster emission site, #1472). Never
   persist a poster URL as stable identity (the Distinct bar compares the freshly parsed cards
   of one fixture/page only).
 - **Header dropdown duplicates**: `ul#hottestMenuSection` (header "Hottest" menu) repeats
@@ -928,3 +930,58 @@ What the run proved and what it could not:
 - **Build gates**: `./gradlew test` (all providers) green, then `./gradlew clean` followed by
   `./gradlew test make makePluginsJson` BUILD SUCCESSFUL (PornHub `.cs3` produced), on this
   run's tree.
+
+### Verification note (S2 — poster Referer fix, #1472)
+
+Live checks run **2026-11-21 21:44–21:59 UTC** from the CI runner egress (**region not recorded
+for this run**). The shipped change is one constant on every poster emission site —
+`Parse.posterHeaders` wired into `parseVideoCards` (home rows *and* search), the `load()`
+poster and the `load()` recommendation cards — with no selector change and no URL rewrite.
+
+**Hotlink matrix re-probed live** (desktop UA, cookie-less; one `pix-cdn77` still from `/video`,
+one referer-free `pix-fl` still from `/video/search?search=teen`):
+
+```
+cdn77 no Referer                        -> HTTP 403 text/html 868B
+cdn77 Referer: https://www.pornhub.com/ -> HTTP 200 image/png 32020B
+pix-fl no Referer                       -> HTTP 200 image/jpeg 11807B
+pix-fl Referer: https://www.pornhub.com/ -> HTTP 200 image/jpeg 11807B
+cdn77 signature stripped + Referer      -> HTTP 403 text/html 868B
+```
+
+The S1 matrix reproduces on a fresh fetch: the header flips the hotlink-protected shard from
+403 to 200, a referer-free shard answers 200 either way, and the signature stays load-bearing
+(stripping it still fails with a Referer). The app now sends `Referer:
+https://www.pornhub.com/` (a presence check — any value passes).
+
+**TDD red → green**: with the parse seam and the constant in place but no wiring,
+`./gradlew PornHub:test` failed exactly the 5 new assertions
+(`every home poster carries the site Referer`, `the pix-cdn77 home still keeps its signature
+verbatim`, the two search equivalents, and `load poster and related cards carry the site
+Referer`); after wiring, the same command is green (168 tests) and `./gradlew PornHub:make`
+is `BUILD SUCCESSFUL`.
+
+**verify.sh** (the S4 command shape, five fresh videos `6ad1c2b19ac29` / `6aea17288c77c` /
+`642c96c447bd3` / `6ac144ca27c0d` / `6ae97d82eadd3`, highest HLS per page as `--stream-url`):
+
+```
+RESULT: FAIL
+check 1/1a  duplicate cards  — every href read as /view_video.php (identity plateau)
+check 2a    actors 4/5       — one uploader credits no models (site content, video-page-2 shape)
+check 3     stream path collision — same plateau (url_path strips ?viewkey=)
+check 5     search ↔ load   — whole search page compared to each load page (same plateau)
+```
+
+Every FAIL is the documented instrument plateau from S4 (§Verification (S4)) or page content,
+not selector drift, and the surfaces the fix touches all pass:
+
+- search pages fetched 200 with 38 / 50 matches, home pages 200 with 45 / 57 matches (global
+  counts, as recorded in S4);
+- streams **5/5 → 206 `application/vnd.apple.mpegurl`**;
+- `tags` present on all 5 pages, and check 6 reports every requested `LoadResponse` field
+  populated (`recommendations`, `tags`, `plot`, `duration`, `year`, `actors`).
+
+The listing-side proof is the hotlink matrix above plus the fixtures: `home-page-1.html`
+(a `pix-cdn77` fetch) and `search-page-1.html` (mixed `pix-cdn77`/`ei`) now assert every emitted
+card carries the header and that the `pix-cdn77` poster is the markup URL verbatim (signature
+intact), and `video-page-1.html` asserts the same for the load poster and every related card.
