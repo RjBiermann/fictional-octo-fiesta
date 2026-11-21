@@ -48,7 +48,7 @@ loop-dead; that's why the conveyor dispatches.
 ## Vocab
 
 - **Relay** — machinery's fire mechanism: `workflow_dispatch` + `aw_context`
-  (CONTEXT.md, ADR-0019). The old owner-PAT "surrogate" is retired.
+  (GLOSSARY.md, ADR-0019). The old owner-PAT "surrogate" is retired.
 - **Receipt** — the chain's approval record: your exact one-worder on the
   parent spec (or the plan round-3 marker). Gates auto-merge.
 

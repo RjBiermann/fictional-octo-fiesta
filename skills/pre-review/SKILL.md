@@ -26,7 +26,7 @@ This file overrides the bundled agent-review default for this repository.
 
 ## Audit-only PRs (the common kind here)
 
-A diff made only of `FINDINGS-*.md`, `CONTEXT.md`, `docs/**`, `.pi/**`, or
+A diff made only of `FINDINGS-*.md`, `GLOSSARY.md`, `docs/**`, `.pi/**`, or
 registry files — no provider code. Reviewing these for "correctness, convention
 violations, missing tests" is the wrong task and is how a reviewer with nothing
 to check drifts into repetition loops. Instead:

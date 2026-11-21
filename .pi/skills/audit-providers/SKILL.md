@@ -71,7 +71,7 @@ Before filing a new finding issue for a provider:
 5. A superseded issue gets closed as duplicate-of the standing one; the
    standing issue gets the new evidence.
 
-## Verdict vocabulary (CONTEXT.md)
+## Verdict vocabulary (GLOSSARY.md)
 
 - `Blocked` requires the site-probe escalation ladder to have run **and** the
   Phase 0 calibration to be healthy.

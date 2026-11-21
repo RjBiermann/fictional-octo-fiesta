@@ -1,6 +1,6 @@
 name: Stale
 
-# Expiry (see CONTEXT.md): needs-info issues where the reporter never answers
+# Expiry (see GLOSSARY.md): needs-info issues where the reporter never answers
 # get marked stale after 14 days and closed after 3 more. Any comment reopens.
 # Trigger-labeled and ready-for-agent issues are exempt — the bot can never
 # kill live pipeline work. PRs are never touched.

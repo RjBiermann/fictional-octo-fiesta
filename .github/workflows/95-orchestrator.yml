@@ -42,7 +42,7 @@ concurrency:
   # status/queued -> ai-fix path) and bot merge events (genuine chain
   # advance) stay on the real group. Human comments no longer supersede a
   # running sweep either — they queue behind it (see below), which is what
-  # keeps CONTEXT.md's "add/remove pairs cannot interleave" invariant true.
+  # keeps GLOSSARY.md's "add/remove pairs cannot interleave" invariant true.
   group: >-
     orchestrator-${{
     ((github.event_name == 'issue_comment' && github.event.comment.user.type == 'Bot')

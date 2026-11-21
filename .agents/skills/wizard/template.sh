@@ -89,8 +89,8 @@ confirm() {
   [[ "$reply" =~ ^[Yy] ]]
 }
 
-# _existing KEY: current value of KEY in ENV_FILE, if any, with write_env's single
-# quotes or a plain dotenv double-quoted value undone.
+# _existing KEY: current value of KEY in ENV_FILE, if any, with write_env's
+# double-quoted escapes undone (and the legacy single-quoted form too).
 _existing() {
   [[ -f "$ENV_FILE" ]] || return 1
   local line value sq="'\\''"; line=$(grep -E "^${1}=" "$ENV_FILE" | tail -n1) || return 1
@@ -98,7 +98,16 @@ _existing() {
   if [[ "$value" == \'*\' ]]; then value="${value:1:${#value}-2}"; value="${value//"$sq"/\'}"
   elif [[ "$value" == \"*\" ]]; then
     value="${value:1:${#value}-2}"
-    [[ "$value" == *[\\\$\"]* ]] && return 1   # escapes, $ or ": can't decode safely; ask again
+    # A value carrying an escape this writer never emits (\n, \t, ...) has a
+    # meaning we cannot reproduce: refuse, and let ask() re-prompt (the old
+    # single-quote path behaved this way).
+    local known="${value//\\\\/}"; known="${known//\\\'/}"; known="${known//\\\"/}"; known="${known//\\\$/}"
+    [[ "$known" == *\\* ]] && return 1
+    # decode the escapes write_env applies, in reverse order of encoding
+    value="${value//\\\'/\'}"     # \' -> '
+    value="${value//\\\"/\"}"     # \" -> "
+    value="${value//\\\$/\$}"     # \$ -> $
+    value="${value//\\\\/\\}"   # \\ -> \\
   fi
   printf '%s' "$value"
 }
@@ -134,17 +143,50 @@ ask_secret() {
   printf -v "$key" '%s' "$input"
 }
 
-# write_env KEY VALUE upserts KEY='VALUE' into ENV_FILE (replaces any existing
-# line) and sets $KEY. Idempotent. Creates ENV_FILE at mode 0600; writes through
-# a symlink and keeps an existing file's mode.
+# write_env KEY VALUE upserts KEY="VALUE" (dotenv double-quoted, escapes \ \
+# and ") into ENV_FILE, replacing any existing line, and sets $KEY. Idempotent.
+# ENV_FILE is 0600 before the first secret lands, whether it existed or not; a
+# symlink is resolved and written THROUGH (never replaced); the replace is an
+# atomic same-directory mv.
 write_env() {
-  local key="$1" value="$2" tmp sq="'\\''"
-  [[ -e "$ENV_FILE" ]] || (umask 077 && : > "$ENV_FILE")
-  tmp=$(mktemp)
-  grep -vE "^${key}=" "$ENV_FILE" > "$tmp" || true
-  printf "%s='%s'\n" "$key" "${value//\'/$sq}" >> "$tmp"
-  cat "$tmp" > "$ENV_FILE"
-  rm -f "$tmp"
+  local key="$1" value="$2" tmp target esc
+  # Resolve the write target so a symlink is written THROUGH, never replaced.
+  target="$ENV_FILE"
+  # Resolve symlink chains portably: readlink -f is GNU-only, and falling back
+  # to the link path would let the mv below replace the link instead of
+  # writing through it.
+  local link hops=0
+  while [[ -L "$target" ]]; do
+    # A cycle (ln -s .env .env) makes readlink succeed forever, so the cap is
+    # what stops it — the error branch alone is unreachable on a cycle.
+    hops=$((hops + 1))
+    if (( hops > 16 )); then
+      printf 'wizard: symlink chain too deep (cycle?) at %s\n' "$ENV_FILE" >&2
+      return 1
+    fi
+    link=$(readlink -- "$target") || { printf 'wizard: unreadable symlink at %s\n' "$ENV_FILE" >&2; return 1; }
+    [[ "$link" == /* ]] || link="$(dirname -- "$target")/$link"
+    target="$link"
+  done
+  # 0600 BEFORE the first secret lands, and tightened when the file already
+  # exists: an existing 0644 .env used to keep its mode (the leak this closes),
+  # and `[[ -e ]]` missed dangling symlinks.
+  if [[ ! -e "$target" ]]; then (umask 077 && : > "$target"); fi
+  chmod 600 -- "$target" 2>/dev/null || true
+  # Same-directory temp file: mv is atomic, and mktemp is already 0600.
+  tmp=$(mktemp "${target}.XXXXXX")
+  chmod 600 "$tmp"
+  grep -vE "^${key}=" "$target" > "$tmp" || true
+  # dotenv escaping, not shell quoting: a value with an apostrophe written the
+  # shell way ('a'\''b') parses back as `a` in python-dotenv, so escape
+  # inside one double-quoted scalar instead.
+  esc=${value//\\/\\\\}
+  esc=${esc//\'/\\\'}
+  esc=${esc//\"/\\\"}
+  printf '%s="%s"\n' "$key" "$esc" >> "$tmp"
+  # mv leaves no temp behind on success; on failure the temp still holds the
+  # secret, so remove it rather than leave it beside the target.
+  if ! mv -f -- "$tmp" "$target"; then rm -f -- "$tmp"; return 1; fi
   printf -v "$key" '%s' "$value"
   WRITTEN_ENV+=("$key")
   printf '  %s✓ wrote%s %s → %s\n' "$GREEN" "$RESET" "$key" "$ENV_FILE"

@@ -84,6 +84,16 @@ jobs:
       - name: "orchestrator unit suite"
         run: python3 -m unittest discover -s .github -p 'orchestrator_test.py' -v
 
+  # The wizard template is vendored (skills-lock.json pins its hash), so the
+  # #1479 fixes cannot be asserted inside it — a sync may rewrite them. This
+  # check lives outside the vendored tree and fails when the guarantees go.
+  wizard-template:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: "wizard env-writer: 0600, atomic, symlink-through, dotenv round-trip"
+        run: bash scripts/wizard-template-check.sh
+
   # #1390 recurred twice (#372): a hardcoded provider count in AGENTS.md
   # drifts silently. Assert it instead of trusting the last editor.
   provider-count:
