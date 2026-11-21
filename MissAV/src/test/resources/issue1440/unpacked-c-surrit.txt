@@ -1,0 +1,1 @@
+source='https://c.surrit.com/ab2b36f7-e1df-467e-8589-87d1f991d6ae/playlist.m3u8';source842='https://c.surrit.com/ab2b36f7-e1df-467e-8589-87d1f991d6ae/720p/video.m3u8';source1280='https://c.surrit.com/ab2b36f7-e1df-467e-8589-87d1f991d6ae/1080p/video.m3u8';
