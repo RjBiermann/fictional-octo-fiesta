@@ -347,6 +347,12 @@ edge, `__cf_bm` set). The assignment flips per request (measured ~50/50; the 5-v
 above needed 5/0/2/4/1 page re-fetches to land style A). Style-B tokens are host-bound
 (replaying the same query on `ev-h` → 470), so the provider cannot rewrite the host.
 
+**What the provider does with a dead shape (repaired on review of #1419):** `loadLinks` probes
+the HLS legs of the page fetch it just made and emits only legs whose master playlist answers
+2xx (`Parse.playableHls` + `PornHub.isPlayable`). A shape that answers nothing falls through to
+the `/video/get_media` mp4 legs instead of handing the player unresolvable URLs. The probe runs
+per call, so it follows the device's own assignment rather than the runner's.
+
 ## Headers / referer
 
 - Every S1–S3 surface (listings, search, watch pages, flashvars) answered to a plain GET with a
@@ -415,9 +421,11 @@ Newest, `search=starbucks`), the search page-1/page-2 pair, the home page-1/page
   text/plain** (Cloudflare edge, `__cf_bm`). Measured ~50/50; style-B tokens are host-bound
   (same query on `ev-h` → 470), so the provider emits the page's URLs verbatim and cannot
   normalise them. Verification re-fetches the page until style A (5/0/2/4/1 attempts on the
-  five sampled videos) and proves every quality resolves. **In-app playback on a style-B
-  assignment is unverified** — the app fetches the page once per play; maintainer emulator
-  check decides whether it needs a retry (evidence: transcript §Stream sources).
+  five sampled videos) and proves every quality resolves. **Repaired on review of #1419:**
+  `loadLinks` probes the legs of the page fetch it just made and emits only the ones that answer
+  2xx; a dead shape now falls through to `/video/get_media` instead of emitting URLs the player
+  cannot open (§Stream sources). Whether a *style-A* assignment is what a device gets in-app is
+  a maintainer emulator note, not a code path.
 - **Signed/rotating media URLs (watch pages).** HLS masters and posters carry signed query
   tokens (`validfrom`/`validto` ~2 h, or `h`/`e`) and rotate on every page fetch; `loadLinks`
   resolves fresh on every call and never caches a stream URL.

@@ -150,6 +150,30 @@ class PornHubLoadParseTest {
         assertEquals(Qualities.Unknown.value, Parse.qualityOf(0))
     }
 
+    @Test fun `a dead cdn signing shape yields no hls legs so the fallback runs`() {
+        val streams = Parse.hlsStreams(Parse.flashvars(fixture("video-page-1.html"))!!)
+        assertEquals(
+            "style-B (410) answers nothing → /video/get_media is the only path",
+            emptyList<Parse.Stream>(),
+            Parse.playableHls(streams) { false },
+        )
+        assertEquals(
+            "only answered legs reach the player",
+            listOf(720),
+            Parse.playableHls(streams) { it.height == 720 }.map { it.height },
+        )
+        assertEquals(
+            "style-A keeps every leg",
+            listOf(240, 480, 720),
+            Parse.playableHls(streams) { true }.map { it.height },
+        )
+    }
+
+    @Test fun `link labels carry the height and degrade without one`() {
+        assertEquals("PornHub 720p", Parse.linkName("PornHub", 720))
+        assertEquals("a height-less leg keeps the bare source name", "PornHub", Parse.linkName("PornHub", 0))
+    }
+
     private companion object {
         const val BASE = "https://www.pornhub.com"
     }

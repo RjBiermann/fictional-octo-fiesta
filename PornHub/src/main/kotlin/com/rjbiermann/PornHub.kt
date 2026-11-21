@@ -235,6 +235,19 @@ object Parse {
     fun qualityOf(height: Int): Int =
         if (height in 144..4320) height else Qualities.Unknown.value
 
+    /** Player label for a leg: `PornHub 720p`, or the bare source name when no height is known. */
+    fun linkName(source: String, height: Int): String =
+        if (height > 0) "$source ${height}p" else source
+
+    /**
+     * HLS legs the player can actually open — [isLive] decides per leg, so the caller can probe
+     * the master playlist first. An empty result means the page was served the dead signing shape
+     * (style B answers 410 — FINDINGS §Stream sources), so `loadLinks` must take the
+     * `/video/get_media` fallback instead of handing the player URLs that cannot resolve.
+     */
+    inline fun playableHls(streams: List<Stream>, isLive: (Stream) -> Boolean): List<Stream> =
+        streams.filter(isLive)
+
     /** Site clock ("9:25", "1:02:03") → minutes. */
     fun clockMinutes(text: String?): Int? {
         val match = text?.trim()?.takeIf { it.isNotEmpty() }
@@ -359,24 +372,31 @@ class PornHub : MainAPI() {
         // Resolved fresh on every call: validfrom/validto expire after ~2 h (FINDINGS §Stream sources).
         val response = app.get(data)
         val flashvars = Parse.flashvars(response.text) ?: return false
+        val referer = "$mainUrl/"
 
-        val hls = Parse.hlsStreams(flashvars)
-        if (hls.isNotEmpty()) {
-            hls.forEach { stream ->
+        // The CDN assigns one of two signing shapes per page fetch: style A answers 200, style B
+        // answers 410 (FINDINGS §Stream sources — CDN host lottery). Only a leg that answers
+        // reaches the player, and a dead shape falls through to /video/get_media below — an
+        // emitted-but-unresolvable HLS URL is worse than no HLS link at all.
+        val playable = Parse.playableHls(Parse.hlsStreams(flashvars)) { leg ->
+            isPlayable(leg.url, referer)
+        }
+        if (playable.isNotEmpty()) {
+            playable.forEach { stream ->
                 callback(newExtractorLink(
                     source = name,
-                    name = "$name ${stream.height}p",
+                    name = Parse.linkName(name, stream.height),
                     url = stream.url,
                     type = ExtractorLinkType.M3U8,
                 ) {
-                    this.referer = "$mainUrl/"
+                    this.referer = referer
                     this.quality = Parse.qualityOf(stream.height)
                 })
             }
             return true
         }
 
-        // Documented fallback when flashvars carries no HLS leg: the `remote` mp4 leg
+        // Documented fallback when flashvars carries no usable HLS leg: the `remote` mp4 leg
         // `/video/get_media`. It needs the watch page's session cookies — a cookie-less GET
         // answers `[]` (FINDINGS §Stream sources).
         val fallbackUrl = Parse.getMediaUrl(flashvars) ?: return false
@@ -390,15 +410,22 @@ class PornHub : MainAPI() {
         mp4.forEach { stream ->
             callback(newExtractorLink(
                 source = name,
-                name = "$name ${stream.height}p",
+                name = Parse.linkName(name, stream.height),
                 url = stream.url,
                 type = ExtractorLinkType.VIDEO,
             ) {
-                this.referer = "$mainUrl/"
+                this.referer = referer
                 this.quality = Parse.qualityOf(stream.height)
             })
         }
         return mp4.isNotEmpty()
+    }
+
+    /** A master playlist answers 2xx when its signing shape is alive; a playlist GET is a few KB. */
+    private suspend fun isPlayable(url: String, referer: String): Boolean = try {
+        app.get(url, referer = referer).code in 200..299
+    } catch (e: Exception) {
+        false
     }
 }
 
