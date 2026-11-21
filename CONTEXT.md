@@ -184,7 +184,7 @@ A cheap scheduled per-provider live check (search + one video page + one stream)
 _Avoid_: monitoring, health check (the report is a Health report; the probe is the action)
 
 **Health report**:
-The weekly open-issue state table `90-sweeper` posts on Mondays: every open issue with its labels. It is not a per-provider verdict table — that shape belonged to the retired `provider-health` tracker (#157) and no workflow produces it.
+The weekly open-issue state table `90-sweeper` posts on Mondays: the `gh issue list` default page of 30 open issues, with their labels. It is not a per-provider verdict table — that shape belonged to the retired `provider-health` tracker (#157) and no workflow produces it.
 _Avoid_: status update, monitor output
 
 **Chronic**:
