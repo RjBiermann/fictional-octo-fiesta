@@ -2,36 +2,28 @@
 
 CloudStream extension repo (18+ providers). This context covers the AI automation pipeline that turns labeled GitHub issues into reviewed pull requests, built by coding agents in CI.
 
-> **Historical machinery note:** entries below describing the old pipeline's
-> runtime machinery — Builder/Reviewer runs, Rounds, Commands, the Monitor
-> cadence, the Model chain, `deliver-pr`, Acks — describe the pre-devloop
-> workflows, which have been removed. The pipeline is now compiled gh-aw
-> workflows (AGENTS.md, "AI pipeline"); the live engine vocabulary is
-> **Engine lane**, below. The domain concepts (FINDINGS, Triage, Provider
-> health, Expiry, audit vocabulary) remain current.
-
 ## Language
 
 ### Agents
 
 **Builder**:
-A Builder agent run (pi) that takes a labeled issue, scrapes the live site, and produces a pull request. Never merges.
+An Implement agent run that turns a spec issue into a scoped pull request. Never merges.
 _Avoid_: worker, fixer, build agent
 
 **Reviewer**:
-A Reviewer agent run (opencode) that reviews a pull request and may push fix commits to its branch. Independent of the Builder by design — never the same run, never merges.
+A review agent run that reviews a pull request and reports findings. Independent of the Builder by design — never edits code, never merges.
 _Avoid_: critic, checker, self-review
 
 **Agent run**:
-One headless agent invocation, bounded by hard caps (max turns, wall-clock timeout). The unit of cost and retry. Issue-scoped runs (build, spec) budget at `build_timeout` (3600s), PR-scoped runs (review, repair) at `timeout` (1800s); every timeout spends an Attempt, and a Daily cap bounds Attempts per issue per day.
+One headless agent invocation, bounded by hard caps (max turns, wall-clock timeout). The unit of cost and retry.
 _Avoid_: session, job (job = the CI wrapper, not the agent invocation)
 
 **Daily cap**:
-Per-issue ceiling on Attempts per calendar day (`max_per_day`; 0 = unlimited). The runaway-spend protection behind the per-issue Attempt cap — a time-bombed issue can't burn sweeps all day without a human re-label.
+Per-issue ceiling on Attempts per calendar day (0 = unlimited). The runaway-spend protection behind the per-issue Attempt cap.
 _Avoid_: rate limit, quota
 
 **Round**:
-One Reviewer pass over a pull request. Bounded: 2 rounds maximum, tracked by a round label. A Round is spent only by a completed pass — a Superseded or failed run spends nothing. Fixes pushed by a Reviewer may trigger a new Round but never a new PR.
+One review pass over a pull request. Bounded at two rounds, tracked by a round label. A Round is spent only by a completed pass — a Superseded or failed run spends nothing.
 _Avoid_: iteration, loop
 
 **Superseded**:
@@ -45,7 +37,7 @@ A maintainer-applied issue label (`ai-fix`, `ai-new-site`, `ai-remove`) that sta
 _Avoid_: auto label, bot label
 
 **Command**:
-A maintainer comment on an issue or PR (`/retry`, `/review`) that the pipeline dispatches. A Command can only re-fire work a Trigger label already created — it never creates work, never spends a Round itself. Issues and PRs alike accept Commands; trigger labels live on issues only. (Historical: `/repair` re-fired Repair on a delivered PR — it died with the devloop lane, pilot #568; repair now happens through review → fix-loop rounds.)
+A maintainer comment on an issue or PR (`/retry`, `/review`) that the pipeline dispatches. A Command can only re-fire work a Trigger label already created — it never creates work, never spends a Round itself. Issues and PRs alike accept Commands; trigger labels live on issues only.
 _Avoid_: slash command, bot command, retrigger
 
 **Rebuild**:
@@ -84,8 +76,8 @@ The emulator lane's site-free tier: a generated 2 s H.264/TS fixture served on t
 loopback (`10.0.2.2` from inside the emulator) is opened through the app's own
 `cloudstreamplayer://` deep link, asserting `Rendered first frame` and no datasource error.
 Proves the app's player path — datasource, headers, media3 wiring — with no provider, site, geo
-or UI selector. This is the layer where a `data:` source died as
-`net::ERR_UNKNOWN_URL_SCHEME` → 2001 (#1353), invisible to registration and to HTTP-side checks.
+or UI selector. This is the layer where a `data:` source dies as
+`net::ERR_UNKNOWN_URL_SCHEME` → 2001, invisible to registration and to HTTP-side checks.
 _Avoid_: in-app test, stream test, player test
 
 **Probe escalation**:
@@ -100,7 +92,7 @@ _Avoid_: failure (a failure stops the run; Blocked completes it with a caveat); 
 The recorded cause of a Blocked outcome — `client-rendered (JS-only)` (DOM has content, HTTP body doesn't, no SSR/API fallback) or `challenge, no unlock`. Recorded in FINDINGS Risks/blockers; a future agent reads it, not re-probes it.
 
 **Suspected (challenge from datacenter probe IP)**:
-A Cloudflare challenge (403/turnstile) received from the CI runner's datacenter IP, before any escalation ran. Cloudflare challenges datacenter IPs unconditionally on many sites, so this measures the runner's IP reputation, not site health — **never a finding on its own**. Evidence: the issue-#460 audit's five false Blocked verdicts (FullPorner, Film1k, FreePornVideos, XMoviesForYou, EPorner) vs the residential-IP differential (local 200s). Becomes Blocked only after the escalation ladder fails; otherwise escalate (site-probe) or record as Suspected with the response evidence.
+A Cloudflare challenge (403/turnstile) received from the CI runner's datacenter IP, before any escalation ran. Cloudflare challenges datacenter IPs unconditionally on many sites, so this measures the runner's IP reputation, not site health — **never a finding on its own**. Becomes Blocked only after the escalation ladder fails; otherwise escalate (site-probe) or record as Suspected with the response evidence.
 _Avoid_: blocked type, block category
 
 **Lead**:
@@ -116,7 +108,7 @@ Region-dependent catalog or streams — the runner's IP country sees different (
 _Avoid_: region lock, geo block (implies refusal; a Geo-gate varies content)
 
 **Delivery**:
-The mechanical commit-and-PR step performed by the workflow (the `deliver-pr` action), never by the agent: commit the working tree to `ai/issue-N`, force-push, create-or-update the PR. A run that produces changes but no Delivery is a failed run. A maintainer may also **hand-deliver** — open and merge the PR themselves on a `maint/…` branch; that counts as the same Delivery when the PR body names the story with a closing keyword (`Fixes #N`), because the machinery reads GitHub's own `closingIssuesReferences` rather than guessing at prose. A hand-delivery without that keyword is not recognised, and the story stays open (fail-visible: at worst a duplicate fire, never a wrong close).
+The mechanical commit-and-PR step performed by safe-outputs, never by the agent. A run that produces changes but no Delivery is a failed run. A maintainer may also **hand-deliver** — open and merge the PR themselves on a `maint/…` branch; that counts as the same Delivery when the PR body names the story with a closing keyword (`Fixes #N`), because the machinery reads GitHub's own `closingIssuesReferences` rather than guessing at prose. A hand-delivery without that keyword is not recognised, and the story stays open (fail-visible: at worst a duplicate fire, never a wrong close).
 _Avoid_: push, publish, ship
 
 **Closeout**:
@@ -139,10 +131,6 @@ _Avoid_: batch, blast (the cap is the point)
 A spec epic the conveyor may run waves on: kids linked via `epic #N` in their bodies and the epic carrying an approval-of-record (owner one-worder, or the plan loop's round-3 marker — which the workflow posts as `github-actions[bot]` after your in-thread approval). Delivered-but-open kids get re-stamped by an armed epic — close them before re-arming (the **Re-stamp loop** guard set blocks the re-fire, not the stale state).
 _Avoid_: enabled epic, active epic (arming is state on the epic, not the machine)
 
-**Ack**:
-The workflow-posted comment on the issue when an Agent run starts — a guaranteed narration floor produced by machinery, never by the agent. Agent-issued comments are counted beyond the Ack.
-_Avoid_: progress comment (that is the agent's own narration), bot comment
-
 **Machine-authored**:
 Content the secret-guard may redact: authored by `github-actions[bot]`, or carrying the `[orchestrator]` marker. Machinery never holds the owner's identity (ADR-0019 retired the owner PAT); the marker filter remains as defense-in-depth. Human-authored content is never touched.
 _Avoid_: bot-authored (ambiguous — machinery posts are the normal case now)
@@ -160,19 +148,19 @@ The append-only audit verdict record (`audits/findings.json`): provider verdicts
 _Avoid_: findings file (FINDINGS is the per-issue evidence), state file
 
 **Stranded delivery**:
-An Agent run whose work died on the way to a Delivery — success verdict recorded, state transition applied, but no PR exists (observed: the run's registry edit dying on the rebase onto moved main). Loudest when the trigger issue cycles `planned → in-review` on re-fires; diagnose by checking whether a PR actually carries the work.
+An Agent run whose work died on the way to a Delivery — success verdict recorded, state transition applied, but no PR exists. Loudest when the trigger issue cycles `planned → in-review` on re-fires; diagnose by checking whether a PR actually carries the work.
 _Avoid_: lost run, silent failure (the strand is visible: fallback issue + run log)
 
 **Fallback review issue**:
 The gh-aw carrier created when the run's safe-output PR cannot be produced (e.g. protected-file `request-review` mode or a delivery failure): the bundle artifact and manual-landing instructions park on an issue instead. It is a holding pen, not a Delivery — a human must land it, and the trigger issue's state stays reconciled by the sweeper afterwards.
-_Avoid_: review issue (that is the Review verdict thread), stale issue
+_Avoid_: review issue, stale issue
 
 **Re-stamp loop**:
-The delivered-story re-fire class (spec #797, recorded 2026-10-20): machinery re-applied `status/planned` to stories whose delivery PR had already merged (#771, #768, #775 — four bot stamps inside ~75 min), and each stamp re-fired an Implement pass that saw the merged state, skipped, and still spent a paid run; the racing duplicates (#787, #790) belong to the same class. The primary ADR-0007 closeout fired **unevenly** in that wave (#767 closed at its merge, then reversed by a human reopen — #771/#768 never closed), which is the provenance gap the healer now covers. This is a *recognized* class, not a re-reportable one: the guards are live and replay-pinned (`.github/tests/orchestrator_replay_test.py`, the `orchestrator-replay` job in lint.yml, fixtures from the recorded label events), so a fresh sighting owes a new fingerprint — an actor or channel the owner-gate cannot see — never a replay of the 2026-10-20 events. Guard set: `closeout_healer()` (an open issue with a merged delivery PR, or a closed fallback carrier, closes out); the merged-delivered guard in `_fire_implement()` (a delivered story is never re-fired); the owner-gated `_stamped_after_merge()` re-arm check (machinery re-stamps are loop-dead — only the OWNER's post-merge `status/planned` means "run it again"); and `concurrency: orchestrator, cancel-in-progress: true` (orchestrator label batches are serialized, so add/remove pairs cannot interleave). **Accepted-cosmetic:** the pre-serialization 05:08–05:11Z non-atomic label batches are historical — documented, no further fix built. Sibling machinery-robustness class, orthogonal: PR #873's verdict-anchor regex normalization (bracketed story-tag headings stranded clean audits).
-_Avoid_: duplicate-PR bug, re-arm bug (an owner re-arm is the legitimate override, not the fault), label race (the batches were the cosmetic part, not the class)
+The delivered-story re-fire class: machinery re-applies `status/planned` to stories whose delivery PR already merged, and each stamp fires a paid Implement pass that sees the merged state and skips. This is a *recognized* class, not a re-reportable one: the guards are live and replay-pinned (`.github/tests/orchestrator_replay_test.py`, the `orchestrator-replay` job in lint.yml), so a fresh sighting owes a new fingerprint — an actor or channel the owner-gate cannot see — never a replay of the known events. Guard set: `closeout_healer()` (an open issue with a merged delivery PR, or a closed fallback carrier, closes out); the merged-delivered guard in `_fire_implement()` (a delivered story is never re-fired); the owner-gated `_stamped_after_merge()` re-arm check (machinery re-stamps are loop-dead — only the OWNER's post-merge `status/planned` means "run it again"); and `concurrency: orchestrator, cancel-in-progress: true` (orchestrator label batches are serialized, so add/remove pairs cannot interleave).
+_Avoid_: duplicate-PR bug, re-arm bug (an owner re-arm is the legitimate override, not the fault), label race
 
 **Gate**:
-The mechanical post-run check that issues an Agent run's verdict. Delivery is the verdict: a run whose Delivery succeeded is a success even if the agent narrated nothing. Missing agent narration (zero comments beyond the Ack) is a loud warning, never verdict-flipping.
+The mechanical post-run check that issues an Agent run's verdict. Delivery is the verdict: a run whose Delivery succeeded is a success even if the agent narrated nothing. Missing agent narration is a loud warning, never verdict-flipping.
 _Avoid_: CI gate, quality gate
 
 **Task run**:
@@ -180,7 +168,7 @@ An Agent run executing a fully specified issue (labeled `ready-for-agent`) with 
 _Avoid_: audit run (an audit is one kind of task run)
 
 **Audit**:
-An Agent run measuring providers against their live sites on three independent axes: Correctness (code vs the CloudStream contract), Drift (code vs the live site), and Data-completeness (code vs what the site exposes). Measure-only: it never fixes in-run — every finding becomes a Fix request, and the fixes ride separate Builder runs. Fired two ways: a maintenance dispatch (`scope` = one provider or empty for the repo) or a `ready-for-agent` issue; either way the run is one provider per agent, never a sweep inside one agent.
+An Agent run measuring providers against their live sites on three independent axes: Correctness (code vs the CloudStream contract), Drift (code vs the live site), and Data-completeness (code vs what the site exposes). Measure-only: it never fixes in-run — every finding becomes a Fix request, and the fixes ride separate Implement runs. Fired two ways: a maintenance dispatch (`scope` = one provider or empty for the repo) or a fully specified audit issue; either way the run is one provider per agent, never a sweep inside one agent.
 _Avoid_: health check (that is the Monitor's Drift probe), review, site audit (site is the thing audited, provider is the unit)
 
 **Correctness**:
@@ -188,7 +176,7 @@ The audit axis measuring provider code against the CloudStream extension contrac
 _Avoid_: bug sweep, code review (that is the Reviewer), behavior
 
 **Fix request**:
-An issue the Audit creates for one gap batch: Correctness+Drift share one issue (same fix run, same acceptance bar), Data-completeness gets its own. The body carries the FINDINGS evidence including raw HTML/curl transcripts, so the Builder never re-probes from scratch. A mechanical workflow step applies `ai-fix` to it (ADR-0006); dead, Blocked, or unreachable sites get reported without a Fix request.
+An issue the Audit creates for one gap batch: Correctness+Drift share one issue (same fix run, same acceptance bar), Data-completeness gets its own. The body carries the FINDINGS evidence including raw HTML/curl transcripts, so the Implement run never re-probes from scratch. A mechanical workflow step applies `ai-fix` to it (ADR-0006); dead, Blocked, or unreachable sites get reported without a Fix request.
 _Avoid_: audit finding, auto-fix, bug report (that is Triage's output)
 
 **Drift probe**:
@@ -214,14 +202,6 @@ _Avoid_: stale (the bot's mark, not the outcome), auto-close, abandonment
 **Engine lane**:
 The single model/provider lane every agent workflow runs through — pi over the OpenCode Go gateway (`openai/deepseek-v4.1-flash`), declared once in `shared/engine-lane.md` with one secret, one network allowlist entry, and `reasoning: false` by deliberate choice (ADR-0016).
 _Avoid_: model chain (historical), fallback chain, model pool, provider list
-
-**Agent-run action**:
-The composite action (`.github/actions/agent-run`) that executes the **Model chain** for every agent workflow: primary attempt → fallback attempt, with the skill set, thinking level, and bounded retries as inputs. The Model chain's only callers route through it; a chain change is a one-file edit.
-_Avoid_: run pair, model runner, pi step
-
-**Model chain**:
-The ordered fallback every agent run follows: GLM 5.3 Flash → DeepSeek V4 Flash, both served through the OpenCode Go gateway (paid key) and driven by pi. The Reviewer's primary must come from a different model family than the Builder's primary (independence). Cost discipline: mechanical agent runs (Monitor, Triage) run with thinking off; the Monitor does a full per-provider sweep twice a week (Mon + Thu).
-_Avoid_: free model chain, model pool, provider list, LLM stack
 
 ### Provider code
 
