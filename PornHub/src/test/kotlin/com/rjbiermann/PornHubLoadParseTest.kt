@@ -39,7 +39,10 @@ class PornHubLoadParseTest {
         assertTrue("title comes from h1.title span.inlineFree",
             details.title.startsWith("Picking Up My Step Sister From Starbucks"))
         assertNotNull("poster (og:image)", details.poster)
-        assertTrue(details.poster!!.startsWith("https://pix-egi.phncdn.com/"))
+        // Host-shape, never a fixed shard: the CDN shard rotates per fetch (FINDINGS §Homepage,
+        // "Listing — CDN shard & hotlink matrix").
+        assertTrue("unexpected poster host: ${details.poster}",
+            Regex("^https://pix-[a-z0-9]+\\.phncdn\\.com/").containsMatchIn(details.poster!!))
         assertNotNull("plot (og:description)", details.plot)
         assertTrue("the site's description text", details.plot!!.contains("Pornhub.com"))
         assertEquals("JSON-LD PT00H16M50S floors to 16 minutes (repo convention)",

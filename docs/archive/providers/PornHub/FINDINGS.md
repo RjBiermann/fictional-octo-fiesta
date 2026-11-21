@@ -14,6 +14,11 @@ exposure inventory, §Selector traceability, §Verification (S4), and the region
 of §Risks/blockers). Read §Risks first when a probe from your own region disagrees with a
 transcript here.
 
+**Addendum — S1 of the #1468 blank-thumbnail spec (2026-11-21).** §Homepage now carries the
+listing stills' CDN shard / hotlink matrix and a fixture-vintage note; §Risks replaces the old
+"signed URLs rotate → re-parse" story with the real failure mode (hotlink-protected shard + a
+missing `Referer`). Read that matrix before touching poster emission.
+
 ## Engine fingerprint
 
 **Custom proprietary platform** (PornHub's own stack — not KVS/Kernel, not a WP video theme).
@@ -62,10 +67,11 @@ with the `page` query parameter. Selector for every row (no per-row difference):
 - title: `span.title a` text (31/31 cards); the thumbnail anchor's `title` attribute carries
   the same string (31/31) and is the fallback.
 - poster: the card's first `<img>`. Listing cards carry the still in **`src`** (absolute,
-  `pix*.phncdn.com/…/rs:fit:320:180?hdnea=…`); `data-mediumthumb` holds the identical URL.
-  `data-image` / `data-src` / `data-original` appear on the *dropdown* card shape and are
-  absent here, so the parser probes that chain first and falls through to `src`. `data-pix=""`
-  and `data-mediabook` (a 180P **webm preview**, not a still) are never posters.
+  `pix*.phncdn.com/…/rs:fit:320:180` + a signature — `?hdnea=st=…~exp=…~hmac=…` on `pix-fl`,
+  `?hash=…&validto=…` on `pix-cdn77`; see the shard matrix below); `data-mediumthumb` holds the
+  identical URL. `data-image` / `data-src` / `data-original` appear on the *dropdown* card
+  shape and are absent here, so the parser probes that chain first and falls through to `src`.
+  `data-pix=""` and `data-mediabook` (a 180P **webm preview**, not a still) are never posters.
 - duration: `var.duration` → `H:MM:SS` / `M:SS` text, 31/31 page-1 cards, 43/43 page-2 cards.
 - views: `span.views var` → `46.4K`, 31/31 page-1 cards, 43/43 page-2 cards.
   (Carried by `Parse.VideoCard`; `SearchResponse` has no duration/views field, so the emitted
@@ -147,6 +153,105 @@ passing four rows × two pages in one invocation reports those cross-row repeats
 artifact — verify one surface's pagination per invocation and treat the other rows' GET line +
 card count as their evidence (same treatment recorded in
 `docs/archive/providers/AllClassicPorn/FINDINGS.md`, audit-#323).
+
+### Listing — CDN shard & hotlink matrix (S1 of #1468, 2026-11-21)
+
+Probe date **2026-11-21 20:44–21:06 UTC**, CI runner egress `20.171.39.91` (`ipinfo.io` →
+`"city": "Phoenix", "region": "Arizona", "country": "US"`, AS8075 Microsoft) — record the
+egress with every listing claim, as §Risks asks. This is the evidence the #1468
+blank-thumbnail report stands on; it changes **no** provider logic (S2 owns the fix).
+
+**The still shard is assigned per fetch.** Desktop UA, stills inside `ul#videoCategory` that
+carry `rs:fit:320:180`:
+
+```
+fetch 1  GET /video -> HTTP 200 1206819B  cards 31  stills 62  pix-fl 62
+fetch 2  GET /video -> HTTP 200 1206504B  cards 31  stills 62  pix-fl 62
+fetch 3  GET /video -> HTTP 200 1204367B  cards 31  stills 62  pix-cdn77 62
+```
+
+So one fetch is entirely `pix-fl` and the next entirely `pix-cdn77`: the CDN family changes
+between fetches, and the **signature shape changes with it** — `?hdnea=st=…~exp=…~hmac=…` on
+`pix-fl`, `?hash=…&validto=…` on `pix-cdn77`. Both must be emitted verbatim.
+
+**The reporter's repro** (`GET /video/search?search=george+uhl` → HTTP 200, 1,121,476 B):
+
+```
+result block ul#videoSearchResult: cards 38, listing stills 38 — pix-cdn77 38 (100%)
+signature shape: ?hash=…&validto=… (47 still URLs on the page, all that shape)
+```
+
+**Hotlink matrix.** One `pix-cdn77` and one `pix-fl` still from the same probe, `curl` with no
+cookie jar:
+
+| still | Referer | result |
+|---|---|---|
+| `pix-cdn77` + `?hash=…&validto=…` | none | **403** `text/html` 868 B |
+| `pix-cdn77` + signature | `https://www.pornhub.com/` | **200** `image/jpeg` 18,369 B |
+| `pix-cdn77` + signature | `https://www.pornhub.com/video` | **200** `image/jpeg` 18,369 B |
+| `pix-cdn77` + signature | `https://evil.example/` | **200** `image/jpeg` 18,369 B |
+| `pix-cdn77` + signature | none, `okhttp/4.12.0` UA | **403** `text/html` 868 B |
+| `pix-cdn77` + signature | `https://www.pornhub.com/`, `okhttp/4.12.0` | **200** `image/jpeg` 18,369 B |
+| `pix-cdn77`, query stripped | none | **403** `text/html` 868 B |
+| `pix-cdn77`, query stripped | `https://www.pornhub.com/` | **403** `text/html` 868 B |
+| `pix-fl` + `?hdnea=…` | none | **200** `image/jpeg` 11,462 B |
+| `pix-fl` + signature | `https://www.pornhub.com/` | **200** `image/jpeg` 11,462 B |
+| `pix-fl` + signature | `https://evil.example/` | **200** `image/jpeg` 11,462 B |
+| `pix-fl`, query stripped | none | **470** `text/html` 422 B |
+| `pix-fl`, query stripped | `https://www.pornhub.com/` | **470** `text/html` 421 B |
+
+Two rules, both load-bearing:
+
+1. **`Referer` is a presence check, not a value check.** `pix-cdn77` answers 200 to any Referer
+   (a non-PornHub origin included) and 403 with none; `pix-fl` answers 200 either way.
+2. **The signature is required.** Stripping `?hash=…` / `?hdnea=…` turns a 200 into 403
+   (`pix-cdn77`) or 470 (`pix-fl`) *even with* a valid Referer — the "emit the unsigned still"
+   idea is refuted; emit the parsed URL verbatim.
+
+The app's image loader sends no `Referer`, which is why a `pix-cdn77` fetch is blank in the app
+while a `pix-fl` fetch is not. The fix (S2) is one header at the poster emission sites — not a
+selector change, not a URL rewrite, not a proxy.
+
+**Watch-page `og:image`** (`GET /view_video.php?viewkey=6a333a768c26c` ×3):
+
+```
+attempt 1: https://pix-egi.phncdn.com  signature ?validfrom=…&validto=…&hash=…
+attempt 2: https://pix-egi.phncdn.com  signature ?validfrom=…&validto=…&hash=…
+attempt 3: https://pix-egi.phncdn.com  signature ?validfrom=…&validto=…&hash=…
+```
+
+`pix-egi` answers 200 without a Referer, so the load poster is not hotlink-protected; its shard
+did **not** rotate to `pix-cdn77` in this window. 14 consecutive re-fetches of the fixture video
+(25 s apart, 21:03–21:10 UTC) plus a 140-video sample across `/video`, `/video?o=mv|tr|cm`, `/video/search` and
+`/transgender` (2025+ assets) returned **119 `pix-egi` / 21 legacy `ei` / 0 `pix-cdn77`**. So the
+load-poster shard split recorded previously (§Video pages) is corrected: `og:image` is
+`pix-egi` for 2025+ assets and unsigned `ei` for older ones on this egress. `video-page-1.html`
+pins the real `pix-egi` `og:image`; the hotlink-protected `pix-cdn77` shape is pinned by the
+**listing** fixtures (`home-page-1`, `home-page-2`, `search-page-1`), which is where the
+reported blanks come from. The plan's "re-fetch until `og:image` is `pix-cdn77`" clause could
+not be satisfied by the live site and is recorded here rather than faked.
+
+### Fixture vintage (why S1–S4 and the committed fixtures never saw this)
+
+The old fixtures happened to pin only the referer-free families: `home-page-1`,
+`search-page-1` and `search-page-2` were `pix-fl`, `video-page-1`/`video-page-2` were
+`pix-egi`, and only `home-page-2` carried `pix-cdn77` — with no test asserting a shard or an
+HTTP header. Parse-only tests read HTML; a missing `Referer` is invisible to them, so the suite
+stayed green on exactly the shape that fails in the app.
+
+Refreshed for S1 (2026-11-21, same cut, query signatures verbatim):
+
+- `home-page-1.html`, `home-page-2.html` — the verbatim `ul#videoCategory` block of `/video`
+  page 1 and page 2 from a **`pix-cdn77`** fetch pair (0 shared viewkeys);
+- `search-page-1.html` — the verbatim canonical/next head lines + `ul#videoSearchResult` block,
+  **`pix-cdn77`**; `search-page-2.html` refreshed as the same-session page-2 pair (`pix-fl`),
+  so the referer-free shape stays covered and "page 2 does not repeat page 1" still holds;
+- `video-page-1.html` — the same `viewkey=6a333a768c26c` watch page as before, re-fetched
+  (`pix-egi` `og:image`, 3 HLS legs + the remote `/video/get_media` leg).
+
+The one brittle assertion (`PornHubLoadParseTest.kt:42`, `startsWith("https://pix-egi.phncdn.com/")`)
+is now a host-shape regex (`^https://pix-[a-z0-9]+\.phncdn\.com/`), so a refreshed shard cannot
+fail the build again.
 
 ### Verification note (S1)
 
@@ -325,7 +430,7 @@ see "Mobile UA" below; curl's, OkHttp's and the app's default UA all get the des
 | Field | Selector / source | Notes |
 |---|---|---|
 | title | `h1.title span.inlineFree` | fallback `meta[property=og:title]` (same string) |
-| poster | `meta[property=og:image]` | signed, `pix-egi`/`pix-cdn77` alternate; compare the asset path, never the URL |
+| poster | `meta[property=og:image]` | signed `pix-egi` on 2025+ assets / unsigned `ei` on older ones; `pix-cdn77` was not observed for `og:image` (0/140, §Homepage shard matrix); compare the asset path, never the URL |
 | plot | `meta[property=og:description]` | the site exposes **no owner-written synopsis**; the generated `"Watch <title> on Pornhub.com, …"` string is the only description and is carried verbatim (never invented) |
 | tags | `div.categoriesWrapper a[data-label=category]` + `div.tagsWrapper a[data-label=tag]` | both feed `LoadResponse.tags`; categories first (13/14 cat + 14/16 tag links on the sampled pages) |
 | actors | `div.pornstarsWrapper a.pstar-list-btn` | anchor text is the model name (`Indica Marie`); uploads that credit nobody render **no wrapper** → empty actor list (fixture `video-page-2.html`) |
@@ -622,10 +727,16 @@ Newest, `search=starbucks`), the search page-1/page-2 pair, the home page-1/page
 
 ## Risks / blockers
 
-- **Signed/rotating media URLs**: posters and thumbnails carry `hdnea=st=…~exp=…` (+
-  `~hmac`) and rotate; `pix-fl` / `pix-cdn77` hostnames alternate per request. Parse fresh per
-  row load; never persist a poster URL as stable identity (the Distinct bar compares the
-  freshly parsed cards of one fixture/page only).
+- **Hotlink-protected still shard + missing `Referer` (the real blank-thumbnail cause, S1 of
+  #1468).** Listing stills come from one CDN family per fetch: `pix-cdn77` (signed
+  `?hash=…&validto=…`) answers **403** with no `Referer` and **200** once any `Referer` is
+  present; `pix-fl` (`?hdnea=st=…~exp=…~hmac=…`) answers 200 either way (§Homepage matrix).
+  CloudStream's image path sent no `Referer`, so a `pix-cdn77` search/home fetch rendered
+  blank. The failure mode is **not** "signature expired → re-parse": stripping the signed
+  query makes both shards fail (`pix-cdn77` 403, `pix-fl` 470) *even with* a Referer. Parse the
+  still verbatim and send the site `Referer` on image loads (S2 owns the header wiring). Never
+  persist a poster URL as stable identity (the Distinct bar compares the freshly parsed cards
+  of one fixture/page only).
 - **Header dropdown duplicates**: `ul#hottestMenuSection` (header "Hottest" menu) repeats
   `li.pcVideoListItem` cards on *every* page, including page 2 — the card selector must stay
   scoped to `ul#videoCategory` (rows) or `ul#videoSearchResult` (search) or every row/page
