@@ -33,24 +33,38 @@ permissions:
   actions: write
 
 concurrency:
-  # Concurrency is evaluated when the run starts, before any job `if`, so a
-  # bot-triggered run would still cancel the live sweep even though its job
-  # is skipped. The churn channels get their own group: those runs cancel
-  # each other and never touch the real one (87 of the last 100 runs were
-  # cancelled before this split, #1437/#1467).
+  # Churn channels get their own group so their runs never occupy — let alone
+  # cancel — the real sweep's slot (87 of the last 100 runs were cancelled
+  # before this split, #1437/#1467). They are also skipped by the job `if`,
+  # so a churn run costs a few seconds of its own queue at most.
   #
   # Scoped to the churn channels only: bot `issues: labeled` (the
   # status/queued -> ai-fix path) and bot merge events (genuine chain
-  # advance) stay on the real group, and human comments still supersede each
-  # other, which is what CONTEXT.md's "add/remove pairs cannot interleave"
-  # invariant relies on.
+  # advance) stay on the real group. Human comments no longer supersede a
+  # running sweep either — they queue behind it (see below), which is what
+  # keeps CONTEXT.md's "add/remove pairs cannot interleave" invariant true.
   group: >-
     orchestrator-${{
     ((github.event_name == 'issue_comment' && github.event.comment.user.type == 'Bot')
     || (github.event_name == 'pull_request_review' && github.event.review.user.type == 'Bot')
     || (github.event_name == 'issues' && github.event.action == 'opened'
     && github.event.issue.user.type == 'Bot')) && 'noop' || 'main' }}
-  cancel-in-progress: true
+  # NOT cancel-in-progress. A sweep takes ~12 minutes and events arrive every
+  # few seconds during active work, so cancelling the in-flight sweep on every
+  # event meant none ever finished: 22:37-22:43 today produced six cancelled
+  # runs and zero completed ones, so a conflict that needed the sweep's
+  # conflict_watch was never looked at (#1466). With queueing, the running
+  # sweep always completes and one pending run supersedes older pendings — a
+  # burst collapses to "current + next", and each sweep is idempotent state
+  # reconciliation anyway.
+  #
+  # Steady state under load: the queue is never empty, so pending runs are
+  # routinely superseded before they start. Human-answer latency is therefore
+  # one to two sweeps (~12-24 min), not seconds — the price of every sweep
+  # finishing. Nothing is lost: orchestrator.py reads no GITHUB_EVENT_PATH,
+  # so every step re-derives from the API and a superseded run would have
+  # reached the same verdict.
+  cancel-in-progress: false
 
 env:
   GH_TOKEN: ${{ github.token }}
@@ -58,6 +72,11 @@ env:
 jobs:
   orchestrate:
     runs-on: ubuntu-latest
+    # A sweep takes 12-14 min. With queueing instead of cancellation, a hung
+    # fetch/gh call would otherwise hold the queue for the 360-minute job
+    # default and block the schedule and every event trigger behind it —
+    # nothing else can cancel it (the in-sweep watchdog() only covers what it
+    # can see).
     # The comment trigger exists for HUMAN round answers ("approved", a
     # decision tag) so they resolve in seconds. Agent/machinery comments are
     # churn by this file's own account — and with `cancel-in-progress: true`
@@ -80,6 +99,7 @@ jobs:
           || github.event.action != 'opened'
           || github.event.issue.user.type != 'Bot')
     
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:
