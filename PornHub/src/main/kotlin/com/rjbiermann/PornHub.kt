@@ -21,6 +21,7 @@ import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
+import java.net.URLEncoder
 
 /**
  * Pure parsing for the /video listing cards (TDD-first, ADR-0005) — fixtures in
@@ -37,8 +38,18 @@ object Parse {
      */
     private const val LISTING = "ul#videoCategory li.pcVideoListItem"
 
+    /**
+     * The search-results block. The card markup is shared with the listing, but the container is
+     * not: search results render in `ul#videoSearchResult`, while the header dropdown
+     * (`ul#hottestMenuSection`) and the bottom promo row (`ul#bottomVideos`) put the same
+     * `li.pcVideoListItem` cards on the search page too (FINDINGS §Search).
+     */
+    private const val SEARCH_LISTING = "ul#videoSearchResult li.pcVideoListItem"
+
     /** The card link; ad slots (`li.sniperModeEngaged`) carry no such anchor and are dropped. */
     private const val LINK = "a[href^=\"/view_video.php?viewkey=\"]"
+
+    private const val SEARCH_PATH = "/video/search"
 
     /** One listing card. [durationMinutes] / [views] are the card's own metadata (FINDINGS). */
     data class VideoCard(
@@ -50,12 +61,38 @@ object Parse {
     )
 
     /** Parse function: listing HTML → cards. Broken cards are dropped, never fail the list. */
-    fun cards(html: String): List<VideoCard> =
-        Jsoup.parse(html, BASE).select(LISTING).mapNotNull { card(it) }
+    fun cards(html: String): List<VideoCard> = cardsIn(html, LISTING)
+
+    /** Parse function: search-results HTML → cards, scoped to the result block (FINDINGS §Search). */
+    fun searchCards(html: String): List<VideoCard> = cardsIn(html, SEARCH_LISTING)
+
+    private fun cardsIn(html: String, selector: String): List<VideoCard> =
+        Jsoup.parse(html, BASE).select(selector).mapNotNull { card(it) }
 
     /** Row URL for [page]: page 1 is the row's own URL, deeper pages append `page`. */
     fun pageUrl(base: String, page: Int): String =
         if (page <= 1) base else "$base${if (base.contains("?")) "&" else "?"}page=$page"
+
+    /**
+     * Search URL for [query] on [page]. Spaces become `+`, which is the form the site
+     * canonicalises to — a `%20` query answers 301 and costs a redirect round trip
+     * (FINDINGS §Search). Page 1 carries no `page` argument, exactly like the listing rows.
+     */
+    fun searchUrl(query: String, page: Int): String =
+        pageUrl(BASE + SEARCH_PATH + "?search=" + URLEncoder.encode(query.trim(), "UTF-8"), page)
+
+    /**
+     * Pagination signal: the site's own `<link rel="next">`, with the pagination block's enabled
+     * Next anchor as the backstop. It is absent on the reachable last page (page 100 for a broad
+     * query, where `li.page_next` is `disabled` with an empty href) and on the 404 no-results
+     * response — never a constant (FINDINGS §Pagination (search)).
+     */
+    fun hasNextPage(html: String): Boolean {
+        val doc = Jsoup.parse(html, BASE)
+        if (doc.selectFirst("link[rel=next]") != null) return true
+        val next = doc.selectFirst("li.page_next:not(.disabled) a[href]") ?: return false
+        return next.attr("href").isNotBlank()
+    }
 
     /** Site clock ("9:25", "1:02:03") → minutes. */
     fun clockMinutes(text: String?): Int? {
@@ -97,9 +134,11 @@ object Parse {
 /**
  * Parse seam: listing HTML → [SearchResponse]s, no HTTP. The [MainAPI] receiver is only what
  * the repo's emission helper needs (`newMovieSearchResponse` stamps the provider `apiName`).
+ * [search] reads the search-results container instead of the row listing — the card shape is
+ * shared, only the block differs (FINDINGS §Search).
  */
-fun MainAPI.parseVideoCards(html: String): List<SearchResponse> =
-    Parse.cards(html).mapNotNull { card ->
+fun MainAPI.parseVideoCards(html: String, search: Boolean = false): List<SearchResponse> =
+    (if (search) Parse.searchCards(html) else Parse.cards(html)).mapNotNull { card ->
         try {
             newMovieSearchResponse(card.title, card.url, TvType.NSFW) {
                 this.posterUrl = card.poster
@@ -116,6 +155,11 @@ class PornHub : MainAPI() {
     override var lang = "en"
     override val supportedTypes = setOf(TvType.NSFW)
     override val vpnStatus = VPNStatus.MightBeNeeded
+
+    // FINDINGS §Quick search: /video/search_autocomplete, /api/v1/video/search and /suggest all
+    // answer HTTP 404, so there is no distinct suggest endpoint to call — results come from the
+    // full search page only.
+    override val hasQuickSearch = false
 
     // FINDINGS §Homepage: all four rows are the /video listing, `o=` selects the sort, and
     // the labels are the site's own nav labels (`o=cm` is Newest — "sort_newest" in the page).
@@ -134,9 +178,13 @@ class PornHub : MainAPI() {
         )
     }
 
-    // S2 (#1408) ships the real search; the stub keeps the app off MainAPI's NotImplementedError.
-    override suspend fun search(query: String, page: Int): SearchResponseList =
-        newSearchResponseList(emptyList(), hasNext = false)
+    override suspend fun search(query: String, page: Int): SearchResponseList {
+        val html = app.get(Parse.searchUrl(query, page)).text
+        return newSearchResponseList(
+            parseVideoCards(html, search = true),
+            hasNext = Parse.hasNextPage(html), // the site's own rel=next, never a constant
+        )
+    }
 
     // S3 (#1409) ships metadata + HLS links; a null load drops the card instead of throwing.
     override suspend fun load(url: String): LoadResponse? = null

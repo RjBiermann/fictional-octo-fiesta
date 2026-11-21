@@ -2,8 +2,9 @@
 
 Probe date: 2026-11-18, from the CI runner (GitHub Actions, `Ubuntu` runner IP — EU/US,
 see Risks). Stories S1–S4 of the PornHub spec (#1406) fill this document; S1 (§Engine
-fingerprint, §Homepage, §Pagination (home)) is complete and verified, S2 (§Search, quick
-search), S3 (§Video pages, related, streams) and S4 (closeout) append their sections.
+fingerprint, §Homepage, §Pagination (home)) and S2 (§Search, §Pagination (search), §Quick
+search) are complete and verified; S3 (§Video pages, related, streams) and S4 (closeout)
+append their sections.
 
 ## Engine fingerprint
 
@@ -146,19 +147,104 @@ https://www.pornhub.com/video?page=0 -> HTTP 404
   with page-1 duplicates — `hasNext = true` in `getMainPage` is safe and the app stops on the
   empty/404 page rather than re-serving page 1.)
 
-### Search / related
+### Search
 
-Deferred to S2 (#1408) and S3 (#1409) — not probed in this story.
+- Pattern: **query param**, the same helper as the rows — page 1 is
+  `/video/search?search=<q>` (no `page` argument), page N appends `page=N`
+  (`Parse.searchUrl` reuses `Parse.pageUrl`).
+- Page 2 is fresh: 43 cards, **0 shared viewkeys** with page 1 (transcript below).
+- Page 1 carries ad slots (`li.sniperModeEngaged`, 31 real cards); every page 2+ has 43.
+- Signal: the site's own `<link rel="next" href="…&page=N+1">` in `<head>`, with
+  `div.pagination3 li.page_next a[href]` (same href) as the backstop. Both are **absent /
+  disabled on the last reachable page** and on the 404 no-results response, so `hasNext` is
+  derived, never a constant (`Parse.hasNextPage`).
+- Which page is last depends on the query's result count: `search=teen` reports
+  `resultsCount: 320365` in `page_params.VIDEOS_FILTER` and still stops at **page 100**
+  (43 cards, no `link rel=next`, `li.page_next disabled` with `href=""`). Page 101+ answers
+  **HTTP 404** with no result block, so the app's pagination ends on the `hasNext = false`
+  page instead of walking into 404s (or into re-served page-1 cards).
+
+```
+== search page 1 + page 2 (query: teen) ==
+search page 1                GET /video/search?search=teen -> HTTP 200; cards: 31; distinct viewkeys: 31; rel=next: True
+search page 2                GET /video/search?search=teen&page=2 -> HTTP 200; cards: 43; distinct viewkeys: 43; rel=next: True
+page 2 vs page 1 shared viewkeys: 0
+== multi-word query encoding ==
+big tits (+ form)            GET /video/search?search=big+tits -> HTTP 200; cards: 31; distinct viewkeys: 31; rel=next: True
+big tits (%20 form)          GET /video/search?search=big tits -> HTTP 200; cards: 31; distinct viewkeys: 31; rel=next: True
+== past the last page ==
+search page 100 (last)       GET /video/search?search=teen&page=100 -> HTTP 200; cards: 43; distinct viewkeys: 43; rel=next: False
+search page 101              GET /video/search?search=teen&page=101 -> HTTP 404; cards: 0; distinct viewkeys: 0; rel=next: False
+search page 0                GET /video/search?search=teen&page=0 -> HTTP 404; cards: 0; distinct viewkeys: 0; rel=next: False
+no-result query              GET /video/search?search=zzzzqqqqnonexistent -> HTTP 404; cards: 0; distinct viewkeys: 0; rel=next: False
+RESULT: PASS
+```
+
+The card counts are scoped to `ul#videoSearchResult` — the 404 bodies still hold 20–29
+`li.pcVideoListItem` header-dropdown cards, so an unscoped count would fake-pass the
+past-last-page check (see §Search, scoping).
 
 ## Search
 
-Deferred to S2 (#1408). The row/listing card Parse function (`Parse.cards` →
-`parseVideoCards`) is the seam S2 reuses; no search endpoint is claimed here.
+The row/listing card Parse function (`Parse.cards` → `parseVideoCards`) is the seam S2
+reuses; only the container differs:
+
+- endpoint: `https://www.pornhub.com/video/search?search=<q>` (HTTP 200, ~1.1 MB body);
+- results block: `ul#videoSearchResult` (class `full-row-thumbs display-grid col-3-sm
+  col-4 videos search-video-thumbs`), cards `ul#videoSearchResult li.pcVideoListItem`;
+- card shape is **identical** to the listing (§Homepage): `a[href^="/view_video.php?viewkey="]`
+  for the link (ad slots `li.sniperModeEngaged` have none and are dropped), `span.title a`
+  for the title, `var.duration` (here classed `bgShadeEffect duration tooltipTrig`) for the
+  duration, `span.views var` for the views, `src` / `data-mediumthumb` for the poster.
+  Page 1: duration 31/31, views 31/31.
+- **Scoping is load-bearing again, for a third container**: the search page also renders the
+  header dropdown (`ul#hottestMenuSection`) and a bottom promo row (`ul#bottomVideos`) with
+  the same `li.pcVideoListItem` markup. A bare `li.pcVideoListItem` count therefore reports
+  33 cards on page 1 where the result block has 31, and 20–29 on a 404 body where the
+  result block has 0. `Parse.searchCards` scopes to `ul#videoSearchResult`.
+- **Space encoding**: the canonical form is `+` (`<link rel="canonical"
+  href="…?search=big+tits">`). `search=big%20tits` answers **301** into the `+` form; both
+  then serve the same 31 cards. `Parse.searchUrl` encodes with
+  `URLEncoder.encode(q, "UTF-8")` → `+`, so the app never pays the redirect.
+- **No results**: a query with no matches answers **HTTP 404** with `div.noResultsWrapper`
+  ("No Search Results."), no `ul#videoSearchResult` and no `link rel=next`. NiceHttp's
+  `app.get` does not throw on 4xx, so the body is parsed: empty list, `hasNext = false`.
+- **search ↔ load agreement**: three sampled page-1 cards fetched as
+  `view_video.php?viewkey=<vkey>` → HTTP 200 with `og:title` equal to the card title
+  (`Her Tits Drives Me Crazy`; `Cumming inside my Best Friend's Mom`; `5 Minutes Before
+  Class and I'm Still Not Ready: Hard Pillow Fuck and Squirt`). Their `og:image` is the
+  same asset path on a **different CDN shard and rendition**
+  (`pix-fl…/plain/rs:fit:320:180` on the card vs `pix-egi…/plain/rs:fit:640:360` on the
+  load page) — so poster agreement has to compare the asset path, never the signed URL
+  (carried into S3).
+
+### Verification note (S2)
+
+verify.sh hard-requires `--video-url` (plus its stream checks), which S3 ships, so S2 was
+verified with the same mechanics verify.sh applies to its search check — fetch both search
+pages, require ≥1 card, require page 2 to share no viewkey with page 1, and require the
+multi-word query to round-trip — via the transcript in §Pagination (search) plus the
+title-agreement probe above. The fixtures under `PornHub/src/test/resources/` are the
+verbatim `<link rel="canonical">` / `<link rel="next|prev">` head lines followed by the
+verbatim `<ul id="videoSearchResult">` result block (`search-page-1.html`,
+`search-page-2.html`), the verbatim head lines + `<div class="pagination3">` block of the
+last reachable page (`search-last-page.html`), and the verbatim `<title>` +
+`div.noResultsWrapper` of the 404 response (`search-no-results.html`) — the only markup the
+search Parse seams read.
 
 ## Quick search
 
-Deferred to S2 (#1408), which records the explicit presence/absence probe. S1 ships
-`hasQuickSearch` at its `false` default with no claimed endpoint.
+**No distinct quick-search endpoint.** All three round-2 probes answer HTTP 404, so there is
+nothing for `quickSearch` to call and `hasQuickSearch` stays `false` (results come from the
+full search page only):
+
+```
+$ for u in "/video/search_autocomplete?q=teen" "/api/v1/video/search?search=teen" "/suggest?q=teen"; do
+    curl -s -o /dev/null -w "https://www.pornhub.com$u -> HTTP %{http_code}\n" -A "$UA" "https://www.pornhub.com$u"; done
+https://www.pornhub.com/video/search_autocomplete?q=teen -> HTTP 404
+https://www.pornhub.com/api/v1/video/search?search=teen -> HTTP 404
+https://www.pornhub.com/suggest?q=teen -> HTTP 404
+```
 
 ## Video pages / Related videos / Stream sources / Headers
 
@@ -174,10 +260,12 @@ video identity, listing cards expose duration + views (above), and poster URLs a
   freshly parsed cards of one fixture/page only).
 - **Header dropdown duplicates**: `ul#hottestMenuSection` (header "Hottest" menu) repeats
   `li.pcVideoListItem` cards on *every* page, including page 2 — the card selector must stay
-  scoped to `ul#videoCategory` or every row/page cross-check sees duplicates.
+  scoped to `ul#videoCategory` (rows) or `ul#videoSearchResult` (search) or every row/page
+  cross-check sees duplicates. On the search page `ul#bottomVideos` (promo row) is a third
+  container with the same card shape.
 - **Ad slots**: `li.sniperModeEngaged` (and other promo `li`s) carry no video link; they are
   dropped by the link selector, not by position.
 - **Geo**: probed from the CI runner (EU/US GitHub Actions IP); no geo-wall or age gate
   observed on `/video`, listings, or the sort rows. Video/stream surfaces are S3's to probe.
 - Chrome desktop UA used for every request (`Mozilla/5.0 … Chrome/124.0 Safari/537.36`); no
-  Referer or cookie was required for any S1 surface.
+  Referer or cookie was required for any S1/S2 surface.
