@@ -11,9 +11,9 @@ and updated finding issues. No provider code changes — artifacts only.
 
 This skill composes [site-probe](../site-probe/SKILL.md) per provider. All
 site-probe rules carry over: escalation ladder (plain curl → TLS-impersonated
-curl via `scripts/impersonate.sh`, `PYTHON=` for a venv → browser diagnosis), Leads-are-not-evidence,
-FINDINGS-only ground truth. What's added here is calibration, lifecycle, and
-the machine-readable registry.
+curl via `scripts/impersonate.sh` (set `PYTHON=` to use a venv) → browser
+diagnosis), Leads-are-not-evidence, FINDINGS-only ground truth. What's added
+here is calibration, lifecycle, and the machine-readable registry.
 
 ## Phase 0 — calibrate (never skip)
 

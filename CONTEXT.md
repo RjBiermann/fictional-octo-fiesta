@@ -180,7 +180,7 @@ An issue the Audit creates for one gap batch: Correctness+Drift share one issue 
 _Avoid_: audit finding, auto-fix, bug report (that is Triage's output)
 
 **Drift probe**:
-A cheap scheduled per-provider live check (search + one video page + one stream) that detects provider rot. Distinct from a full **FINDINGS** probe: no evidence transcription, verdict-only output. Broken providers surface as triage issues, not automatic fixes.
+The per-provider live check that detects provider rot: search + one video page + one stream. It runs inside an **Audit** (its Phase 1 sweep), fired by a maintenance dispatch or an audit issue — never on a schedule, since no workflow probes provider sites on a cron. It is not a separate verdict-only instrument either: the probe writes **FINDINGS** evidence plus evidence-bearing finding issues.
 _Avoid_: monitoring, health check (the report is a Health report; the probe is the action)
 
 **Health report**:
