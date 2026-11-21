@@ -49,8 +49,9 @@ GUARD_HEADING = "## Rule 0 — pre-push identity guard"
 # Every one of these must appear in the guard section of BOTH prompts: they are
 # the derivation inputs, the two assertions, and the abort/stamp behaviour.
 GUARD_PHRASES = [
-    "aw_context.item_number",
-    "devloop/issue-<N>-",
+    "pull-request-number",
+    "devloop/issue-<k>-",
+    "ai/issue-<k>-",
     "closingIssuesReferences",
     "NO push call is made",
     "add_comment",
@@ -101,6 +102,20 @@ def extract_guard(text):
     rest = text[start + len(GUARD_HEADING):]
     nxt = rest.find("\n## ")
     return (GUARD_HEADING + (rest if nxt < 0 else rest[:nxt])).strip()
+
+
+# Delivery branch shapes that carry an issue segment (AGENT_BRANCHES in
+# .github/orchestrator.py). Rule 0 keys the derivation on these.
+SEGMENT_PREFIXES = ("devloop/issue-", "ai/issue-")
+
+
+def issue_segment(branch):
+    """The <k> of a `devloop/issue-<k>-…` / `ai/issue-<k>-…` branch, else None."""
+    for prefix in SEGMENT_PREFIXES:
+        if branch.startswith(prefix):
+            head = branch[len(prefix):].split("-")[0]
+            return int(head) if head.isdigit() else None
+    return None
 
 
 def normalize(text):
@@ -183,19 +198,31 @@ def simulate(case, stories, pipeline, run_url):
     }
 
     ctx = case.get("aw_context") or {}
-    n = ctx.get("item_number")
-    if n is None:  # event trigger: derive from the PR's closing-issue link
-        refs = case["pr_closing_issues"]
-        n = refs[0] if len(refs) == 1 else None
+    ctx_num = ctx.get("item_number")
+    refs = case.get("pr_closing_issues") or []
+    named = refs[0] if len(refs) == 1 else None   # the single story the PR names
+    seg = issue_segment(case["target_branch"])
+    is_pr_ctx = ctx.get("item_type") == "pull_request"
 
-    branch_ok = n is not None and case["target_branch"].startswith(
-        "devloop/issue-%s-" % n)
-    refs_ok = n is not None and n in case["pr_closing_issues"]
+    # Rule 0 in order: target identity, then N, then the assertions.
+    target_ok = (not is_pr_ctx) or ctx_num == case["target_pr"]
+    if is_pr_ctx:
+        n = seg if seg is not None else named
+    else:
+        n = ctx_num
+    if seg is not None:
+        primary_ok = n == seg
+    else:
+        # no segment: only an owner hand-delivery may derive N from naming
+        primary_ok = case.get("author") == "owner" and named is not None and n == named
+    secondary_ok = n is not None and n in refs
 
-    if pipeline["identity_guard"] and not (branch_ok and refs_ok):
-        failed = ("primary — branch lacks the devloop/issue-%s- prefix" % n
-                  if not branch_ok else
-                  "secondary — PR closing-issue link does not list %s" % n)
+    if pipeline["identity_guard"] and not (target_ok and primary_ok and secondary_ok):
+        failed = ("target identity — the PR is not the one this run was "
+                  "dispatched for" if not target_ok else
+                  "primary — branch issue segment does not match %s" % (n,)
+                  if not primary_ok else
+                  "secondary — PR closing-issue link does not list %s" % (n,))
         run["stamps"].append({
             "issue": n,
             "body": ("ABORT (cross-contamination guard): run %s, aw_context item "
@@ -233,8 +260,11 @@ def classify(run, case, stories):
     if run["pushed_paths"] is None:
         return "abort" if run["stamps"] else "silent"
 
-    if not run["target_branch"].startswith("devloop/issue-%s-" % story["issue"]):
-        return "leak"  # pushed onto a branch that is not story A's
+    branch_story = issue_segment(run["target_branch"])
+    if branch_story is not None and branch_story != story["issue"]:
+        return "leak"  # pushed onto another story's branch
+    if branch_story is None and case.get("author") != "owner":
+        return "leak"  # segment-less branch outside an owner hand-delivery
 
     sibling_only = set(sibling["deliverables"]) - set(story["deliverables"])
     if sibling_only & set(run["pushed_paths"]):

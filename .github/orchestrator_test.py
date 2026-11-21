@@ -550,13 +550,14 @@ class TestFixSurrogateDedupe(unittest.TestCase):
 
     VERDICT = "## Review\n\n**Verdict: blocker** — rows parse empty."
 
-    def run_surrogate(self, markers, branch_moved, in_flight=False):
+    def run_surrogate(self, markers, branch_moved, in_flight=False, tail=()):
         posted, fired, cmds = [], [], []
         pr = {"number": 1411, "user": {"login": "rjbiermann-machinery[bot]"},
               "head": {"ref": "devloop/issue-1407-c141da7ff2421900"}}
         thread = [bot_comment(self.VERDICT)]
         thread += [bot_comment(f"{orchestrator.MARK} fix-loop re-fired for "
                               f"the verdict at 2026-11-18T23:49:02Z")] * markers
+        thread += list(tail)
         with mock.patch.object(orchestrator, "open_pulls", lambda: [pr]), \
                 mock.patch.object(orchestrator, "_fixable_pr", lambda p: True), \
                 mock.patch.object(orchestrator, "comments", lambda n: thread), \
@@ -579,6 +580,37 @@ class TestFixSurrogateDedupe(unittest.TestCase):
         posted, fired, _ = self.run_surrogate(markers=1, branch_moved=False)
         self.assertEqual(len(fired), 1, "unserved verdict must re-fire")
         self.assertEqual(len(posted), 1)
+
+    def test_verdict_followed_by_budget_stamp_still_fires(self):
+        # 06-review posts its work-attempt stamp as a separate comment a
+        # second AFTER the verdict (#1420: blocker 04:45:03, stamp 04:45:04).
+        # Reading "the last bot comment" as the verdict found the stamp and
+        # never fired — and never escalated.
+        stamp = bot_comment("gh-aw budget: attempt=1 kind=review "
+                            "run=https://github.com/o/r/actions/runs/1 credits=0")
+        posted, fired, _ = self.run_surrogate(markers=0, branch_moved=False,
+                                              tail=[stamp])
+        self.assertEqual(len(fired), 1, "verdict must survive a later stamp")
+        self.assertEqual(len(posted), 1)
+
+    def test_plural_blocker_verdict_is_recognised(self):
+        # the fire predicate is a substring test, so "2 blockers" fires —
+        # the candidate filter must not be narrower than that (#1360, #1325)
+        verdict = bot_comment("## Review round 3\n\n**2 blockers** outstanding.")
+        self.assertTrue(orchestrator.VERDICT_HINT.search(verdict["body"]))
+
+    def test_budget_stamp_alone_is_not_a_verdict(self):
+        stamp = bot_comment("gh-aw budget: attempt=1 kind=review "
+                            "run=https://github.com/o/r/actions/runs/1 credits=0")
+        with mock.patch.object(orchestrator, "open_pulls",
+                               lambda: [{"number": 1420,
+                                         "user": {"login": "github-actions[bot]"},
+                                         "head": {"ref": "devloop/issue-1410-x"}}]), \
+                mock.patch.object(orchestrator, "_fixable_pr", lambda p: True), \
+                mock.patch.object(orchestrator, "comments", lambda n: [stamp]), \
+                mock.patch.object(orchestrator, "dispatch_ok",
+                                  lambda cmd, **kw: self.fail("dispatched on a stamp")):
+            orchestrator.fix_surrogate()
 
     def test_pushed_repair_is_served(self):
         posted, fired, _ = self.run_surrogate(markers=1, branch_moved=True)
