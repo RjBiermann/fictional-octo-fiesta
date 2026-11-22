@@ -52,6 +52,15 @@ object KvsVideofileParse {
     fun origin(url: String): String? = ORIGIN.find(url)?.groupValues?.get(1)
 
     /**
+     * Referer the KVS CDNs accept on the stream: the API answer's FINAL origin (a mirror's
+     * 302 lands on the canonical host, e.g. videotxxx.com → txxx.com), else the embed's own
+     * origin. The provider page that dispatched us is NOT accepted — vjav/txxx gate on their
+     * own origin and answer 403 to a foreign referer (#1508 review).
+     */
+    fun streamReferer(embedUrl: String, apiResponseUrl: String?): String? =
+        origin(apiResponseUrl.orEmpty()) ?: origin(embedUrl)
+
+    /**
      * The `videofile.php` endpoint for an embed URL, built on the embed's OWN origin —
      * the txxx mirror's 302 to `txxx.me` happens after dispatch, so the request has to
      * start where the iframe pointed. Null when no id can be read.
@@ -93,7 +102,7 @@ object KvsVideofileParse {
             val absolute = if (decoded.startsWith("http")) decoded else origin.trimEnd('/') + "/" + decoded.trimStart('/')
             Source(absolute, e.path("format").asText(""))
         }.distinctBy { it.url }
-    } catch (e: Exception) {
+    } catch (e: com.fasterxml.jackson.core.JsonProcessingException) {
         emptyList()
     }
 }
@@ -116,14 +125,16 @@ open class KvsVideofile(override val mainUrl: String, override val name: String)
         callback: (ExtractorLink) -> Unit
     ) {
         val api = KvsVideofileParse.apiUrl(url) ?: return
+        // request on the embed's own origin — a foreign referer is what the CDNs reject
+        val embedOrigin = KvsVideofileParse.origin(url) ?: mainUrl
         val res = try {
-            app.get(api, referer = referer ?: url)
+            app.get(api, referer = embedOrigin)
         } catch (e: Exception) {
             Log.d(name, "videofile: ${e.message}")
             return
         }
-        // absolutize against the API response's own origin (mirror → canonical redirect)
-        val origin = KvsVideofileParse.origin(res.url) ?: mainUrl
+        // absolutize + referer against the API response's own origin (mirror → canonical redirect)
+        val origin = KvsVideofileParse.streamReferer(url, res.url) ?: mainUrl
         for (source in KvsVideofileParse.sources(res.text, origin)) {
             callback.invoke(
                 newExtractorLink(
@@ -132,7 +143,7 @@ open class KvsVideofile(override val mainUrl: String, override val name: String)
                     url = source.url,
                     type = if (source.url.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
                 ) {
-                    this.referer = referer ?: mainUrl
+                    this.referer = origin
                     this.quality = Qualities.Unknown.value
                 }
             )

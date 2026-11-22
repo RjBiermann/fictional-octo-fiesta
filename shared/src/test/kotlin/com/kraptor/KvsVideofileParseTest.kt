@@ -121,6 +121,27 @@ class KvsVideofileParseTest {
         assertTrue(KvsVideofileParse.sources(json, "https://vjav.com").isEmpty())
     }
 
+    // ── stream referer (CDNs gate on their own origin, #1508 review) ─────────────
+
+    /** videotxxx 302s to txxx.com: only the canonical origin answers 206, videotxxx is 403. */
+    @Test fun `stream referer follows the api response to the canonical origin`() {
+        assertEquals(
+            "https://txxx.com",
+            KvsVideofileParse.streamReferer(
+                "https://videotxxx.com/embed/17065297/?source=728113931",
+                "https://txxx.com/api/videofile.php?video_id=17065297&lifetime=864000"
+            )
+        )
+    }
+
+    /** No redirect: the embed's own origin is the one its CDN accepts. */
+    @Test fun `stream referer falls back to the embed origin`() {
+        assertEquals(
+            "https://vjav.com",
+            KvsVideofileParse.streamReferer("https://vjav.com/embed/390635/", null)
+        )
+    }
+
     // ── registry rows (loadExtractor prefix dispatch) ─────────────────────────────
 
     /**

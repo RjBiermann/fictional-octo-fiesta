@@ -48,7 +48,7 @@ object YoupornParse {
                 if (videoUrl.isBlank()) return@mapNotNull null
                 Media(format, videoUrl, e.path("height").asInt(0))
             }
-        } catch (e: Exception) {
+        } catch (e: com.fasterxml.jackson.core.JsonProcessingException) {
             emptyList()
         }
     }
