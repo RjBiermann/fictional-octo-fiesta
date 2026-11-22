@@ -288,6 +288,7 @@ class HostRegistryTest {
             "Player4Me" to 8,        // Player4Me class + player4me mirrors
             "Streamtape" to 7,       // custom StreamTAPE + streamtapeMirror rows
             "Streamwish" to 2,       // Streamwish base + Filesim-pathed swhoi row
+            "Txxx" to 3,             // KVS videofile family (issue #1445): videotxxx.com mirror + txxx.com + txxx.me rows
             "Vidara" to 2,           // Vidara (.to, jav.guru "cd") + VidaraSo mirror — Mangoporn default host (issue #657)
             "VidHidePro" to 7,       // VidHidePro class + vidHidePro mirrors
             "Voe" to 4,              // Voe base + voeMirror rows

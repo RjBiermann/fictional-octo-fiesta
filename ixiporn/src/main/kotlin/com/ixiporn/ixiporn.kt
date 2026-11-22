@@ -105,13 +105,24 @@ class ixiporn : MainAPI() {
                 return@forEach
             }
             // #708 chaining: shape-B block's player-x.php b64 payload wraps the external
-            // hub embed (xvideos/redtube — hub varies per video). Emit the extracted hub
-            // URL through the framework's loadExtractor dispatch — mp4/HLS resolution
+            // hub embed (xvideos/redtube/youporn — hub varies per video). Emit the extracted
+            // hub URL through the framework's loadExtractor dispatch — mp4/HLS resolution
             // lives in the shared host adapters (registerHostExtractors), never here. A
-            // dead target (hub null, or no matching adapter -> loadExtractor false)
-            // emits nothing, identical to today's shape-B skip: no junk URLs (#655).
-            val hub = IxiPornParse.hubEmbedUrl(res) ?: return@forEach
-            if (loadExtractor(hub, data, subtitleCallback, callback)) emitted = true
+            // dead target (no matching adapter, or the adapter's own dead-shell decline)
+            // emits nothing, identical to the pre-#708 skip: no junk URLs (#655).
+            val hub = IxiPornParse.hubEmbedUrl(res)
+            if (hub != null) {
+                if (loadExtractor(hub, data, subtitleCallback, callback)) emitted = true
+                return@forEach  // the block's embedUrl meta names this same hub target
+            }
+            // #1445 shape D (2020-12 … 2021-02 import batch): no contentUrl, no player-x
+            // wrapper — a RAW embed iframe (`meta[itemprop=embedUrl]`, else `iframe[src]`)
+            // to vjav.com / videotxxx.com (canonical txxx.com). Before this run the shape
+            // yielded zero links; the extracted embed goes through the same loadExtractor
+            // dispatch, where the shared KvsVideofile rows resolve it. Unknown host ->
+            // no links, no junk.
+            val embed = IxiPornParse.embedUrl(res) ?: return@forEach
+            if (loadExtractor(embed, data, subtitleCallback, callback)) emitted = true
         }
 
         return emitted
@@ -134,9 +145,13 @@ class ixiporn : MainAPI() {
  * any failure point (no player-x iframe, undecodable payload, no tag, no iframe in the
  * decoded tag, non-absolute src) — dead-target contract: callers emit nothing, no junk
  * URLs. Stream resolution belongs to the shared host adapters via `loadExtractor`
- * dispatch in `loadLinks`; ixiporn never resolves hub streams itself. (Adapters for the
- * hub hosts are a separate shared/ story — until they land loadExtractor returns false
- * and shape-B pages keep emitting nothing, as today.)
+ * dispatch in `loadLinks`; ixiporn never resolves hub streams itself.
+ *
+ * #1445 (S7 video-source audit, 2026-11-22): a THIRD player shape exists — the import-era
+ * batch (2020-12 … 2021-02) serves a RAW embed iframe with `meta[itemprop=embedUrl]` and no
+ * contentUrl and no player-x wrapper (vjav.com/embed/<id>, videotxxx.com/embed/<id> →
+ * canonical txxx.com). `embedUrl` is the pure seam for it; dispatch is the same
+ * `loadExtractor` call, where the shared KvsVideofile rows resolve it.
  */
 object IxiPornParse {
     fun contentUrl(block: org.jsoup.nodes.Element?): String? {
@@ -161,6 +176,22 @@ object IxiPornParse {
             .selectFirst("iframe[src]")
             ?.attr("src")?.trim()
             ?.takeIf { it.startsWith("http") }  // absolute only: relative src = junk target (#655 contract)
+    }
+
+    /**
+     * Pure Parse function (#1445): the external embed target of a shape-D block — the
+     * `meta[itemprop=embedUrl]` value (the site's own declaration), else the first absolute
+     * `<iframe src>` in the block. Null at every failure point (no embed meta, no iframe,
+     * relative src), and for the two shapes that already have owners: a `player-x.php`
+     * iframe is the b64 wrapper ([hubEmbedUrl]), and a contentUrl page needs no embed. Not
+     * emitting anything for an unknown host keeps the #655 no-junk-URL contract.
+     */
+    fun embedUrl(block: Element?): String? {
+        if (block == null) return null
+        val fromMeta = block.selectFirst("meta[itemprop=embedUrl]")?.attr("content")?.trim()
+        if (!fromMeta.isNullOrEmpty() && fromMeta.startsWith("http")) return fromMeta
+        return block.selectFirst("iframe[src]")?.attr("src")?.trim()
+            ?.takeIf { it.startsWith("http") && !it.contains("player-x.php") }
     }
 }
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
