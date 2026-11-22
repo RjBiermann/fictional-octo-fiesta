@@ -19,6 +19,13 @@ listing stills' CDN shard / hotlink matrix and a fixture-vintage note; §Risks r
 "signed URLs rotate → re-parse" story with the real failure mode (hotlink-protected shard + a
 missing `Referer`). Read that matrix before touching poster emission.
 
+**Addendum — S1 of the #1490 search-pagination spec (2026-11-22).** §Pagination → §Search now
+carries the **reporter's own query** (`george+uhl`) transcript and the M1/M2/M3 mechanism
+table that resolves #1490: **no provider-side pagination defect exists** — the reported
+failure is app-side batching (M2) or a stale installed plugin (M3). §Search records that the
+search fixtures are now the reporter's query, with the last-page / no-results fixtures kept
+on the broad `teen` probe.
+
 ## Engine fingerprint
 
 **Custom proprietary platform** (PornHub's own stack — not KVS/Kernel, not a WP video theme).
@@ -344,6 +351,99 @@ S4 re-confirmed the past-last-page behaviour on 2026-11-21 (US egress), with the
 RESULT: PASS
 ```
 
+### Search — reporter pagination (#1490 / #1494, 2026-11-22)
+
+Reported by the owner on #1490: *"Search pagination not working in the app. I think it is
+showing results from page 1 only."* Probed with the reporter's own query on **2026-11-22
+04:54–04:59 UTC from the CI runner egress — region not recorded for this run** (the site
+answered `200` with the full result block, not the geo/SFW `302 → /` of §Risks, so none of
+that section's gates fired here; a run from the reporter's own egress is still the only way
+to rule M1 out for *their* context — see the table below).
+
+Card identity here is the **`?viewkey=` query**, exactly as in §Verification (S4): verify.sh's
+`url_path` strips the query, so every card normalizes to `/view_video.php` and its duplicate
+check false-FAILs on this site. Same mechanics as verify.sh's check 1, keyed by viewkey:
+
+```
+GET https://www.pornhub.com/video/search?search=george+uhl
+  cards=31 distinct=31 rel=next=yes rel=prev=no
+GET https://www.pornhub.com/video/search?search=george+uhl&page=2
+  cards=43 distinct=43 rel=next=yes rel=prev=yes
+  shared viewkeys with page 1: 0
+GET https://www.pornhub.com/video/search?search=milf
+  cards=31 distinct=31 rel=next=yes rel=prev=no
+GET https://www.pornhub.com/video/search?search=milf&page=2
+  cards=42 distinct=42 rel=next=yes rel=prev=yes
+  shared viewkeys with page 1: 0
+```
+
+Both pages of both queries carry the site's own `<link rel="next">` (page 2 also carries
+`<link rel="prev">`), which is the only signal `Parse.hasNextPage` reads first — so the seam
+returns `hasNext = true` on page 1 **and** page 2 of the reporter's query. Encoded with
+`Parse.searchUrl`, the page-2 request is byte-identical to the URL that answers `200` with
+the 43-card body below — no redirect:
+
+```
+$ curl -s -A "$UA" -o /dev/null -w '%{http_code} %{redirect_url}\n' 'https://www.pornhub.com/video/search?search=george%20uhl'
+301 https://www.pornhub.com/video/search?search=george+uhl
+$ curl -s -A "$UA" -o /dev/null -w '%{http_code}\n' 'https://www.pornhub.com/video/search?search=george+uhl&page=2'
+200
+```
+
+`./gradlew PornHub:test` asserts exactly this offline (`PornHubSearchParseTest`):
+`Parse.searchUrl("george uhl", 2) == https://www.pornhub.com/video/search?search=george+uhl&page=2`,
+`hasNext` true on both fixtures, page 2 ≥20 cards with **0** shared urls, and per-card
+duration/views on both pages.
+
+The repo's own script, run on the same tree (4 search pages = reporter query + broad query,
+each 2 deep; homepage pages 1–2; 2 sampled watch pages with their resolved HLS legs):
+
+```
+── check 1: search pages (4)
+GET https://www.pornhub.com/video/search?search=george+uhl         → 200; 'ul#videoSearchResult li.pcVideoListItem' matches: 38
+GET https://www.pornhub.com/video/search?search=george+uhl&page=2  → 200; matches: 50
+GET https://www.pornhub.com/video/search?search=milf               → 200; matches: 38
+GET https://www.pornhub.com/video/search?search=milf&page=2        → 200; matches: 50
+FAIL duplicate search cards … href /view_video.php …   ← the documented viewkey plateau, not drift
+── check 1a: homepage pages (2)
+GET https://www.pornhub.com/video          → 200; 'ul#videoCategory li.pcVideoListItem' matches: 45
+GET https://www.pornhub.com/video?page=2   → 200; matches: 57
+FAIL duplicate home cards …                            ← same plateau
+── check 2: video pages (2 URLs)
+GET …viewkey=6a50b7fdc5c26 → 200; 'div#player' matches: 3
+GET stream → 206 application/vnd.apple.mpegurl
+GET …viewkey=6af346a688993 → 200; 'div#player' matches: 2
+GET stream → 206 application/vnd.apple.mpegurl
+field 'tags': present on all 2 sampled pages
+field 'actors': present on all 2 sampled pages
+── check 5: search ↔ load agreement
+FAIL poster/title mismatch for /view_video.php …       ← same plateau (all rows collapse to one path)
+── check 6: LoadResponse completeness
+field 'recommendations'/'tags'/'plot'/'duration'/'year'/'actors': populated in PornHub
+RESULT: FAIL
+```
+
+Every `FAIL` above is the stripped-query identity plateau recorded in §Verification (S4) — one
+root cause, not five defects — and the `matches:` counts are global (38 = 31 result cards + 7
+header-dropdown cards; 50 = 43 + 7), as that section already documents. The stream, exposure
+and `LoadResponse` checks pass unchanged.
+
+### Mechanism table (resolving #1490)
+
+| # | Mechanism | Discriminating test | Provider-fixable? | Verdict from this run |
+|---|---|---|---|---|
+| M1 | Provider returns `hasNext=false` in the reporter's context, or page 2 parses empty there (geo/SFW gate `302 → /`, `ph-redirect: 1041`; ad-slot ratio) | one page-1 + page-2 fetch from the reporter's egress, or the app's request log; replay a gated body through the seam | yes — *if* a gated/unscoped body can silence the signal | **Not reproduced here.** On this egress the site paginates the reporter's query (31 → 43 cards, 0 shared, `rel=next` on both) and the seam derives `hasNext` from that same link, so there is nothing to fix at the Parse seam. A gated body would drop `rel=next` **and** the result block together, which makes `hasNext=false` the honest answer (the app can then show nothing rather than stale page 1) — evidence-based, not a constant. |
+| M2 | App bundles providers: `SearchViewModel.bundleSearch` sets the combined list's `hasNext=false` when >1 provider yields results; paging happens per provider via the expand control (`expandAndReturn` → `repo.search(query, nextPage)`) | does the same query paginate with only PornHub enabled? | no — app-side | **The live cause consistent with every observation**: the provider emits `hasNext=true` and fresh page-2 cards, yet the visible list stops at page 1 while other providers are enabled. User action: enable only PornHub, then expand the PornHub section before scrolling (the app only fetches page N per provider through that expand control). |
+| M3 | Installed plugin predates v5 (search `hasNext` was a constant) or came from another repo | plugin version in the app vs this repo's `plugins.json` | no — update the plugin | **Possible, and user-checkable**: this repo publishes PornHub **v6** (`builds` branch `plugins.json` → `PornHub 6`, matching `PornHub/build.gradle.kts`). An install still on the pre-v5 constant-`hasNext` plugin shows page 1 only. User action: update the plugin (or reinstall from this repo's `repo.json`). |
+
+**Conclusion (no provider defect).** The search seam paginates the reporter's query exactly as
+the site does; the reported "page 1 only" behaviour is **M2 (app-side batching — the combined
+search list's `hasNext` is the app's, not the provider's)** or **M3 (a stale installed plugin)**.
+Neither is fixable inside `PornHub/`, and no selector or stop-rule change was made — swapping a
+selector here would have been a point-in-time guess at a seam that already carries the site's
+own evidence. The in-app action is: enable only PornHub and expand the provider's section
+before scrolling (M2), and update the plugin to v6+ (M3).
+
 ### Related videos
 
 - **Does not paginate.** The `ul#relatedVideosListing` block is a fixed selection (35 cards on
@@ -401,6 +501,16 @@ verbatim `<ul id="videoSearchResult">` result block (`search-page-1.html`,
 last reachable page (`search-last-page.html`), and the verbatim `<title>` +
 `div.noResultsWrapper` of the 404 response (`search-no-results.html`) — the only markup the
 search Parse seams read.
+
+**Fixture refresh — the reporter's query (#1494, 2026-11-22).** `search-page-1.html` and
+`search-page-2.html` now carry the **reporter's own query**, `?search=george+uhl`, instead of
+the old `teen` probe: the verbatim `<link rel="canonical">` / `<link rel="next">` head lines
+(page 2 also carries `<link rel="prev">`) plus the verbatim `<ul id="videoSearchResult">`
+block — 31 cards on page 1, 43 on page 2, 0 shared viewkeys (transcript §Pagination (search)).
+The fixtures were captured from the same 2026-11-22 run and every search Parse test is now
+re-pointed at them (including the card-metadata and poster-`Referer` assertions); the
+last-page and 404 bodies stay on the broad `teen` probe, which is where those shapes were
+measured — dropping them would have silently lost the `hasNext = false` coverage.
 
 ## Quick search
 
