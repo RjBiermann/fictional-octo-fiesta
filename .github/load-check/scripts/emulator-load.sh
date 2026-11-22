@@ -4,8 +4,9 @@
 # 2. Push every built .cs3 into /storage/emulated/0/Cloudstream3/plugins/
 #    (upstream's own deployWithAdb mechanism — recloudstream/gradle
 #    DeployWithAdbTask.kt), chmod -w each (Android 14 dynamic-code rule).
-# 3. Boot the app, fire upstream's local-plugin reload intent
-#    ("cloudstreamapp:"), assert registration at logcat level only:
+# 3. Boot the app and let its own startup load register the pushed plugins;
+#    upstream's hot-reload intent ("cloudstreamapp:") is never fired here (see the
+#    note above the registration wait). Assert registration at logcat level only:
 #      success  -> PluginManager: Loaded plugin <name> successfully
 #      failure  -> PluginManager: Failed to load <file>: <stack>
 #                  PluginManager: Failed to load plugin  X: <reason>
@@ -67,7 +68,7 @@ adb shell appops set "$PKG" MANAGE_EXTERNAL_STORAGE allow
 adb shell pm grant "$PKG" android.permission.READ_EXTERNAL_STORAGE 2>/dev/null || true
 adb shell pm grant "$PKG" android.permission.WRITE_EXTERNAL_STORAGE 2>/dev/null || true
 
-# ---- push every plugin, then upstream's own reload intent -----------------
+# ---- push every plugin ----------------------------------------------------
 adb shell mkdir -p /storage/emulated/0/Cloudstream3/plugins
 for f in "$CS3_DIR"/*.cs3; do
   adb push "$f" /storage/emulated/0/Cloudstream3/plugins/ >/dev/null
@@ -76,9 +77,21 @@ adb shell "for f in /storage/emulated/0/Cloudstream3/plugins/*.cs3; do chmod -w 
 
 timeout 60 adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null || true
 sleep 8
-# Exactly upstream DeployWithAdbTask's args: `start -a android.intent.action.VIEW
-# -d cloudstreamapp:` — no trailing package argument.
-timeout 60 adb shell am start -a android.intent.action.VIEW -d 'cloudstreamapp:' >/dev/null || true
+
+# ---- the app's own startup load is the only load round ---------------------
+# The app loads every local plugin by itself when it starts, and the .cs3 files were pushed
+# above, *before* the launch — so that startup round is the round this check asserts.
+# Upstream's hot-reload intent (exactly DeployWithAdbTask's args: `start -a
+# android.intent.action.VIEW -d cloudstreamapp:`, no trailing package argument) exists for a
+# *running* app whose plugin folder changes; on a freshly installed APK launched by this
+# harness there is no such app, so there is nothing for it to reload. Firing it into a
+# startup load that is still in flight instead unloads plugin instances whose load() has not
+# returned and then re-enters load() for the same .cs3: on run 45024201161 that overlap lost
+# exactly the two plugins that were mid-load (`PerverZija`, `WatchPorn`) — neither ever
+# printed `Loaded plugin … successfully` *or* `Failed to load …`, so the check reported a
+# failure no provider code explains (FINDINGS-1500, ADR-0012). No timeout makes that safe —
+# "no verdict yet" is not "no round in flight" — so the intent is never fired here, and a
+# startup round that never speaks is reported as a hang (below), not reloaded.
 
 # ---- wait until every plugin reports or the deadline hits -----------------
 mapfile -t expected < <(cd "$CS3_DIR" && ls *.cs3 | sed 's/\.cs3$//' | sort)
@@ -108,6 +121,19 @@ done
 
 # ---- failing set: expected minus successfully-loaded (best-effort names) --
 printf '%s\n' "$loaded" > "$EVIDENCE/loaded-plugins.txt"
+
+# A round that printed no verdict at all is not a set of provider failures: the app never got
+# as far as a verdict for anything (launch never took, a first-run dialog, a wedged process,
+# or a round still inside its first load()). Nothing was exercised, so this is the
+# unattributable/infrastructure class (#1357) — naming all ${#expected[@]} plugins would be a
+# verdict about the runner, not about them (#1500).
+if [[ $timed_out -eq 1 ]] && no_verdicts "$EVIDENCE/logcat.log"; then
+  echo "TIMED OUT with no plugin verdict at all — nothing attributable" >&2
+  echo "no plugin verdict (loaded or failed) in the log; ${#expected[@]} plugins expected — the app never exercised them" \
+    > "$EVIDENCE/unattributable.txt"
+  exit 1
+fi
+
 for e in "${expected[@]}"; do
   grep -qF "$e" <<<"$loaded" || echo "$e" >> "$EVIDENCE/failing-plugins.txt"
 done

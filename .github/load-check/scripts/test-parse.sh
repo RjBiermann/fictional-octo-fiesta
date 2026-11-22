@@ -37,4 +37,30 @@ if has_failed "$tmp/clean.log"; then echo "FAIL: clean log flagged"; exit 1; fi
 [[ -z $(extract_loaded "$tmp/empty.log") ]] || { echo "FAIL: empty log loaded"; exit 1; }
 has_failed "$tmp/empty.log" && { echo "FAIL: empty log failed"; exit 1; }
 
+# reported_count counts verdict lines only — `Loading plugin: …` is printed by every plugin
+# *before* it reports and is not a verdict, so counting it would read a stalled round as
+# progress forever (issue #1500).
+cat > "$tmp/progress.log" <<'EOF'
+12-25 04:41:06.000 I/PluginManager( 4355): Loading plugin: PluginData(internalName=EPorner.cs3, url=null, isOnline=false, filePath=/x/EPorner.cs3, version=1)
+12-25 04:41:07.123 I/PluginManager( 4355): Loaded plugin EPorner.cs3 successfully
+12-25 04:41:07.456 E/PluginManager( 4355): Failed to load plugin MissAV.cs3: something broke
+EOF
+got=$(reported_count "$tmp/progress.log")
+[[ $got -eq 2 ]] || { echo "FAIL: reported_count must count verdict lines only, got '$got'"; exit 1; }
+got=$(reported_count "$tmp/empty.log")
+[[ $got -eq 0 ]] || { echo "FAIL: reported_count on an empty log must be 0, got '$got'"; exit 1; }
+
+# no_verdicts is the seam emulator-load.sh's timed-out path decides on (issue #1500). The
+# interesting input is the one no other fixture provides: a log with plugin-manager activity
+# (the folder listing, a `Loading plugin: …` line) but no verdict yet. Nothing was exercised
+# there, so naming all 27 expected plugins would be a claim about the runner, not the plugins.
+cat > "$tmp/round-started.log" <<'EOF'
+12-25 04:41:05.900 I/PluginManager( 4355): Files in '/storage/emulated/0/Cloudstream3/plugins' folder: 27
+12-25 04:41:06.000 I/PluginManager( 4355): Loading plugin: PluginData(internalName=EPorner.cs3, url=null, isOnline=false, filePath=/x/EPorner.cs3, version=1)
+EOF
+no_verdicts "$tmp/round-started.log" || { echo "FAIL: a started round with no verdict must read as no_verdicts"; exit 1; }
+no_verdicts "$tmp/empty.log" || { echo "FAIL: no_verdicts must be true for an empty log"; exit 1; }
+no_verdicts "$tmp/progress.log" && { echo "FAIL: no_verdicts must be false once a verdict is present"; exit 1; }
+no_verdicts "$tmp/sample.log" && { echo "FAIL: no_verdicts must be false for loaded+failed verdicts"; exit 1; }
+
 echo "parse-log tests PASSED"

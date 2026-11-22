@@ -1,5 +1,17 @@
 # Pipeline-run emulator load check; ADR-0001's in-app clause superseded
 
+> Amended 2026-11-22 (#1500): the load tier no longer fires the reload intent at all.
+> The app loads every local plugin by itself on startup and the `.cs3` files are pushed
+> *before* the launch, so the app's startup round is the round the tier asserts; the
+> "already running when the files land" case upstream's intent exists for cannot occur in
+> a harness that starts the app itself. Firing it into an in-flight startup load unloads
+> plugin instances whose `load()` has not returned and re-enters `load()` for the same
+> file — run 45024201161 lost exactly the two plugins that were mid-load (`PerverZija`,
+> `WatchPorn`) that way and reported a failing set no provider code explains
+> (`docs/archive/findings/FINDINGS-1500.md`). A round that reports no verdict at all names
+> no provider, so the tier reports it as unattributable (#1357's infrastructure class)
+> instead of listing every expected plugin as failing. The assertion itself is unchanged.
+
 Partially supersedes ADR-0001. Compiling against the unpinned `pre-release` classes.jar
 (bootstrapCloudstream, cold CI runs) proves API compatibility but nothing proves a plugin
 actually registers and loads inside the real CloudStream app — the one gap neither builds,
@@ -13,8 +25,9 @@ when wired, it only runs on rounds that touched plugin code.
 
 The lane carries **two tiers** today (2026-10-27):
 
-- **Load check** — registration only: install the prerelease app, push every `.cs3`, fire the
-  reload intent, assert `PluginManager: Loaded plugin X successfully` per plugin.
+- **Load check** — registration only: install the prerelease app, push every `.cs3`, let the
+  app's own startup load register them (no reload intent — see the 2026-11-22 amendment),
+  assert `PluginManager: Loaded plugin X successfully` per plugin.
 - **Player probe** — site-free: a generated 2 s H.264/TS fixture served on the runner loopback
   (`10.0.2.2` from the emulator) is opened through the app's `cloudstreamplayer://` deep link and
   must report `Rendered first frame`. This is the only tier that observes the app's player
