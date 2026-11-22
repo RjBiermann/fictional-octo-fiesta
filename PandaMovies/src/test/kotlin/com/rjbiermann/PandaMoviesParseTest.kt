@@ -20,6 +20,15 @@ class PandaMoviesParseTest {
     private val videoDoc by lazy {
         Jsoup.parse(javaClass.getResourceAsStream("/panda-video.html")!!, "UTF-8", base)
     }
+    /** Live `/genres/anal` capture 2026-11-22 (#1447): the term-route plural migration. */
+    private val genreDoc by lazy {
+        Jsoup.parse(javaClass.getResourceAsStream("/panda-genres-anal.html")!!, "UTF-8", base)
+    }
+
+    /** Live watch-page player block 2026-11-22 (#1447): the rotated embed-host set. */
+    private val watchHostsDoc by lazy {
+        Jsoup.parse(javaClass.getResourceAsStream("/panda-watch-hosts.html")!!, "UTF-8", base)
+    }
 
     @Test fun `listing cards parse title href poster`() {
         val cards = Parse.cards(searchDoc)
@@ -105,6 +114,59 @@ class PandaMoviesParseTest {
         val last = Jsoup.parse(homeDoc.outerHtml().replace(Regex("<a[^>]*class=\"next[^\"]*\"[^>]*>[\\s\\S]*?</a>"), ""))
         assertTrue(Parse.cards(last).isNotEmpty())
         assertTrue(!Parse.hasNextPage(last))
+    }
+
+    @Test fun `term-route cards parse on the plural genres surface (#1447)`() {
+        val cards = Parse.cards(genreDoc)
+        assertEquals(27, cards.size)
+        assertEquals("Audrey Hollander & Otto Bauer & Rick Masters Bound Gagged DP Facial Collector Scene", cards.first().title)
+        assertTrue(cards.first().href.endsWith("-movie-online-free"))
+        assertTrue(cards.first().poster?.contains("3338755.jpg") == true)
+        assertTrue(Parse.hasNextPage(genreDoc))
+    }
+
+    @Test fun `rowCandidates derives the taxonomy twin in both directions (#1447)`() {
+        val plural = "https://pandamovies.org/genres/anal"
+        val singular = "https://pandamovies.org/genre/anal"
+        assertEquals(listOf(plural, singular), Parse.rowCandidates(plural))
+        assertEquals(listOf(singular, plural), Parse.rowCandidates(singular))
+        assertEquals(
+            listOf("https://pandamovies.org/studios/brazzers", "https://pandamovies.org/studio/brazzers"),
+            Parse.rowCandidates("https://pandamovies.org/studios/brazzers")
+        )
+        assertEquals(
+            listOf("https://pandamovies.org/years/1971", "https://pandamovies.org/release-year/1971"),
+            Parse.rowCandidates("https://pandamovies.org/years/1971")
+        )
+    }
+
+    @Test fun `rowCandidates never invents a twin for slug-free rows (#1447)`() {
+        // A bare route (/genres index, /movies, the homepage) is NOT a term page: flipping its
+        // last segment would request a page that does not exist, so the single URL stands.
+        assertEquals(listOf("https://pandamovies.org"), Parse.rowCandidates("https://pandamovies.org"))
+        assertEquals(listOf("https://pandamovies.org/movies"), Parse.rowCandidates("https://pandamovies.org/movies"))
+        assertEquals(listOf("https://pandamovies.org/genres"), Parse.rowCandidates("https://pandamovies.org/genres"))
+        assertEquals(
+            listOf("https://pandamovies.org/most-viewed"),
+            Parse.rowCandidates("https://pandamovies.org/most-viewed")
+        )
+    }
+
+    @Test fun `watch embeds enumerate every rotated host, not an allowlist (#1447)`() {
+        assertEquals(
+            listOf(
+                "https://playmogo.com/e/5q3x3l9ty1gx",
+                "https://lulustream.com/e/s7t887tw1aey",
+                "https://mixdrop.ag/e/oww46pwraljnqwg",
+                // the provider normalizes the voe player path to `voe.sx/<id>` (both shapes
+                // serve the same redirect shell — measured 2026-11-22, kept as-is)
+                "https://voe.sx/kkco3ozvwnch",
+                "https://vinovo.to/e/eeexdq3dtpv87p",
+                "https://vidara.so/e/SDen3CBe4iEcz",
+                "https://peeplayer.com/e/iDgbI3Cda4Cc",
+            ),
+            Parse.embeds(watchHostsDoc)
+        )
     }
 
     @Test fun `duration parsers`() {
