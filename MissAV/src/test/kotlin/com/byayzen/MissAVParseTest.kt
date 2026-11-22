@@ -85,6 +85,54 @@ class MissAVParseTest {
         assertEquals(page2, MissAVParse.filterSeen(page2, emptySet()))
     }
 
+    // ==== issue #1440 — the stream host lives in the page's own player config ====
+
+    /** getAndUnpack() output from two live video pages (2026-11-21): the pack names its
+     *  own bucket host — `c.surrit.com` on most pages, the apex on the rest. */
+    private fun unpackedPlayerConfig(name: String): String =
+        javaClass.getResourceAsStream("/issue1440/$name")!!.bufferedReader().readText()
+
+    /** A UUID minted in the `c.surrit.com` bucket 403s (Aliyun `BucketPunish`) on the apex
+     *  host the provider used to hardcode — the URL must come from the config verbatim. */
+    @Test fun `playlist url keeps the c-surrit bucket the config names`() {
+        assertEquals(
+            "https://c.surrit.com/ab2b36f7-e1df-467e-8589-87d1f991d6ae/playlist.m3u8",
+            MissAVParse.parsePlaylistUrl(unpackedPlayerConfig("unpacked-c-surrit.txt"))
+        )
+    }
+
+    /** The apex-bucket pages keep their apex URL (still a 200 — the c. host is a superset,
+     *  but the site's own choice is what ships). */
+    @Test fun `playlist url keeps the apex bucket when the config names it`() {
+        assertEquals(
+            "https://surrit.com/93153cd4-152a-4710-a15b-fb092b1f322a/playlist.m3u8",
+            MissAVParse.parsePlaylistUrl(unpackedPlayerConfig("unpacked-apex-surrit.txt"))
+        )
+    }
+
+    /** The config may append a signature to the playlist URL (`?token=…&exp=…`); the emitted
+     *  link must carry it, or the stream 403s — the same failure class this run fixes. */
+    @Test fun `playlist url keeps a query signature the config appends`() {
+        val signed = "https://c.surrit.com/ab2b36f7-e1df-467e-8589-87d1f991d6ae/playlist.m3u8?token=abc123&exp=1795000000"
+        assertEquals(signed, MissAVParse.parsePlaylistUrl("source='$signed';source842=''"))
+        // the apex form is signed the same way
+        val apexSigned = "https://surrit.com/93153cd4-152a-4710-a15b-fb092b1f322a/playlist.m3u8#t=10"
+        assertEquals(apexSigned, MissAVParse.parsePlaylistUrl("source='$apexSigned'"))
+    }
+
+    /** Older/other pack shapes carry only the bare id — keep the legacy apex form so a
+     *  config change degrades to the pre-#1440 behaviour instead of emitting no link. */
+    @Test fun `playlist url falls back to the legacy apex form without an absolute url`() {
+        assertEquals(
+            "https://surrit.com/0f8b1c2d-3e4f-5a6b-7c8d-9e0f1a2b3c4d/playlist.m3u8",
+            MissAVParse.parsePlaylistUrl("recomms='/0f8b1c2d-3e4f-5a6b-7c8d-9e0f1a2b3c4d/items/'")
+        )
+        // no id and no url at all → nothing to emit (never a fabricated host)
+        assertEquals(null, MissAVParse.parsePlaylistUrl("source=''"))
+        assertEquals(null, MissAVParse.parsePlaylistUrl(null))
+        assertEquals(null, MissAVParse.parsePlaylistUrl("  "))
+    }
+
     /** The real boundary: everything p2 shares with p1 is dropped, the rest flows through. */
     @Test fun `filterSeen clears the en-new p1-p2 boundary overlap`() {
         val p1 = cardUrls("page1")

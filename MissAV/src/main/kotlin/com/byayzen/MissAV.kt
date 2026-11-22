@@ -33,6 +33,26 @@ object MissAVParse {
     fun parseCardElements(document: Document): List<Element> =
         document.select("div.grid.grid-cols-2 > div, div.thumbnail.group").toList()
 
+    /** Player config URL / bare id inside the unpacked pack. */
+    private val playlistUrl = Regex(
+        """https?://[^"'\s\\]+/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/playlist\.m3u8[^"'\s\\]*""",
+        RegexOption.IGNORE_CASE
+    )
+    private val playlistId = Regex("""/([a-f0-9\-]{36})/""", RegexOption.IGNORE_CASE)
+
+    /** Stream URL from the unpacked player config (issue #1440). The pack names its own
+     *  bucket host — `c.surrit.com` on ~77% of the catalogue, the apex on the rest — and an id
+     *  minted in one bucket 403s on the other host (Aliyun `BucketPunish`), so the site's own
+     *  URL is taken verbatim instead of being rebuilt against a hardcoded host — including any
+     *  `?query`/`#fragment` signature the config appends, which a name-only match would drop.
+     *  A pack that carries only a bare id keeps the legacy apex form (pre-#1440 behaviour). */
+    fun parsePlaylistUrl(unpacked: String?): String? {
+        if (unpacked.isNullOrBlank()) return null
+        playlistUrl.find(unpacked)?.let { return it.value }
+        val id = playlistId.find(unpacked)?.groupValues?.get(1) ?: return null
+        return "https://surrit.com/$id/playlist.m3u8"
+    }
+
     /** Cross-page dedup (issue #641): the site's listing caches can skew, repeating the
      *  tail of page N at the head of page N+1 (/en/new — 5 cards live 2026-10-16).
      *  Given the current page's card URLs and the URLs already served on earlier pages
@@ -252,14 +272,14 @@ class MissAV : MainAPI() {
     ): Boolean {
         val response = app.get(data)
         getAndUnpack(response.text).let { unpacked ->
-            val playlistId = """/([a-f0-9\-]{36})/""".toRegex().find(unpacked)?.groupValues?.get(1)
+            val playlistUrl = MissAVParse.parsePlaylistUrl(unpacked)
 
-            if (playlistId != null) {
+            if (playlistUrl != null) {
                 callback.invoke(
                     newExtractorLink(
                         source = "MissAV",
                         name = "MissAV",
-                        url = "https://surrit.com/$playlistId/playlist.m3u8",
+                        url = playlistUrl,
                         type = ExtractorLinkType.M3U8
                     ) {
                         this.referer = "$mainUrl/"
