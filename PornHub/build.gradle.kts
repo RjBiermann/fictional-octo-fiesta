@@ -1,4 +1,4 @@
-version = 9 // #1490: pagination — derived home hasNext + search page-2 proof (v9)
+version = 10 // #1507: version bump (v10)
 
 cloudstream {
     authors     = listOf("RjBiermann")
