@@ -334,6 +334,21 @@
       "findings": [],
       "false_positives": [],
       "note": "run23 (issue #656, self-contained run of approved #631 spec): Javbangers full-surface deep pass, tier plain-curl on every surface (canaries 3/3: film1k plain 403/TLS 200, eporner 200, pandamovies 302->200@.org; TLS/browser steps never reached). Home latest-updates 30+30 and most-popular 24+24 disjoint; search contract re-confirmed (p1 200/75 cap + 200/3 query-shape, p2 404 = standing #475, unchanged); quickSearch correctly absent (no suggest endpoint, no typeahead JS); 5-verify + 29-sample census of video pages: file-bearing pages still carry flashvars video_url/video_alt_url 480p+720p, stream chain get_file -> 302 -> origin13-direct.cdntrex.com -> 206 video/mp4 with site referer (origin hop now 403s without referer - evidence update, provider always shipped it). Verdict ok retained: 0 confirmed provider conditions -> no code change, no version bump (stays 7), drift_confirmed stays 1. Three site-side behaviors recorded in FINDINGS, not filed (no pre-filter / no provider fix exists, site-faithful): last-page wrap-pad on small categories (uncensored 22/24 p1-p2 overlap, deterministic, async-identical), ~40% file-less placeholder imports (loadLinks correctly returns false; cards indistinguishable in listings), same-title re-upload spam on high-volume search pages (75/75 unique hrefs, 59/75 distinct titles). verify.sh: search 2, home 2, 5 video pages, related 10/page, streams 5/5 206 video/mp4, tags all-5, fields ok; formal FAIL/NOTE lines evidence-backed in FINDINGS-656 (pairwise-title rule vs re-upload spam, data-original attr outside script fallback set, em.badge picks the empty Duration badge). 0 false positives. Gates: gradlew Javbangers:test green, clean make green, check-findings.sh PASS. Ground truth: FINDINGS-656.md, Javbangers/FINDINGS.md."
+    },
+    {
+      "id": "run29",
+      "date": "2026-11-21",
+      "pr": null,
+      "findings": [
+        {
+          "issue": 1440,
+          "provider": "MissAV",
+          "verdict": "ok",
+          "confirmed_drift_fixed": "stream host hardcoded to the apex surrit.com; the page's player config names c.surrit.com for 72/94 sampled videos and a c.-bucket id 403s BucketPunish (Aliyun OSS origin) on the apex. Fixed same run v29->v31 (MissAVParse.parsePlaylistUrl takes the config's absolute playlist URL verbatim, keeping any query or fragment signature whole; id-only packs keep the legacy apex form; TDD red->green + 2 live fixtures + 1 signed-URL test)"
+        }
+      ],
+      "false_positives": [],
+      "note": "run29 (issue #1440, self-contained run of the #1354 S2 story; pays #1436's MissAV half). Video-source leg plain-curl on every surface; canaries: film1k plain 200 = expectation-stale (#1435, recorded not degraded), eporner 200, pandamovies 302->.org; TLS tier unavailable (#1434) so escalation_tier=unavailable, zero Blocked verdicts so nothing downgraded. D3: new/latest (/en/new p1, p2, tail ?page=2000), popular (/en/weekly-hot p1/p2), genres (/en/genres/Creampie p1/p2), categories->makers (/en/makers/Prestige p1/p2) each resolved end-to-end; old/tags/categories routes recorded absent (/en/old /en/oldest /en/latest /en/classic /en/tags /en/categories all 404, Sort menu has no ascending order); 22 mainPage rows all 200/12 cards. Ura set (evidence for #1430, stream layer only): -uncensored-leak copies resolve identically to the main set. Prior 'surrit 403 = runner-IP block' reading (#302/#327) superseded: the 403 is host-specific BucketPunish, c.surrit.com serves the same ids 200. Gates: MissAV:test green (MissAVParseTest 11/11), clean make green (v31), check-findings PASS, verify.sh PASS (streams 5/5 206 m3u8, search/home p1-p2 disjoint, quick search, all LoadResponse fields). 0 false positives."
     }
   ],
   "providers": {
@@ -674,8 +689,8 @@
     },
     "MissAV": {
       "site": "missav.live",
-      "verdict": "ok",
-      "reason": "deep 2026-09-29: 21 rows clean (1 pinned card on /en/new), search p1/p2 disjoint; video 200; eval-packed surrit m3u8 (known flow)",
+      "verdict": "ok-drift",
+      "reason": "video-source pass 2026-11-21: stream host was hardcoded to the apex surrit.com while the page's own player config names c.surrit.com on 72/94 sampled videos (77%) - c.-bucket ids 403 BucketPunish on the apex; fixed in-run v29->v31 (parsePlaylistUrl reads the config's own playlist URL incl. any ?query/#fragment signature; legacy apex fallback for id-only packs). D3: new/popular/genres all resolve end-to-end (streams 206 m3u8, 360/480/720/1080 ladder); old/tags/categories absent on the site; 22 mainPage rows 200/12 cards",
       "tier": "plain-curl",
       "surfaces": {
         "home": "200",
@@ -684,9 +699,9 @@
       },
       "issue": null,
       "standing_issue": null,
-      "drift_confirmed": 0,
+      "drift_confirmed": 1,
       "chronic": false,
-      "last_deep": "2026-09-29"
+      "last_deep": "2026-11-21"
     },
     "Neporn": {
       "site": "neporn.com",
