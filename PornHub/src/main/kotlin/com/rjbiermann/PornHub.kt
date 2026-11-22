@@ -123,6 +123,19 @@ object Parse {
         return next.attr("href").isNotBlank()
     }
 
+    /**
+     * Home-row stop rule: the `/video` listings publish the very same `<link rel="next">` (with
+     * the enabled `li.page_next a[href]` as the backstop) as search, so the stop is derived with
+     * [hasNextPage] — never a constant (FINDINGS §Pagination (home)).
+     *
+     * The old `hasNext = true` survives **only** as the fallback for a body with no mark-up at
+     * all: there the derived rule has no evidence to read, and `false` would end the row on a
+     * transport hiccup. It never fires on a real, signal-less body — the past-the-end
+     * `/video?page=9999` 404 (no `ul#videoCategory`, no `rel=next`) and a gated or degraded
+     * listing both stop the row, so the app can neither walk into 404s nor re-serve page 1.
+     */
+    fun homeHasNext(html: String): Boolean = if (html.isBlank()) true else hasNextPage(html)
+
     /** Watch-page metadata. [related] is empty when the page exposes no related block. */
     data class VideoDetails(
         val title: String,
@@ -359,10 +372,13 @@ class PornHub : MainAPI() {
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val videos = parseVideoCards(app.get(Parse.pageUrl(request.data, page)).text)
+        val html = app.get(Parse.pageUrl(request.data, page)).text
+        val videos = parseVideoCards(html)
         return newHomePageResponse(
             HomePageList(name = request.name, list = videos, isHorizontalImages = false),
-            hasNext = true, // FINDINGS §Pagination (home): every page through the last one has a next
+            // Derived from the site's own rel=next on every live page, exactly like search;
+            // `Parse.homeHasNext` documents the single fallback (an empty body).
+            hasNext = Parse.homeHasNext(html),
         )
     }
 
