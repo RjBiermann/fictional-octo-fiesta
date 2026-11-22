@@ -158,19 +158,67 @@ class XMoviesForYou : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val sayfa = app.get(data).document
+        var bulundu = false
 
-        sayfa.select("a[href*='streamtape.com'], a[href*='mixdrop'], a[href*='dood'], a[href*='bigwarp']")
-            .forEach { baglanti ->
-                val link = baglanti.attr("href")
-                if (link.isNotEmpty()) {
-                    loadExtractor(link, data, subtitleCallback, callback)
-                }
+        // Site-hosted HLS leg (FINDINGS-1446): the watch page's own player fetches
+        // /api/stream/<videoId>?target=<target> → {node, url} and plays `url` as HLS.
+        // Older uploads carry no player config — the mirror chips below stay the fallback.
+        XMoviesForYouParse.streamEndpoint(sayfa)?.let { uc ->
+            val hls = try {
+                mapper.readValue<StreamData>(
+                    app.get("$mainUrl/api/stream/${uc.videoId}?target=${uc.target}", referer = data).text
+                ).url
+            } catch (e: Exception) {
+                Log.d("XmfyStream", e.message ?: "")
+                null
             }
-        return true
+            if (!hls.isNullOrBlank()) {
+                bulundu = true
+                callback.invoke(
+                    newExtractorLink(
+                        source = this.name,
+                        name = this.name,
+                        url = hls,
+                        type = INFER_TYPE
+                    ) {
+                        // The HLS nodes answer 403 unless the request carries the site's
+                        // Origin (curl-verified: node3/node5.eternalslumber.online, #1446).
+                        this.referer = "$mainUrl/"
+                        this.headers = mapOf(
+                            "Origin" to mainUrl,
+                            "Referer" to "$mainUrl/"
+                        )
+                        this.quality = Qualities.Unknown.value
+                    }
+                )
+            }
+        }
+
+        // Mirror chips: every download panel anchor, whatever host it names.
+        XMoviesForYouParse.streamLinks(sayfa).forEach { chip ->
+            bulundu = true
+            // Chip hosts rotate (mxdrop.click / m1xdrop.bz / mixdrp.click / miiixdrop.net…)
+            // and loadExtractor dispatches on the ORIGINAL url's prefix, so resolve the
+            // alias hop to the canonical player first. playerPath() then moves a Dood-family
+            // landing page (/d/<id>) onto its player path (/e/<id>).
+            val hedef = try {
+                XMoviesForYouParse.playerPath(app.get(chip, referer = data).url)
+            } catch (e: Exception) {
+                chip
+            }
+            loadExtractor(hedef, data, subtitleCallback, callback)
+        }
+
+        return bulundu
     }
 
     data class RelatedData(
         val data: List<RelatedItem>? = null
+    )
+
+    data class StreamData(
+        val node: String? = null,
+        val url: String? = null
     )
 
     data class RelatedItem(
