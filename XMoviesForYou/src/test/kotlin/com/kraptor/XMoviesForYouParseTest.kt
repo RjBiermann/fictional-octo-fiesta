@@ -18,6 +18,12 @@ class XMoviesForYouParseTest {
     private fun searchDoc() = Jsoup.parse(
         javaClass.classLoader.getResource("xmoviesforyou-search.html")!!.readText()
     )
+    private fun watchDoc() = Jsoup.parse(
+        javaClass.classLoader.getResource("xmoviesforyou-watch.html")!!.readText()
+    )
+    private fun watchAliasesDoc() = Jsoup.parse(
+        javaClass.classLoader.getResource("xmoviesforyou-watch-aliases.html")!!.readText()
+    )
 
     // ---- CARD matches every live listing surface (FINDINGS-535 Homepage table) ----
 
@@ -83,6 +89,82 @@ class XMoviesForYouParseTest {
     fun parseRejectsCardWithoutTitleOrLink() {
         assertNull(XMoviesForYouParse.parse(Jsoup.parse("""<a href="/x-y">no h3 here</a>""").selectFirst("a")!!))
         assertNull(XMoviesForYouParse.parse(Jsoup.parse("""<a class="card"><h3>Bare Title</h3></a>""").selectFirst("a")!!))
+    }
+
+    // ---- streamSources(): the site-hosted HLS player config (FINDINGS-1446 live) ----
+
+    @Test
+    fun streamEndpointReadsInlinePlayerConfig() {
+        val ep = XMoviesForYouParse.streamEndpoint(watchDoc())!!
+        assertEquals("179297189623482", ep.videoId)
+        assertEquals("dedi_1", ep.target)
+    }
+
+    @Test
+    fun streamEndpointAbsentOnPostsWithoutPlayer() {
+        // older uploads carry download chips only — the HLS leg must be skipped, not fail
+        assertNull(XMoviesForYouParse.streamEndpoint(watchAliasesDoc()))
+    }
+
+    // ---- streamLinks(): every mirror chip, host-agnostic (FINDINGS-1446 drift) ----
+
+    @Test
+    fun streamLinksReturnsEveryMirrorChip() {
+        // 3/3 chips, including mxdrop.click — the host the pre-#1446 selector dropped
+        assertEquals(
+            listOf(
+                "https://streamtape.com/v/VBrk4mZMLpSxjJ",
+                "https://mxdrop.click/f/033rp7xqhm63er",
+                "https://playmogo.com/d/mr7w99gthuut"
+            ),
+            XMoviesForYouParse.streamLinks(watchDoc())
+        )
+    }
+
+    @Test
+    fun streamLinksSurvivesRotatedMirrorHostsAndLostPanelId() {
+        // rotated mixdrop alias + dood.to landing, and no #downloads id on the panel
+        assertEquals(
+            listOf(
+                "https://streamtape.com/v/8JbXRa1G3rS4RB",
+                "https://m1xdrop.bz/f/wlmooopra7n07o",
+                "https://dood.to/d/zlsj31eis2a6"
+            ),
+            XMoviesForYouParse.streamLinks(watchAliasesDoc())
+        )
+    }
+
+    @Test
+    fun streamLinksIgnoresJumpLinkAdsAndSiteRail() {
+        // the hero "Download" button is an in-page jump (#downloads), the rail links are not sources
+        val links = XMoviesForYouParse.streamLinks(watchDoc())
+        assertTrue(links.none { it.startsWith("#") })
+        assertTrue(links.none { it.contains("adtng.com") || it.contains("greentrafsa.com") })
+        assertTrue(links.none { it.contains("xmoviesforyou.video") || it.contains("t.me") })
+        assertEquals(links.size, links.distinct().size)
+    }
+
+    // ---- playerPath(): Dood-family landing pages wrap the player at /e/<id> ----
+
+    @Test
+    fun playerPathRewritesDoodLandingPages() {
+        assertEquals(
+            "https://playmogo.com/e/mr7w99gthuut",
+            XMoviesForYouParse.playerPath("https://playmogo.com/d/mr7w99gthuut")
+        )
+        // other host grammars are untouched: mixdrop /f/, streamtape /v/, already-/e/ players
+        assertEquals(
+            "https://mxdrop.click/f/033rp7xqhm63er",
+            XMoviesForYouParse.playerPath("https://mxdrop.click/f/033rp7xqhm63er")
+        )
+        assertEquals(
+            "https://streamtape.com/v/VBrk4mZMLpSxjJ",
+            XMoviesForYouParse.playerPath("https://streamtape.com/v/VBrk4mZMLpSxjJ")
+        )
+        assertEquals(
+            "https://playmogo.com/e/mr7w99gthuut",
+            XMoviesForYouParse.playerPath("https://playmogo.com/e/mr7w99gthuut")
+        )
     }
 
     @Test

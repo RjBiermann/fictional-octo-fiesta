@@ -83,6 +83,13 @@ internal fun sharedHostRegistry(): List<ExtractorApi> = listOf(
         filesimMirror("https://swhoi.com", "Streamwish"),
         filesimMirror("https://javmoon.me", "FileMoon"),
         mixdropMirror("https://mixdrop.is"),
+        // #1446: xmoviesforyou.com's MIXDROP chip host rotates through the mixdrop alias
+        // family (mxdrop.click, m1xdrop.bz, mixdrp.click, miiixdrop.net/top observed in one
+        // 2026-11-22 sweep) and every one of them 30x-redirects to mxdrop.click/f/<id>.
+        // The provider resolves that hop before loadExtractor (prefix dispatch works on the
+        // ORIGINAL url), so this single canonical row serves the whole rotation. Verified
+        // live: mxdrop.click/f/<id> → /e/<id> packed MDCore.wurl → 206 video/mp4.
+        mixdropMirror("https://mxdrop.click"),
         BigwarpIO(),   // #653: xmoviesforyou.com serves bigwarp.io anchors; framework extractor (bigwarp.io → bigwarp.pro redirect is host-side)
         Javclan(),
         // #1442: jav.guru's searcho mirror rotates four player hosts across its buttons.

@@ -57,6 +57,21 @@ sampled pages, JSON `{data:[{title,slug,thumbnail_url,…}]}`. The provider popu
 check 6.
 
 ## Stream sources (per video page)
+
+> **Revised 2026-11-22 (FINDINGS-1446, S8 of #1354).** The site now ships a **site-hosted HLS
+> player** on the watch page plus a rotating mirror-chip matrix; the filehost anchors described
+> below are still there but their hostnames change between page loads. Ground truth for the
+> source leg lives in `docs/archive/findings/FINDINGS-1446.md` (11 sampled pages, per-page
+> transcripts). Summary: `const videoId = "<id>"; const target = "dedi_1"` →
+> `GET /api/stream/<id>?target=<target>` → `{node,url}` m3u8 (200 with an `Origin:
+> https://xmoviesforyou.com` header on the `*.eternalslumber.online` nodes, no header needed on
+> `*.whoopscdn.website` / `bestcdnfree.shop` / `myjobfinder.online`); older posts carry no player
+> config at all. Chips live in the `#downloads` panel as anchors whose first child is
+> `<span class="material-symbols-outlined">download</span>`; the MIXDROP chip host rotates
+> (`mxdrop.click`, `m1xdrop.bz`, `mixdrp.click`, `miiixdrop.net`/`.top`, …) and every variant
+> 30x-redirects to `mxdrop.click`, which is the row that must be registered. Plain curl reaches
+> the whole site today (see Headers/referer) — the TLS-impersonated tier was not needed.
+
 Filehost anchors are plain `<a>` rows; families observed:
 - streamtape.com/v/<id> — on 3/4 sampled pages. **Chain fully serves from the runner IP,
   healed** vs the FINDINGS-525-era `{status:500}` host-side caveat: `/v/<id>` 200 →
@@ -72,10 +87,12 @@ Filehost anchors are plain `<a>` rows; families observed:
   moment…") — probe-IP class, recorded suspected, not a provider-grammar finding.
 
 ## Headers / referer
-No age gate, no cookie unlock. Site: plain UA/HTTP passes only with browser TLS
-impersonation — the provider's in-app TLS stack (NiceHttp/okhttp) already passed site
-SSR in-app (FINDINGS-535-era in-app confirmation). Filehosts do their own referer
-checks inside the registered adapters.
+No age gate, no cookie unlock. **2026-11-22:** plain curl (Firefox UA) reaches every surface with
+200 — the FINDINGS-535-era datacenter-IP Cloudflare challenge is not present today, so plain-curl
+transcripts are evidence again. Historical note: during the 2026-10 window the apex challenged the
+runner at plain tier and only browser TLS passed; the provider's in-app TLS stack (NiceHttp/okhttp)
+passed site SSR throughout. Filehosts do their own referer checks inside the registered adapters;
+the HLS nodes additionally require an `Origin: https://xmoviesforyou.com` header (FINDINGS-1446).
 
 ## Pagination
 Search: `&page=N` query param, fresh `/new-search…` URL served per page (transcript

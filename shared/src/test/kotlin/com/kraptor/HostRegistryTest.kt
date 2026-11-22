@@ -1,6 +1,7 @@
 package com.kraptor
 
 import com.lagradost.cloudstream3.extractors.StreamTape
+import com.lagradost.cloudstream3.extractors.MixDrop
 import com.lagradost.cloudstream3.extractors.StreamTapeNet
 import com.lagradost.cloudstream3.extractors.StreamTapeXyz
 import com.lagradost.cloudstream3.utils.ExtractorApi
@@ -144,12 +145,32 @@ class HostRegistryTest {
     @Test
     fun `xmfy-served filehost families have registered rows`() {
         val hosts = rows.map { host(it.mainUrl) }.toSet()
-        val served = listOf("streamtape.com", "mixdrop.ag", "dood.to", "bigwarp.io")
+        // #1446: the MIXDROP chip host rotates through the mixdrop alias family; the
+        // provider resolves the alias hop, so the canonical mxdrop.click target needs the row.
+        val served = listOf("streamtape.com", "mixdrop.ag", "mxdrop.click", "dood.to", "bigwarp.io")
         val missing = served.filter { it !in hosts }
         assertTrue(
             "filehost families xmoviesforyou.com serves have no registry row " +
                 "(loadExtractor drops their anchors): $missing",
             missing.isEmpty()
+        )
+    }
+
+    /**
+     * (e2) Issue #1446 (2026-11-22 XMoviesForYou video-source audit): the site's MIXDROP
+     * chip rotates hostnames every sweep — mxdrop.click, m1xdrop.bz, mixdrp.click,
+     * miiixdrop.net, miiiiixdrop.net, miiixdrop.top were all observed live in one run, each
+     * 30x-redirecting to mxdrop.click/f/<id>. Pinning a row per alias is a losing race, so
+     * the provider follows the hop and this canonical row must stay in the MixDrop family
+     * (the framework adapter rewrites /f/<id> → /e/<id> and decodes MDCore.wurl).
+     */
+    @Test
+    fun `mxdrop click canonical row serves the rotating mixdrop aliases`() {
+        val mxdropRows = rows.filter { host(it.mainUrl) == "mxdrop.click" }
+        assertEquals("exactly one row answers mxdrop.click", 1, mxdropRows.size)
+        assertTrue(
+            "the mxdrop.click row is not a MixDrop-family adapter: ${mxdropRows.single()::class.simpleName}",
+            mxdropRows.single() is MixDrop
         )
     }
 
@@ -284,7 +305,7 @@ class HostRegistryTest {
             "HlsFree" to 2,          // HlsFree class + HlsFreeWww www. variant
             "LuluStream" to 3,       // lulu(…, "LuluStream") + luluvido.com (mangoporn #564 grammar, FINDINGS-564)
             "Lulustream" to 6,       // lulu factory default
-            "MixDrop" to 3,          // MixDropAg + MixDropMy + mixdrop.is mirror
+            "MixDrop" to 4,          // MixDropAg + MixDropMy + mixdrop.is + mxdrop.click (#1446 rotating-alias canonical) mirror
             "Player4Me" to 8,        // Player4Me class + player4me mirrors
             "Streamtape" to 7,       // custom StreamTAPE + streamtapeMirror rows
             "Streamwish" to 2,       // Streamwish base + Filesim-pathed swhoi row
