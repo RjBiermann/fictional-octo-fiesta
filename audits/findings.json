@@ -364,6 +364,21 @@
       ],
       "false_positives": [],
       "note": "run30 (issue #1441, self-contained run of the #1354 S3 story). Video-source leg plain-curl on every surface; canaries: film1k plain 200 = expectation-stale (#1435, recorded not degraded), eporner 200, pandamovies 302->.org; TLS tier unavailable (#1434) so escalation_tier=unavailable, zero Blocked verdicts so nothing downgraded; the 2026-10-16 plain-curl challenge did not reproduce. D3: new/latest (/ .. /page/73/), popular (/category/decades/?archive_query=view&alphabet_filter p1..p73), genres (classic-erotica p1..p22, lesbian p1..p9), categories (country/usa p1..p32, 1970s p1..p16) each resolved end-to-end; old absent (sort menu Latest/Most commented/Most viewed/Most liked/Title/Highest Rated only, /old/ and /oldest/ 404, ?sort=oldest ignored), tags absent (/tag/<x>/ 404). 124 distinct video pages sampled (96 Shape A + 32 Shape B), all streams 200/206 m3u8 with distinct per-video paths; media playlists are single 720p, segments are MPEG-TS carried under .png URLs (site behaviour). Gates: Eroticmv:test green (18/18 incl. 3 new quality tests), clean Eroticmv:make green (v21), check-findings PASS, verify.sh RESULT: PASS (search 24, home 24+24, 5 video pages, streams 5/5 206 m3u8, related 23-29/page, tags+actors 5/5, all LoadResponse fields). 0 false positives."
+    },
+    {
+      "id": "run30",
+      "date": "2026-11-22",
+      "pr": null,
+      "findings": [
+        {
+          "issue": 1442,
+          "provider": "JavGuru",
+          "verdict": "ok",
+          "confirmed_drift_fixed": "two of the four player hosts jav.guru's searcho mirror lands on had no HostRegistry row (maxstream.org 14/16 sampled videos, javplaya.com 4/16) so loadExtractor dropped them, and streamhihi.com (7/16) is a registered streamwish mirror whose adapter read the pre-packed page shape. Fixed same run v37->v38: three pure Parse seams (JavclanParse.streams extracted out of Javclan.getUrl, PlayerjsParse.streamUrl for the packed Playerjs file: config, StreamwishParse.streamUrl with a PackedJs fallback only when the raw match fails) + rows javclanMirror(javplaya) and Maxstream; TDD red->green with 4 live fixtures and a registry test"
+        }
+      ],
+      "false_positives": [],
+      "note": "run30 (issue #1442, self-contained run of the #1354 S4 story). Video-source leg plain-curl on every surface (desktop UA, jav.guru referer); canaries: film1k plain 200 = expectation-stale (#1435, live pair recorded not degraded), eporner 200, pandamovies 302->.org; TLS tier unavailable (#1434) so escalation_tier=unavailable, zero Blocked verdicts so nothing downgraded. D3: new/latest (/ p1,p2,/page/5789 tail; /page/5790 404), old (?orderby=date&order=ASC - honoured server-side but absent from the sort menu, which offers DESC only), popular (/most-watched-rank 98 uniques with no paginator; /page/2 re-renders the same widget 92/96 overlap, so pageable popular sampled as ?orderby=views&order=DESC p1+tail), categories (/category/amateur p1/p2/p750, p751 404), tags (/tag/mature-woman p1/p2/p837, p838 404) - each type >=2 video pages at both ends resolved end-to-end; genres absent (/genre/ and /genres/ 404, no genre taxonomy in nav/category index/556-tag index - tags carry the semantics). 16 sampled videos; embed-host census javclan 15 (pass), playmogo 15 (dood Turnstile shell to this datacenter IP -> Suspected, never a finding per D8), maxstream 14 (fixed), caseyseemavoid 9 (Voe front-end serving a test-videos.co.uk Big_Buck_Bunny placeholder - host-side, no row so no test pattern can be emitted), streamhihi 7 (fixed), vidara 6 (pass, POST /api/stream), javplaya 4 (fixed), oppainet 1 (bespoke _juicycodes/juicyData player, no shipped family - observed only). Site also 429s bursty request patterns (paced >=5s keeps every surface 200) and FC2-PPV watch pages carry no woo-sc-related-posts block (recommendations simply empty there). Gates: JavGuru:test green (148 tests incl. JavclanParseTest 4/4, PlayerjsParseTest 5/5, StreamwishParseTest 3/3, registry row test), EPorner:test green as shared-splice control, clean JavGuru:make at v38, check-findings PASS, verify.sh PASS (search 24 cards, home 24+24, 3 video pages, streams 3/3 200 application/vnd.apple.mpegurl, related 107-108/page, all LoadResponse fields). 0 false positives."
     }
   ],
   "providers": {
@@ -618,21 +633,21 @@
     },
     "JavGuru": {
       "site": "jav.guru",
-      "verdict": "ok",
-      "reason": "home/search/video 200; stream via javmiku base64 iframe (extractor path); deep 2026-10-09: 3 video pages 200, site exposes Release Date + tags, no og: meta, provider markup-parse consistent",
+      "verdict": "ok-drift",
+      "reason": "video-source pass 2026-11-22: the searcho chain itself resolves (base64 iframe_url -> searcho loader -> reversed-token ?<rtype>r= -> 302 -> embed host), but three of its player hosts lost their sources - maxstream.org (14/16 sampled videos) and javplaya.com (4/16) had no HostRegistry row (loadExtractor mainUrl-prefix dispatch dropped them) and streamhihi.com (7/16) is a registered streamwish mirror whose adapter no longer read the page because sources:{file:...} is now eval-packed. Fixed in-run v37->v38: JavclanParse.streams (extracted), PlayerjsParse.streamUrl, StreamwishParse.streamUrl (PackedJs fallback), rows javclanMirror(javplaya) + Maxstream. D3: new/latest (/ p1,p2,tail /page/5789), old (?orderby=date&order=ASC p1,p2,tail), popular (/most-watched-rank 98 uniques, not pageable; ?orderby=views&order=DESC p1+tail), categories (/category/amateur p1/p2/p750), tags (/tag/mature-woman p1/p2/p837) all resolve end-to-end; genres absent site-side (/genre/ 404, tags carry genre semantics); playmogo.com dood is Turnstile-shelled from this IP (Suspected, D8); caseyseemavoid.com Voe serves a Big_Buck_Bunny placeholder (host-side); oppainet.net bespoke obfuscated player, no row. 16 videos, hosts: javclan 15, playmogo 15, maxstream 14, caseyseemavoid 9, streamhihi 7, vidara 6, javplaya 4, oppainet 1",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200",
-        "search": "200",
-        "video": "200",
-        "stream": "ok",
+        "home": "200 (24 cards)",
+        "search": "200 (24 cards)",
+        "video": "200 (16 sampled)",
+        "stream": "200 m3u8 #EXTM3U (480/720/1080 ladder via javclan, maxstream, streamhihi, vidara)",
         "quicksearch": "absent"
       },
       "issue": null,
       "standing_issue": null,
-      "drift_confirmed": 0,
+      "drift_confirmed": 1,
       "chronic": false,
-      "last_deep": "2026-10-09"
+      "last_deep": "2026-11-22"
     },
     "Javbangers": {
       "site": "www.javbangers.com",
