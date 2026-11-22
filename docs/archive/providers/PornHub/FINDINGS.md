@@ -32,6 +32,19 @@ the row stop from the site's own `rel=next` (`Parse.homeHasNext`, replacing the 
 past-the-end shape. The home fixtures gained the responses' head lines and a new
 `home-past-end.html`; read §Pagination (home) before touching the row stop rule.
 
+**Repair round on #1503 (2026-11-22).** Two review findings from the PR's first round: (i) the
+codacy reviewer's "an empty body keeps pagination active indefinitely" — answered by making the
+empty-body fallback **page-scoped** (`Parse.homeHasNext(html, page)` keeps the row open on page 1
+only, §Pagination (home)); (ii) the SonarCloud new-code gate (maintainability B) — `kotlin:S1125`
+(the `if (…) true else …` fallback lost its redundant Boolean literal) and `kotlin:S6518`, whose
+analyzer reads NiceHttp's single-argument `app.get(...)` as a collection accessor (86 identical
+false positives on `main`, no classpath in this analysis). The second is
+a **false positive on the HTTP verb**, suppressed at `getMainPage` with the count recorded; the
+root cause is a Sonar project-level exclusion, filed as a triage issue from this round. The
+reviewer's "`getMainPage` wiring has no direct test" suggestion stays declined per ADR-0005:
+`MainAPI`/HTTP flows are covered by pipeline Verification (the four-row transcript below), never
+by HTTP mocking in unit tests.
+
 ## Engine fingerprint
 
 **Custom proprietary platform** (PornHub's own stack — not KVS/Kernel, not a WP video theme).
@@ -315,12 +328,15 @@ https://www.pornhub.com/video?page=0 -> HTTP 404
   same head signal as search — `<link rel="next" href="…page=N+1">` (page 2 also carries
   `<link rel="prev">`) — with `div.pagination3 li.page_next a[href]` as the backstop, and the
   past-the-end 404 body has neither. `getMainPage` therefore passes
-  `hasNext = Parse.homeHasNext(html)`, i.e. the same `Parse.hasNextPage` rule search uses, for
-  every real body. The old `hasNext = true` constant survives **only** as the fallback for an
-  empty/whitespace body, where the derived rule has no mark-up to read and `false` would end
-  the row on a transport hiccup. A real body carrying neither signal — the past-the-end 404 or
-  a gated/degraded listing — stops the row (`hasNext = false`); no code path re-introduces an
-  unconditional `true`.
+  `hasNext = Parse.homeHasNext(html, page)`, i.e. the same `Parse.hasNextPage` rule search uses,
+  for every real body. The old `hasNext = true` constant survives **only** as the fallback for an
+  empty/whitespace body **on page 1**, where the derived rule has no mark-up to read and `false`
+  would end the row on a transport hiccup. Past page 1 the same blank body means "nothing left to
+  show" and the row stops — the review round on #1503's codacy finding (a site answering blank
+  bodies would otherwise leave the row with an endless "next"; no live body is blank, so this is
+  the hypothetical the fallback is bounded against, not a measured shape). A real body carrying
+  neither signal — the past-the-end 404 or a gated/degraded listing — stops the row
+  (`hasNext = false`) on any page; no code path re-introduces an unconditional `true`.
 
 S2 re-probe (2026-11-22, egress `20.169.65.236` Phoenix/Arizona, AS8075 Microsoft — ungated,
 `/video` answers 200 with the listing, so §Risks' gate caveat does not apply to these lines):
@@ -361,8 +377,9 @@ of the same responses, prepended to the same verbatim `ul#videoCategory` block �
 block, no `rel=next`, no `page_next`) — the body that makes the derived stop safe.
 `PornHubParseTest` asserts `Parse.homeHasNext` true on both live pages, false on the
 past-the-end body and on a degraded body (listing block present, head link and enabled Next
-anchor both gone), and true only for an empty/whitespace body (the documented constant
-fallback).
+anchor both gone), and true only for an empty/whitespace **page-1** body (the documented
+constant fallback, page-scoped: an empty body past page 1 stops the row — FINDINGS §Pagination
+(home)).
 
 ### Search
 

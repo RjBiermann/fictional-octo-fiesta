@@ -140,13 +140,31 @@ class PornHubParseTest {
 
     @Test fun `the home fallback survives only for a body with no markup`() {
         // Documented fallback (FINDINGS §Pagination (home)): an empty body carries no evidence,
-        // so the constant keeps the row open; any real body is derived, never a constant.
-        assertTrue("an empty body keeps the row open", Parse.homeHasNext(""))
-        assertTrue("a whitespace-only body is the same case", Parse.homeHasNext(" \n\t "))
+        // so page 1 keeps the row open; any real body is derived, never a constant.
+        assertTrue("an empty page-1 body keeps the row open", Parse.homeHasNext(""))
+        assertTrue("a whitespace-only page-1 body is the same case", Parse.homeHasNext(" \n\t "))
         assertFalse("the derived rule alone would stop there", Parse.hasNextPage(""))
         assertTrue("a live page keeps paging", Parse.homeHasNext(fixture("home-page-1.html")))
         assertFalse("a signal-less real body stops the row",
             Parse.homeHasNext(fixture("home-past-end.html")))
+    }
+
+    @Test fun `the empty-body fallback is page-scoped so no row can page for ever`() {
+        // A blank body carries no evidence, so page 1 keeps the row open (a transport hiccup
+        // must not end the row). Past page 1 the same blank body means "nothing to show":
+        // stopping there is what keeps a site that answers empty bodies from leaving the row
+        // with an endless "next" (repair of #1503's review finding).
+        assertFalse("an empty page-2 body stops the row", Parse.homeHasNext("", page = 2))
+        assertFalse("whitespace-only past page 1 does too", Parse.homeHasNext(" \n\t ", page = 3))
+        // Past page 1 the derived rule still decides every real body — the page scope is a
+        // fallback for "no mark-up at all", never an override of the site's own signal.
+        assertTrue("a real page-2 body still follows its rel=next",
+            Parse.homeHasNext("""<html><head>
+                <link rel="next" href="$BASE/video?page=3" />
+                </head><body><ul id="videoCategory"></ul></body></html>""", page = 2))
+        assertFalse("and a signal-less real page-2 body still stops it",
+            Parse.homeHasNext("""<html><head><title>Pornhub</title></head>
+                <body><ul id="videoCategory"></ul></body></html>""", page = 2))
     }
 
     @Test fun `ad slots without a video link are dropped`() {
