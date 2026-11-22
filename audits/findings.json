@@ -349,6 +349,21 @@
       ],
       "false_positives": [],
       "note": "run29 (issue #1440, self-contained run of the #1354 S2 story; pays #1436's MissAV half). Video-source leg plain-curl on every surface; canaries: film1k plain 200 = expectation-stale (#1435, recorded not degraded), eporner 200, pandamovies 302->.org; TLS tier unavailable (#1434) so escalation_tier=unavailable, zero Blocked verdicts so nothing downgraded. D3: new/latest (/en/new p1, p2, tail ?page=2000), popular (/en/weekly-hot p1/p2), genres (/en/genres/Creampie p1/p2), categories->makers (/en/makers/Prestige p1/p2) each resolved end-to-end; old/tags/categories routes recorded absent (/en/old /en/oldest /en/latest /en/classic /en/tags /en/categories all 404, Sort menu has no ascending order); 22 mainPage rows all 200/12 cards. Ura set (evidence for #1430, stream layer only): -uncensored-leak copies resolve identically to the main set. Prior 'surrit 403 = runner-IP block' reading (#302/#327) superseded: the 403 is host-specific BucketPunish, c.surrit.com serves the same ids 200. Gates: MissAV:test green (MissAVParseTest 11/11), clean make green (v31), check-findings PASS, verify.sh PASS (streams 5/5 206 m3u8, search/home p1-p2 disjoint, quick search, all LoadResponse fields). 0 false positives."
+    },
+    {
+      "id": "run30",
+      "date": "2026-11-22",
+      "pr": null,
+      "findings": [
+        {
+          "issue": 1441,
+          "provider": "Eroticmv",
+          "verdict": "ok",
+          "confirmed_drift_fixed": "data-completeness, not site drift: og:video:height (1280x720 on all 128 sampled pages) was never passed as the ExtractorLink quality; fixed same run v20->v21 (Eroticmv.parseQuality range-guards 144..4320, loadLinks sets this.quality; EroticmvQualityTest 3/3 + watch fixture)"
+        }
+      ],
+      "false_positives": [],
+      "note": "run30 (issue #1441, self-contained run of the #1354 S3 story). Video-source leg plain-curl on every surface; canaries: film1k plain 200 = expectation-stale (#1435, recorded not degraded), eporner 200, pandamovies 302->.org; TLS tier unavailable (#1434) so escalation_tier=unavailable, zero Blocked verdicts so nothing downgraded; the 2026-10-16 plain-curl challenge did not reproduce. D3: new/latest (/ .. /page/73/), popular (/category/decades/?archive_query=view&alphabet_filter p1..p73), genres (classic-erotica p1..p22, lesbian p1..p9), categories (country/usa p1..p32, 1970s p1..p16) each resolved end-to-end; old absent (sort menu Latest/Most commented/Most viewed/Most liked/Title/Highest Rated only, /old/ and /oldest/ 404, ?sort=oldest ignored), tags absent (/tag/<x>/ 404). 124 distinct video pages sampled (96 Shape A + 32 Shape B), all streams 200/206 m3u8 with distinct per-video paths; media playlists are single 720p, segments are MPEG-TS carried under .png URLs (site behaviour). Gates: Eroticmv:test green (18/18 incl. 3 new quality tests), clean Eroticmv:make green (v21), check-findings PASS, verify.sh RESULT: PASS (search 24, home 24+24, 5 video pages, streams 5/5 206 m3u8, related 23-29/page, tags+actors 5/5, all LoadResponse fields). 0 false positives."
     }
   ],
   "providers": {
@@ -567,22 +582,22 @@
     },
     "Eroticmv": {
       "site": "eroticmv.com",
-      "verdict": "ok",
-      "reason": "run-9 deep 2026-10-09 post-#538-fix: home/search 24 article.post-item + a.blog-img cards, 3 watch pages 200 with .categories-elm tags + /actor/ anchors + og metas alive; JSON-LD articleSection BACK on 3/3 sampled pages (intermittent/healed site-side, #538 stays open); stream RESOLVED: b64 og:video:url -> vidcdn2 m3u8 GET 200 #EXTM3U 27.8KB/41.2KB",
+      "verdict": "ok-drift",
+      "reason": "VIDEO-SOURCE leg (S3, #1441) 2026-11-22: one confirmed data-completeness condition fixed in-run v20->v21 (watch pages expose og:video:height 1280x720 on all 128 samples, provider emitted the ExtractorLink with no quality -> parseQuality + loadLinks wiring, TDD red->green). D3: new/latest (/ .. /page/73/), popular (view sort p1..p73), genres (classic-erotica p1..p22; lesbian p1..p9), categories (country/usa p1..p32; 1970s p1..p16) all resolved end-to-end: 124 distinct video pages (96 Shape A base64 + 32 Shape B ?video_embed=), every stream 200/206 application/vnd.apple.mpegurl from data.eroticmvs.com, paths distinct. old/tags absent site-side (/old/, /oldest/ 404 and the sort menu has no ascending order; /tag/<x>/ 404). 76 mainPage rows 200. Phase 0: film1k plain 200 = expectation-stale (#1435), eporner 200, pandamovies 302->.org; TLS tier unavailable (#1434) -> escalation_tier unavailable, zero Blocked.",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200 (24 cards)",
+        "home": "200 (24 article.post-item/page; /page/73 last, /page/74 404)",
         "facet": "200 (classic-erotica p1/p2 disjoint; 1970s 24 cards)",
-        "search": "200",
-        "video": "200 x3",
-        "stream": "200 m3u8 #EXTM3U",
-        "quickSearch": "absent (/search/suggest/ = full HTML search page; hasQuickSearch=false correct)"
+        "search": "200 /?s=emotion 24 cards (no pagination; provider returns empty for page>1)",
+        "video": "200 x124 distinct sampled across new/popular/genres/categories ends",
+        "stream": "200/206 application/vnd.apple.mpegurl, data.eroticmvs.com, Shape A + Shape B",
+        "quickSearch": "absent (/search/suggest/ = theme search page; hasQuickSearch=false correct)"
       },
-      "issue": 538,
-      "standing_issue": 497,
-      "drift_confirmed": 0,
+      "issue": 1441,
+      "standing_issue": null,
+      "drift_confirmed": 1,
       "chronic": false,
-      "last_deep": "2026-10-09"
+      "last_deep": "2026-11-22"
     },
     "HQPorner": {
       "site": "hqporner.com",
