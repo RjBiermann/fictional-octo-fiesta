@@ -1,4 +1,4 @@
-version = 10 // #1508: version bump (v10)
+version = 11 // #1510: version bump (v11)
 
 cloudstream {
     authors     = listOf("RjBiermann")
