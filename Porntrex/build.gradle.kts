@@ -1,5 +1,5 @@
 // ! This Extension Made By @ByAyzen for GizliKeyif
-version = 29 // #1505: version bump (v29)
+version = 30 // #1508: version bump (v30)
 
 cloudstream {
     authors     = listOf("ByAyzen")
