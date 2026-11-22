@@ -434,7 +434,7 @@ and `LoadResponse` checks pass unchanged.
 |---|---|---|---|---|
 | M1 | Provider returns `hasNext=false` in the reporter's context, or page 2 parses empty there (geo/SFW gate `302 → /`, `ph-redirect: 1041`; ad-slot ratio) | one page-1 + page-2 fetch from the reporter's egress, or the app's request log; replay a gated body through the seam | yes — *if* a gated/unscoped body can silence the signal | **Not reproduced here.** On this egress the site paginates the reporter's query (31 → 43 cards, 0 shared, `rel=next` on both) and the seam derives `hasNext` from that same link, so there is nothing to fix at the Parse seam. A gated body would drop `rel=next` **and** the result block together, which makes `hasNext=false` the honest answer (the app can then show nothing rather than stale page 1) — evidence-based, not a constant. |
 | M2 | App bundles providers: `SearchViewModel.bundleSearch` sets the combined list's `hasNext=false` when >1 provider yields results; paging happens per provider via the expand control (`expandAndReturn` → `repo.search(query, nextPage)`) | does the same query paginate with only PornHub enabled? | no — app-side | **The live cause consistent with every observation**: the provider emits `hasNext=true` and fresh page-2 cards, yet the visible list stops at page 1 while other providers are enabled. User action: enable only PornHub, then expand the PornHub section before scrolling (the app only fetches page N per provider through that expand control). |
-| M3 | Installed plugin predates v5 (search `hasNext` was a constant) or came from another repo | plugin version in the app vs this repo's `plugins.json` | no — update the plugin | **Possible, and user-checkable**: this repo publishes PornHub **v6** (`builds` branch `plugins.json` → `PornHub 6`, matching `PornHub/build.gradle.kts`). An install still on the pre-v5 constant-`hasNext` plugin shows page 1 only. User action: update the plugin (or reinstall from this repo's `repo.json`). |
+| M3 | Installed plugin predates v5 (search `hasNext` was a constant) or came from another repo | plugin version in the app vs this repo's `plugins.json` | no — update the plugin | **Possible, and user-checkable**: this repo publishes the current PornHub plugin — the `builds` branch `plugins.json` tracks `PornHub/build.gradle.kts` (**v7** as of #1498's bump). An install still on the pre-v5 constant-`hasNext` plugin shows page 1 only. User action: update the plugin (or reinstall from this repo's `repo.json`). |
 
 **Conclusion (no provider defect).** The search seam paginates the reporter's query exactly as
 the site does; the reported "page 1 only" behaviour is **M2 (app-side batching — the combined
@@ -442,7 +442,8 @@ search list's `hasNext` is the app's, not the provider's)** or **M3 (a stale ins
 Neither is fixable inside `PornHub/`, and no selector or stop-rule change was made — swapping a
 selector here would have been a point-in-time guess at a seam that already carries the site's
 own evidence. The in-app action is: enable only PornHub and expand the provider's section
-before scrolling (M2), and update the plugin to v6+ (M3).
+before scrolling (M2), and update the plugin to the current release, v7+ (M3) — pre-v5
+builds searched a constant `hasNext`.
 
 ### Related videos
 
