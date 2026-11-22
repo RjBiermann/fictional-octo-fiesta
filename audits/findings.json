@@ -411,6 +411,22 @@
       ],
       "false_positives": [],
       "note": "run32 (issue #1444, self-contained run of the #1354 S6 story). Video-source leg plain-curl on every surface; canaries: film1k plain 200 = expectation-stale (#1435, live pair recorded not degraded), eporner 200, pandamovies 302->.org; TLS tier unavailable (#1434), zero Blocked verdicts so nothing downgraded. D3: new/latest (/recent/ p1/p2 30, p1\u2229p2=0, last p9653 19), popular (/popular/ p1/p2 30, p1\u2229p2=0, last p9653 19), genres (/solowork/ p1/p2 30, last p3843 28; /mosaic/recent/2/ 30), categories (/categories/ index 79 entries; /amateur/ p1/p2 30 with 1 site edge repeat, last p1826 19), tags (/tag/uncensored/ p1/p2 30, last p396 4; /tag/mature-woman/ p1 30, last p1459 17); old absent (/old, /oldest 404; no ascending sort). 21 distinct video pages sampled; streams resolved 200 m3u8 via cloudwish/mycloudz and 206 mp4 via javtiful. Confirmed condition fixed: javtiful.com/embed had no row; added shared adapter + registry row, v30->v31. Host-side non-conditions: avgle.com embeds 404 everywhere (host dead), playmogo/filemoon Turnstile, cdn-centaurus/premilkyway/dramiyos CDN timeouts, mixdrop.nu DNS-dead, f4splay adblock 403. Gates: Javseen:test green (JavtifulEmbedParseTest 4/4 + registry 1/1 + shared suite), clean Javseen:make v31, check-findings PASS, verify.sh streams 6/6 (4x cloudwish 200 m3u8, 1x mycloudz 200 m3u8, 1x javtiful 206 mp4) with the known JSON-AJAX listing instrument limitation (#650 precedent; manual 30-card/p1\u2229p2=0 transcripts). 0 false positives."
+    },
+    {
+      "id": "run33",
+      "date": "2026-11-22",
+      "pr": null,
+      "escalation_tier": "unavailable",
+      "findings": [
+        {
+          "issue": 1445,
+          "provider": "ixiporn",
+          "verdict": "ok-drift",
+          "confirmed_drift_fixed": "two conditions, one run, v38->v39. (1) shape-D import batch (2020-12..2021-02) serves a RAW embed iframe (meta[itemprop=embedUrl], no contentUrl, no player-x b64 wrapper) so loadLinks emitted zero links for those videos: IxiPornParse.embedUrl pure seam + cascade contentUrl -> player-x hub -> embedUrl. (2) no HostRegistry row answered either host family - vjav.com / videotxxx.com (canonical txxx.com, KVS videofile.php) and the third shape-B hub www.youporn.com/embed (singular mediaDefinition): shared KvsVideofile (+vjav.com, videotxxx.com, txxx.com, txxx.me rows) and YoupornEmbed added; TDD red->green with 6 live fixtures (2026-11-22) + 14 new tests"
+        }
+      ],
+      "false_positives": [],
+      "note": "run33 (issue #1445, self-contained run of the #1354 S7 story). Video-source leg plain-curl on every surface (desktop UA + ixiporn.live referer; the CDNs are referer-gated and the provider sets referer=data). Canaries: film1k plain 200 = expectation-stale (#1435, live pair recorded, not degraded), eporner 200, pandamovies 302->.org; TLS tier unavailable (#1434), zero Blocked verdicts so nothing downgraded. D3: new/latest (/page p1,p2,last 1964), old (?orderby=date&order=ASC, honoured but unlinked), popular (?filter=most-viewed; ?filter=popular randomised), categories (/category/indian p1,p2,p164), tags (/tag/ullu-web-series p1,p2,p49), genres absent; search p1/p2 disjoint. Player-shape census over 24 listing pages (2 videos each): A 16 / B 24 / D 8. 25 evidence rows: 15 pass (206 video/mp4 incl. 4 site-hosted wp-content/ixifile far-end files, youporn 480/240 m3u8+mp4, vjav/txxx _hq.mp4), 10 Suspected host-side (nubiles-porn 403 also for its /, dead cdn2 /1 files 404, ixiporn.live/files -> homepage HTML, deleted upstream youporn/vjav). Gates: ixiporn:test green (187 tests, 0 failures), clean ixiporn:make v39, EPorner:test green as shared-splice control, check-findings PASS, verify.sh PASS (search 30+30, home 30+30, 4 video pages, streams 4/4 206 video/mp4, related 12/page, tags/year/duration 4/4, LoadResponse complete). 0 false positives."
     }
   ],
   "providers": {
@@ -455,20 +471,21 @@
     "ixiporn": {
       "site": "ixiporn.org",
       "verdict": "ok-drift",
-      "reason": "STANDING 2026-10-14 (deep pass, S2 of #593): #468 closed-record condition confirmed unchanged \u2014 ixiporn.org still double-redirects to the .live origin. Every other face healthy on that origin: home p1/p2 200 with 30 cards each disjoint, search /search/lingerie/ p1\u2013p3 200 p1\u2229p2 disjoint, 3 video pages 200 with meta[itemprop=contentUrl] streams (cdn2.ixifile.xyz / ixifile.xyz) all 206 video/mp4 on the .live referer. No quick-search endpoint on site (absent surface). Same standing condition, not a new post-fix condition \u2192 no record reopened, no new issue filed per the S4 rule.",
+      "reason": "VIDEO-SOURCE leg (S7, #1445) 2026-11-22, plain-curl on every surface (desktop UA + ixiporn.live referer). D3: new/latest (/page p1..last p1964, p1\u2229p2=0), old (?orderby=date&order=ASC p1..p1964, p1\u2229p2=0 - honoured server-side but unlinked, filter menu offers latest/most-viewed/longest/popular/random only), popular (?filter=most-viewed p1..p1964, p1\u2229p2=0; ?filter=popular is a randomised widget, 3 fetches 3 different sets), categories (/category/indian p1..p164, p1\u2229p2=0), tags (/tag/ullu-web-series p1..p49, p1\u2229p2=0) each sampled at both ends with >=2 videos; genres absent site-side (no /genre(s) route or taxonomy, categories+tags carry it). Two confirmed conditions fixed in-run v38->v39, TDD red->green: (1) shape-D import batch (2020-12..2021-02, /page/500-600, /page/1500, /page/1900) carries a RAW embed iframe (meta[itemprop=embedUrl], no contentUrl, no player-x b64 wrapper) so loadLinks emitted zero links - IxiPornParse.embedUrl seam + loadExtractor cascade (contentUrl -> player-x hub -> embedUrl); (2) no HostRegistry row for the two shape-D host families (vjav.com, videotxxx.com/txxx.com - KVS /api/videofile.php with homoglyph-obfuscated base64 payload) nor for the third shape-B hub www.youporn.com/embed (singular mediaDefinition); shared KvsVideofile(+4 rows) and YoupornEmbed added. Live: vjav 390635 and txxx 17065297 -> _hq.mp4 206 video/mp4; youporn 14854709 -> master.m3u8 200 mpegurl (480/240), 12323579 mp4 480/240 200; dead targets decline (youporn /video-inactive/, vjav not_found). Host-side only (Suspected, D8): images.nubiles-porn.com 403 for the 2020-11 batch (also its /), cdn2.ixifile.xyz/1 404 and ixiporn.live/files/*.mp4 -> homepage HTML for dead site files; xvideos 33/37, redtube 1/2 (#781), youporn 1/3, vjav 1/4 deleted upstream. Phase 0: film1k plain 200 = expectation-stale (#1435, live pair recorded), eporner 200, pandamovies 302->.org; TLS tier unavailable (#1434), zero Blocked verdicts. Standing #468 redirect chain unchanged (.org -> .info -> .live).",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200 (double redirect)",
-        "search": "200 p1\u2013p3 disjoint",
-        "video": "200 x3",
-        "stream": "contentUrl mp4s 206 (all 3)",
-        "quickSearch": "absent (not drift)"
+        "home": "200 (30 cards/page, /page p1..p1964)",
+        "search": "200 (30 cards/page, /page/N?s= p1/p2 disjoint)",
+        "video": "200 (25 evidence samples + 4 verify samples)",
+        "stream": "206 video/mp4 (cdn2.ixifile.xyz, ixifile.xyz, wp-content, vjav/txxx _hq) + 200 m3u8 (youporn 480/240)",
+        "quickSearch": "absent (no suggest endpoint)",
+        "facet": "200 (category p1..p164, tag p1..p49, filter sorts; 30/page)"
       },
-      "issue": 468,
+      "issue": 1445,
       "standing_issue": 468,
-      "drift_confirmed": 0,
+      "drift_confirmed": 1,
       "chronic": false,
-      "last_deep": "2026-10-14"
+      "last_deep": "2026-11-22"
     },
     "XMoviesForYou": {
       "site": "xmoviesforyou.com",

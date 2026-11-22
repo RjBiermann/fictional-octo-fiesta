@@ -218,6 +218,19 @@ internal fun sharedHostRegistry(): List<ExtractorApi> = listOf(
         // tier (#708/#709): html5player.setVideoUrlHigh/Low + setVideoHLS; deleted-upstream
         // targets answer a "This video has been deleted" shell → no links, no throw.
         Xvideos(),
+        // #1445: third shape-B hub — www.youporn.com/embed/<id>/<slug>/ on the 2020-12
+        // uploads (/page/1400: 2/2 sampled). Same network as redtube but the legs sit in a
+        // SINGULAR `mediaDefinition` array, so the flashvars grammar missed them.
+        Youporn(),
+        // #1445: ixiporn shape-D tier — an import-era subset embeds a RAW iframe
+        // (vjav.com/embed/<id>, videotxxx.com/embed/<id> → canonical txxx.com) instead of
+        // the player-x b64 wrapper, and the video page carries no contentUrl. Both hosts are
+        // KVS shells whose player calls /api/videofile.php; dispatch is by the iframe's own
+        // host, so the videotxxx 302 → txxx.com never helps — one row per host.
+        KvsVideofile("https://vjav.com", "Vjav"),
+        KvsVideofile("https://videotxxx.com", "Txxx"),
+        KvsVideofile("https://txxx.com", "Txxx"),
+        KvsVideofile("https://txxx.me", "Txxx"),
     )
 
 fun BasePlugin.registerHostExtractors(first: List<ExtractorApi> = emptyList()) {
