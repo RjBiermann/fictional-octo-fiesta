@@ -38,13 +38,17 @@ class PandaMovies : MainAPI() {
         val rows = Parse.rowCandidates(request.data)
         var home: List<SearchResponse> = emptyList()
         var hasNext = false
+        var fetched = false
+        var lastError: Exception? = null
         for ((index, row) in rows.withIndex()) {
             val document = try {
                 app.get(if (page <= 1) row else "$row/page/$page").document
             } catch (e: Exception) {
                 Log.d(name, "row $row: ${e.message}")
+                lastError = e
                 null
             } ?: continue
+            fetched = true
             val list = Parse.cards(document).mapNotNull { it.toSearchResult(this@PandaMovies) }
             // an empty page is a dead route (404 shell / retired term slug): try the twin,
             // and only report the empty row once every candidate is exhausted
@@ -53,6 +57,8 @@ class PandaMovies : MainAPI() {
             hasNext = Parse.hasNextPage(document)
             break
         }
+        // no candidate returned a document = transport failure, not an empty row (#1447 review)
+        if (!fetched) throw lastError ?: IllegalStateException("no row candidate fetched")
         return newHomePageResponse(
             list = HomePageList(name = request.name, list = home, isHorizontalImages = false),
             hasNext = hasNext
@@ -73,14 +79,17 @@ class PandaMovies : MainAPI() {
         val firstDoc = document
         var list = Parse.cards(document)
         if (Parse.queryMismatch(list, query)) {
-            val retry = try {
-                Parse.cards(app.get("$mainUrl/?s=$slug").document)
+            val retryDoc = try {
+                app.get("$mainUrl/?s=$slug").document
             } catch (e: Exception) {
                 Log.d(name, "search retry: ${e.message}")
-                emptyList()
+                null
             }
-            if (retry.isNotEmpty() && !Parse.queryMismatch(retry, query)) {
+            val retry = retryDoc?.let { Parse.cards(it) } ?: emptyList()
+            if (retryDoc != null && retry.isNotEmpty() && !Parse.queryMismatch(retry, query)) {
                 list = retry
+                // pagination must come from the response the emitted cards came from (#1447 review)
+                document = retryDoc
             } else {
                 document = firstDoc
             }
