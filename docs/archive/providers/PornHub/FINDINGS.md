@@ -45,6 +45,14 @@ reviewer's "`getMainPage` wiring has no direct test" suggestion stays declined p
 `MainAPI`/HTTP flows are covered by pipeline Verification (the four-row transcript below), never
 by HTTP mocking in unit tests.
 
+**Addendum — S3 of the #1490 pagination spec (2026-11-22).** Release marker + durable
+verification: `PornHub/build.gradle.kts` is now **v9** (`version = 9 // #1490: pagination —
+derived home hasNext + search page-2 proof (v9)`), and §Verification note (S3 of #1490) carries
+the full live run (reporter query + broad query, four rows × two pages, five videos, streams,
+build gates). The mechanism table's verdict is unchanged — **no provider-side pagination defect
+(M2/M3)** — and the version targets in #1490's S3 story are renumbered here: S1 bumped 5 → 7
+(#1498), S2 bumped 7 → 8 (#1503), so this story's marker is 9, not the story text's 7.
+
 ## Engine fingerprint
 
 **Custom proprietary platform** (PornHub's own stack — not KVS/Kernel, not a WP video theme).
@@ -366,6 +374,12 @@ strips `?viewkey=` (§Verification (S4)), so this viewkey-keyed transcript is th
 "0 shared viewkeys on each pair" evidence. The four rows are distinct listings, not one page
 served four times (`?o=mv` p1 shares 5 viewkeys with `/video` p1, `?o=tr`/`?o=cm` share 0).
 
+S3 of #1490 re-ran the same eight URLs on 2026-11-22 (egress `20.171.39.149`, Phoenix/Arizona,
+AS8075 Microsoft, ungated): all eight answered 200 with `rel=next` present, 32 / 44 distinct
+viewkeys per row and **0 shared** on every page-1/page-2 pair — the derived stop rule reads a
+live signal on every row, not a page-specific artifact (transcript §Verification note (S3 of
+#1490)).
+
 ### Fixture refresh — home rows (S2 of #1490, 2026-11-22)
 
 `home-page-1.html` / `home-page-2.html` used to be the listing block alone (no head), which is
@@ -514,7 +528,7 @@ and `LoadResponse` checks pass unchanged.
 |---|---|---|---|---|
 | M1 | Provider returns `hasNext=false` in the reporter's context, or page 2 parses empty there (geo/SFW gate `302 → /`, `ph-redirect: 1041`; ad-slot ratio) | one page-1 + page-2 fetch from the reporter's egress, or the app's request log; replay a gated body through the seam | yes — *if* a gated/unscoped body can silence the signal | **Not reproduced here.** On this egress the site paginates the reporter's query (31 → 43 cards, 0 shared, `rel=next` on both) and the seam derives `hasNext` from that same link, so there is nothing to fix at the Parse seam. A gated body would drop `rel=next` **and** the result block together, which makes `hasNext=false` the honest answer (the app can then show nothing rather than stale page 1) — evidence-based, not a constant. |
 | M2 | App bundles providers: `SearchViewModel.bundleSearch` sets the combined list's `hasNext=false` when >1 provider yields results; paging happens per provider via the expand control (`expandAndReturn` → `repo.search(query, nextPage)`) | does the same query paginate with only PornHub enabled? | no — app-side | **The live cause consistent with every observation**: the provider emits `hasNext=true` and fresh page-2 cards, yet the visible list stops at page 1 while other providers are enabled. User action: enable only PornHub, then expand the PornHub section before scrolling (the app only fetches page N per provider through that expand control). |
-| M3 | Installed plugin predates v5 (search `hasNext` was a constant) or came from another repo | plugin version in the app vs this repo's `plugins.json` | no — update the plugin | **Possible, and user-checkable**: this repo publishes the current PornHub plugin — the `builds` branch `plugins.json` tracks `PornHub/build.gradle.kts` (**v7** as of #1498's bump). An install still on the pre-v5 constant-`hasNext` plugin shows page 1 only. User action: update the plugin (or reinstall from this repo's `repo.json`). |
+| M3 | Installed plugin predates v5 (search `hasNext` was a constant) or came from another repo | plugin version in the app vs this repo's `plugins.json` | no — update the plugin | **Possible, and user-checkable**: this repo publishes the current PornHub plugin — the `builds` branch `plugins.json` tracks `PornHub/build.gradle.kts` (**v9** as of this story's bump: S1 → v7, S2 → v8, S3 → v9). An install still on the pre-v5 constant-`hasNext` plugin shows page 1 only. User action: update the plugin (or reinstall from this repo's `repo.json`). |
 
 **Conclusion (no provider defect).** The search seam paginates the reporter's query exactly as
 the site does; the reported "page 1 only" behaviour is **M2 (app-side batching — the combined
@@ -522,8 +536,9 @@ search list's `hasNext` is the app's, not the provider's)** or **M3 (a stale ins
 Neither is fixable inside `PornHub/`, and no selector or stop-rule change was made — swapping a
 selector here would have been a point-in-time guess at a seam that already carries the site's
 own evidence. The in-app action is: enable only PornHub and expand the provider's section
-before scrolling (M2), and update the plugin to the current release, v7+ (M3) — pre-v5
-builds searched a constant `hasNext`.
+before scrolling (M2), and update the plugin to the current release, v9+ (M3) — pre-v5
+builds searched a constant `hasNext`. S3 re-ran the same probe on 2026-11-22 and reproduced
+this verdict unchanged (§Verification note (S3 of #1490)).
 
 ### Related videos
 
@@ -871,6 +886,25 @@ the HLS legs of the page fetch it just made and emits only legs whose master pla
 the `/video/get_media` mp4 legs instead of handing the player unresolvable URLs. The probe runs
 per call, so it follows the device's own assignment rather than the runner's.
 
+**Refinement (S3 of #1490, 2026-11-22): the shape can split inside one page, and a leg that
+answered once can answer 410 on the next GET.** Two observations from the S3 run, same egress,
+same cookie-less desktop GETs:
+
+```
+6afbd8a1f2e9e  one page fetch  legs 1080 -> 410 text/plain;  240 / 480 / 720 -> 200 application/vnd.apple.mpegurl
+               (the per-leg isPlayable probe emits exactly the three live legs; a page-level
+                all-or-none rule would have dropped three good links)
+6aec722848c4d  leg URL 200 application/vnd.apple.mpegurl at resolve time,
+               same URL 410 text/plain on the next GET minutes later (style-B `hv-h` token)
+```
+
+So "one signing shape per page fetch" (§CDN host lottery) is the common case, not a guarantee:
+the shape is bound to the request/edge, and `height` ladders can mix live and dead legs in one
+blob. That is exactly why the emission is per-leg and per-call — and it is also why a
+pre-resolved `--stream-url` can flip dead between the agent's resolve and `verify.sh`'s fetch
+(the first S3 verify run lost 3 of 5 legs that way; the second resolved and fetched the same
+minute, 5/5 → 206). Nothing in the provider changes: it never emits an unprobed leg.
+
 ## Headers / referer
 
 - Every S1–S3 surface (listings, search, watch pages, flashvars) answered to a plain GET with a
@@ -962,6 +996,9 @@ Newest, `search=starbucks`), the search page-1/page-2 pair, the home page-1/page
     GET /video?page=2 -> 200 1283803B, 43 cards, 0 shared viewkeys with page 1
     GET /video?o=mv|tr|cm -> 200, 31 cards each; page 2 43 each, 0 shared
     GET /                -> 200 1001461B, ul#singleFeedSection x1, 0 x ul#videoCategory, "isSfw":""
+  runner C  2026-11-22  ipinfo.io: country "US", region "Arizona", AS8075 (S3 of #1490)
+    GET /video, /video?page=2 -> 200 1203080B / 1282678B, 32 / 44 distinct viewkeys, 0 shared
+    GET /video?o=mv|tr|cm (+page=2) -> 200, 32 / 44 each, 0 shared, rel=next on all eight
   ```
 
   So the gate is **not** a selector drift and **not** a dead endpoint: the four row URLs in
@@ -1043,7 +1080,8 @@ carries its transcript:
 | `Parse.LINK` | `a[href^="/view_video.php?viewkey="]` | §Homepage (ad-slot filter), §Related videos |
 | `SEARCH_PATH` | `/video/search?search=<q>` (`+` encoding) | §Search, §Pagination (search) |
 | `Parse.pageUrl` | `page=N` query param | §Pagination (home, search) |
-| `Parse.hasNextPage` | `link[rel=next]`, `li.page_next:not(.disabled) a[href]` | §Pagination (search) — absent/disabled on page 100 and the 404 body |
+| `Parse.hasNextPage` | `link[rel=next]`, `li.page_next:not(.disabled) a[href]` | §Pagination (search) — absent/disabled on page 100 and the 404 body; consumed by `search` **and** (since S2) by the home rows through `Parse.homeHasNext` |
+| `Parse.homeHasNext` | `hasNextPage` on every real body; a blank body keeps the row open only on page 1 | §Pagination (home) — four rows × two pages all carry `rel=next`; the past-the-end 404 (`home-past-end.html`) and a degraded body stop the row (§Verification note (S3 of #1490)) |
 | card `span.title a` | title | §Homepage (31/31 + `title` attr fallback) |
 | card `var.duration` | duration text | §Homepage (31/31, 43/43) |
 | card `span.views var` | views | §Homepage (31/31, 43/43) |
@@ -1176,3 +1214,146 @@ The listing-side proof is the hotlink matrix above plus the fixtures: `home-page
 (a `pix-cdn77` fetch) and `search-page-1.html` (mixed `pix-cdn77`/`ei`) now assert every emitted
 card carries the header and that the `pix-cdn77` poster is the markup URL verbatim (signature
 intact), and `video-page-1.html` asserts the same for the load poster and every related card.
+
+### Verification note (S3 of #1490 — pagination close-out, 2026-11-22)
+
+Release marker: `PornHub/build.gradle.kts` is **v9** (`version = 9 // #1490: pagination —
+derived home hasNext + search page-2 proof (v9)`). The story text in #1496 asked for v7; S1's
+PR (#1498) had already bumped 5 → 7 and S2's (#1503) 7 → 8, so the marker continues from the
+tree instead of re-issuing v7 (which the `builds` branch already published).
+
+Live checks ran **2026-11-22 14:24–14:47 UTC** from the CI runner egress **`20.171.39.149`,
+Phoenix/Arizona, AS8075 Microsoft** (`ipinfo.io` → `"country": "US"`, `"region": "Arizona"`).
+`/video` answered 200 with the listing on this egress, so §Risks' geo/SFW gate **did not fire**
+here: no `302 -> /`, no `ph-redirect: 1041`, no `isSfw: 1` — nothing in this section is Blocked.
+Toolchain: Gradle 9.9.1 on Temurin JDK 25, cookie-less desktop Chrome UA for every fetch,
+`PornHub` at v9.
+
+**Search — the reporter's query and a broad query, two pages each** (identity is the
+`?viewkey=` query, the §Verification (S4) substitution: `verify.sh`'s `url_path` strips the
+query and false-FAILs every card on `/view_video.php` — §Risks):
+
+```
+/video/search?search=george+uhl          p1 200 1123597B cards=32 anchors=63 rel_next=yes rel_prev=no
+/video/search?search=george+uhl&page=2   p2 200 1199170B cards=44 anchors=87 rel_next=yes rel_prev=yes  shared=0
+/video/search?search=milf                p1 200 1121086B cards=32 anchors=63 rel_next=yes rel_prev=no
+/video/search?search=milf&page=2         p2 200 1205379B cards=44 anchors=87 rel_next=yes rel_prev=yes  shared=0
+RESULT: PASS
+```
+
+`cards` counts distinct viewkeys in the scoped block, `anchors` every `view_video.php?viewkey=`
+link in it (each card links the key twice: thumbnail + title). Page 2 is fresh on both queries
+(**0 shared viewkeys**), and the site's own `<link rel="next">` is present on page 1 **and**
+page 2 — so `Parse.hasNextPage` returns `true` on both pages of the reporter's query, which is
+the seam the app reads.
+
+**Home rows — all four `getMainPage` rows, page 1 + page 2:**
+
+```
+/video            p1 200 1203080B cards=32 anchors=63 rel_next=yes    /video?page=2            p2 200 1282678B cards=44 anchors=87 rel_next=yes  shared=0
+/video?o=mv       p1 200 1210294B cards=32 anchors=63 rel_next=yes    /video?o=mv&page=2       p2 200 1287967B cards=44 anchors=87 rel_next=yes  shared=0
+/video?o=tr       p1 200 1205445B cards=32 anchors=63 rel_next=yes    /video?o=tr&page=2       p2 200 1286415B cards=44 anchors=87 rel_next=yes  shared=0
+/video?o=cm       p1 200 1204602B cards=32 anchors=63 rel_next=yes    /video?o=cm&page=2       p2 200 1280713B cards=44 anchors=87 rel_next=yes  shared=0
+RESULT: PASS
+```
+
+**Past the end (the shape the derived stop must survive):**
+
+```
+/video?page=9999  HTTP 404 747628B ul#videoCategory=no cards=0 rel_next=no page_next=no
+/video?page=0     HTTP 404 744816B ul#videoCategory=no cards=0 rel_next=no page_next=no
+RESULT: PASS
+```
+
+`Parse.homeHasNext` therefore returns `true` on all eight live bodies (`rel=next` is the first
+signal it reads) and `false` on both 404 bodies — the row can neither walk past the end nor
+re-serve page 1.
+
+**Video pages — five videos, one per listing (load), with every HLS leg probed:**
+
+```
+6afbd8a1f2e9e  /video          200 1334826B  Cute Teen Gets Fucked On Snap After Break Up - Julia James
+                               dur=PT00H15M00S up=2026-11-17 cats=10 tags=13 actors=2 related=36 self=no legs=[240,480,720,1080]
+6ac144ca27c0d  /video?o=mv     200 1395801B  First Weiner for Lesbian Step Daughter - Myra Moans - Family Therapy - Alex Adams
+                               dur=PT00H09M53S up=2026-10-03 cats=12 tags=16 actors=2 related=36 self=no legs=[240,480,720,1080]
+691ffed8dfcaa  /video?o=tr     200 1323551B  Asian teen student gets spanked and railed for her 18th birthday
+                               dur=PT00H04M11S up=2025-11-21 cats=10 tags=14 actors=1 related=36 self=no legs=[426,854,1280,1920]
+6ad1030d797c6  /video?o=cm     200 1269392B  Toni Chavez Welcomes Andrew Andretti
+                               dur=PT00H11M28S up=2026-10-15 cats=5  tags=4  actors=2 related=36 self=no legs=[240,480,720,1080]
+6af346a688993  search=george+uhl 200 1291069B She helps him forget his wife - MOM XXX
+                               dur=PT00H15M27S up=2026-11-10 cats=10 tags=16 actors=2 related=36 self=no legs=[240,480,720,1080]
+distinct titles 5/5; distinct poster asset paths 5/5; distinct viewkeys 5; related cards distinct within page
+RESULT: PASS
+```
+
+All five load pages carry `flashvars` (streams resolvable), `og:*` metadata, the JSON-LD
+`VideoObject` duration/uploadDate, categories **and** tags, at least one credited actor, and a
+36-card related block that never repeats the page's own viewkey. `691ffed8dfcaa` is the second
+height convention again (`[426,854,1280,1920]` — widths, §Risks): the platform's own quality
+ladder is unaffected, the ints are just not heights there.
+
+**Search ↔ load agreement (viewkey-keyed):**
+
+```
+search card 6af346a688993  title 'She helps him forget his wife - MOM XXX'
+load   h1                  title 'She helps him forget his wife - MOM XXX'          equal
+poster asset               /videos/202611/10/68645355/original  (card pix-fl rs:fit:320:180 / load pix-egi rs:fit:640:360)
+home   card 6afbd8a1f2e9e  title 'Cute Teen Gets Fucked On Snap After Break Up - Julia James'   == load h1
+poster asset               /videos/202611/17/69506775/original  == load og:image asset
+RESULT: PASS
+```
+
+The shard (`pix-fl` vs `pix-egi`) and rendition (`320:180` vs `640:360`) differ by design, so
+agreement is compared on the asset path — the §Search rule.
+
+**`verify.sh` run** (the S4 command shape; 4 search pages, 8 home URLs, the 5 videos above,
+`--video-tags-selector`/`--video-actors-selector`, `--provider-src PornHub
+--load-response recommendations,tags,plot,duration,year,actors`, highest HLS leg per video as
+`--stream-url`):
+
+```
+── check 1: search pages (4)          → all 200; global matches 38 / 50 / 38 / 50
+FAIL duplicate search cards            ← url_path strips ?viewkey= (documented plateau, §Risks)
+── check 1a: homepage pages (8)       → all 200; global matches 45 / 57 on every pair
+FAIL duplicate home cards              ← same plateau
+── check 1b: quick search (0)         → NOTE: no distinct endpoint (§Quick search), hasQuickSearch=false
+── check 2: video pages (5)           → all 200, div#player 2–3 matches each
+   streams 5/5 → 206 application/vnd.apple.mpegurl
+   field 'tags': present on all 5 sampled pages
+   field 'actors': present on all 5 sampled pages
+── check 3: cross-video identity      FAIL — all five collapse to /view_video.php (same plateau)
+── check 5: search ↔ load agreement   FAIL — whole search page compared to each load page (same plateau)
+── check 6: LoadResponse completeness
+   recommendations 1, tags 2, plot 3, duration 1, year 2, actors 3 assignment(s) in PornHub
+RESULT: FAIL
+```
+
+Every `FAIL` is the one documented instrument plateau plus the two all-or-none notes the script
+cannot take selectors for (`duration`/`year` live in JSON-LD, not a DOM attribute — §Risks), and
+the substituted viewkey-keyed transcripts above are the same mechanics keyed correctly — the
+precedent is §Verification (S4). The surfaces the story touches all pass: four home rows × two
+pages with fresh page 2s, the reporter's query paginating, five videos with live HLS and full
+metadata, and a complete `LoadResponse` mapping.
+
+`--related-selector` was **not** passed, per §Verification (S4): its two checks sit on the same
+stripped-query path (self-link and duplicate detection both read `/view_video.php`), so the
+related block is proven by the viewkey-keyed line above (36 distinct cards, self absent).
+
+**Mechanism verdict for the reporter's symptom — unchanged: M2 or M3, no provider defect.**
+M1 is not reproducible on this egress (the seam derives `hasNext` from the site's own
+`rel=next` on both pages of the reporter's query and page 2 carries 44 fresh cards), so the
+"page 1 only" report is:
+
+- **M2 — app-side:** with more than one provider enabled, the combined search list's
+  `hasNext` is the app's, and a provider pages only when its section is expanded. User action:
+  enable only PornHub, then expand the PornHub section before scrolling.
+- **M3 — stale plugin:** an install older than v5 keeps the constant `hasNext = true`/`false`
+  behaviour; this repo now publishes **v9**. User action: update the plugin (or reinstall from
+  `repo.json`).
+
+Both are outside `PornHub/`; no selector or stop-rule change was made in this story.
+
+**Build gates on this tree:** `./gradlew bootstrapCloudstream` (sha-pinned classes.jar) →
+`./gradlew PornHub:test PornHub:make` **BUILD SUCCESSFUL** — 191 tests, 0 failures (17
+`PornHubParseTest` + 16 `PornHubSearchParseTest` + 16 `PornHubLoadParseTest` + the spliced
+`shared/` suite), and `PornHub/build/PornHub.cs3` produced.
