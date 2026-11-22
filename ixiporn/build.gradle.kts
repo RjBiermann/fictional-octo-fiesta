@@ -1,4 +1,4 @@
-version = 38 // #1505: version bump (v38)
+version = 39 // #1445: shape-D raw iframe + KvsVideofile rows; youporn hub row (v39)
 
 cloudstream {
     authors     = listOf("Phisher98")

@@ -42,6 +42,9 @@ class IxiPornParseTest {
     private val embedXvideos =
         javaClass.getResourceAsStream("/player-embed-xvideos.block.html")!!.readBytes().decodeToString()
 
+    private val directIframe =
+        javaClass.getResourceAsStream("/player-direct-iframe-videotxxx.block.html")!!.readBytes().decodeToString()
+
     // fixtures are live verbatim blocks (newest2 / video2, 2026-10-17 probe)
     @Test fun `direct block fixtures are shape A`() {
         assertEquals(true, direct.contains("itemprop=\"contentUrl\""))
@@ -145,6 +148,67 @@ class IxiPornParseTest {
         """.trimIndent())
         assertNull(IxiPornParse.hubEmbedUrl(doc.selectFirst("div.video-player")))
     }
+
+    // #1445: shape-D import-era tier — a RAW embed iframe, no player-x wrapper
+
+    @Test fun `shape-D block yields the raw embed iframe src (live verbatim, 2026-11-22)`() {
+        val doc = Jsoup.parse(directIframe)
+        assertEquals(
+            "https://videotxxx.com/embed/17065297/?source=728113931",
+            IxiPornParse.embedUrl(doc.selectFirst("div.video-player"))
+        )
+    }
+
+    @Test fun `shape-D block also exposes the embedUrl meta (same target)`() {
+        val block = Jsoup.parse(directIframe).selectFirst("div.video-player")!!
+        assertEquals(block.selectFirst("meta[itemprop=embedUrl]")!!.attr("content"), IxiPornParse.embedUrl(block))
+        // the raw iframe is the fallback when the meta is absent (both carry the same URL)
+        val withoutMeta = Jsoup.parse(directIframe.replace(Regex("<meta[^>]*embedUrl[^>]*>"), ""))
+            .selectFirst("div.video-player")
+        assertEquals(
+            "https://videotxxx.com/embed/17065297/?source=728113931",
+            IxiPornParse.embedUrl(withoutMeta)
+        )
+    }
+
+    @Test fun `shape-A block yields null direct embed (player-x wrapper is not an embed target)`() {
+        val doc = Jsoup.parse(direct)
+        assertNull(IxiPornParse.embedUrl(doc.selectFirst("div.video-player")))
+    }
+
+    @Test fun `shape-B block also declares its hub in the embedUrl meta (live verbatim)`() {
+        // schema.org VideoObject carries embedUrl on every player shape — on shape-B pages it
+        // IS the hub URL, so the b64 chain stays primary (player-x carries the same target)
+        // and the meta is the fallback the cascade reaches when the wrapper is unreadable.
+        val doc = Jsoup.parse(embedXvideos)
+        assertEquals(
+            "https://www.xvideos.com/embedframe/14054221",
+            IxiPornParse.embedUrl(doc.selectFirst("div.video-player"))
+        )
+    }
+
+    @Test fun `player-x wrapper without an embedUrl meta yields null (b64 chain owns it)`() {
+        val b64 = java.util.Base64.getEncoder().encodeToString(
+            "post_id=1&type=iframe&tag=%3Ciframe%20src%3D%22https%3A%2F%2Fwww.xvideos.com%2Fembedframe%2F1%22%3E%3C%2Fiframe%3E".toByteArray()
+        )
+        val doc = Jsoup.parse("""
+            <div class="video-player">
+              <iframe src="https://ixiporn.live/wp-content/plugins/clean-tube-player/public/player-x.php?q=$b64"></iframe>
+            </div>
+        """.trimIndent())
+        assertNull(IxiPornParse.embedUrl(doc.selectFirst("div.video-player")))
+    }
+
+    @Test fun `embedUrl non-absolute iframe src yields null (no junk targets)`() {
+        val doc = Jsoup.parse("""
+            <div class="video-player">
+              <iframe src="/embed/17065297/"></iframe>
+            </div>
+        """.trimIndent())
+        assertNull(IxiPornParse.embedUrl(doc.selectFirst("div.video-player")))
+    }
+
+    @Test fun `embedUrl null block yields null`() = assertNull(IxiPornParse.embedUrl(null))
 
     @Test fun `html entities in the filename decode (jsoup attr semantics, #217)`() {
         val doc = Jsoup.parse("""
