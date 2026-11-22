@@ -1768,7 +1768,12 @@ def _registry_candidate(cs):
         body = c.get("body") or ""
         if REGISTRY_ANCHOR in body:
             continue
-        if (c.get("user") or {}).get("login", "") not in ("github-actions[bot]", "github-actions"):
+        # ADR-0020 moved safe-output deliveries to the machinery App, so the
+        # legacy login pair missed every unanchored entry it posts — the
+        # self-heal was blind to exactly the agent that strands them (#1482).
+        if not (_machinery_login(c)
+                or (c.get("user") or {}).get("login") in ("github-actions[bot]",
+                                                          "github-actions")):
             continue
         m = re.search(r"```json\s*(\{.*?\})\s*```", body, re.S)
         if not m:
