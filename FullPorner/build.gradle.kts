@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 27 // #1491: version bump (v27)
+version = 28 // #1443: player-iframe id/posters (v28)
 
 cloudstream {
     authors     = listOf("kraptor")
