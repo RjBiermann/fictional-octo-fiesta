@@ -70,10 +70,11 @@ Upstream's `___DO_NOT_CALL_FROM_A_PLUGIN_hotReloadAllLocalPlugins` is a *hot rel
 that is already running* (`DeployWithAdbTask` pushes into the running app, then fires the
 intent). Firing it into an in-flight startup load unloads plugin instances whose `load()` has
 not returned — `unloadPlugin` removes the instance from `PluginManager.plugins` — and then
-`loadPlugin` re-enters `load()` for the same `.cs3`, i.e. two threads execute the same class's
-`load()` concurrently, one of them on an instance the app considers unloaded. The two
-registrations that were mid-flight (the last two in flight at 12:52:22) never came back;
-the other 25 did.
+`loadPlugin` re-enters `load()` for the same `.cs3`. That the two `load()` calls then run
+concurrently, one on an instance the app considers unloaded, is an inference from upstream's
+source, not something this logcat shows: the log only shows `Adding … MainAPI` with no
+matching verdict. The two registrations that were mid-flight (the last two in flight at
+12:52:22) never came back; the other 25 did.
 
 Nothing here is PerverZija- or WatchPorn-specific: they are simply the `.cs3` files whose
 startup `load()` had not returned when the unload ran. Re-running the same harness would name
@@ -81,35 +82,41 @@ a different pair.
 
 ## §4 Fix (instrument, ADR-0012)
 
-`emulator-load.sh` no longer fires the reload intent unconditionally:
+`emulator-load.sh` no longer fires the reload intent at all. The harness pushes the `.cs3`
+files *before* it launches the app, on a freshly installed APK, so the app's own startup round
+is the only round the check needs — and the "already running when the files land" case the
+intent exists for cannot arise here. Firing it into a live startup round is the bug, not a
+repair for it, and 2026-11-21's sibling evidence (its reload round stalled after a single
+`Unloading plugin:` line) says the path it exercises is not one this tier wants by default.
 
-- It waits up to `STARTUP_SETTLE_SECONDS` (60 s) for the app's own startup round to report
-  **anything** (`reported_count` in `parse-log.sh`: `Loaded plugin … successfully` or `Failed
-  to load …`).
-- If the startup round reported, the intent is **not** fired — one round, no overlap.
-- Only a startup round that reported nothing (an app already running when the files landed,
-  the case the intent exists for) triggers the fallback reload.
-
-A plugin that still never reports after both rounds remains a failing entry: a `load()` that
+A plugin that still never reports while others do remains a failing entry: a `load()` that
 never returns is a real verdict, so the change does not excuse hangs — it only stops the
-harness creating them.
+harness creating them. A round that reports **nothing at all** (no `Loaded plugin …` and no
+`Failed to load …` line) names no provider, so the timed-out path reports it as
+unattributable (`unattributable.txt`, #1357's infrastructure class) instead of listing every
+expected plugin as failing.
 
 Guards:
 
 - `reported_count` counts verdict lines only, never a bare `Loading plugin: …` (every plugin
   prints one before it reports, so counting those would read a stalled round as progress).
-  `test-parse.sh` asserts the helper against a fixture and against an empty log (red without
-  the helper: `reported_count: command not found`).
-- Gate replayed offline against both captured logs: the 2026-11-22 startup log has 35
-  verdicts before the gate could expire (intent not fired), the 2026-11-21 log 27, and an
-  empty log fires the intent. The live confirmation is the next scheduled load-check run.
+- `no_verdicts` is the predicate the timed-out path decides on, and `test-parse.sh` pins the
+  seam on all three inputs: an empty log and a log with round activity but no verdict read as
+  no verdicts, a log with a verdict does not. Red without either helper
+  (`reported_count: command not found`), so the cases are load-bearing rather than vacuous.
+- Replayed offline against both captured logs: the 2026-11-22 startup round printed its first
+  verdict at 12:52:18.051 — launch+5.4 s, round start+2.4 s — so the round speaks long before
+  the registration wait's 300 s deadline, and at the moment the red run fired the intent
+  (12:52:21.9) the log already held 12 verdicts (the 35 in the finished 5-minute logfile are a
+  whole-run count, not what the gate would have seen at its first poll); the 2026-11-21 log
+  holds 27. Both are `no_verdicts`-false, so neither would have been reloaded. The live
+  confirmation is the next scheduled load-check run.
 
 ## §5 Not fixed here
 
-- The reload path itself is upstream's; a *fallback* reload can still race nothing but itself,
-  and this run's sibling evidence (2026-11-21, reload stalled after one unload) says the
-  hot-reload path is unhealthy in this app build. Out of scope for a load-check report; it
-  only matters when the fallback fires.
+- The reload path itself is upstream's, and this tier no longer exercises it. The 2026-11-21
+  run's reload round stalled after one unload, so the path is unhealthy in this app build;
+  nothing here fixed it, and nothing here needs it (see §4).
 - `jar-sha.txt` in the same run is empty, and the failure issue therefore says `Upstream jar
   SHA: unknown`. The jar itself was fetched (`bootstrapCloudstream: …/classes.jar ->
   ~/.m2/repository/com/lagradost/cloudstream3/pre-release/cloudstream3-pre-release.jar`), but

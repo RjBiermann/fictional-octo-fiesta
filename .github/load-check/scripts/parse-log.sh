@@ -18,11 +18,20 @@ has_failed() {
   grep -qP 'PluginManager(?:\(\s*\d+\))?: Failed to load ' "$1" 2>/dev/null
 }
 
-# reported_count <log> — how many plugin verdicts (loaded + failed) the app has printed.
-# emulator-load.sh uses this as a *progress* signal, not a verdict: a round that still
-# reports nothing is still starting up, and a round whose count stops growing has settled.
+# reported_count <log> — how many plugin verdict lines (loaded + failed) the log contains.
+# Non-zero means the app's plugin load has started reporting; it counts *lines*, not distinct
+# plugins, so it answers "has anything been decided yet", not "has the round settled".
 # A bare `Loading plugin: …` line is deliberately not a verdict — every plugin prints one
 # before it reports, so counting them would call a stalled round "progressing" forever.
 reported_count() {
   grep -cP 'PluginManager(?:\(\s*\d+\))?: (?:Loaded plugin .* successfully|Failed to load )' "$1" 2>/dev/null || true
+}
+
+# no_verdicts <log> — true when the app has reported no plugin verdict at all, i.e. nothing
+# was exercised: the launch never took, a first-run dialog is up, the process is wedged, or a
+# round is still inside its first load(). emulator-load.sh's timed-out path reads this as
+# infrastructure (#1357), never as a plugin verdict — a round that never spoke names no
+# provider, so naming all expected plugins would be a claim about the runner (#1500).
+no_verdicts() {
+  [[ $(reported_count "$1") -eq 0 ]]
 }
