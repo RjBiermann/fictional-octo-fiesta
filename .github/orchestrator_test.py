@@ -1215,3 +1215,31 @@ class TestConflictWatchUnknownState(unittest.TestCase):
     def test_mergeable_states_are_left_alone(self):
         for state in ("blocked", "unstable", "clean", "behind"):
             self.assertEqual(self.run_watch(state, frozenset({"x.kt"})), [], state)
+
+
+class TestRegistryCandidateMachineryAuthor(unittest.TestCase):
+    """#1482: the anchored-entry self-heal only accepted github-actions[bot],
+    so an unanchored entry posted by the machinery App (ADR-0020) was
+    invisible — the registry never landed and the review blocker never
+    cleared, across two full repair rounds."""
+
+    BODY = ('Registry entry for audits/findings.json\n\n```json\n'
+            '{"providers": {"MissAV": {"verdict": "ok-drift"}}}\n```')
+
+    def candidate(self, login):
+        thread = [{"body": self.BODY, "user": {"login": login}}]
+        return orchestrator._registry_candidate(thread)
+
+    def test_machinery_app_comment_is_a_candidate(self):
+        self.assertIsNotNone(self.candidate("rjbiermann-machinery[bot]"))
+
+    def test_legacy_bot_login_still_works(self):
+        self.assertIsNotNone(self.candidate("github-actions[bot]"))
+
+    def test_human_comment_is_not_a_candidate(self):
+        self.assertIsNone(self.candidate("RjBiermann"))
+
+    def test_anchored_comment_is_not_a_candidate(self):
+        thread = [{"body": orchestrator.REGISTRY_ANCHOR + "\n" + self.BODY.split("\n", 2)[2],
+                   "user": {"login": "rjbiermann-machinery[bot]"}}]
+        self.assertIsNone(orchestrator._registry_candidate(thread))
