@@ -45,17 +45,18 @@ reviewer's "`getMainPage` wiring has no direct test" suggestion stays declined p
 `MainAPI`/HTTP flows are covered by pipeline Verification (the four-row transcript below), never
 by HTTP mocking in unit tests.
 
-**Addendum — S3 of the #1490 pagination spec (2026-11-22).** Release marker + durable
-verification: `PornHub/build.gradle.kts` is now **v9** (`version = 9 // #1490: pagination —
-derived home hasNext + search page-2 proof (v9)`), and §Verification note (S3 of #1490) carries
-the full live run (reporter query + broad query, four rows × two pages, five videos, streams,
-build gates). The mechanism table's verdict is unchanged — **no provider-side pagination defect
-(M2/M3)** — and the version targets in #1490's S3 story are renumbered here: the chain is
-#1491 5 → 6, S1 (#1498) 6 → 7, S2 (#1503) 7 → 8, and #1444's fleet bump (#1505, merged to
-`main` while this story was open) 8 → 9 — so this story's marker is 9, not the story text's 7.
-The number was already spent on `main` when the merge landed, so the marker **adopts** 9 and
-re-points the comment at this story's `#1490` note instead of re-issuing a published version;
-#1444's bump stays recorded in #1505's history.
+**Addendum — S3 of the #1490 pagination spec (2026-11-22).** Durable verification + release
+record: the merged tree carries **`version = 10 // #1508: version bump (v10)`** — the
+version-bump lane's own comment, not a `#1490` one. This story adds **no marker**: by the time
+the branch merged, two fleet bumps had already moved the number past #1490's S3 target (v7)
+and past the branch's own v9 push. §Verification note (S3 of #1490) carries the full live run
+(reporter query + broad query, four rows × two pages, five videos, streams, build gates). The
+mechanism table's verdict is unchanged — **no provider-side pagination defect (M2/M3)** — and
+the version chain, renumbered from #1490's S3 story, is: #1491 5 → 6, S1 (#1498) 6 → 7, S2
+(#1503) 7 → 8, #1444's fleet bump (#1505) 8 → 9, #1508's bump 9 → 10. The pagination fix
+itself shipped in S1/S2 (v7/v8), so every published plugin from v7 on already carries it; the
+`#1490` traceability lives in this section and in §Selector traceability, not in a
+`build.gradle.kts` comment the lane rewrites on each push.
 
 ## Engine fingerprint
 
@@ -532,7 +533,7 @@ and `LoadResponse` checks pass unchanged.
 |---|---|---|---|---|
 | M1 | Provider returns `hasNext=false` in the reporter's context, or page 2 parses empty there (geo/SFW gate `302 → /`, `ph-redirect: 1041`; ad-slot ratio) | one page-1 + page-2 fetch from the reporter's egress, or the app's request log; replay a gated body through the seam | yes — *if* a gated/unscoped body can silence the signal | **Not reproduced here.** On this egress the site paginates the reporter's query (31 → 43 cards, 0 shared, `rel=next` on both) and the seam derives `hasNext` from that same link, so there is nothing to fix at the Parse seam. A gated body would drop `rel=next` **and** the result block together, which makes `hasNext=false` the honest answer (the app can then show nothing rather than stale page 1) — evidence-based, not a constant. |
 | M2 | App bundles providers: `SearchViewModel.bundleSearch` sets the combined list's `hasNext=false` when >1 provider yields results; paging happens per provider via the expand control (`expandAndReturn` → `repo.search(query, nextPage)`) | does the same query paginate with only PornHub enabled? | no — app-side | **The live cause consistent with every observation**: the provider emits `hasNext=true` and fresh page-2 cards, yet the visible list stops at page 1 while other providers are enabled. User action: enable only PornHub, then expand the PornHub section before scrolling (the app only fetches page N per provider through that expand control). |
-| M3 | Installed plugin predates v5 (search `hasNext` was a constant) or came from another repo | plugin version in the app vs this repo's `plugins.json` | no — update the plugin | **Possible, and user-checkable**: this repo publishes the current PornHub plugin — the `builds` branch `plugins.json` tracks `PornHub/build.gradle.kts` (**v9**: #1491 → v6, S1 → v7, S2 → v8, #1444's fleet bump → v9 on `main`, adopted here). An install still on the pre-v5 constant-`hasNext` plugin shows page 1 only. User action: update the plugin (or reinstall from this repo's `repo.json`). |
+| M3 | Installed plugin predates v5 (search `hasNext` was a constant) or came from another repo | plugin version in the app vs this repo's `plugins.json` | no — update the plugin | **Possible, and user-checkable**: this repo publishes the current PornHub plugin — the `builds` branch `plugins.json` tracks `PornHub/build.gradle.kts` (**v10**: #1491 → v6, S1 → v7, S2 → v8, #1444's fleet bump → v9, #1508's bump → v10). An install still on the pre-v5 constant-`hasNext` plugin shows page 1 only. User action: update the plugin (or reinstall from this repo's `repo.json`). |
 
 **Conclusion (no provider defect).** The search seam paginates the reporter's query exactly as
 the site does; the reported "page 1 only" behaviour is **M2 (app-side batching — the combined
@@ -540,7 +541,7 @@ search list's `hasNext` is the app's, not the provider's)** or **M3 (a stale ins
 Neither is fixable inside `PornHub/`, and no selector or stop-rule change was made — swapping a
 selector here would have been a point-in-time guess at a seam that already carries the site's
 own evidence. The in-app action is: enable only PornHub and expand the provider's section
-before scrolling (M2), and update the plugin to the current release, v9+ (M3) — pre-v5
+before scrolling (M2), and update the plugin to the current release, v10 (M3) — pre-v5
 builds searched a constant `hasNext`. S3 re-ran the same probe on 2026-11-22 and reproduced
 this verdict unchanged (§Verification note (S3 of #1490)).
 
@@ -1221,19 +1222,21 @@ intact), and `video-page-1.html` asserts the same for the load poster and every 
 
 ### Verification note (S3 of #1490 — pagination close-out, 2026-11-22)
 
-Release marker: `PornHub/build.gradle.kts` is **v9** (`version = 9 // #1490: pagination —
-derived home hasNext + search page-2 proof (v9)`). The story text in #1496 asked for v7; that
-number was already spent by the time this story landed — #1491 5 → 6, S1's PR (#1498) 6 → 7,
-S2's (#1503) 7 → 8 — and #1444's fleet bump (#1505) took `main` to 9 while this story was
-still open. The marker therefore adopts 9 and re-points the comment at this story's proof
-rather than re-issuing a version the `builds` branch already published.
+Release marker: the merged tree carries **`version = 10 // #1508: version bump (v10)`** — the
+version-bump lane's comment, not a `#1490` one; this story re-issues nothing. The story text in
+#1496 asked for v7, and that number was already spent when the branch first pushed (S1's PR
+#1498 took 6 → 7, S2's #1503 took 7 → 8, and #1444's fleet bump #1505 took `main` 8 → 9). The
+branch's own push then landed at v9, and a later fleet bump (#1508) took the merged tree to
+v10. The chain is therefore #1491 5 → 6, S1 (#1498) 6 → 7, S2 (#1503) 7 → 8, #1505 8 → 9,
+#1508 9 → 10; the pagination fix shipped in S1/S2, so every published plugin from v7 on
+already carries it.
 
 Live checks ran **2026-11-22 14:24–14:47 UTC** from the CI runner egress **`20.171.39.149`,
 Phoenix/Arizona, AS8075 Microsoft** (`ipinfo.io` → `"country": "US"`, `"region": "Arizona"`).
 `/video` answered 200 with the listing on this egress, so §Risks' geo/SFW gate **did not fire**
 here: no `302 -> /`, no `ph-redirect: 1041`, no `isSfw: 1` — nothing in this section is Blocked.
 Toolchain: Gradle 9.9.1 on Temurin JDK 25, cookie-less desktop Chrome UA for every fetch,
-`PornHub` at v9.
+`PornHub` at v9 on the run's branch tree (the merged tree is v10; see the release note above).
 
 **Search — the reporter's query and a broad query, two pages each** (identity is the
 `?viewkey=` query, the §Verification (S4) substitution: `verify.sh`'s `url_path` strips the
@@ -1354,15 +1357,15 @@ M1 is not reproducible on this egress (the seam derives `hasNext` from the site'
   `hasNext` is the app's, and a provider pages only when its section is expanded. User action:
   enable only PornHub, then expand the PornHub section before scrolling.
 - **M3 — stale plugin:** an install older than v5 keeps the constant `hasNext = true`/`false`
-  behaviour; this repo now publishes **v9**. User action: update the plugin (or reinstall from
+  behaviour; this repo now publishes **v10**. User action: update the plugin (or reinstall from
   `repo.json`).
 
 Both are outside `PornHub/`; no selector or stop-rule change was made in this story.
 
-**Build gates on this tree (merged head `6b3f31b`, re-run 2026-11-22 after the `main` merge):**
-`./gradlew bootstrapCloudstream` (sha-pinned classes.jar) → `./gradlew PornHub:test PornHub:make`
-**BUILD SUCCESSFUL** — **196 tests, 0 failures** (17 `PornHubParseTest` + 16
-`PornHubSearchParseTest` + 16 `PornHubLoadParseTest` = 49 PornHub, plus the 147 spliced
-`shared/` tests, incl. #1444's five new `JavtifulEmbed*` cases), and
-`PornHub/build/PornHub.cs3` produced. The 191 figure in the first draft was the pre-merge
-branch tree.
+**Build gates (head `45c19e5`, re-run 2026-11-22 after the second `main` merge; every later
+commit is docs-only):** `./gradlew bootstrapCloudstream` (sha-pinned classes.jar) →
+`./gradlew PornHub:test PornHub:make` **BUILD SUCCESSFUL** — **216 tests, 0 failures** across
+27 suites (17 `PornHubParseTest` + 16 `PornHubSearchParseTest` + 16 `PornHubLoadParseTest` = 49
+PornHub, plus **167** spliced `shared/` tests, incl. #1444's `JavtifulEmbed*` and #1508's
+`KvsVideofile*`/`Youporn*` cases), and `PornHub/build/PornHub.cs3` produced (162,114 B). The
+191/196 figures in earlier drafts were the pre-merge trees.
