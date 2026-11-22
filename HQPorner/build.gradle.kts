@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 25 // #1439: hqwo + flyflv player rows (shared), loadLinks emission gate (v25)
+version = 26 // #1491: version bump (v26)
 
 cloudstream {
     authors     = listOf("kraptor")

@@ -85,6 +85,13 @@ internal fun sharedHostRegistry(): List<ExtractorApi> = listOf(
         mixdropMirror("https://mixdrop.is"),
         BigwarpIO(),   // #653: xmoviesforyou.com serves bigwarp.io anchors; framework extractor (bigwarp.io → bigwarp.pro redirect is host-side)
         Javclan(),
+        // #1442: jav.guru's searcho mirror rotates four player hosts across its buttons.
+        // javplaya.com serves the javclan grammar (`links={hls2,hls4}`, packed);
+        // maxstream.org is the same packer around a Playerjs `file:` config. Both carried
+        // live 200 m3u8 while this run's samples were resolved, and loadExtractor's
+        // prefix dispatch dropped them (14/16 and 4/16 of the sampled pages).
+        javclanMirror("https://javplaya.com", "Javplaya"),
+        Maxstream(),
         Javggvideo(),
         EmturbovidExtractor(),
         dood("https://dood.pm"),

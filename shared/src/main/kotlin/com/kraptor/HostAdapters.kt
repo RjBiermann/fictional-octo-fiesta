@@ -152,6 +152,40 @@ class FlyFlv : ExtractorApi() {
     }
 }
 
+// maxstream.org — jav.guru's searcho mirror hands out embed-<id>.html for it (issue
+// #1442, 14/16 sampled videos). Playerjs player, config eval(p,a,c,k,e,d)-packed, so the
+// provider's own \.m3u8 scan never saw the stream and no row answered the host.
+class Maxstream : ExtractorApi() {
+    override val name = "Maxstream"
+    override val mainUrl = "https://maxstream.org"
+    override val requiresReferer = true
+
+    override suspend fun getUrl(url: String, referer: String?): List<ExtractorLink>? {
+        val stream = PlayerjsParse.streamUrl(app.get(url, referer = referer).text) ?: return null
+        return listOf(
+            newExtractorLink(name, name, stream, INFER_TYPE) {
+                this.referer = url
+            }
+        )
+    }
+}
+
+/**
+ * Pure Parse (issue #1442): the Playerjs `file:"<stream>"` field, packed or plain.
+ * Live fixture: maxstream_playerjs_embed.html — the site packs the config, so the field
+ * only exists after unpacking. Non-media `file:` values (slide images, /dl?op=… endpoints)
+ * are declined so an ad shell can never become an ExtractorLink.
+ */
+object PlayerjsParse {
+    private val fileField = Regex("""\bfile["']?\s*:\s*["']([^"']+)["']""")
+
+    fun streamUrl(pageHtml: String): String? {
+        val body = PackedJs.unpack(pageHtml) ?: pageHtml
+        return fileField.find(body)?.groupValues?.get(1)
+            ?.takeIf { it.startsWith("http") && (it.contains(".m3u8") || it.contains(".mp4")) }
+    }
+}
+
 // vidara embed (jav.guru searcho mirror "cd"): POST /api/stream with the
 // filecode from /e/<filecode> returns {"streaming_url": "<m3u8>", ...}
 // open: the .so mirror row (#657) subclasses it for loadExtractor's mainUrl dispatch
