@@ -551,7 +551,7 @@ class TestFixSurrogateDedupe(unittest.TestCase):
     VERDICT = "## Review\n\n**Verdict: blocker** — rows parse empty."
 
     def run_surrogate(self, markers, branch_moved, in_flight=False, tail=(),
-                      verdict=None):
+                      verdict=None, runs=(), jobs=None):
         posted, fired, cmds = [], [], []
         pr = {"number": 1411, "user": {"login": "rjbiermann-machinery[bot]"},
               "head": {"ref": "devloop/issue-1407-c141da7ff2421900"}}
@@ -559,6 +559,20 @@ class TestFixSurrogateDedupe(unittest.TestCase):
         thread += [bot_comment(f"{orchestrator.MARK} fix-loop re-fired for "
                               f"the verdict at 2026-11-18T23:49:02Z")] * markers
         thread += list(tail)
+        jobs = jobs if jobs is not None else {
+            "149": [{"name": "agent", "conclusion": "success"}]}
+
+        def fake_run(cmd, **kw):
+            if cmd[:3] == ["gh", "run", "list"]:
+                return json.dumps(list(runs))
+            return cmds.append(cmd) or ""
+
+        def fake_jobs(rid):
+            return jobs.get(str(rid), [])
+
+        def fake_api(path):          # owner-issue comments; labels elsewhere
+            return [] if "comments" in path else {"labels": []}
+
         with mock.patch.object(orchestrator, "open_pulls", lambda: [pr]), \
                 mock.patch.object(orchestrator, "_fixable_pr", lambda p: True), \
                 mock.patch.object(orchestrator, "comments", lambda n: thread), \
@@ -566,12 +580,11 @@ class TestFixSurrogateDedupe(unittest.TestCase):
                                   lambda: in_flight), \
                 mock.patch.object(orchestrator, "_branch_moved_after",
                                   lambda n, ts: branch_moved), \
-                mock.patch.object(orchestrator, "api",
-                                  lambda p: {"labels": []}), \
+                mock.patch.object(orchestrator, "api_run_jobs", fake_jobs), \
+                mock.patch.object(orchestrator, "api", fake_api), \
                 mock.patch.object(orchestrator, "post_comment",
                                   lambda n, b: posted.append(b)), \
-                mock.patch.object(orchestrator, "run",
-                                  lambda cmd, **kw: cmds.append(cmd) or ""), \
+                mock.patch.object(orchestrator, "run", fake_run), \
                 mock.patch.object(orchestrator, "dispatch_ok",
                                   lambda cmd, **kw: fired.append(cmd) or True):
             orchestrator.fix_surrogate()
@@ -580,6 +593,29 @@ class TestFixSurrogateDedupe(unittest.TestCase):
     def test_aborted_repair_refires(self):
         posted, fired, _ = self.run_surrogate(markers=1, branch_moved=False)
         self.assertEqual(len(fired), 1, "unserved verdict must re-fire")
+        self.assertEqual(len(posted), 1)
+
+    def test_comment_only_repair_suppresses_refire(self):
+        # ADR-0013: the repair lands as a comment, the branch never moves.
+        # Its budget stamp names the run, which is the PR identity.
+        stamp = bot_comment("gh-aw budget: attempt=2 kind=repair "
+                            "run=https://github.com/o/r/actions/runs/149 credits=1")
+        posted, fired, _ = self.run_surrogate(
+            markers=1, branch_moved=False, tail=[stamp],
+            runs=[{"databaseId": 149,
+                   "createdAt": "2026-11-18T23:49:05Z"}])
+        self.assertEqual(fired, [], "a comment-only repair is consumption")
+        self.assertEqual(posted, [])
+
+    def test_another_prs_repair_does_not_suppress_refire(self):
+        # the repo-wide run list alone must not mark this verdict served
+        stamp = bot_comment("gh-aw budget: attempt=2 kind=repair "
+                            "run=https://github.com/o/r/actions/runs/149 credits=1")
+        posted, fired, _ = self.run_surrogate(
+            markers=1, branch_moved=False, tail=[stamp],
+            runs=[{"databaseId": 999,
+                   "createdAt": "2026-11-18T23:49:05Z"}])
+        self.assertEqual(len(fired), 1, "run 999 has no identity on this PR")
         self.assertEqual(len(posted), 1)
 
     def test_resolved_blocker_line_does_not_fire(self):
@@ -661,7 +697,8 @@ class TestFixSurrogateDedupe(unittest.TestCase):
                                   lambda n, ts: False), \
                 mock.patch.object(orchestrator, "api", lambda p: {"labels": []}), \
                 mock.patch.object(orchestrator, "post_comment", lambda n, b: None), \
-                mock.patch.object(orchestrator, "run", lambda cmd, **kw: ""), \
+                mock.patch.object(orchestrator, "run",
+                                  lambda cmd, **kw: "[]" if cmd[:3] == ["gh", "run", "list"] else ""), \
                 mock.patch.object(orchestrator, "dispatch_ok",
                                   lambda cmd, **kw: fired.append(cmd) or True):
             orchestrator.fix_surrogate()
@@ -1215,6 +1252,202 @@ class TestConflictWatchUnknownState(unittest.TestCase):
     def test_mergeable_states_are_left_alone(self):
         for state in ("blocked", "unstable", "clean", "behind"):
             self.assertEqual(self.run_watch(state, frozenset({"x.kt"})), [], state)
+
+
+class TestRepairConsumedWithoutPush(unittest.TestCase):
+    """#1482 / #1485: a comment-only repair consumes, but only a run for
+    THIS PR — the repo-wide run list alone let another PR's repair mark the
+    verdict served, and an abort stamp naming another round must not block a
+    later successful repair."""
+
+    VERDICT_TS = "2026-11-21T23:30:10Z"
+    MARKER_TS = "2026-11-21T23:59:41Z"
+    RUN_TS = "2026-11-21T23:59:43Z"
+
+    def setUp(self):
+        # the closing-reference cache is module state (one pass = one cache)
+        orchestrator._closes_cache_reset()
+
+    def marker_comment(self):
+        return {"body": f"{orchestrator.MARK} fix-loop re-fired for the "
+                        f"verdict at {self.VERDICT_TS} — dispatch fires 07 "
+                        f"(machine relay, ADR-0019)",
+                "user": {"login": "rjbiermann-machinery[bot]"},
+                "created_at": self.MARKER_TS}
+
+    @staticmethod
+    def run_stamp(rid, body=None):
+        return {"body": body or (
+                    f"gh-aw budget: attempt=3 kind=repair "
+                    f"run=https://github.com/o/r/actions/runs/{rid} credits=1"),
+                "user": {"login": "rjbiermann-machinery[bot]"},
+                "created_at": "2026-11-22T00:02:25Z"}
+
+    def run_consumed(self, runs, thread, jobs=None, pr=None, owner_thread=(),
+                     unreadable_jobs=False):
+        jobs = jobs or {
+            "149": [{"name": "agent", "conclusion": "success"}],
+            "150": [{"name": "agent", "conclusion": "skipped"}]}
+
+        def fake_run(cmd, **kw):
+            if cmd[:3] == ["gh", "run", "list"]:
+                # "" is how run() reports a failed gh call (never `[]`)
+                return "" if runs is None else json.dumps(runs)
+            return ""
+
+        def fake_jobs(rid):            # api_run_jobs returns a job list
+            return None if unreadable_jobs else jobs.get(str(rid), [])
+
+        # `_repair_consumed` asks for the owner thread only when it derived
+        # an owner; the mock needs no owner to answer.
+        def fake_api(path):
+            return list(owner_thread) if "comments" in path else None
+
+        with mock.patch.object(orchestrator, "run", fake_run), \
+                mock.patch.object(orchestrator, "api_run_jobs", fake_jobs), \
+                mock.patch.object(orchestrator, "api", fake_api), \
+                mock.patch.object(orchestrator, "comments", lambda n: thread):
+            return orchestrator._repair_consumed(1482, self.VERDICT_TS,
+                                                 cs=thread, pr=pr)
+
+    def test_comment_only_repair_consumes(self):
+        self.assertTrue(self.run_consumed(
+            [{"databaseId": 149, "createdAt": self.RUN_TS}],
+            [self.marker_comment(), self.run_stamp(149)]))
+
+    def test_abort_stamp_on_owner_issue_is_not_consumption(self):
+        # Rule 0 posts ABORT on the owner/story issue, never on the PR
+        pr = {"number": 1482, "head": {"ref": "devloop/issue-1440-x"}}
+        abort = self.run_stamp(
+            149, "**ABORT (Rule 0 pre-push identity guard) — no push.**\n"
+                 "- Run: https://github.com/o/r/actions/runs/149")
+        self.assertFalse(self.run_consumed(
+            [{"databaseId": 149, "createdAt": self.RUN_TS}],
+            [self.marker_comment(), self.run_stamp(149)],
+            pr=pr, owner_thread=[abort]))
+
+    def test_abort_stamp_for_another_run_does_not_block_this_one(self):
+        # an earlier abort must not switch the path off for a later repair
+        pr = {"number": 1482, "head": {"ref": "devloop/issue-1440-x"}}
+        old_abort = self.run_stamp(
+            148, "**ABORT (Rule 0 pre-push identity guard) — no push.**\n"
+                 "- Run: https://github.com/o/r/actions/runs/148")
+        self.assertTrue(self.run_consumed(
+            [{"databaseId": 149, "createdAt": self.RUN_TS}],
+            [self.marker_comment(), self.run_stamp(149)],
+            pr=pr, owner_thread=[old_abort]))
+
+    def test_run_for_another_pr_does_not_consume(self):
+        # run 999 never posted on this PR/owner issue → no PR identity
+        self.assertFalse(self.run_consumed(
+            [{"databaseId": 999, "createdAt": self.RUN_TS}],
+            [self.marker_comment(), self.run_stamp(149)]))
+
+    def test_prose_mentioned_pr_thread_does_not_supply_evidence(self):
+        # #1485 round 2, end to end: the body names the symptom PR from prose,
+        # so that thread must not be scanned as this delivery's evidence.
+        pr = {"number": 1485,
+              "head": {"ref": "maint/repair-consumed-without-push"},
+              "title": "fix(conveyor): a comment-only repair consumed its verdict",
+              "body": "Fixes why **#1482** was marked stuck when it had been "
+                      "repaired twice."}
+        self.assertFalse(self.run_consumed(
+            [{"databaseId": 149, "createdAt": self.RUN_TS}],
+            [self.marker_comment()],
+            pr=pr, owner_thread=[self.run_stamp(149)]))
+
+    def test_failed_run_does_not_consume(self):
+        jobs = {"149": [{"name": "agent", "conclusion": "failure"}]}
+        self.assertFalse(self.run_consumed(
+            [{"databaseId": 149, "createdAt": self.RUN_TS}],
+            [self.marker_comment(), self.run_stamp(149)], jobs=jobs))
+
+    def test_cancelled_run_does_not_consume(self):
+        jobs = {"149": [{"name": "agent", "conclusion": "cancelled"}]}
+        self.assertFalse(self.run_consumed(
+            [{"databaseId": 149, "createdAt": self.RUN_TS}],
+            [self.marker_comment(), self.run_stamp(149)], jobs=jobs))
+
+    def test_skipped_run_does_not_consume(self):
+        self.assertFalse(self.run_consumed(
+            [{"databaseId": 150, "createdAt": self.RUN_TS}],
+            [self.marker_comment(), self.run_stamp(150)]))
+
+    def test_run_predating_the_verdict_does_not_consume(self):
+        self.assertFalse(self.run_consumed(
+            [{"databaseId": 149, "createdAt": "2026-11-21T23:00:00Z"}],
+            [self.marker_comment(), self.run_stamp(149)]))
+
+    def test_run_before_this_dispatch_marker_does_not_consume(self):
+        self.assertFalse(self.run_consumed(
+            [{"databaseId": 149, "createdAt": "2026-11-21T23:45:00Z"}],
+            [self.marker_comment(), self.run_stamp(149)]))
+
+    def test_run_in_the_marker_second_consumes(self):
+        # `<=` dropped a run created in its own fire marker's second: the
+        # marker is posted, then `gh workflow run` — the run cannot precede it.
+        self.assertTrue(self.run_consumed(
+            [{"databaseId": 149, "createdAt": self.MARKER_TS}],
+            [self.marker_comment(), self.run_stamp(149)]))
+
+    def test_unreadable_run_list_does_not_refire(self):
+        # unknown must skip the sweep, never dispatch blind (like _repair_in_flight)
+        self.assertTrue(self.run_consumed(
+            None, [self.marker_comment(), self.run_stamp(149)]))
+
+    def test_unreadable_jobs_does_not_refire(self):
+        self.assertTrue(self.run_consumed(
+            [{"databaseId": 149, "createdAt": self.RUN_TS}],
+            [self.marker_comment(), self.run_stamp(149)],
+            unreadable_jobs=True))
+
+
+class TestPrOwnerIssue(unittest.TestCase):
+    """#1485 round 2: which thread counts as this PR's evidence.
+
+    `_pr_owner_issue` decides where Rule 0's abort stamp lives, and the
+    owner thread is also scanned for the run's own safe-output. A loose
+    prose parse derived the symptom PR from `Fixes why #1482 …`, and then
+    read another delivery's thread as this PR's evidence. The branch
+    segment and GitHub's `closingIssuesReferences` are the only two
+    identities; prose is not one."""
+
+    @staticmethod
+    def owner_for(pr, closed=()):
+        def fake_run(cmd, **kw):
+            if cmd[:3] == ["gh", "api", "graphql"]:
+                nodes = [{"number": n} for n in closed]
+                return json.dumps({"data": {"repository": {"pullRequest": {
+                    "closingIssuesReferences": {"nodes": nodes}}}}} )
+            return ""
+        with mock.patch.object(orchestrator, "run", fake_run):
+            return orchestrator._pr_owner_issue(pr)
+
+    def setUp(self):
+        orchestrator._closes_cache_reset()
+
+    def test_branch_issue_segment_wins(self):
+        self.assertEqual(self.owner_for(
+            {"number": 1485, "head": {"ref": "devloop/issue-1440-x"},
+             "title": "", "body": ""}, closed=[9999]), 1440)
+
+    def test_github_closing_reference_is_the_owner(self):
+        self.assertEqual(self.owner_for(
+            {"number": 1485, "head": {"ref": "maint/hand-delivery"},
+             "title": "fix: x", "body": "Fixes #1440"}, closed=[1440]), 1440)
+
+    def test_prose_mentioning_another_pr_is_not_the_owner(self):
+        # the real #1485 shape: prose names the symptom PR, GitHub closes none
+        self.assertIsNone(self.owner_for(
+            {"number": 1485, "head": {"ref": "maint/repair-consumed-without-push"},
+             "title": "fix(conveyor): a comment-only repair consumed its verdict",
+             "body": "Fixes why **#1482** was marked stuck when it had been "
+                     "repaired twice."}))
+
+    def test_ambiguous_closing_references_are_not_guessed(self):
+        self.assertIsNone(self.owner_for(
+            {"number": 1485, "head": {"ref": "maint/hand-delivery"},
+             "title": "", "body": "Closes #1440, #1441"}, closed=[1440, 1441]))
 
 
 class TestRegistryCandidateMachineryAuthor(unittest.TestCase):

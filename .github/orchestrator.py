@@ -1315,35 +1315,24 @@ def _closes_cache_reset():
     _CLOSES_CACHE.clear()
 
 
-def _github_closes(pr, num):
-    """True when GitHub itself reports that `pr` closes story `num`.
+def _github_closing_issues(pr):
+    """The story numbers GitHub reports `pr` closing, empty when unknown.
 
-    `closingIssuesReferences` is the field GitHub computes from the PR body
-    (`Fixes #N`), scoped to same-repo refs and the default branch — the record
-    to trust instead of re-parsing prose (#1376 spent nine review rounds
-    discovering every way that parse can be wrong; #1379 chose this). GraphQL
-    because REST's pull payload does not carry the field (checked:
-    `has("closingIssuesReferences") == false`).
-
-    Only asked for a PR whose body or title names the story at all — `#N` or the
-    `/issues/N` URL form (`Fixes https://github.com/o/r/issues/N` carries no
-    `#N`, and a pre-filter must never veto the authority it fronts) — so an
-    unrelated PR costs no API call.
+    One query, cached per pass: `closingIssuesReferences` is the field GitHub
+    computes from the PR body (`Fixes #N`), scoped to same-repo refs and the
+    default branch — the record to trust instead of re-parsing prose (#1376
+    spent nine review rounds discovering every way that parse can be wrong;
+    #1379 chose this). GraphQL because REST's pull payload does not carry the
+    field (checked: `has("closingIssuesReferences") == false`).
 
     The parse is defensive: a GraphQL error payload (`{"data": null}`, e.g. a
     rate limit) or an invisible repository (`{"repository": null}`) reads as
-    "not reported closing" — never as a crash that aborts a whole conveyor
+    "reports closing nothing" — never as a crash that aborts a whole conveyor
     pass. Same safe shape as `parent_of()`."""
-    body = pr.get("body") or ""
-    title = pr.get("title") or ""
-    # every closing form GitHub accepts: `#900`, `GH-900`, a full issue URL
-    forms = (f"#{num}", f"/issues/{num}")
-    if not any(form in body or form in title for form in forms) \
-            and f"GH-{num}".lower() not in (body + title).lower():
-        return False
-    cached = _CLOSES_CACHE.get(pr["number"])
+    number = pr["number"]
+    cached = _CLOSES_CACHE.get(number)
     if cached is not None:
-        return num in cached
+        return cached
     out = run(["gh", "api", "graphql", "-f",
                "query=query($o:String!,$r:String!,$n:Int!){repository(owner:$o,"
                "name:$r){pullRequest(number:$n){closingIssuesReferences(first:50)"
@@ -1351,7 +1340,7 @@ def _github_closes(pr, num):
                # the repository owner, not OWNER (the owner-*actor* config, empty
                # when GH_AW_ORCH_OWNER is unset)
                "-f", f"o={REPO.split('/', 1)[0]}", "-f", f"r={REPO.split('/', 1)[-1]}",
-               "-F", f"n={pr['number']}"])
+               "-F", f"n={number}"])
     try:
         data = json.loads(out or "{}")
         pull = ((data.get("data") or {}).get("repository") or {}).get("pullRequest") or {}
@@ -1359,12 +1348,29 @@ def _github_closes(pr, num):
     except (ValueError, TypeError, AttributeError):
         # still cached: fail-closed for this pass, but one query per PR, not one per
         # (PR, story) during a rate-limit episode
-        _CLOSES_CACHE[pr["number"]] = frozenset()
-        return False
+        _CLOSES_CACHE[number] = frozenset()
+        return _CLOSES_CACHE[number]
     closed = frozenset(n["number"] for n in nodes
                        if isinstance(n, dict) and isinstance(n.get("number"), int))
-    _CLOSES_CACHE[pr["number"]] = closed
-    return num in closed
+    _CLOSES_CACHE[number] = closed
+    return closed
+
+
+def _github_closes(pr, num):
+    """True when GitHub itself reports that `pr` closes story `num`.
+
+    Only asked for a PR whose body or title names the story at all — `#N` or the
+    `/issues/N` URL form (`Fixes https://github.com/o/r/issues/N` carries no
+    `#N`, and a pre-filter must never veto the authority it fronts) — so an
+    unrelated PR costs no API call."""
+    body = pr.get("body") or ""
+    title = pr.get("title") or ""
+    # every closing form GitHub accepts: `#900`, `GH-900`, a full issue URL
+    forms = (f"#{num}", f"/issues/{num}")
+    if not any(form in body or form in title for form in forms) \
+            and f"GH-{num}".lower() not in (body + title).lower():
+        return False
+    return num in _github_closing_issues(pr)
 
 
 def _merged_pr_for_story(num):
@@ -2289,13 +2295,11 @@ def _latest_verdict(thread):
 def _branch_moved_after(num, iso_ts):
     """True when PR `num`'s head commit is newer than `iso_ts`.
 
-    The only way a repair consumes a verdict is by pushing to the branch;
-    a Rule 0 abort posts a stamp and leaves the head untouched. Judging
-    "served" by whether the run's `agent` job executed counted those
-    aborts as consumption, so a blocker verdict could never re-fire — and
-    never reached the marker cap that escalates to a human (#1411: agent
-    success + no push, verdict stranded). Branch movement is the
-    observable proof of consumption.
+    Pushing is one way a repair consumes a verdict — the one visible here.
+    ADR-0013 also allows a comment-only repair (registry entry lands on the
+    story issue, head untouched); `_repair_consumed()` is the second signal
+    for exactly that shape, and it is where abort handling now lives. This
+    function no longer claims to be the only consumption test.
 
     Reads the head commit, not the commit list: `pulls/{n}/commits` pages
     at 100 and a long-lived PR would never look served.
@@ -2319,6 +2323,153 @@ def _branch_moved_after(num, iso_ts):
     dates = [((commit.get(k) or {}).get("date") or "")
              for k in ("committer", "author")]
     return max(dates or [""]) > iso_ts
+
+
+ABORT_STAMP = "ABORT (Rule 0"
+RUN_URL_RE = re.compile(r"/actions/runs/(\d+)")
+_BRANCH_STORY_RE = re.compile(r"(?:issue-|/)(\d+)(?:-|$)")
+
+
+def _pr_owner_issue(pr):
+    """Owner/story issue a PR delivers, or None when not derivable.
+
+    The branch's `issue-N-` segment is the delivery shape; an owner
+    hand-delivery on `maint/…` carries none, so fall back to the story GitHub
+    itself reports this PR closing (`closingIssuesReferences`, via
+    `_github_closing_issues`). That field — not a prose parse — is the
+    repo's settled Delivery contract (#1379); a looser regex here derived
+    the *symptom* PR from prose (`Fixes why #1482 …` → #1482) and then read
+    another PR's thread as this one's evidence (#1485 review round 2).
+
+    Ambiguous (several closing stories) or absent → None: Rule 0 then stamps
+    the PR itself, which `_repair_consumed()` already reads, so abort
+    detection still works without guessing.
+
+    Rule 0 posts an abort stamp on THIS issue — never on the PR — so finding
+    it is what makes abort detection see the real timeline."""
+    ref = (pr.get("head") or {}).get("ref") or ""
+    m = _BRANCH_STORY_RE.search(ref)
+    if m:
+        return int(m.group(1))
+    closed = _github_closing_issues(pr)
+    return next(iter(closed)) if len(closed) == 1 else None
+
+
+def _run_ids(threads, abort_only=False):
+    """Run ids whose own safe-output landed on these threads.
+
+    Every gh-aw comment carries its run link — `run=<url>` on a budget stamp,
+    `run: <url>` in the agent footer — and a Rule 0 abort carries `Run: <url>`.
+    That link is the PR identity a repo-wide `gh run list` lacks: a run for a
+    different PR never appears on this PR's (or its owner issue's) timeline.
+    A Rule 0 stamp names its own run ("this run's URL"), so `abort_only`
+    returns the runs whose own stamp is an abort — never "this PR aborted at
+    some point" (an earlier abort must not suppress a later repair)."""
+    ids = set()
+    for thread in threads:
+        for c in thread or ():
+            body = c.get("body") or ""
+            if abort_only and ABORT_STAMP.lower() not in body.lower():
+                continue
+            ids.update(int(x) for x in RUN_URL_RE.findall(body))
+    return ids
+
+
+def _repair_consumed(num, iso_ts, cs=None, pr=None):
+    """True when a repair run for THIS PR consumed the verdict without pushing.
+
+    ADR-0013 keeps the findings registry OUT of agent diffs: a registry fix
+    travels as an anchored comment the orchestrator unions into main, so the
+    PR's head never moves and `_branch_moved_after()` cannot see the work
+    (#1482: two full repair rounds, zero pushes, then the marker cap applied
+    status/fixing-stuck to a repaired PR).
+
+    A run counts only with PR identity: its own safe-output must appear on
+    this PR's thread (or its owner issue's — a registry entry or abort stamp
+    lands there), and it must be created after this verdict's fire marker.
+    `gh run list` is repo-wide, so without that identity another PR's repair
+    would mark this verdict served (#1485 review). An earlier abort stamp
+    aborts only the run it names.
+
+    Only `agent == success` counts: `failure` / `cancelled` / `timed_out` /
+    unfinished never reach `safe_outputs`, so they are no-push, no-comment
+    shapes, not consumption (07's shared cancel-in-progress group makes
+    cancellation a real race, not an exotic one).
+
+    `--limit 15` is a bounded window: if >15 repair runs land between the
+    verdict and a later sweep the consuming run can fall out and the verdict
+    re-fires (false negative — one extra round, never a stranded verdict).
+
+    An unreadable run list or jobs payload is "unknown", not "not consumed":
+    it skips this sweep (returns True), the same fail-closed rule
+    `_repair_in_flight()` uses one line away in the caller. Re-firing blind on
+    a transient 403 is what starts the second dispatch that ends in
+    status/fixing-stuck on an already-repaired PR.
+
+    Known operating cost: consumption is silent and permanent — no push means
+    no `synchronize`, so 06-review does not re-fire until a human types
+    `/review` (the PR body plans exactly that for #1482).
+    """
+    if not iso_ts:
+        return False
+    cs = comments(num) if cs is None else cs
+    marker = f"{MARK} fix-loop re-fired for the verdict at {iso_ts}"
+    fired = [c.get("created_at") or "" for c in cs
+             if marker in (c.get("body") or "")]
+    # No marker means this PR was never dispatched for this verdict; a later
+    # fire's marker must not let an older run read as consumption.
+    after = max(fired) if fired else iso_ts
+    owner = _pr_owner_issue(pr) if pr else None
+    threads = [cs]
+    if owner and owner != num:
+        # `since` keeps a long-lived story issue brief: only comments updated
+        # after the verdict can belong to this repair round.
+        threads.append(api(f"issues/{owner}/comments?per_page=100&since={quote(iso_ts)}")
+                       or [])
+    evidence = _run_ids(threads)
+    aborted = _run_ids(threads, abort_only=True)
+    out = run(["gh", "run", "list", "--workflow", "07-fix-loop.lock.yml",
+               "--limit", "15", "--json", "databaseId,createdAt"]).strip()
+    # An empty payload is a failed `gh` call, not an empty list (the command
+    # prints `[]`): unknown must never read as "no consuming run".
+    try:
+        rows = json.loads(out) if out else None
+    except ValueError:
+        rows = None
+    if rows is None:
+        return True          # unreadable: skip this sweep, never re-fire blind
+    for r in rows:
+        rid = r.get("databaseId")
+        # `<`, not `<=`: the marker and the run it dispatches share a
+        # second-resolution clock, and the run cannot predate its own fire.
+        if (r.get("createdAt") or "") < after or rid not in evidence:
+            continue
+        jobs = api_run_jobs(rid)
+        if jobs is None:
+            return True      # unknown: same fail-closed rule as above
+        if not any(j.get("name") == "agent"
+                   and (j.get("conclusion") or "") == "success" for j in jobs):
+            continue
+        if rid in aborted:
+            continue
+        return True
+    return False
+
+
+def api_run_jobs(run_id):
+    """Jobs of a workflow run (actions read scope). None on any failure.
+
+    `None` is deliberately distinct from `[]`: callers must skip the sweep on
+    an unknown payload, never read it as "no agent job ran" (#1485 review)."""
+    out = run(["gh", "api",
+               f"repos/{REPO}/actions/runs/{run_id}/jobs?per_page=100"])
+    if not out.strip():
+        return None
+    try:
+        jobs = json.loads(out).get("jobs")
+    except (ValueError, AttributeError):
+        return None
+    return jobs if isinstance(jobs, list) else None
 
 
 def _repair_in_flight():
@@ -2379,7 +2530,8 @@ def fix_surrogate():
         # zero-findings round is still applied (#851 round 3: "hold
         # ready-to-merge", blocker outstanding). The last bot comment is
         # the verdict; the label is stale display state.
-        verdict, vtime = _latest_verdict(comments(num))
+        cs = comments(num)
+        verdict, vtime = _latest_verdict(cs)
         low = verdict.lower()
         if not _blocker_verdict(low):
             continue
@@ -2388,9 +2540,10 @@ def fix_surrogate():
         # seconds later and a second dispatch would cancel the first
         # (shared cancel-in-progress group).
         fire_marker = f"{MARK} fix-loop re-fired for the verdict at {vtime}"
-        cs = comments(num)
         markers = sum(1 for c in cs if fire_marker in (c.get("body") or ""))
-        if dispatched or _repair_in_flight() or _branch_moved_after(num, vtime):
+        if (dispatched or _repair_in_flight()
+                or _branch_moved_after(num, vtime)
+                or _repair_consumed(num, vtime, cs=cs, pr=pr)):
             continue
         if markers >= 2:
             plabels = {l.get("name") for l in (api(f"issues/{num}") or {}).get("labels", [])}
