@@ -16,6 +16,7 @@ import com.lagradost.api.Log
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.utils.*
+import java.io.IOException
 
 /** Pure parse half of the youporn embed (issue #1445). */
 object YoupornParse {
@@ -83,7 +84,7 @@ open class Youporn : ExtractorApi() {
     ) {
         val html = try {
             app.get(url, referer = referer ?: "$mainUrl/").text
-        } catch (e: Exception) {
+        } catch (e: IOException) {
             Log.d(name, "embed: ${e.message}")
             return
         }
@@ -94,7 +95,7 @@ open class Youporn : ExtractorApi() {
                          else "$mainUrl${media.videoUrl}"
             val res = try {
                 app.get(hopUrl, referer = referer ?: "$mainUrl/")
-            } catch (e: Exception) {
+            } catch (e: IOException) {
                 Log.d(name, "leg ${media.format}: ${e.message}")
                 continue
             }

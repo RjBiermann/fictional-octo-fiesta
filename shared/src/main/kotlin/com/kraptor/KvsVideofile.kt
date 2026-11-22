@@ -21,6 +21,7 @@ import com.lagradost.api.Log
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.utils.*
+import java.io.IOException
 
 /** Pure deobfuscation + endpoint grammar for the KVS `videofile.php` player (issue #1445). */
 object KvsVideofileParse {
@@ -129,7 +130,7 @@ open class KvsVideofile(override val mainUrl: String, override val name: String)
         val embedOrigin = KvsVideofileParse.origin(url) ?: mainUrl
         val res = try {
             app.get(api, referer = embedOrigin)
-        } catch (e: Exception) {
+        } catch (e: IOException) {
             Log.d(name, "videofile: ${e.message}")
             return
         }
