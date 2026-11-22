@@ -94,6 +94,17 @@ fun parseActors(document: Element): List<String> =
             val stream = decodeBase64(token) ?: return null
             return stream.takeIf { it.startsWith("http") }
         }
+
+        /**
+         * Video pages carry the player height in `og:video:height` (always 1280x720 on the
+         * 2026-11-22 fleet sample, FINDINGS-1441). CloudStream gets that height as the
+         * ExtractorLink quality; no ladder exists on the page, the single m3u8 is the stream.
+         * Range matches PornHub's qualityOf guard so garbage/0 never passes as a resolution.
+         */
+        fun parseQuality(html: String): Int? =
+            Regex("og:video:height\"\\s*content=\"([^\"]+)\"").find(html)
+                ?.groupValues?.get(1)?.trim()?.toIntOrNull()
+                ?.takeIf { it in 144..4320 }
     }
 
     override var mainUrl = "https://eroticmv.com"
@@ -207,6 +218,7 @@ fun parseActors(document: Element): List<String> =
             Log.d(tag, "stream extraction failed for: $raw")
             return false
         }
+        val quality = parseQuality(html)
 
         callback(
             newExtractorLink(
@@ -216,6 +228,7 @@ fun parseActors(document: Element): List<String> =
                 type = ExtractorLinkType.M3U8
             ) {
                 this.referer = mainUrl
+                quality?.let { this.quality = it }
             }
         )
         return true
