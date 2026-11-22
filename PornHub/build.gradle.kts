@@ -1,4 +1,4 @@
-version = 9 // #1490: pagination — derived home hasNext + search page-2 proof (v9)
+version = 9 // #1444: shared JavtifulEmbed row (fleet bump; base overtook the branch)
 
 cloudstream {
     authors     = listOf("RjBiermann")

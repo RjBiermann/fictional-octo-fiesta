@@ -189,6 +189,11 @@ internal fun sharedHostRegistry(): List<ExtractorApi> = listOf(
         // — evidence (#650): Javseen's fresh pages carry cloudwish as their
         // primary fallback host and no row answered cloudwish.xyz.
         CloudWish(),
+        // #1444: Javseen's popular far-end videos carry javtiful.com/embed as their only
+        // source (e.g. /290353/ → embed/115265 → 206 video/mp4). No row answered it, so
+        // loadExtractor dropped the video; the embed's watch-config playback endpoint is
+        // parsed by JavtifulEmbedParse (live fixtures, 2026-11-22).
+        JavtifulEmbed(),
         MyDaddyExtractor(),
         // #1439: HQPorner's catalogue is served by three player generations — hqwo.cc
         // (older uploads, same mydaddy anchor grammar) and www.flyflv.com (a third

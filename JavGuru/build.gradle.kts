@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 38 // #1442: searcho player rows (javplaya, maxstream) + packed streamwish fallback (v38)
+version = 39 // #1505: version bump (v39)
 
 cloudstream {
     authors     = listOf("kraptor", "ByAyzen")

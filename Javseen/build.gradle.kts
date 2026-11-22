@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 30 // #1491: version bump (v30)
+version = 31 // #1444: shared JavtifulEmbed row for javtiful.com/embed-only videos
 
 cloudstream {
     authors     = listOf("byayzen")

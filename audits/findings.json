@@ -395,6 +395,22 @@
       ],
       "false_positives": [],
       "note": "run31 (issue #1443, self-contained run of the #1354 S5 story). Video-source leg plain-curl on every surface (desktop UA, fullporner referer); canaries: film1k plain 200 = expectation-stale (#1435, live pair recorded not degraded), eporner 200, pandamovies 302->.org; TLS tier unavailable (#1434) so escalation_tier=unavailable, zero Blocked verdicts so nothing downgraded. D3: new/latest (/home/1..8, p1\u2229p2=0; /home/999 200 older still), categories (/category/vintage/1..last p5 10 cards, p1\u2229p2=0; /category/anal/7 24 cards), tags (watch #tag anchors -> /category/<slug>; /tags and /tag/ 404, so tags ARE categories) each sampled 2 videos at both ends; old/popular/genres absent site-side (no route/sort/taxonomy; /old,/popular,/genre 404, /home/old and /home/popular alias /home/1, /home/0 + /home/latest are an unlinked page-number quirk). 6 videos resolved end-to-end: all streams 206 video/mp4 via xiaoshenke.net -> vN.xiaoshenke.net (ladders 360/480/720/1080 where the mask exposes). Confirmed drift fixed: iframe host /video/<id>/<mask> -> /player/<id>/<mask>; parseEmbedSources unaffected but load() poster id became :sptth -> 404; fixed v27->v28 with FullPornerParse.iframeVideoId/posterUrl + TDD fixture watch_page_player_iframe.html. Gates: FullPorner:test green, clean FullPorner:make v28, check-findings PASS, verify.sh PASS (search 24+24, home 24+24, 6 video pages, streams 6/6 206 video/mp4, related 24/page, tags/year/duration 6/6). 0 false positives."
+    },
+    {
+      "id": "run32",
+      "date": "2026-11-22",
+      "pr": null,
+      "escalation_tier": "unavailable",
+      "findings": [
+        {
+          "issue": 1444,
+          "provider": "Javseen",
+          "verdict": "ok",
+          "confirmed_drift_fixed": "data-completeness, not site drift: popular far-end /290353/ has a single javtiful.com/embed/115265 source and no HostRegistry row answered it, so loadExtractor emitted zero links (video unplayable). JavtifulEmbedParse/JavtifulEmbed read the embed watch-config playback ticket, POST it, and emit the signed 720p mp4 (206 video/mp4); row added to shared/HostRegistry.kt, Javseen v30->v31, TDD red->green with javtiful_embed_watch_config.html + javtiful_playback.json (5 tests)"
+        }
+      ],
+      "false_positives": [],
+      "note": "run32 (issue #1444, self-contained run of the #1354 S6 story). Video-source leg plain-curl on every surface; canaries: film1k plain 200 = expectation-stale (#1435, live pair recorded not degraded), eporner 200, pandamovies 302->.org; TLS tier unavailable (#1434), zero Blocked verdicts so nothing downgraded. D3: new/latest (/recent/ p1/p2 30, p1\u2229p2=0, last p9653 19), popular (/popular/ p1/p2 30, p1\u2229p2=0, last p9653 19), genres (/solowork/ p1/p2 30, last p3843 28; /mosaic/recent/2/ 30), categories (/categories/ index 79 entries; /amateur/ p1/p2 30 with 1 site edge repeat, last p1826 19), tags (/tag/uncensored/ p1/p2 30, last p396 4; /tag/mature-woman/ p1 30, last p1459 17); old absent (/old, /oldest 404; no ascending sort). 21 distinct video pages sampled; streams resolved 200 m3u8 via cloudwish/mycloudz and 206 mp4 via javtiful. Confirmed condition fixed: javtiful.com/embed had no row; added shared adapter + registry row, v30->v31. Host-side non-conditions: avgle.com embeds 404 everywhere (host dead), playmogo/filemoon Turnstile, cdn-centaurus/premilkyway/dramiyos CDN timeouts, mixdrop.nu DNS-dead, f4splay adblock 403. Gates: Javseen:test green (JavtifulEmbedParseTest 4/4 + registry 1/1 + shared suite), clean Javseen:make v31, check-findings PASS, verify.sh streams 6/6 (4x cloudwish 200 m3u8, 1x mycloudz 200 m3u8, 1x javtiful 206 mp4) with the known JSON-AJAX listing instrument limitation (#650 precedent; manual 30-card/p1\u2229p2=0 transcripts). 0 false positives."
     }
   ],
   "providers": {
@@ -702,19 +718,22 @@
     },
     "Javseen": {
       "site": "javseen.tv",
-      "verdict": "ok",
-      "reason": "AJAX search + always-appended ?ajax= home URLs return 30 cards (deep 2026-10-13: p1/p2 disjoint); video pages 200; data-embeds base64 \u2192 javhdz embed 200 with m3u8; og:video:duration sentinel healed (real 6540) \u2014 #539 condition cleared, standing 477 clear",
+      "verdict": "ok-drift",
+      "reason": "VIDEO-SOURCE leg (S6, #1444) 2026-11-22, plain-curl on every surface. D3: new/latest (/recent/ p1..last p9653), popular (/popular/ p1..last p9653), genres (/solowork/ p1..last p3843, /mosaic/recent/2/), categories (/categories/ index 79 entries; /amateur/ p1..last p1826), tags (/tag/uncensored/ p1..last p396; /tag/mature-woman/ p1..last p1459) each sampled at both ends; old absent site-side (/old/, /oldest/ 404; sort menu has no ascending control). One confirmed data-completeness condition fixed in-run v30->v31: javtiful.com/embed had no HostRegistry row and popular far-end /290353/ carries it as its ONLY source, so loadLinks emitted zero links; shared JavtifulEmbedParse/JavtifulEmbed resolve the watch-config playback ticket to a signed 720p mp4 (206 video/mp4), TDD red->green with live fixtures, row registered as (javtiful.com/redacted) Sampled streams: cloudwish/mycloudz m3u8 200 (480/720/1080), javtiful mp4 206. Host-side only: avgle.com embeds 404, playmogo/filemoon Turnstile, cdn-centaurus/premilkyway/dramiyos CDN timeouts, mixdrop.nu DNS-dead, f4splay adblock 403 (Suspected, D8). Phase 0: film1k plain 200 = expectation-stale (#1435), eporner 200, pandamovies 302->.org; TLS tier unavailable (#1434), zero Blocked verdicts.",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200",
-        "search": "200 (AJAX)",
-        "video": "200"
+        "home": "200 (AJAX JSON, 30 cards/page; /recent/ p1..last p9653)",
+        "search": "200 (AJAX JSON, 30 cards/page)",
+        "video": "200 (6 verify samples + 15 evidence samples)",
+        "facet": "200 (category/genre/tag AJAX, 30/page; last pages 3843/1826/396/1459)",
+        "stream": "200 m3u8 (cloudwish/mycloudz) + 206 video/mp4 (javtiful)",
+        "quickSearch": "absent (no suggest endpoint; hasQuickSearch=false correct)"
       },
-      "issue": 539,
+      "issue": 1444,
       "standing_issue": 477,
-      "drift_confirmed": 0,
+      "drift_confirmed": 1,
       "chronic": false,
-      "last_deep": "2026-10-13"
+      "last_deep": "2026-11-22"
     },
     "Javtiful": {
       "site": "javtiful.com",
