@@ -54,6 +54,19 @@ object FullPornerParse {
         return qualities.map { EmbedSource(it, "https://xiaoshenke.net/vid/$reversedId/$it") }
     }
 
+    /** ISSUE #1443: the watch page's embed host moved from
+        `//xiaoshenke.net/video/<id>/<mask>` to `//fullporner.com/player/<id>/<mask>`;
+        both shapes carry the raw id the embed page reverses. Null when neither
+        grammar is present (the WebView fallback still handles source extraction). */
+    fun iframeVideoId(iframeUrl: String): String? =
+        Regex("""/(?:video|player)/([^/?#]+)""").find(iframeUrl)
+            ?.groupValues?.get(1)?.takeIf { it.isNotBlank() }
+
+    /** ISSUE #1443: poster thumbnail for the raw id — the site's
+        `/vid/<reversed>/720/i` endpoint 302s to the real image. */
+    fun posterUrl(iframeUrl: String): String? =
+        iframeVideoId(iframeUrl)?.let { "https://xiaoshenke.net/vid/${it.reversed()}/720/i" }
+
     /** ISSUE #644: div.video-info exposes the duration as an h:m:s-clock
         `<div>36:24</div>` and the upload date as `<span class="create"><epoch></span>.
         Duration routes through the shared DurationParse (repo convention: minutes,
@@ -319,12 +332,11 @@ class FullPorner : MainAPI() {
         val title     = document.selectFirst("div.video-block div.single-video-left div.single-video-title h2")?.text()?.trim().toString()
         val iframeUrl      = fixUrlNull(document.selectFirst("div.video-block div.single-video-left div.single-video iframe")?.attr("src")) ?: ""
 //        Log.d("kraptor_Fullporner","iframeUrl = $iframeUrl")
-        val videoID          = iframeUrl.substringAfter("video/").substringBefore("/")
-//        Log.d("kraptor_Fullporner","videoID = $videoID")
-        val reverseId        = videoID.reversed()
-        val poster           = "https://xiaoshenke.net/vid/$reverseId/720/i"
-//        Log.d("kraptor_Fullporner","poster = $poster")
-        val posterAl         = app.get(poster, referer = "https://xiaoshenke.net/", allowRedirects = true).url
+        // #1443: /video/<id> -> /player/<id>/<mask>; derive the id from either shape.
+        val poster           = FullPornerParse.posterUrl(iframeUrl)
+        val posterAl         = poster?.let {
+            app.get(it, referer = "https://xiaoshenke.net/", allowRedirects = true).url
+        }
 
         val tags            = document.select("div.video-block div.single-video-left div.single-video-title p.tag-link span a").map { it.text() }
         val recommendations = document.select("div.video-block div.video-recommendation div.video-card").mapNotNull { searchCard(it, "div.video-card-body div.video-title a", posterSel = "div.video-card-image a img") }

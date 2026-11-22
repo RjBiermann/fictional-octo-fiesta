@@ -81,6 +81,30 @@ class FullPornerLoadParseTest {
         assertEquals(2026, FullPornerParse.year(doc("watch_page_lacey.html")))
     }
 
+    /* ── #1443 (2026-11-22 probe): the watch page's embed host moved from
+       //xiaoshenke.net/video/<id>/<mask> to //fullporner.com/player/<id>/<mask>.
+       parseEmbedSources still reads the player page (same id/quality locals), but
+       load()'s `substringAfter("video/")` id extraction no longer matches, so its
+       poster id came out as "sptth:". */
+    @Test fun `iframe id parses from the current player grammar and the legacy video grammar`() {
+        val iframe = doc("watch_page_player_iframe.html")
+            .selectFirst("div.single-video iframe")!!.attr("src")
+        assertEquals("d826d15d710b6", FullPornerParse.iframeVideoId(iframe))
+        assertEquals(
+            "https://xiaoshenke.net/vid/6b017d51d628d/720/i",
+            FullPornerParse.posterUrl(iframe)
+        )
+        assertEquals(
+            "7607533",
+            FullPornerParse.iframeVideoId("//xiaoshenke.net/video/7607533/14")
+        )
+    }
+
+    @Test fun `iframe without a video id yields no poster`() {
+        assertEquals(null, FullPornerParse.iframeVideoId("//fullporner.com/player/"))
+        assertEquals(null, FullPornerParse.posterUrl(""))
+    }
+
     @Test fun `absent video-info yields null duration and year`() {
         val d = org.jsoup.Jsoup.parse("<html></html>")
         assertEquals(null, FullPornerParse.durationMinutes(d))
