@@ -2,14 +2,18 @@ package com.rjbiermann
 
 import com.kraptor.DistinctBar
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Fixtures are the verbatim `<ul id="videoCategory">` listing block of
- * https://www.pornhub.com/video (page 1) and https://www.pornhub.com/video?page=2 (page 2) —
- * the only part of the page the card Parse seam reads. See FINDINGS §Homepage.
+ * Fixtures are the verbatim `<link rel="canonical">` / `<link rel="next|prev">` head lines of
+ * https://www.pornhub.com/video (page 1) and https://www.pornhub.com/video?page=2 (page 2)
+ * followed by the verbatim `<ul id="videoCategory">` listing block of the same responses, plus
+ * the verbatim `<title>` + error block of the past-the-end `?page=9999` response (HTTP 404) —
+ * the markup the card and pagination Parse seams read. See FINDINGS §§Homepage,
+ * Pagination (home).
  */
 class PornHubParseTest {
 
@@ -89,6 +93,78 @@ class PornHubParseTest {
         assertEquals("$BASE/video", Parse.pageUrl("$BASE/video", 1))
         assertEquals("$BASE/video?page=2", Parse.pageUrl("$BASE/video", 2))
         assertEquals("$BASE/video?o=mv&page=2", Parse.pageUrl("$BASE/video?o=mv", 2))
+    }
+
+    @Test fun `home page 1 announces a next page`() {
+        // The row stop is derived from the site's own signal, exactly like search — never a
+        // constant (FINDINGS §Pagination (home)).
+        assertTrue("page 1 must carry the site's own rel=next",
+            Parse.hasNextPage(fixture("home-page-1.html")))
+    }
+
+    @Test fun `home page 2 announces a next page`() {
+        assertTrue("page 2 must carry the site's own rel=next",
+            Parse.hasNextPage(fixture("home-page-2.html")))
+    }
+
+    @Test fun `a past-the-end home page stops the row`() {
+        // ?page=9999 answers HTTP 404 with no listing block, no rel=next and no page_next:
+        // that body is what makes the derived stop safe (FINDINGS §Pagination (home)).
+        val html = fixture("home-past-end.html")
+        assertEquals("the 404 body carries no listing cards",
+            emptyList<Any>(), provider.parseVideoCards(html))
+        assertFalse("the 404 body must not claim a next page", Parse.hasNextPage(html))
+        assertFalse("the row stop rule must stop there too", Parse.homeHasNext(html))
+    }
+
+    @Test fun `a degraded listing with no next signal stops the row`() {
+        // The listing block is present but the head link and the enabled Next anchor are both
+        // gone (a gated or degraded body): the stop rule still says "no next page" — a constant
+        // here is exactly the defect this story removes.
+        val html = """<html><head><title>Pornhub</title></head><body>
+            <ul id="videoCategory"><li class="pcVideoListItem">
+                <a href="/view_video.php?viewkey=degradedcard1" title="Degraded Card">
+                    <img data-image="https://pix-fl.phncdn.com/degraded.jpg"></a>
+                <span class="title"><a href="/view_video.php?viewkey=degradedcard1">Degraded Card</a></span>
+                <var class="duration">9:25</var><span class="views"><var>12K</var> views</span>
+            </li></ul>
+            <div class="pagination3"><ul><li class="page_next disabled">
+                <a href="" class="orangeButton">Next</a></li></ul></div>
+        </body></html>"""
+        assertTrue("the listing block must still parse",
+            provider.parseVideoCards(html).isNotEmpty())
+        assertFalse("no head link and no enabled Next anchor means no next page",
+            Parse.hasNextPage(html))
+        assertFalse("the row stop rule follows it", Parse.homeHasNext(html))
+    }
+
+    @Test fun `the home fallback survives only for a body with no markup`() {
+        // Documented fallback (FINDINGS §Pagination (home)): an empty body carries no evidence,
+        // so page 1 keeps the row open; any real body is derived, never a constant.
+        assertTrue("an empty page-1 body keeps the row open", Parse.homeHasNext(""))
+        assertTrue("a whitespace-only page-1 body is the same case", Parse.homeHasNext(" \n\t "))
+        assertFalse("the derived rule alone would stop there", Parse.hasNextPage(""))
+        assertTrue("a live page keeps paging", Parse.homeHasNext(fixture("home-page-1.html")))
+        assertFalse("a signal-less real body stops the row",
+            Parse.homeHasNext(fixture("home-past-end.html")))
+    }
+
+    @Test fun `the empty-body fallback is page-scoped so no row can page for ever`() {
+        // A blank body carries no evidence, so page 1 keeps the row open (a transport hiccup
+        // must not end the row). Past page 1 the same blank body means "nothing to show":
+        // stopping there is what keeps a site that answers empty bodies from leaving the row
+        // with an endless "next" (repair of #1503's review finding).
+        assertFalse("an empty page-2 body stops the row", Parse.homeHasNext("", page = 2))
+        assertFalse("whitespace-only past page 1 does too", Parse.homeHasNext(" \n\t ", page = 3))
+        // Past page 1 the derived rule still decides every real body — the page scope is a
+        // fallback for "no mark-up at all", never an override of the site's own signal.
+        assertTrue("a real page-2 body still follows its rel=next",
+            Parse.homeHasNext("""<html><head>
+                <link rel="next" href="$BASE/video?page=3" />
+                </head><body><ul id="videoCategory"></ul></body></html>""", page = 2))
+        assertFalse("and a signal-less real page-2 body still stops it",
+            Parse.homeHasNext("""<html><head><title>Pornhub</title></head>
+                <body><ul id="videoCategory"></ul></body></html>""", page = 2))
     }
 
     @Test fun `ad slots without a video link are dropped`() {
