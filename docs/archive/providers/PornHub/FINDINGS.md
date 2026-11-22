@@ -26,6 +26,25 @@ failure is app-side batching (M2) or a stale installed plugin (M3). §Search rec
 search fixtures are now the reporter's query, with the last-page / no-results fixtures kept
 on the broad `teen` probe.
 
+**Addendum — S2 of the #1490 pagination spec (2026-11-22).** §Pagination → §Home now derives
+the row stop from the site's own `rel=next` (`Parse.homeHasNext`, replacing the hardcoded
+`hasNext = true`) and carries today's four-row page-1/page-2 transcript plus the 404
+past-the-end shape. The home fixtures gained the responses' head lines and a new
+`home-past-end.html`; read §Pagination (home) before touching the row stop rule.
+
+**Repair round on #1503 (2026-11-22).** Two review findings from the PR's first round: (i) the
+codacy reviewer's "an empty body keeps pagination active indefinitely" — answered by making the
+empty-body fallback **page-scoped** (`Parse.homeHasNext(html, page)` keeps the row open on page 1
+only, §Pagination (home)); (ii) the SonarCloud new-code gate (maintainability B) — `kotlin:S1125`
+(the `if (…) true else …` fallback lost its redundant Boolean literal) and `kotlin:S6518`, whose
+analyzer reads NiceHttp's single-argument `app.get(...)` as a collection accessor (86 identical
+false positives on `main`, no classpath in this analysis). The second is
+a **false positive on the HTTP verb**, suppressed at `getMainPage` with the count recorded; the
+root cause is a Sonar project-level exclusion, filed as a triage issue from this round. The
+reviewer's "`getMainPage` wiring has no direct test" suggestion stays declined per ADR-0005:
+`MainAPI`/HTTP flows are covered by pipeline Verification (the four-row transcript below), never
+by HTTP mocking in unit tests.
+
 ## Engine fingerprint
 
 **Custom proprietary platform** (PornHub's own stack — not KVS/Kernel, not a WP video theme).
@@ -258,7 +277,9 @@ stayed green on exactly the shape that fails in the app.
 Refreshed for S1 (2026-11-21, same cut, query signatures verbatim):
 
 - `home-page-1.html`, `home-page-2.html` — the verbatim `ul#videoCategory` block of `/video`
-  page 1 and page 2 from a **`pix-cdn77`** fetch pair (0 shared viewkeys);
+  page 1 and page 2 from a **`pix-cdn77`** fetch pair (0 shared viewkeys); S2 prepended the
+  same responses' `<link rel="canonical"/"next">` (page 2 `"prev"` too) head lines
+  (§Pagination (home) fixture refresh).
 - `search-page-1.html` — the verbatim canonical/next head lines + `ul#videoSearchResult` block,
   **24 `pix-cdn77` + 7 legacy `ei` stills** (mixed family, as the live page served it);
   `search-page-2.html` refreshed as the same-session page-2 pair, **36 `pix-fl` + 7 legacy
@@ -278,7 +299,8 @@ story was verified with the same mechanics it applies to a listing page: fetch e
 and page 2, count `ul#videoCategory li.pcVideoListItem` cards, require ≥1, and require page 2 to
 share no viewkey with page 1 (transcript above). The fixtures under
 `PornHub/src/test/resources/` are the **verbatim `<ul id="videoCategory">` block** of
-`/video` page 1 and `/video?page=2`, the only markup the Parse seam reads.
+`/video` page 1 and page 2 (S2 later prepended the same responses' head lines, §Pagination
+(home)), the only markup the card Parse seam reads.
 
 ## Pagination
 
@@ -298,8 +320,66 @@ https://www.pornhub.com/video?page=0 -> HTTP 404
 ```
 
   (Neither body contains `ul#videoCategory`, so a past-last-page request cannot flood the row
-  with page-1 duplicates — `hasNext = true` in `getMainPage` is safe and the app stops on the
-  empty/404 page rather than re-serving page 1.)
+  with page-1 duplicates.) The 404 body also carries no `<link rel="next">` and no
+  `page_next` pagination control at all — only header-dropdown cards, which the scoped
+  listing selector drops — and that shape is now pinned by `home-past-end.html`.
+
+- **Stop signal: derived, never a constant (S2 of #1490).** Every live row page publishes the
+  same head signal as search — `<link rel="next" href="…page=N+1">` (page 2 also carries
+  `<link rel="prev">`) — with `div.pagination3 li.page_next a[href]` as the backstop, and the
+  past-the-end 404 body has neither. `getMainPage` therefore passes
+  `hasNext = Parse.homeHasNext(html, page)`, i.e. the same `Parse.hasNextPage` rule search uses,
+  for every real body. The old `hasNext = true` constant survives **only** as the fallback for an
+  empty/whitespace body **on page 1**, where the derived rule has no mark-up to read and `false`
+  would end the row on a transport hiccup. Past page 1 the same blank body means "nothing left to
+  show" and the row stops — the review round on #1503's codacy finding (a site answering blank
+  bodies would otherwise leave the row with an endless "next"; no live body is blank, so this is
+  the hypothetical the fallback is bounded against, not a measured shape). A real body carrying
+  neither signal — the past-the-end 404 or a gated/degraded listing — stops the row
+  (`hasNext = false`) on any page; no code path re-introduces an unconditional `true`.
+
+S2 re-probe (2026-11-22, egress `20.169.65.236` Phoenix/Arizona, AS8075 Microsoft — ungated,
+`/video` answers 200 with the listing, so §Risks' gate caveat does not apply to these lines):
+
+```
+== home rows: page 1 + page 2 (viewkey-keyed, scoped to ul#videoCategory) ==
+https://www.pornhub.com/video                  p1 HTTP 200 cards= 63 distinct= 32 rel=next=True
+                                               p2 HTTP 200 cards= 87 distinct= 44 rel=next=True  shared=0
+https://www.pornhub.com/video?o=mv             p1 HTTP 200 cards= 63 distinct= 32 rel=next=True
+                                               p2 HTTP 200 cards= 87 distinct= 44 rel=next=True  shared=0
+https://www.pornhub.com/video?o=tr             p1 HTTP 200 cards= 63 distinct= 32 rel=next=True
+                                               p2 HTTP 200 cards= 87 distinct= 44 rel=next=True  shared=0
+https://www.pornhub.com/video?o=cm             p1 HTTP 200 cards= 63 distinct= 32 rel=next=True
+                                               p2 HTTP 200 cards= 87 distinct= 44 rel=next=True  shared=0
+
+== past the end: /video?page=9999 ==
+GET /video?page=9999 -> HTTP 404; ul#videoCategory: no; cards in block=0; rel=next=no; enabled page_next=no
+RESULT: PASS
+```
+
+`cards` counts anchor occurrences, `distinct` counts viewkeys: each card links the same
+viewkey twice (thumbnail anchor + title anchor), 63/87 anchors → 32/44 viewkeys — the
+identity key S4's transcript uses. `verify.sh` check 1a fetches the same eight URLs (all →
+200; `ul#videoCategory li.pcVideoListItem` 45 / 57 global matches, the documented
+not-container-scoped number) but its duplicate check false-FAILs site-wide because `url_path`
+strips `?viewkey=` (§Verification (S4)), so this viewkey-keyed transcript is the authoritative
+"0 shared viewkeys on each pair" evidence. The four rows are distinct listings, not one page
+served four times (`?o=mv` p1 shares 5 viewkeys with `/video` p1, `?o=tr`/`?o=cm` share 0).
+
+### Fixture refresh — home rows (S2 of #1490, 2026-11-22)
+
+`home-page-1.html` / `home-page-2.html` used to be the listing block alone (no head), which is
+why the derived stop had no live shape to assert against. They now carry the **verbatim**
+`<link rel="canonical">` / `<link rel="next">` (page 2 also `<link rel="prev">`) head lines
+of the same responses, prepended to the same verbatim `ul#videoCategory` block — the shape
+`search-page-*.html` already had. `home-past-end.html` is new: the verbatim
+`<title>Page Not Found</title>` + error block of the real `/video?page=9999` 404 (no listing
+block, no `rel=next`, no `page_next`) — the body that makes the derived stop safe.
+`PornHubParseTest` asserts `Parse.homeHasNext` true on both live pages, false on the
+past-the-end body and on a degraded body (listing block present, head link and enabled Next
+anchor both gone), and true only for an empty/whitespace **page-1** body (the documented
+constant fallback, page-scoped: an empty body past page 1 stops the row — FINDINGS §Pagination
+(home)).
 
 ### Search
 

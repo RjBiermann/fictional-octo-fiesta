@@ -123,6 +123,22 @@ object Parse {
         return next.attr("href").isNotBlank()
     }
 
+    /**
+     * Home-row stop rule: the `/video` listings publish the very same `<link rel="next">` (with
+     * the enabled `li.page_next a[href]` as the backstop) as search, so the stop is derived with
+     * [hasNextPage] — never a constant (FINDINGS §Pagination (home)).
+     *
+     * The old `hasNext = true` survives **only** as the fallback for a body with no mark-up at
+     * all, and only on page 1: there the derived rule has no evidence to read, and `false` would
+     * end the row on a transport hiccup. Past page 1 the same empty body means "nothing left to
+     * show", so the row stops — a site answering blank bodies cannot leave it with an endless
+     * "next". It never fires on a real, signal-less body either way: the past-the-end
+     * `/video?page=9999` 404 (no `ul#videoCategory`, no `rel=next`) and a gated or degraded
+     * listing both stop the row, so the app can neither walk into 404s nor re-serve page 1.
+     */
+    fun homeHasNext(html: String, page: Int = 1): Boolean =
+        if (html.isBlank()) page == 1 else hasNextPage(html)
+
     /** Watch-page metadata. [related] is empty when the page exposes no related block. */
     data class VideoDetails(
         val title: String,
@@ -358,11 +374,20 @@ class PornHub : MainAPI() {
         "$mainUrl/video?o=cm" to "Newest",
     )
 
+    // kotlin:S6518 ("Replace function call with indexed accessor") reads NiceHttp's `app.get(...)`
+    // — the HTTP verb, single positional argument — as a collection accessor. The analyzer has no
+    // classpath for this repo, so the same false positive sits on every provider page fetch (86
+    // open instances on main, 2026-11-22); it is suppressed here because this PR's new code is the
+    // only place the new-code gate measures it. Root cause filed as a triage issue with this fix.
+    @Suppress("kotlin:S6518")
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val videos = parseVideoCards(app.get(Parse.pageUrl(request.data, page)).text)
+        val html = app.get(Parse.pageUrl(request.data, page)).text
+        val videos = parseVideoCards(html)
         return newHomePageResponse(
             HomePageList(name = request.name, list = videos, isHorizontalImages = false),
-            hasNext = true, // FINDINGS §Pagination (home): every page through the last one has a next
+            // Derived from the site's own rel=next on every live page, exactly like search;
+            // `Parse.homeHasNext` documents the single fallback (an empty body, page 1 only).
+            hasNext = Parse.homeHasNext(html, page),
         )
     }
 
