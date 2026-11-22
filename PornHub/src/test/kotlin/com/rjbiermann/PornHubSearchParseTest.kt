@@ -10,9 +10,11 @@ import org.junit.Test
 /**
  * Search fixtures are the verbatim `<link rel="canonical">` / `<link rel="next|prev">` head lines
  * of the response followed by the verbatim `<ul id="videoSearchResult">` result block (or, for the
- * last page, the verbatim `<div class="pagination3">` block) of
- * https://www.pornhub.com/video/search?search=teen[&page=2] — the only markup the search Parse
- * seams read. See FINDINGS §§Search, Pagination (search).
+ * last page, the verbatim `<div class="pagination3">` block) — the only markup the search Parse
+ * seams read. `search-page-1.html` / `search-page-2.html` are the **reporter's own query**
+ * (`?search=george+uhl`, #1494), so the pagination seam is asserted on the request that failed
+ * for them; `search-last-page.html` / `search-no-results.html` stay on the broad `teen` probe
+ * (last reachable page + 404 body). See FINDINGS §§Search, Pagination (search).
  */
 class PornHubSearchParseTest {
 
@@ -39,6 +41,43 @@ class PornHubSearchParseTest {
     @Test fun `search page 2 does not repeat page 1`() {
         val overlap = search1().map { it.url }.intersect(search2().map { it.url }.toSet())
         assertTrue("page 2 must be fresh results, but ${overlap.size} repeat", overlap.isEmpty())
+    }
+
+    @Test fun `the fixtures are the reporter's own query`() {
+        // #1494: the fixtures used to carry the `teen` probe; they now carry the query the
+        // reporter searched, so every pagination assertion below runs on their request.
+        for (name in listOf("search-page-1.html", "search-page-2.html")) {
+            val html = fixture(name)
+            assertTrue("$name must be the reporter's query",
+                html.contains("search?search=george+uhl"))
+            assertTrue("$name must carry the site's own rel=next", html.contains("<link rel=\"next\""))
+            assertTrue("$name must not hold the old teen probe",
+                !html.contains("search=teen"))
+        }
+    }
+
+    @Test fun `the reporter query paginates - both pages announce a next page and share no card`() {
+        // Acceptance evidence for #1494: the seam DOES paginate the reporter's query. Page 2 is
+        // new results (0 shared viewkeys) and both pages carry the site's own rel=next.
+        assertTrue("page 1 announces page 2", Parse.hasNextPage(fixture("search-page-1.html")))
+        assertTrue("page 2 announces page 3", Parse.hasNextPage(fixture("search-page-2.html")))
+        val page2 = search2().map { it.url }.toSet()
+        val shared = search1().map { it.url }.filter { it in page2 }
+        assertEquals("page 2 must share no card with page 1", emptyList<String>(), shared)
+    }
+
+    @Test fun `every reporter-query card carries duration and views`() {
+        // The card metadata the load seam depends on is present on the reporter-query fixtures
+        // too (not just the old probe), so a page-2 card is as complete as a page-1 card.
+        for ((label, cards) in listOf("page 1" to Parse.searchCards(fixture("search-page-1.html")),
+            "page 2" to Parse.searchCards(fixture("search-page-2.html")))) {
+            assertTrue("$label: no cards parsed", cards.isNotEmpty())
+            val noDuration = cards.filter { it.durationMinutes == null }
+            val noViews = cards.filter { it.views == null }
+            assertTrue("$label: ${noDuration.size} card(s) without duration",
+                noDuration.isEmpty())
+            assertTrue("$label: ${noViews.size} card(s) without views", noViews.isEmpty())
+        }
     }
 
     @Test fun `distinct bar holds on both search pages`() {
@@ -137,6 +176,12 @@ class PornHubSearchParseTest {
         assertEquals("$BASE/video/search?search=big+tits&page=3",
             Parse.searchUrl("big tits", 3))
         assertEquals("$BASE/video/search?search=a%26b", Parse.searchUrl("a&b", 1))
+        // The reporter's own query (#1494): a space is `+` on page 1 and page 2 alike.
+        assertEquals("$BASE/video/search?search=george+uhl", Parse.searchUrl("george uhl", 1))
+        assertEquals("$BASE/video/search?search=george+uhl&page=2",
+            Parse.searchUrl("george uhl", 2))
+        assertTrue("the reporter query must never go out as %20",
+            !Parse.searchUrl("george uhl", 2).contains("%20"))
     }
 
     private companion object {
