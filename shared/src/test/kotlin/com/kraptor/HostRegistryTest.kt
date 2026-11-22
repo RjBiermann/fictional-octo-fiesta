@@ -220,6 +220,30 @@ class HostRegistryTest {
     }
 
     /**
+     * (h) Issue #1442 (JavGuru video-source audit): the searcho mirror rotates its player
+     * hosts, and two of them carried real streams with no row — javplaya.com (the packed
+     * `links={hls2,hls3,hls4}` family, identical to javclan) and maxstream.org (Playerjs
+     * `file:` inside the same packer). loadExtractor dispatches by registered-mainUrl
+     * prefix, so both were dropped on every page that offered them (14/16 and 4/16 of the
+     * run's samples). Pin an explicit row for each, in the adapter family that parses it.
+     */
+    @Test
+    fun `javguru searcho player hosts have explicit registry rows`() {
+        val hosts = rows.map { host(it.mainUrl) }.toSet()
+        val missing = listOf("javplaya.com", "maxstream.org").filter { it !in hosts }
+        assertTrue(
+            "jav.guru searcho player hosts have no registry row (loadExtractor drops them): $missing",
+            missing.isEmpty()
+        )
+        // javplaya serves the same `links` object javclan does — one adapter family.
+        assertTrue(rows.single { host(it.mainUrl) == "javplaya.com" } is Javclan)
+        // maxstream is a Playerjs player: different grammar, own adapter.
+        assertTrue(rows.single { host(it.mainUrl) == "maxstream.org" } is Maxstream)
+        // the javclan.com row these mirror off must stay registered.
+        assertTrue(rows.any { host(it.mainUrl) == "javclan.com" })
+    }
+
+    /**
      * (c) Naming collisions across code paths (issue #347 P0-11) are
      * intentional — but only the documented ones. Names are user-facing in
      * CloudStream's source list; mirror families legitimately share a display

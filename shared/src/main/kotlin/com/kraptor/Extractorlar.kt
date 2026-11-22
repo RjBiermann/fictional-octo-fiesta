@@ -594,6 +594,21 @@ open class Filemoon(
 }
 
 
+/**
+ * Pure Parse (issue #1442): the streamwish player body's `file:"<stream>"` field.
+ * Most mirrors serve it plainly, but streamhihi.com (jav.guru's "STREAM SB" slot) now
+ * ships the whole `sources:{file:…}` config eval(p,a,c,k,e,d)-packed, so the raw regex
+ * found nothing and the link was dropped. Unpack as the fallback, never instead.
+ * Live fixture: streamhihi_packed_player.js.
+ */
+object StreamwishParse {
+    private val fileField = Regex("""\bfile["']?\s*:\s*["']([^"']+)["']""")
+
+    fun streamUrl(playerScript: String): String? =
+        fileField.find(playerScript)?.groupValues?.get(1)
+            ?: PackedJs.unpack(playerScript)?.let { fileField.find(it)?.groupValues?.get(1) }
+}
+
 open class Streamwish : ExtractorApi() {
     override var name = "Streamwish"
     override var mainUrl = "https://streamwish.to"
@@ -612,7 +627,7 @@ open class Streamwish : ExtractorApi() {
                 "Sec-Fetch-Site" to "cross-site",
                 "Origin" to url,
             )
-            Regex("file:\"(.*?)\"").find(script)?.groupValues?.get(1)?.let { link ->
+            StreamwishParse.streamUrl(script)?.let { link ->
                 return listOf(
                     newExtractorLink(source = this.name, name = this.name, url = link, INFER_TYPE) {
                         this.referer = referer ?: ""
@@ -704,6 +719,28 @@ class StreamBeastUpn : Playerupnone() { override var mainUrl = "https://streambe
 
 
 
+/**
+ * Pure Parse (issue #1442): the packed-`links` player family — javclan.com and jav.guru's
+ * searcho mirror host javplaya.com serve the same config (`links={hls2,hls3,hls4}` inside
+ * eval(p,a,c,k,e,d)). hls2 (pre-milkyway, absolute) and hls4 (same-origin relative) serve
+ * m3u8; hls3 403s. Live fixtures: javclan_packed_embed.html, javplaya_packed_embed.html.
+ */
+object JavclanParse {
+    private val linksField = Regex("\"(hls[234])\":\"([^\"]*)\"")
+
+    /** Stream URLs from a packed or already-unpacked player payload; empty when absent. */
+    fun streams(playerPayload: String, baseUrl: String): List<String> {
+        val unpacked = PackedJs.unpack(playerPayload) ?: playerPayload
+        val links = linksField.findAll(unpacked)
+            .map { it.groupValues[1] to it.groupValues[2] }
+            .toMap()
+        return listOfNotNull(
+            links["hls2"]?.takeIf { it.startsWith("http") },
+            links["hls4"]?.takeIf { it.startsWith("/") }?.let { baseUrl.trimEnd('/') + it },
+        )
+    }
+}
+
 // javclan.com packs its jwplayer config in eval(p,a,c,k,e,d); unpack and read links={hls2,hls3,hls4}.
 // hls2 (premilkyway, absolute) and hls4 (same-origin relative) serve m3u8; hls3 403s.
 open class Javclan : ExtractorApi() {
@@ -715,14 +752,7 @@ open class Javclan : ExtractorApi() {
         val packed = res.document.select("script").firstOrNull {
             it.data().contains("eval(function(p,a,c,k,e,d)")
         }?.data() ?: return null
-        val unpacked = PackedJs.unpack(packed) ?: return null
-        val links = Regex("\\\"(hls[234])\\\":\\\"([^\\\"]*)\\\"").findAll(unpacked)
-            .map { it.groupValues[1] to it.groupValues[2] }
-            .toMap()
-        val streamUrls = listOfNotNull(
-            links["hls2"]?.takeIf { it.startsWith("http") },
-            links["hls4"]?.takeIf { it.startsWith("/") }?.let { mainUrl.trimEnd('/') + it },
-        ).ifEmpty { return null }
+        val streamUrls = JavclanParse.streams(packed, mainUrl).ifEmpty { return null }
         return streamUrls.map { link ->
             newExtractorLink(name, name, link, ExtractorLinkType.M3U8) {
                 this.referer = url
@@ -1279,6 +1309,11 @@ fun dood(url: String, nm: String = "DoodStream"): DoodStream =
 
 fun streamtapeMirror(url: String): StreamTAPE =
     object : StreamTAPE() { override var mainUrl = url }
+
+// jav.guru's searcho mirror hands out javplaya.com embeds with the javclan grammar
+// (`links={hls2,hls4}`, live capture 2026-11-22, issue #1442).
+fun javclanMirror(url: String, nm: String): Javclan =
+    object : Javclan() { override var mainUrl = url; override var name = nm }
 
 fun voeMirror(url: String): Voe =
     object : Voe() { override var mainUrl = url }
