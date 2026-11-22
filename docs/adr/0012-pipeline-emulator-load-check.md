@@ -1,5 +1,15 @@
 # Pipeline-run emulator load check; ADR-0001's in-app clause superseded
 
+> Amended 2026-11-22 (#1500): the load tier no longer fires the reload intent
+> unconditionally. The app loads every local plugin by itself on startup, and the
+> `.cs3` files are pushed before the launch, so that startup round is the round the
+> tier asserts; the intent is now only the fallback for a startup round that reported
+> nothing. Firing it into an in-flight startup load unloads plugin instances whose
+> `load()` has not returned and re-enters `load()` for the same file — run 45024201161
+> lost exactly the two plugins that were mid-load (`PerverZija`, `WatchPorn`) that way
+> and reported them as a failing set no provider code explains
+> (`docs/archive/findings/FINDINGS-1500.md`). The assertion itself is unchanged.
+
 Partially supersedes ADR-0001. Compiling against the unpinned `pre-release` classes.jar
 (bootstrapCloudstream, cold CI runs) proves API compatibility but nothing proves a plugin
 actually registers and loads inside the real CloudStream app — the one gap neither builds,

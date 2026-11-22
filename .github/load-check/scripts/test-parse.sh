@@ -37,4 +37,17 @@ if has_failed "$tmp/clean.log"; then echo "FAIL: clean log flagged"; exit 1; fi
 [[ -z $(extract_loaded "$tmp/empty.log") ]] || { echo "FAIL: empty log loaded"; exit 1; }
 has_failed "$tmp/empty.log" && { echo "FAIL: empty log failed"; exit 1; }
 
+# reported_count is the harness's progress signal (issue #1500): the load round that is still
+# starting up must be distinguishable from one that settled, so only verdict lines count —
+# `Loading plugin: …` is printed by every plugin *before* it reports and is not a verdict.
+cat > "$tmp/progress.log" <<'EOF'
+12-25 04:41:06.000 I/PluginManager( 4355): Loading plugin: PluginData(internalName=EPorner.cs3, url=null, isOnline=false, filePath=/x/EPorner.cs3, version=1)
+12-25 04:41:07.123 I/PluginManager( 4355): Loaded plugin EPorner.cs3 successfully
+12-25 04:41:07.456 E/PluginManager( 4355): Failed to load plugin MissAV.cs3: something broke
+EOF
+got=$(reported_count "$tmp/progress.log")
+[[ $got -eq 2 ]] || { echo "FAIL: reported_count must count verdict lines only, got '$got'"; exit 1; }
+got=$(reported_count "$tmp/empty.log")
+[[ $got -eq 0 ]] || { echo "FAIL: reported_count on an empty log must be 0, got '$got'"; exit 1; }
+
 echo "parse-log tests PASSED"
