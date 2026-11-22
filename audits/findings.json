@@ -427,27 +427,46 @@
       ],
       "false_positives": [],
       "note": "run33 (issue #1445, self-contained run of the #1354 S7 story). Video-source leg plain-curl on every surface (desktop UA + ixiporn.live referer; the CDNs are referer-gated and the provider sets referer=data). Canaries: film1k plain 200 = expectation-stale (#1435, live pair recorded, not degraded), eporner 200, pandamovies 302->.org; TLS tier unavailable (#1434), zero Blocked verdicts so nothing downgraded. D3: new/latest (/page p1,p2,last 1964), old (?orderby=date&order=ASC, honoured but unlinked), popular (?filter=most-viewed; ?filter=popular randomised), categories (/category/indian p1,p2,p164), tags (/tag/ullu-web-series p1,p2,p49), genres absent; search p1/p2 disjoint. Player-shape census over 24 listing pages (2 videos each): A 16 / B 24 / D 8. 25 evidence rows: 15 pass (206 video/mp4 incl. 4 site-hosted wp-content/ixifile far-end files, youporn 480/240 m3u8+mp4, vjav/txxx _hq.mp4), 10 Suspected host-side (nubiles-porn 403 also for its /, dead cdn2 /1 files 404, ixiporn.live/files -> homepage HTML, deleted upstream youporn/vjav). Gates: ixiporn:test green (187 tests, 0 failures), clean ixiporn:make v39, EPorner:test green as shared-splice control, check-findings PASS, verify.sh PASS (search 30+30, home 30+30, 4 video pages, streams 4/4 206 video/mp4, related 12/page, tags/year/duration 4/4, LoadResponse complete). 0 false positives."
+    },
+    {
+      "id": "run34",
+      "date": "2026-11-22",
+      "pr": null,
+      "escalation_tier": "unavailable",
+      "false_positives": [],
+      "findings": [
+        {
+          "issue": 1447,
+          "provider": "PandaMovies",
+          "verdict": "ok-drift",
+          "confirmed_drift_fixed": "two conditions, one run (v19->v20). (1) enumeration: the site migrated term routes singular->plural and every genre home row 404'd while /genres/<slug> served 27 cards; fixed structurally at a pure Parse seam - Parse.rowCandidates/Parse.taxonomyTwin derive the twin route and getMainPage walks candidates until one yields cards (TDD red->green, live /genres/anal fixture). (2) search(): the ?s= retry is WAF-403, so the #444 fuzzy-page retry threw the whole search away; it now degrades to the first response. Registries untouched in the diff (ADR-0013).",
+          "data_completeness_filed": "peeplayer.com (PeeStream WebCrypto ECDH->HKDF->AES-GCM unwrap, 8/15 pages), vinovo.to (own reCAPTCHA-gated /api/file/url/ player, not the dood pass_md5 grammar, 5/15) and content.st (host-side 403, 1/15) have no shared/ adapter -> data-completeness finding filed this run; deliberately not papered over with a hostname row.",
+          "verification": "verify.sh PASS over 11 video pages / 11 distinct streams (9 lulustream m3u8 200, 2 mixdrop mp4 206); search p1/p2 27+27 no duplicate hrefs; home / + /page/2 36/27; related 12/page with no self-reference; search<->load agreement on title+poster."
+        }
+      ]
     }
   ],
   "providers": {
     "PandaMovies": {
       "site": "pandamovies.pw",
-      "verdict": "ok",
-      "reason": "Re-confirmed 2026-10-17 (deep pass #659 of #631): verdict ok retained, 0 confirmed conditions. Home/search/genre p1+p2 all 27+27 article.card cards fully disjoint (raw view too \u2014 no widget rotation; the Featured section.sec row stays home-p1-only and the provider's closest()-exclusion absorbs its one same-page shadow). Video grammar intact x4 (bc__c title, hlm-screen__poster, dp__panel details, hlm[data-servers] embeds); st--duration chip absent on some fresh-release pages (null-safe Parse, not drift). Embeds playmogo/luluvido 403 = datacenter-IP CF challenge class (Suspected per spec, browser tier auto-passes with correct player content; TLS-tier m3u8 proof from round-14 FINDINGS-598 carries); mixdrop chain resolved 206 video/mp4 x3; voe normal shell. Site quick-search migrated searchwp admin-ajax (dead 400) to turbo-search REST wp-json/turbosearch/v1/suggest (200) \u2014 no provider impact (no quickSearch override by design). #555 grammar record holds; #463 stays cleared. Chronic flag unchanged \u2014 removal decision stays with maintainers.",
+      "verdict": "ok-drift",
+      "reason": "S9 video-source deep pass 2026-11-22 (plain curl; .pw 302->.org, every HTML surface 200). Two confirmed drifts, both fixed this run (v19->v20). (1) Term-route migration singular->plural: /genre/<slug>, /category/porn-movies, /tag/*, /actor/*, /director/*, /release-year/<yyyy> all 404 while /genres/<slug>, /movies, /studios/<slug>, /years/<yyyy> serve 27 cards - all three genre home rows rendered empty, and the site's own indexes still link the dead shapes. Fixed structurally: rows on live surfaces + Parse.rowCandidates/taxonomyTwin singular<->plural fallback walked by getMainPage. (2) ?s= search retry is WAF-403 (787 B) while /search/<slug> stays 200, so a zero-overlap garbage page took the search down - retry now degrades to the first response. Video-source leg intact: section.hlm[data-servers] on 15/15 sampled pages (>=2 per D3 type, both catalogue ends), host-agnostic enumeration; end-to-end 200/206 proven for mixdrop.ag (206 video/mp4), lulustream.com (200 application/vnd.apple.mpegurl) and vidara.so (POST /api/stream -> m3u8 200). playmogo.com (DoodStream, 14/15) is a Turnstile shell from this IP = Suspected; vinovo.to and content.st are Suspected (reCAPTCHA client flow / host-side 403). Registry gap filed as data-completeness: peeplayer.com (PeeStream ECDH/HKDF/AES-GCM envelope, 8/15 pages), vinovo.to (own /api/file/url/ player, 5/15), content.st (1/15) have no shared/ adapter. Quality is not exposed per source; tags absent as a site surface (the 26k-term genre index carries the vocabulary); actors and plot are absent on a subset of pages (site data gap, not selector drift). Chronic flag unchanged; removal stays a maintainer decision.",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200 (.pw 302->.org; p1 main grid 27 + section.sec widget 9; p2 27; disjoint)",
-        "search": "200 p1+p2 27+27 disjoint",
-        "video": "200 x4",
-        "stream": "mixdrop chain 206 video/mp4 x3; playmogo/luluvido CF-challenge to datacenter IP (Suspected class; browser tier serves; TLS m3u8 proof round-14); voe shell 200",
-        "quick_search": "turbo-search REST wp-json/turbosearch/v1/suggest?q= 200 (searchwp admin-ajax dead 400); provider has no quickSearch override (by-design absent surface)",
-        "genre": "200 p1+p2 27+27 disjoint"
+        "home": "200 (p1 27 main-grid cards + 9 Featured section.sec excluded by design; /page/2 27; /page/4593 13 at the far end; nav.pg a.next pager)",
+        "search": "200 /search/<slug> p1+p2 27+27; legacy ?s= is WAF-403",
+        "video": "200 x15 (bc__c title, hlm-screen__poster, vid__txt plot, st--duration, st--year, chip genres, chip--star actors, section.sec related 12)",
+        "stream": "mixdrop.ag 206 video/mp4; lulustream.com m3u8 200; vidara.so API -> m3u8 200; voe.sx -> caseyseemavoid.com player 200; playmogo.com Turnstile (Suspected); vinovo.to / content.st Suspected",
+        "quick_search": "no provider override by design; site typing endpoint wp-json/turbosearch/v1/suggest 200 (unchanged since #659)",
+        "genre": "200 /genres/anal p1 27 + /page/965 9 (965 pages); singular /genre/anal 404",
+        "category": "200 /movies p1 27 + /studios/brazzers 27; /category/porn-movies 404",
+        "tags": "absent (404 everywhere; no tag row on the video page)"
       },
-      "issue": 555,
-      "standing_issue": 463,
-      "drift_confirmed": 4,
+      "issue": 1447,
+      "standing_issue": null,
+      "drift_confirmed": 6,
       "chronic": true,
-      "last_deep": "2026-10-17"
+      "last_deep": "2026-11-22"
     },
     "Mangoporn": {
       "site": "mangoporn.net",
