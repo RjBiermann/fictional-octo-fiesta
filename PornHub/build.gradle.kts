@@ -1,4 +1,4 @@
-version = 8 // #1503: version bump (v8)
+version = 9 // #1444: shared JavtifulEmbed row (fleet bump; base overtook the branch)
 
 cloudstream {
     authors     = listOf("RjBiermann")
