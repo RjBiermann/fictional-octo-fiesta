@@ -379,6 +379,22 @@
       ],
       "false_positives": [],
       "note": "run30 (issue #1442, self-contained run of the #1354 S4 story). Video-source leg plain-curl on every surface (desktop UA, jav.guru referer); canaries: film1k plain 200 = expectation-stale (#1435, live pair recorded not degraded), eporner 200, pandamovies 302->.org; TLS tier unavailable (#1434) so escalation_tier=unavailable, zero Blocked verdicts so nothing downgraded. D3: new/latest (/ p1,p2,/page/5789 tail; /page/5790 404), old (?orderby=date&order=ASC - honoured server-side but absent from the sort menu, which offers DESC only), popular (/most-watched-rank 98 uniques with no paginator; /page/2 re-renders the same widget 92/96 overlap, so pageable popular sampled as ?orderby=views&order=DESC p1+tail), categories (/category/amateur p1/p2/p750, p751 404), tags (/tag/mature-woman p1/p2/p837, p838 404) - each type >=2 video pages at both ends resolved end-to-end; genres absent (/genre/ and /genres/ 404, no genre taxonomy in nav/category index/556-tag index - tags carry the semantics). 16 sampled videos; embed-host census javclan 15 (pass), playmogo 15 (dood Turnstile shell to this datacenter IP -> Suspected, never a finding per D8), maxstream 14 (fixed), caseyseemavoid 9 (Voe front-end serving a test-videos.co.uk Big_Buck_Bunny placeholder - host-side, no row so no test pattern can be emitted), streamhihi 7 (fixed), vidara 6 (pass, POST /api/stream), javplaya 4 (fixed), oppainet 1 (bespoke _juicycodes/juicyData player, no shipped family - observed only). Site also 429s bursty request patterns (paced >=5s keeps every surface 200) and FC2-PPV watch pages carry no woo-sc-related-posts block (recommendations simply empty there). Gates: JavGuru:test green (148 tests incl. JavclanParseTest 4/4, PlayerjsParseTest 5/5, StreamwishParseTest 3/3, registry row test), EPorner:test green as shared-splice control, clean JavGuru:make at v38, check-findings PASS, verify.sh PASS (search 24 cards, home 24+24, 3 video pages, streams 3/3 200 application/vnd.apple.mpegurl, related 107-108/page, all LoadResponse fields). 0 false positives."
+    },
+    {
+      "id": "run31",
+      "date": "2026-11-22",
+      "pr": null,
+      "escalation_tier": "unavailable",
+      "findings": [
+        {
+          "issue": 1443,
+          "provider": "FullPorner",
+          "verdict": "ok",
+          "confirmed_drift_fixed": "the watch page's embed host moved from (xiaoshenke.net/redacted) to (fullporner.com/redacted) loadLinks' source path was unaffected because parseEmbedSources reads the player page's id/quality locals (all six sampled streams 206 video/mp4), but load() still extracted the poster id with substringAfter(\"video/\"), producing :sptth and a 404 thumbnail for every video. Fixed same run v27->v28 at a pure Parse seam: FullPornerParse.iframeVideoId accepts both grammars, posterUrl builds the /vid/<reversed>/720/i thumb, load() skips the fetch when no id parses; TDD red->green with live-trimmed watch_page_player_iframe.html"
+        }
+      ],
+      "false_positives": [],
+      "note": "run31 (issue #1443, self-contained run of the #1354 S5 story). Video-source leg plain-curl on every surface (desktop UA, fullporner referer); canaries: film1k plain 200 = expectation-stale (#1435, live pair recorded not degraded), eporner 200, pandamovies 302->.org; TLS tier unavailable (#1434) so escalation_tier=unavailable, zero Blocked verdicts so nothing downgraded. D3: new/latest (/home/1..8, p1\u2229p2=0; /home/999 200 older still), categories (/category/vintage/1..last p5 10 cards, p1\u2229p2=0; /category/anal/7 24 cards), tags (watch #tag anchors -> /category/<slug>; /tags and /tag/ 404, so tags ARE categories) each sampled 2 videos at both ends; old/popular/genres absent site-side (no route/sort/taxonomy; /old,/popular,/genre 404, /home/old and /home/popular alias /home/1, /home/0 + /home/latest are an unlinked page-number quirk). 6 videos resolved end-to-end: all streams 206 video/mp4 via xiaoshenke.net -> vN.xiaoshenke.net (ladders 360/480/720/1080 where the mask exposes). Confirmed drift fixed: iframe host /video/<id>/<mask> -> /player/<id>/<mask>; parseEmbedSources unaffected but load() poster id became :sptth -> 404; fixed v27->v28 with FullPornerParse.iframeVideoId/posterUrl + TDD fixture watch_page_player_iframe.html. Gates: FullPorner:test green, clean FullPorner:make v28, check-findings PASS, verify.sh PASS (search 24+24, home 24+24, 6 video pages, streams 6/6 206 video/mp4, related 24/page, tags/year/duration 6/6). 0 false positives."
     }
   ],
   "providers": {
@@ -504,23 +520,24 @@
     },
     "FullPorner": {
       "site": "fullporner.com",
-      "verdict": "ok",
-      "reason": "TLS 200 search (24 video-card) + video; embed xiaoshenke JS quality map (extractor path); fresh site healthy 2026-10-09, challenge-artifact tier history retired; tags gap #526 filed 2026-10-09 (live /watch/<hash> exposes /category/* tags) | deep 2026-10-10 (run13): listing rows p1/p2 disjoint on provider grammar, 3 video pages 200, stream artifacts on extractor path (film1k.xyz byse embed 200; FullPorner xiaoshenke iframe; FreePornVideos/Javbangers kt_player/get_file).",
-      "tier": "tls-impersonated",
+      "verdict": "ok-drift",
+      "reason": "video-source pass 2026-11-22: six sampled videos across new/latest (/home/1..8), categories (/category/vintage/1 and last p5) and tags (watch #tag anchors -> /category/<slug>; no /tag route) all resolve loadLinks end-to-end; watch iframe host drifted from (xiaoshenke.net/redacted) to (fullporner.com/redacted), parseEmbedSources still read the player locals and every stream was 206 video/mp4, but load()'s substringAfter(\"video/\") poster id became :sptth and 404'd every thumbnail; fixed in-run v27->v28 with FullPornerParse.iframeVideoId/posterUrl (both grammars). old/popular/genres absent site-side (no route/sort/taxonomy; /home/old and /home/popular alias /home/1). First-party embed needs no HostRegistry row.",
+      "tier": "plain-curl",
       "surfaces": {
-        "home": "200 TLS",
-        "search": "200 TLS",
-        "video": "200 TLS",
-        "quick_search": "absent (/search/suggest?q= is the search page for the literal word; /api/search 404)"
+        "home": "200 plain-curl (24 cards/page, p1\u2229p2=0)",
+        "search": "200 plain-curl (24 cards/page)",
+        "video": "200 plain-curl (6 sampled)",
+        "quick_search": "absent (/search/suggest?q= is the search page for the literal word)",
+        "stream": "206 video/mp4 (720p/1080p via xiaoshenke.net -> vN.xiaoshenke.net)"
       },
-      "issue": 526,
+      "issue": null,
       "standing_issue": null,
-      "drift_confirmed": 0,
+      "drift_confirmed": 1,
       "suspected_excluded": [
         461
       ],
       "chronic": false,
-      "last_deep": "2026-10-10"
+      "last_deep": "2026-11-22"
     },
     "EPorner": {
       "site": "www.eporner.com",
