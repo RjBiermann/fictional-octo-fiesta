@@ -1,4 +1,4 @@
-version = 21 // #1441: og:video quality passed to the ExtractorLink (v21)
+version = 22 // #1491: version bump (v22)
 
 cloudstream {
     authors     = listOf("imperialbob")

@@ -1,5 +1,5 @@
 // ! Bu araç @ByAyzen tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 31 // #1440: stream host taken from the page's own player config (v30); signed playlist URLs kept whole (v31)
+version = 32 // #1491: version bump (v32)
 
 cloudstream {
     authors     = listOf("ByAyzen")
