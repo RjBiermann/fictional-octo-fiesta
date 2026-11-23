@@ -657,6 +657,19 @@ class TestFixSurrogateDedupe(unittest.TestCase):
         self.assertEqual(len(fired), 1, "verdict must survive a later stamp")
         self.assertEqual(len(posted), 1)
 
+    def test_stamp_summary_line_does_not_shadow_the_verdict(self):
+        # PR #1511: the stamp's summary prose ("Review round at head `sha` …;
+        # blocker on the red CodeFactor check") matched VERDICT_HINT, so the
+        # blocker one second earlier was never read, the repair never fired
+        # and the stalled PR sat in status/fixing.
+        stamp = bot_comment("gh-aw budget: attempt=1 kind=review "
+                            "run=https://github.com/o/r/actions/runs/1 credits=0\n\n"
+                            "Review round at head `1b08fc4`: round-1 findings "
+                            "resolved; blocker on the red CodeFactor check.")
+        posted, fired, _ = self.run_surrogate(markers=0, branch_moved=False,
+                                              tail=[stamp])
+        self.assertEqual(len(fired), 1, "summary prose must not shadow the verdict")
+
     def test_plural_blocker_verdict_is_recognised(self):
         # the fire predicate is a substring test, so "2 blockers" fires —
         # the candidate filter must not be narrower than that (#1360, #1325)
