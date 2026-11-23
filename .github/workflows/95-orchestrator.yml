@@ -1,12 +1,15 @@
 name: Orchestrator (mechanical conveyor — approvals, readiness, chain, surrogate)
 
 # ADR-0017 (amended 2026-10-15): non-AI plain Actions, sibling of
-# 90-sweeper. Automates mechanics; surfaces decisions as @mentions;
-# humans still merge PRs by default (GH_AW_AUTO_MERGE=false).
+# 90-sweeper. Automates mechanics; surfaces decisions as @mentions.
+# Humans merge — machinery auto-merges only when the chain's owner-approval
+# receipt exists (`GH_AW_AUTO_MERGE=true` since ADR-0018; the repo variable
+# is what gates it, not this comment).
 
 on:
-  schedule:                 # background sweep (GitHub throttles schedules under
-    - cron: "*/10 * * * *"  # load; event triggers carry the chain latency)
+  schedule:                 # fallback sweep only: GitHub runs this */10 cron a
+    - cron: "*/10 * * * *"  # few times a day here (~4-8h), so the event
+                            # triggers below carry the chain latency
   workflow_dispatch:
   issues:
     types: [opened, labeled]      # fresh trigger labels / new specs go instantly
@@ -20,6 +23,21 @@ on:
   pull_request_review:
     types: [submitted]            # human review verdicts reach the fix-loop without
                                   # waiting for a schedule slot
+  workflow_run:                   # the sweep an agent verdict cannot trigger: 06
+    # posts its verdict under GITHUB_TOKEN, so GitHub fires no event for it
+    # (that is why fix_surrogate() exists) and the schedule was the only path
+    # left — which GitHub throttles to ~4-8h here (40 scheduled runs in 11
+    # days). #1516's blocker waited 46 min for a human to type /repair.
+    # workflow_run is the one event that still fires for GITHUB_TOKEN-
+    # completed runs, and the verdict exists by then (safe_outputs runs
+    # before `conclusion`). Cancelled runs carry no verdict and their
+    # superseding run completes anyway; `skipped` is the bot-comment churn
+    # channel (6b skips on nearly every bot review comment, ~180/day) and must
+    # not sweep — both are dropped by the job `if`.
+    workflows:
+      - "Review (findings only; ADR-0001 semantics preserved)"
+      - "Review (command — findings only; ADR-0001 semantics)"
+    types: [completed]
 
 permissions:
   # contents: write — 16-f6b pushes union-merge commits to resolve the
@@ -48,7 +66,10 @@ concurrency:
     ((github.event_name == 'issue_comment' && github.event.comment.user.type == 'Bot')
     || (github.event_name == 'pull_request_review' && github.event.review.user.type == 'Bot')
     || (github.event_name == 'issues' && github.event.action == 'opened'
-    && github.event.issue.user.type == 'Bot')) && 'noop' || 'main' }}
+    && github.event.issue.user.type == 'Bot')
+    || (github.event_name == 'workflow_run'
+    && (github.event.workflow_run.conclusion == 'skipped'
+    || github.event.workflow_run.conclusion == 'cancelled'))) && 'noop' || 'main' }}
   # NOT cancel-in-progress. A sweep takes ~12 minutes and events arrive every
   # few seconds during active work, so cancelling the in-flight sweep on every
   # event meant none ever finished: 22:37-22:43 today produced six cancelled
@@ -98,14 +119,27 @@ jobs:
       && (github.event_name != 'issues'
           || github.event.action != 'opened'
           || github.event.issue.user.type != 'Bot')
+      && (github.event_name != 'workflow_run'
+          || (github.event.workflow_run.conclusion != 'cancelled'
+              && github.event.workflow_run.conclusion != 'skipped'))
     
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:
+          # The sweep runs with `contents/issues/pull-requests/actions: write`
+          # and a minted App token, and `orchestrator.py` is not a workflow
+          # file (gh-aw's protected-commit guard does not cover it). On the
+          # `pull_request: [closed]` arm the default ref is the PR merge
+          # commit, so a closed-but-unmerged PR that edits orchestrator.py
+          # would run its own version of the conveyor with those tokens.
+          # Pin the code to the default branch: the state logic is never
+          # supposed to come from the PR under test.
+          ref: ${{ github.event.repository.default_branch }}
           # full history: conflict_watch's merge-tree needs a common base
           # between origin/main and the branch ref (shallow checkouts fail
-          # "refusing to merge unrelated histories")
+          # "refusing to merge unrelated histories"). depth 0 fetches every
+          # remote branch, so `ref:` above narrows the tree, not the refs.
           fetch-depth: 0
 
       # ADR-0020: the machinery GitHub App replaces the retired owner PAT

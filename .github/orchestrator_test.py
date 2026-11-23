@@ -1338,6 +1338,25 @@ class TestConflictWatchUnknownState(unittest.TestCase):
         self.assertTrue(any("unresolvable via merge-tree" in b for b in posted),
                         posted)
 
+    def test_dirty_with_an_errored_merge_tree_still_hands_off(self):
+        # `None` = git error (missing ref / shallow checkout). A dirty PR must
+        # still reach the 14-rebase handoff — skipping was the strand this pass
+        # removes elsewhere (round-4 review).
+        posted = []
+        with mock.patch.object(orchestrator, "open_pulls", lambda: [self.PR]), \
+                mock.patch.object(orchestrator, "_pr_labels_map", lambda n: {}), \
+                mock.patch.object(orchestrator, "_pl", lambda a, **k: (0, "")), \
+                mock.patch.object(orchestrator, "api",
+                                  lambda p: {"mergeable_state": "dirty"}), \
+                mock.patch.object(orchestrator, "_conflict_files", lambda b: None), \
+                mock.patch.object(orchestrator, "comments", lambda n: []), \
+                mock.patch.object(orchestrator, "post_comment",
+                                  lambda n, b: posted.append(b)), \
+                mock.patch.object(orchestrator, "run", lambda c, **k: ""):
+            orchestrator.conflict_watch()
+        self.assertTrue(any("unresolvable via merge-tree" in b for b in posted),
+                        posted)
+
     def test_mergeable_states_are_left_alone(self):
         for state in ("blocked", "unstable", "clean", "behind"):
             self.assertEqual(self.run_watch(state, frozenset({"x.kt"})), [], state)
@@ -1565,3 +1584,186 @@ class TestRegistryCandidateMachineryAuthor(unittest.TestCase):
         thread = [{"body": orchestrator.REGISTRY_ANCHOR + "\n" + self.BODY.split("\n", 2)[2],
                    "user": {"login": "rjbiermann-machinery[bot]"}}]
         self.assertIsNone(orchestrator._registry_candidate(thread))
+
+
+class TestReadinessClearsRepairState(unittest.TestCase):
+    """A repair's status/fixing must not survive the pass verdict.
+
+    07 step 4 tells the agent to remove the label after its push, but on a
+    relay-fired run gh-aw resolves remove-labels to the *story* issue: PR
+    #1516's repair issued DELETE issues/1448/labels/status%2Ffixing, got 404,
+    logged "not present, skipping", and left the PR labelled status/fixing.
+    Round 2's pass then added status/ready-to-merge on top (#1405)."""
+
+    def run_readiness(self, labels, verdict, clear_rc=0):
+        pr = {"number": 1516,
+              "user": {"login": "rjbiermann-machinery[bot]"},
+              "head": {"ref": "devloop/issue-1448-x", "sha": "5891d79"}}
+        cmds = []
+        added = []
+        thread = ([] if verdict is None else
+                  [{"body": verdict, "created_at": "2026-11-23T03:06:52Z",
+                    "user": {"login": "github-actions[bot]"}}])
+
+        def fake_run(cmd, **kw):
+            cmds.append(cmd)
+            return ""
+
+        def fake_run_rc(cmd, **kw):
+            cmds.append(cmd)
+            return clear_rc
+
+        def fake_api(path, *a, **kw):
+            if path.startswith("pulls/"):
+                return {"mergeable_state": "clean", "head": {"sha": "5891d79"}}
+            return thread
+
+        with mock.patch.object(orchestrator, "open_pulls", lambda: [pr]), \
+                mock.patch.object(orchestrator, "_agent_pr", lambda p: True), \
+                mock.patch.object(orchestrator, "_pr_labels_map",
+                                  lambda nums: {1516: set(labels)}), \
+                mock.patch.object(orchestrator, "api", fake_api), \
+                mock.patch.object(orchestrator, "run", fake_run), \
+                mock.patch.object(orchestrator, "run_rc", fake_run_rc), \
+                mock.patch.object(orchestrator, "_label_applied_at",
+                                  lambda n, name: "2026-11-23T02:55:00Z"), \
+                mock.patch.object(orchestrator, "_effective_ready",
+                                  lambda n, m: True), \
+                mock.patch.object(orchestrator, "AUTO_MERGE", False), \
+                mock.patch.object(orchestrator, "_has_marker",
+                                  lambda cs, m: False), \
+                mock.patch.object(orchestrator, "comments", lambda n: []), \
+                mock.patch.object(orchestrator, "label_issue",
+                                  lambda n, lbl: added.append(lbl)), \
+                mock.patch.object(orchestrator, "post_comment",
+                                  lambda n, b: None):
+            orchestrator.merge_readiness()
+        return [" ".join(c) for c in cmds], added
+
+    def test_pass_verdict_clears_status_fixing(self):
+        cmds, _ = self.run_readiness({"status/fixing"},
+                                     "**Verdict:** no blockers")
+        self.assertTrue(any("status%2Ffixing" in c for c in cmds), cmds)
+
+    def test_blocker_verdict_keeps_status_fixing(self):
+        # a live blocker means the repair round is exactly what is wanted —
+        # the label must not be cleared on that path.
+        cmds, _ = self.run_readiness({"status/fixing"},
+                                     "**Verdict: blocker** — Codacy red.")
+        self.assertFalse(any("status%2Ffixing" in c for c in cmds), cmds)
+
+    def test_fixing_stuck_prevents_clearing(self):
+        cmds, added = self.run_readiness(
+            {"status/fixing", "status/fixing-stuck"}, "**Verdict:** no blockers")
+        self.assertFalse(any("status%2Ffixing" in c for c in cmds), cmds)
+        self.assertNotIn("status/ready-to-merge", added)
+
+    def test_no_verdict_leaves_status_fixing(self):
+        # review finding 1: without an explicit verdict the repair state must
+        # not be cleared, and readiness must not be published over it.
+        cmds, added = self.run_readiness({"status/fixing"}, None)
+        self.assertFalse(any("status%2Ffixing" in c for c in cmds), cmds)
+        self.assertNotIn("status/ready-to-merge", added)
+
+    def test_failed_clear_does_not_publish_readiness(self):
+        # review finding 2: a failed DELETE must not be reported as success,
+        # and readiness must not add status/ready-to-merge on top of the
+        # surviving label (a later sweep retries the clear).
+        cmds, added = self.run_readiness({"status/fixing"},
+                                         "**Verdict:** no blockers",
+                                         clear_rc=1)
+        self.assertTrue(any("status%2Ffixing" in c for c in cmds), cmds)
+        self.assertNotIn("status/ready-to-merge", added)
+
+
+class TestConflictFilesUnknown(unittest.TestCase):
+    """merge-tree rc>=2 is 'unknown', never 'no conflict'.
+
+    Returning an empty set for a git error deleted status/conflict and skipped
+    the 14-rebase handoff on a conflict that was still live."""
+
+    def test_git_error_is_unknown(self):
+        with mock.patch.object(orchestrator, "_merge_tree",
+                               lambda b: (128, None, frozenset())):
+            self.assertIsNone(orchestrator._conflict_files("devloop/x"))
+
+    def test_clean_merge_is_an_empty_set(self):
+        with mock.patch.object(orchestrator, "_merge_tree",
+                               lambda b: (0, None, frozenset())):
+            self.assertEqual(orchestrator._conflict_files("x"), frozenset())
+
+
+class TestReadinessStateLabelGuards(unittest.TestCase):
+    """Round-2 findings on the consolidated branch: a half-done transition
+    must not publish readiness, and a pass older than the label is not one."""
+
+    def run_readiness(self, labels, verdict, clear_rc=0, label_at=None):
+        pr = {"number": 1516,
+              "user": {"login": "rjbiermann-machinery[bot]"},
+              "head": {"ref": "devloop/issue-1448-x", "sha": "5891d79"}}
+        cmds, added = [], []
+        thread = ([] if verdict is None else
+                  [{"body": verdict, "created_at": "2026-11-23T03:06:52Z",
+                    "user": {"login": "github-actions[bot]"}}])
+
+        def fake_run_rc(cmd, **kw):
+            cmds.append(cmd)
+            return clear_rc
+
+        def fake_api(path, *a, **kw):
+            if path.startswith("pulls/"):
+                return {"mergeable_state": "clean", "head": {"sha": "5891d79"}}
+            return thread
+
+        with mock.patch.object(orchestrator, "open_pulls", lambda: [pr]), \
+                mock.patch.object(orchestrator, "_agent_pr", lambda p: True), \
+                mock.patch.object(orchestrator, "_pr_labels_map",
+                                  lambda nums: {1516: set(labels)}), \
+                mock.patch.object(orchestrator, "api", fake_api), \
+                mock.patch.object(orchestrator, "run", lambda cmd, **kw: ""), \
+                mock.patch.object(orchestrator, "run_rc", fake_run_rc), \
+                mock.patch.object(orchestrator, "_label_applied_at",
+                                  lambda n, name: label_at), \
+                mock.patch.object(orchestrator, "_effective_ready",
+                                  lambda n, m: True), \
+                mock.patch.object(orchestrator, "AUTO_MERGE", False), \
+                mock.patch.object(orchestrator, "_has_marker",
+                                  lambda cs, m: False), \
+                mock.patch.object(orchestrator, "comments", lambda n: []), \
+                mock.patch.object(orchestrator, "label_issue",
+                                  lambda n, lbl: added.append(lbl)), \
+                mock.patch.object(orchestrator, "post_comment",
+                                  lambda n, b: None):
+            orchestrator.merge_readiness()
+        return [" ".join(c) for c in cmds], added
+
+    def test_failed_conflict_clear_does_not_publish_readiness(self):
+        cmds, added = self.run_readiness({"status/conflict"},
+                                         "**Verdict:** no blockers", clear_rc=1)
+        self.assertTrue(any("status%2Fconflict" in c for c in cmds), cmds)
+        self.assertEqual(added, [], "two state labels on a failed clear")
+
+    def test_pass_older_than_the_fixing_label_is_not_a_clear(self):
+        # 07 also fires from a human review; the bot pass may predate the
+        # repair. Clearing then drops a live repair's state.
+        cmds, _ = self.run_readiness({"status/fixing"},
+                                     "**Verdict:** no blockers",
+                                     label_at="2026-11-23T04:00:00Z")
+        self.assertFalse(any("status%2Ffixing" in c for c in cmds), cmds)
+
+    def test_unknown_label_time_keeps_the_repair_state(self):
+        # `None` = the labeled event was unreadable or paged out of the feed.
+        # Unknown must keep the state, never clear it (round-2 review).
+        cmds, _ = self.run_readiness({"status/fixing"},
+                                     "**Verdict:** no blockers", label_at=None)
+        self.assertFalse(any("status%2Ffixing" in c for c in cmds), cmds)
+
+
+class TestMachineryNarrationIsNotAVerdict(unittest.TestCase):
+    def test_repair_narration_without_marker_is_ignored(self):
+        # the App posts 07's repair narration; its prose matches the blocker
+        # predicate but it carries no verdict heading (#1411/#1420/#1466).
+        c = {"body": "Repair pushed; the blocker on Codacy is cleared.",
+             "created_at": "2026-11-23T04:00:00Z",
+             "user": {"login": "rjbiermann-machinery[bot]", "type": "Bot"}}
+        self.assertEqual(orchestrator._latest_verdict([c]), ("", ""))

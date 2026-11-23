@@ -236,11 +236,30 @@ AGENT_RUN_ALLOWLIST = {"Implement", "Plan",
                        "Review (findings only; ADR-0001 semantics preserved)"}
 
 
-def run(cmd, **kw):
+def _exec(cmd, **kw):
+    """The single subprocess entry point: one call, one rc log line.
+
+    Callers need different halves of the result — `run` the stdout, `run_rc`
+    the exit status — and having each build its own subprocess.run duplicated
+    the logging (CodeFactor flagged exactly that)."""
     r = subprocess.run(cmd, capture_output=True, text=True, **kw)
     if r.returncode != 0:
         sys.stderr.write(f"[orchestrator] rc={r.returncode} on {' '.join(cmd[:5])}: {r.stderr.strip()[:300]}\n")
-    return r.stdout
+    return r
+
+
+def run(cmd, **kw):
+    return _exec(cmd, **kw).stdout
+
+
+def run_rc(cmd, **kw):
+    """Exit status of a command whose stdout carries no success signal.
+
+    `run` returns stdout, so `rc, _ = run([...])` unpacked a string instead of
+    an exit code (and raised on the empty body of a successful DELETE). Label
+    deletes need the real code to decide whether readiness may proceed.
+    """
+    return _exec(cmd, **kw).returncode
 
 
 def dispatch_ok(cmd, env=None):
@@ -567,11 +586,18 @@ def merge_readiness():
         # computing (the FIRST GET returns u and warms the cache — this
         # fetch is the warm one). Clear only on definitive not-dirty states.
         if "status/conflict" in labels and mstate in ("blocked", "clean", "unstable"):
-            rc, _ = run(["gh", "api", "-X", "DELETE",
+            rc = run_rc(["gh", "api", "-X", "DELETE",
                          f"repos/{REPO}/issues/{num}/labels/status%2Fconflict"])
-            print(f"[orchestrator] PR #{num}: stale status/conflict label "
-                  f"cleared (state={mstate})" if rc == 0 else
-                  f"[orchestrator] PR #{num}: status/conflict clear rc={rc} — retry next sweep")
+            if rc == 0:
+                print(f"[orchestrator] PR #{num}: stale status/conflict label "
+                      f"cleared (state={mstate})")
+            else:
+                # The label is still there. Publishing readiness now would
+                # leave two state labels on the PR (#1405) — the same rule the
+                # status/fixing block below enforces. Retry next sweep.
+                print(f"[orchestrator] PR #{num}: status/conflict clear rc={rc} "
+                      f"— retry next sweep")
+                continue
         thread = api(f"issues/{num}/comments?per_page=100")
         if thread is None:
             # unreadable thread: readiness must not read that as "no findings"
@@ -596,6 +622,38 @@ def merge_readiness():
             # override that with green checks (#1405)
             print(f"[orchestrator] PR #{num}: status/fixing-stuck — not ready")
             continue
+        if "status/fixing" in labels:
+            # 07 step 4 tells the agent to drop this after its push, but on a
+            # relay-fired run gh-aw resolves remove-labels to the *story*
+            # issue: #1516's repair deleted `issues/1448/labels/status%2Ffixing`
+            # (404, logged as "not present, skipping"), so the PR kept the
+            # label and round 2's pass added status/ready-to-merge on top —
+            # two state labels on a clean PR (#1405). A non-blocker verdict
+            # means the repair round is over; clear it here, where the encoded
+            # DELETE and the rc already exist.
+            applied = _label_applied_at(num, "status/fixing")
+            # Unknown (`None`) means the label event was unreadable or paged
+            # out of the events feed — keep the state and wait for a sweep that
+            # can read it, never clear on unknown.
+            if not verdict_body or applied is None or vtime <= applied:
+                # No verdict at all, or a pass that PREDATES the label: 07 is
+                # also fired by a human review, and `_latest_verdict` only
+                # reads bot comments — clearing on an older pass would drop a
+                # live repair's state.
+                print(f"[orchestrator] PR #{num}: status/fixing without a newer "
+                      f"verdict — repair in flight, not ready")
+                continue
+            rc = run_rc(["gh", "api", "-X", "DELETE",
+                         f"repos/{REPO}/issues/{num}/labels/status%2Ffixing"])
+            if rc != 0:
+                # A half-done transition must not publish readiness: the label
+                # is still there, so adding status/ready-to-merge would leave
+                # two state labels (#1405). A later sweep retries the clear.
+                print(f"[orchestrator] PR #{num}: status/fixing clear rc={rc} — "
+                      f"retry next sweep")
+                continue
+            print(f"[orchestrator] PR #{num}: status/fixing cleared — verdict "
+                  f"is not a blocker")
         if not _effective_ready(num, mstate):
             print(f"[orchestrator] PR #{num}: mergeable_state={mstate} — not ready")
             continue
@@ -1213,6 +1271,7 @@ def _fire_workflow(lock, item_type, item_number):
                       "-f", f"aw_context={ctx}"])
     print(f"[orchestrator] {lock} dispatch for {item_type} #{item_number}: "
           f"{'fired' if ok else 'FAILED'}")
+    return ok
 
 
 def _delivered_branch_pat(num):
@@ -2086,7 +2145,7 @@ def conflict_watch():
             if files is None:
                 continue          # merge-tree unreadable: never read as "gone"
             if not files:
-                rc, _ = run(["gh", "api", "-X", "DELETE",
+                rc = run_rc(["gh", "api", "-X", "DELETE",
                              f"repos/{REPO}/issues/{num}/labels/status%2Fconflict"])
                 print(f"[orchestrator] PR #{num}: conflict gone per local "
                       f"merge-tree — status/conflict label cleared" if rc == 0 else
@@ -2105,7 +2164,12 @@ def conflict_watch():
         _pl(["git", "fetch", "origin", branch])
         files = _conflict_files(branch)
         if files is None:
-            continue          # merge-tree unreadable: keep the label, retry
+            # merge-tree errored (missing ref, shallow checkout). That is the
+            # same "unreadable" shape the NB below keeps on the handoff path —
+            # a dirty PR must still reach 14-rebase, never fall through in
+            # silence. Only the label-clear probe above may treat it as "keep
+            # the label and retry".
+            files = frozenset()
         if not files and mstate == "unknown":
             continue          # cache-free read says clean
         # NB: "dirty" with an empty file set is NOT a no-op — that is the
@@ -2120,7 +2184,23 @@ def conflict_watch():
                 # no repair, and `_branch_moved_after` then reads the blocker
                 # as served — silently stranded. Re-review the new head
                 # explicitly (dispatch is the documented exception).
-                _fire_workflow("06-review.lock.yml", "pull_request", num)
+                #
+                # A failed dispatch must not end in silence: the head moved,
+                # so nothing else re-reads this PR until a human notices.
+                # Retry, then page.
+                fired = False
+                for attempt in range(3):
+                    fired = _fire_workflow("06-review.lock.yml", "pull_request", num)
+                    if fired:
+                        break
+                    time.sleep(2 * (attempt + 1))
+                if not fired:
+                    post_comment(num,
+                                 f"{MARK} mechanical conflict resolve pushed "
+                                 f"`{branch}`, but the review re-dispatch "
+                                 f"failed (3 attempts) — this head has no "
+                                 f"review. @{OWNER}: re-run `/review` or "
+                                 f"re-apply the blocker verdict.")
                 continue
         # ADR-0019: the handoff needs no owner identity — the label is
         # display state and the fire is a workflow_dispatch (bot lane,
@@ -2297,13 +2377,15 @@ def _latest_verdict(thread):
     """
     for c in reversed(thread):
         login = (c.get("user") or {}).get("login")
-        # ADR-0020 step 3: once 06 posts through the machinery App the verdict
-        # arrives as <slug>-machinery[bot], not github-actions[bot]. Read both
-        # here or both readiness and the fix surrogate go blind the day that
-        # `github-app:` block lands (05/07/14 already have it).
-        if login != "github-actions[bot]" and not _machinery_login(c):
-            continue
         body = c.get("body") or ""
+        # ADR-0020 step 3: once 06 posts through the machinery App the verdict
+        # arrives as <slug>-machinery[bot], not github-actions[bot]. But the
+        # App also posts 07's repair narration, whose prose matches the
+        # blocker predicate — so the App arm additionally requires the
+        # structural marker (#1411/#1420/#1466 shadowing shape).
+        if login != "github-actions[bot]" and not (
+                _machinery_login(c) and VERDICT_MARKER.search(body)):
+            continue
         if "fix-loop re-fired for the verdict at" in body:
             continue
         # The gate admits every verdict shape (above); the predicate decides
@@ -2508,13 +2590,16 @@ def _repair_in_flight():
 
     The surrogate's fire marker is itself an issue_comment on the PR, so
     95 re-enters the sweep seconds later. Without this guard the second
-    pass dispatches again, and 07's concurrency group is shared and
-    cancel-in-progress — the second dispatch cancels the repair that has
-    not pushed yet, and the marker cap then escalates a PR that was never
-    actually repaired once (#1415 review). The lock is global and
-    unfiltered by time because the group is: dispatch runs key on
-    `refs/heads/main`, so ANY running repair is the one a new dispatch
-    would cancel, however old it is.
+    pass dispatches again, and the marker cap then escalates a PR that was
+    never actually repaired once (#1415 review).
+
+    Same-PR re-entry is the correctness half and survives 07's per-PR group
+    (`repair-<N>`, `07-fix-loop.lock.yml`): a re-dispatch for the same PR
+    would still cancel the repair that has not pushed yet — the marker cap
+    then stamps `status/fixing-stuck` on a PR that was never repaired. The
+    guard stays global (repo-wide, unfiltered by time) as a spend limit too:
+    one repair at a time. Narrowing it to the PR's own runs would let N
+    repairs run concurrently — a cost decision, not a correctness one.
     """
     out = run(["gh", "run", "list", "--workflow", "07-fix-loop.lock.yml",
                "--limit", "10", "--json", "status"]).strip()
@@ -2577,8 +2662,8 @@ def fix_surrogate():
         # earlier PR in the same pass already spent the one dispatch. Sitting
         # behind `dispatched` made the arm unreachable whenever any earlier
         # PR had been served — the state that must page a human was the one
-        # most likely to stay silent. A live repair for THIS PR still
-        # suppresses it (that run may yet resolve the verdict), as does a
+        # most likely to stay silent. A live repair still suppresses it (that
+        # run may yet resolve the verdict — the guard is repo-wide), as does a
         # served verdict.
         if markers >= 2:
             if (_repair_in_flight()

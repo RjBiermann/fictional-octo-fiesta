@@ -13,7 +13,7 @@ Canonical issue-label vocabulary. Skills speak in these exact strings.
 | `ready-for-human`  | Requires human implementation            |
 | `wontfix`          | Will not be actioned                     |
 
-Trigger labels (`ai-fix`, `ai-new-site`, `ai-remove`) are maintainer-only —
-see AGENTS.md. Since ADR-0018 the 95-orchestrator machinery auto-applies
-`ai-fix` to `status/queued` issues; `triage/from-agent` findings still wait
-for a human-applied label.
+Trigger labels (`ai-fix`, `ai-build`, `ai-new-site`, `ai-remove`) are
+maintainer-only — see AGENTS.md. Since ADR-0018 the 95-orchestrator
+machinery auto-applies `ai-fix` to `status/queued` issues;
+`triage/from-agent` findings still wait for a human-applied label.

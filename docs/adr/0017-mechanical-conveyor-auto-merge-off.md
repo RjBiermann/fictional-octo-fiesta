@@ -14,9 +14,10 @@ round and never touches `ai-*` trigger labels.
 Merge contract: **humans merge**. `status/ready-to-merge` + a head-sha
 ping is the terminal automated state. `GH_AW_AUTO_MERGE=true` may queue
 auto-merge, but only when the chain's owner approval receipt exists on
-the parent spec — and the owner decision (2026-10) is to keep it FALSE:
-the receipt proves the *chain* was approved, not that *this diff* was
-reviewed. Branch protection remains the real gate either way.
+the parent spec. The 2026-10 decision recorded here — keep it FALSE — was
+amended 2026-10-20 (ADR-0018): the repo variable is `true`, and the
+receipt gate, not the flag, is the human decision. Branch protection
+remains the real gate either way.
 
 Surrogate relay (historical — superseded 2026-10-20 by ADR-0019):
 surrogate fires used to act through the owner PAT (`GH_AW_PROXY_PAT`)
