@@ -41,6 +41,69 @@ object EPornerParse {
             ?: h1?.text()?.trim()?.takeIf { it.isNotEmpty() }
     }
 
+    /**
+     * One playable source from the `/xhr/video/<id>` player config. [label] is the site's
+     * own quality token ("1080p", "2160p"); CloudStream's `getQualityFromName` maps it.
+     */
+    data class VideoSource(val url: String, val label: String?)
+
+    private val mapper = ObjectMapper()
+
+    private fun sourcesNode(config: String): com.fasterxml.jackson.databind.JsonNode? = try {
+        mapper.readTree(config)?.get("sources")
+    } catch (_: Exception) {
+        null
+    }
+
+    /**
+     * mp4 ladder from the player config (2026-11-23 video-sources audit, #1449).
+     *
+     * The old text regex (`"labelShort"…"src"`) depended on the JSON key order the
+     * player happened to emit; the config is parsed structurally instead. `/dload/`
+     * entries are the download endpoint, never a player source.
+     */
+    fun mp4Sources(config: String): List<VideoSource> {
+        val mp4 = sourcesNode(config)?.get("mp4") ?: return emptyList()
+        return mp4.fields().asSequence().mapNotNull { (key, node) ->
+            val url = node.get("src")?.asText()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            if (url.contains("/dload/")) return@mapNotNull null
+            VideoSource(url, node.get("labelShort")?.asText()?.takeIf { it.isNotBlank() } ?: key)
+        }.toList()
+    }
+
+    /**
+     * HLS ladder from the player config, or null when the video exposes none.
+     *
+     * Live shapes (2026-11-23): when both URLs exist, `src` is the **AV1** ladder and
+     * `srcFallback` the H.264 one; ~3 of 8 sampled videos ship `src` only, and that
+     * ladder is already H.264. Prefer H.264 (plays on every ExoPlayer device) and keep
+     * a plain `src` as the fallback — the old `srcFallback`-only regex dropped the whole
+     * HLS leg on those pages.
+     */
+    fun hlsSource(config: String): VideoSource? {
+        val hls = sourcesNode(config)?.get("hls") ?: return null
+        for ((_, node) in hls.fields()) {
+            val url = node.get("srcFallback")?.asText()?.takeIf { it.startsWith("http") }
+                ?: node.get("src")?.asText()
+                    ?.takeIf { it.startsWith("http") && !it.contains("-av1") }
+                ?: continue
+            return VideoSource(url, hlsQuality(url)?.let { "${it}p" })
+        }
+        return null
+    }
+
+    /**
+     * Top rung of the ladder encoded in the HLS URL path, e.g.
+     * `…/hls/19055511-,240p,360p,…,2160p,.mp4.urlset/master.m3u8` → 2160. The path is the
+     * site's own quality label, so the link is reported at the quality it really serves
+     * (the master playlist's RESOLUTION is scaled down on some CDN nodes).
+     */
+    fun hlsQuality(url: String): Int? =
+        Regex("""(\d{3,4})p""")
+            .findAll(url.substringBefore(".mp4.urlset").substringAfterLast('/'))
+            .mapNotNull { it.groupValues[1].toIntOrNull() }
+            .maxOrNull()
+
     fun pageUrl(baseUrl: String, page: Int): String {
         if (page <= 1) return baseUrl
         val trimmed = baseUrl.trimEnd('/')
@@ -185,48 +248,47 @@ class EPorner : MainAPI() {
             Log.d(name, "vid: $vid - hash: $convertedhash")
             val xhrurl = "$mainUrl/xhr/video/$vid?hash=$convertedhash&domain=www.eporner.com&pixelRatio=1&playerWidth=0&playerHeight=0&fallback=false&embed=true&supportedFormats=hls,dash,h265,vp9,av1,mp4&_=${System.currentTimeMillis()}"
 
-            val responsetext = app.get(
+            val config = app.get(
                 xhrurl,
                 headers = mapOf(
                     "Referer" to embedurl,
                     "X-Requested-With" to "XMLHttpRequest"
                 )
             ).text
-            Log.d(name, "xhr yanit uzunlugu: ${responsetext.length}")
+            Log.d(name, "xhr yanit uzunlugu: ${config.length}")
 
-            """labelShort"\s*:\s*"(\d{3,4}p)[^"]*"\s*,\s*"src"\s*:\s*"([^"]+)"""".toRegex()
-                .findAll(responsetext).forEach { match ->
-                    val quality = match.groupValues[1]
-                    val videourl = match.groupValues[2]
-                    if (!videourl.contains("/dload/")) {
-                        Log.d(name, "kalite: $quality - url: $videourl")
-                        callback.invoke(
-                            newExtractorLink(
-                                name = name,
-                                source = name,
-                                url = videourl,
-                                type = ExtractorLinkType.VIDEO
-                            ) {
-                                this.referer = mainUrl
-                                this.quality = getQualityFromName(quality)
-                            }
-                        )
-                        videolink = true
+            // Player config → source list (#1449): mp4 ladder at the site's own labels,
+            // then one HLS ladder reported at its real top rung.
+            EPornerParse.mp4Sources(config).forEach { source ->
+                Log.d(name, "kalite: ${source.label} - url: ${source.url}")
+                callback.invoke(
+                    newExtractorLink(
+                        name = name,
+                        source = name,
+                        url = source.url,
+                        type = ExtractorLinkType.VIDEO
+                    ) {
+                        this.referer = mainUrl
+                        this.quality = getQualityFromName(source.label)
                     }
-                }
+                )
+                videolink = true
+            }
 
-            val hlsmatch = """"srcFallback"\s*:\s*"(https?://[^"]+\.m3u8[^"]*)"""".toRegex().find(responsetext)
-            if (hlsmatch != null) {
-                Log.d(name, "hls: ${hlsmatch.groupValues[1]}")
+            EPornerParse.hlsSource(config)?.let { source ->
+                Log.d(name, "hls: ${source.url}")
                 callback.invoke(
                     newExtractorLink(
                         name = name,
                         source = "${name}:HLS",
-                        url = hlsmatch.groupValues[1],
-                        type = ExtractorLinkType.VIDEO
+                        url = source.url,
+                        // A master playlist is HLS, not a progressive mp4: CloudStream maps
+                        // VIDEO to MimeTypes.VIDEO_MP4 and skips URI-extension inference, so
+                        // a .m3u8 sent as VIDEO never plays (07-fix-loop, PR #1526).
+                        type = ExtractorLinkType.M3U8
                     ) {
                         this.referer = mainUrl
-                        this.quality = Qualities.P1080.value
+                        this.quality = getQualityFromName(source.label)
                     }
                 )
                 videolink = true
