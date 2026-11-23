@@ -711,14 +711,21 @@ mark-up, page 2 and 3 a `404 noResultsWrapper`.
 - Handed to S2 as the fixture to build: a page-1 body whose result block is present (cards,
   titles, posters, durations, views) with **zero** pagination mark-up — the discriminator against
   a genuine last page being the pagination block's presence there (`pagination3` + `li.page_next
-  disabled`) versus its total absence here. The guard must be **bounded**: on this live M1′ body
-  page 2 is a `404 noResultsWrapper`, so "cards but no mark-up ⇒ keep paging open" has to
-  terminate on that empty/404 page-2 body instead of opening an endless next — the same
-  page-scoped shape `Parse.homeHasNext` already uses for the blank-body fallback.
+  disabled`) versus its total absence here. The `404 div.noResultsWrapper` page-2 body is a **stop
+  condition in its own right**, not merely a bound on a fallback (06-review finding, this round):
+  on this egress there is no page 2 to request at all, so "cards but no mark-up ⇒ keep paging open"
+  must **not** be S2's default — taking it here only re-requests a known-unreachable page. Stopping
+  is the same page-scoped shape `Parse.homeHasNext` already uses for the blank-body fallback, and
+  it is what `Parse.hasNextPage` does on this measured body (returns `false`). The "keep paging
+  open" fallback stays **conditional**: it is justified only when page 1 lacks the pagination
+  signals **and** independent evidence shows the next page is reachable (a `200` result body, as on
+  an ungated egress). With a `404 noResultsWrapper` page 2 — this measured body — the answer is
+  stop.
 - User action, stated plainly because the symptom is real: on a gated egress the site serves **no
   page 2 at all** (`404` "No Search Results."), so **no provider change can restore pagination** —
   use an ungated egress (VPN/region) with the current release (v12). If the list stops at one page
-  on an **ungated** egress, the cause is app-side: enable only PornHub and expand the PornHub
+  on an **ungated** egress, app-side is the leading **hypothesis** (not yet evidenced — it needs a
+  page-1/page-2 response pair from that egress): enable only PornHub and expand the PornHub
   section before scrolling (M2/M4).
 
 **Reporter discriminator (#1524 work item 4) — unanswered, not blocking.** This run cannot answer
@@ -727,8 +734,12 @@ PornHub enabled, so the discriminator is untestable from the pipeline egress. Th
 answer on #1524 decides the branch: *page 2 loads with only PornHub enabled* → M2/M4 (app-side,
 no provider fix); *it still stops* → M1′-class mark-up degradation on the reporter's own egress,
 and S2's guard 2 is the real target. The report's own clue — homepage pages in the same session —
-puts the **gate** out of the reporter's context, which is why M1′ is recorded as primary **for this
-egress** and M2/M4 as the live secondary pair for theirs, rather than a both/and on one cause.
+makes the **gate** *unlikely* on the reporter's egress; that is a **hypothesis, not proof of a
+response shape** (06-review finding, this round). Attributing *their* failure to M1′ or to M2/M4
+needs page-1 **and** page-2 response evidence from *their* egress — the search bodies themselves,
+not an app-side observation — which this run does not have. What the evidence here does support is
+narrower: M1′ is measured primary **on the pipeline egress**, and M2/M4 remain the live secondary
+pair to test on an ungated one, rather than a both/and on one cause.
 
 **Build gate (this run, unchanged tree):** `./gradlew PornHub:test` → **BUILD SUCCESSFUL**, 231
 tests / 0 failures across 30 suites; `./gradlew PornHub:make` → `PornHub.cs3` (171,675 B). The
