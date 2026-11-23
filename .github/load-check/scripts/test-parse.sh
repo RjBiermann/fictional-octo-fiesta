@@ -63,4 +63,42 @@ no_verdicts "$tmp/empty.log" || { echo "FAIL: no_verdicts must be true for an em
 no_verdicts "$tmp/progress.log" && { echo "FAIL: no_verdicts must be false once a verdict is present"; exit 1; }
 no_verdicts "$tmp/sample.log" && { echo "FAIL: no_verdicts must be false for loaded+failed verdicts"; exit 1; }
 
+# Upstream reports a `load()` that throws through the catch-all
+# `Failed to load <absolute path>: <stack>` — a *different* shape from the manifest branch's
+# `Failed to load plugin  X.cs3: <reason>`. Parsing only the manifest shape left a real
+# provider failure visible solely as "expected minus loaded", i.e. inferred from silence (#1545).
+cat > "$tmp/catchall.log" <<'EOF'
+12-25 04:41:07.100 I/PluginManager( 4355): Loaded plugin EPorner.cs3 successfully
+12-25 04:41:07.456 E/PluginManager( 4355): Failed to load /storage/emulated/0/Android/data/com.lagradost.cloudstream3.prerelease/files/plugins/Javbangers.cs3: java.lang.ExceptionInInitializerError
+	at com.rjbiermann.JavbangersPlugin.load(Javbangers.kt:183)
+12-25 04:41:08.001 E/PluginManager( 4355): Failed to load plugin  MissAV.cs3: No manifest found
+EOF
+failed=$(extract_failed "$tmp/catchall.log")
+[[ $failed == $'Javbangers\nMissAV' ]] || { echo "FAIL: named failures must yield plugin stems, got '$failed'"; exit 1; }
+
+# Silence is not a verdict (#1545). The 2026-11-23 run reported three plugins as a failing set
+# whose `load()` never returned: 24/27 printed a verdict, those three printed neither `Loaded`
+# nor `Failed`, and the app's next round skipped them ("Plugin with name X already exists"),
+# so the silence could not resolve inside the wait window. Anything the log never decided on
+# must be separable from a plugin the log explicitly failed, or the tier invents a provider verdict.
+printf 'EPorner\nJavbangers\nMissAV\nixiporn\n' > "$tmp/expected.txt"
+unsettled "$tmp/catchall.log" "$tmp/expected.txt" > "$tmp/unsettled.txt"
+[[ $(cat "$tmp/unsettled.txt") == ixiporn ]] || { echo "FAIL: only the never-decided plugin is unsettled, got '$(cat "$tmp/unsettled.txt")'"; exit 1; }
+unsettled "$tmp/sample.log" "$tmp/expected.txt" | grep -qx 'ixiporn' \
+  || { echo "FAIL: manifest-shape failure must settle its plugin"; exit 1; }
+: > "$tmp/none-expected.txt"
+[[ -z $(unsettled "$tmp/sample.log" "$tmp/none-expected.txt") ]] || { echo "FAIL: no expected plugins means nothing unsettled"; exit 1; }
+
+# A round that ends in a crash explains its own silence; the unattributable note says so instead
+# of implying the emulator wedged. `Process: <pkg>, PID: …` is the header line ART prints with
+# FATAL EXCEPTION (and in ANR traces), so matching the package identifies *this* app's death.
+cat > "$tmp/crash.log" <<'EOF'
+12-25 04:41:09.000 E/AndroidRuntime( 4355): FATAL EXCEPTION: main
+12-25 04:41:09.001 E/AndroidRuntime( 4355): Process: com.lagradost.cloudstream3.prerelease, PID: 4355
+12-25 04:41:09.020 E/AndroidRuntime( 4355): java.lang.ExceptionInInitializerError
+EOF
+crashed "$tmp/crash.log" com.lagradost.cloudstream3.prerelease || { echo "FAIL: app crash not detected"; exit 1; }
+crashed "$tmp/crash.log" com.example.other && { echo "FAIL: another process's crash is not this app's"; exit 1; }
+crashed "$tmp/progress.log" com.lagradost.cloudstream3.prerelease && { echo "FAIL: clean log flagged as crashed"; exit 1; }
+
 echo "parse-log tests PASSED"

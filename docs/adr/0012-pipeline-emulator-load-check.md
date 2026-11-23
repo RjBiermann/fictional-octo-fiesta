@@ -1,5 +1,20 @@
 # Pipeline-run emulator load check; ADR-0001's in-app clause superseded
 
+> Amended 2026-11-23 (#1545): the reload intent stays off, but it was not the only way a plugin
+> loses its verdict — run 45202927338 reported three plugins (`Javbangers`, `MissAV`, `ixiporn`)
+> while 24/27 reported, with no exception, no crash and no reload intent in the run. Their
+> `load()` calls were still inside the shared `registerHostExtractors()` table when the window
+> ended: the round's `Adding … ExtractorApi` counts step down three times at three different
+> rows, and the three steps sum to exactly the lines that are missing (177), so nothing was
+> lost — three registrations stopped (`docs/archive/findings/FINDINGS-1545.md`). Two rules
+> follow. The round now settles on verdict *coverage* rather than on "all loaded", and only a
+> verdict line the log prints (`Loaded plugin … successfully`, `Failed to load …`) may name a
+> provider: a plugin with no verdict is reported as **stalled** — unattributable, a human
+> decision, never an `ai-fix` dispatch — with a best-effort `kill -3` thread dump so the parked
+> frame is visible next time. The capture also sets 64 MiB log buffers and parses the union of
+> the live stream and a final `adb logcat -d` dump, since the round's ~370 KiB burst already
+> exceeds logd's 256 KiB default ring. The assertion itself is unchanged.
+
 > Amended 2026-11-22 (#1500): the load tier no longer fires the reload intent at all.
 > The app loads every local plugin by itself on startup and the `.cs3` files are pushed
 > *before* the launch, so the app's startup round is the round the tier asserts; the

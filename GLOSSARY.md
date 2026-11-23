@@ -68,8 +68,19 @@ mechanism. This tier asserts **registration only** (`PluginManager: Loaded plugi
 successfully`), zero AI. A failing plugin set lands in one open issue per sorted failing-plugin
 list, appended by daily runs; a load failure is a **Correctness** finding — never Drift, never
 Chronic-counted. Never **Geo-gated** evidence: it shares the runner's IP.
+Only a verdict line names a provider: a plugin the log never decided on (**stalled**, below) is
+never part of a failing set.
 _Avoid_: smoke test, emulator test (the lane's site-free tier is the **Player probe**); in-app
 playback of a named provider is not a load check
+
+**Stalled** (load check):
+A plugin the app neither loaded nor failed: no `Loaded plugin X successfully`, no `Failed to
+load …`, no exception — its `load()` never returned. Not a provider verdict and never part of a
+failing set (#1545): the same signature hit three different, structurally ordinary `.cs3` files
+on three consecutive runs, and the app's own next round skips a file already in its plugin map
+(`Plugin with name X already exists`), so a stalled plugin cannot recover inside the run. The
+run reports it as unattributable for a human, with a thread dump when one can be taken.
+_Avoid_: failing (a stalled plugin has no verdict); hung plugin (the cause, not the observation)
 
 **Player probe**:
 The emulator lane's site-free tier: a generated 2 s H.264/TS fixture served on the runner's
