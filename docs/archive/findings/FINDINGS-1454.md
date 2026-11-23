@@ -13,8 +13,9 @@ condition were confirmed (the ≥3 hardening rung is not reached).
 
 **Result: no condition confirmed on the video-source leg — the leg is clean, no code change, no
 version bump (stays 28).** No finding was filed: every listing type the site exposes answered
-plain-curl, and all 19 sampled videos resolved through both routes (primary token → HLS, backup
-embed → dec-abyss → sora mp4).
+plain-curl, and all 19 sampled rows resolved through both routes (primary token → HLS, backup
+embed → dec-abyss → sora mp4) — 18 distinct titles, since `/hidden-face` is sampled twice
+(rows 5 and 10).
 
 Run: `05-implement` for #1454, 2026-11-23, plain-curl tier, runner IP US.
 Workflow run: `https://github.com/RjBiermann/fictional-octo-fiesta/actions/runs/45282587022`.
@@ -44,7 +45,7 @@ ModuleNotFoundError: No module named 'curl_cffi'      # #1434 still open at run 
 
 **#1434 is still open**, so the registry `last_runs` entry carries `escalation_tier: unavailable`
 and any `Blocked` this run would downgrade to `Suspected`. None occurred — cat3film.com answered
-plain-curl on every surface below, including all 19 streams and both routes.
+plain-curl on every surface below, including all 19 streams (18 distinct titles) and both routes.
 
 Instrument = **plain-curl tier**, desktop Chrome UA
 (`Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36`).
@@ -114,7 +115,8 @@ check 1 being a FAIL-by-tool on this provider.
 type, both catalogue ends where the type is pageable. Every row resolved **end-to-end**: detail
 page → watch page `.epbtn[data-ep]` → sources API → `master.abyssssss.top/<token>/index.m3u8`
 **206 `application/vnd.apple.mpegurl`**; the backup embed (`player.abyssplayer.com/<id>`) was also
-decoded for 18/19 rows.
+decoded for **all 18 distinct titles** (the 19 rows re-sample `/hidden-face` at rows 5 and 10),
+each returning at least one `status: true` rung.
 
 | # | type | sample URL | listing position | tier | stream host | quality | verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- |
