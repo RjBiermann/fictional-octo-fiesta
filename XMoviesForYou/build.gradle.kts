@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 28 // #1446: structural source enumeration (HLS API + chip grammar)
+version = 29 // #1516: version bump (v29)
 
 cloudstream {
     authors     = listOf("kraptor", "ByAyzen")

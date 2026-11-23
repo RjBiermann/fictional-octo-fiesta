@@ -328,3 +328,38 @@ Canary 3/3; all surfaces 200 plain-curl. See `FINDINGS-645.md` for full evidence
   raw-page in-render card repeat 2×/3× (provider dedupes in-code), iframe=0 + stream
   path shape (streams behind ajax), attribute car titles (`title` attr vs inner text;
   manual title/poster agreement exact), none new vs #522 run.
+
+## 2026-11-23 re-probe (issue #1448 — video-source leg of the #1354 audit)
+
+Full evidence + transcripts: `docs/archive/findings/FINDINGS-1448.md`. **This section
+supersedes every stream-chain statement above** (hlsfast AES, "loadvid JS-gated", server
+mapping) — the chains moved.
+
+- **Registration-only dispatch.** `loadLinks` no longer carries host branches: sv1..sv3
+  embeds are collected, deduped (`Parse.distinctEmbeds`), and handed to `loadExtractor`
+  once per distinct URL. Every host below is a `shared/` adapter row.
+- **hlsfast (`https://hlsfast.com/#<hash>`) — chain replaced.** `/api/v1/video` (the #180
+  AES endpoint) answers **404 on every hash**; the shell resolves via
+  `GET /api/public/resolve?file1=<hash>` → `{"url":"https://turboembed.com/<code>",
+  "host1":"upn","host2":"turbovio",…}`. The shared `HlsFast` adapter dispatches that
+  destination through the registry, so the next host rotation is one row, not a rewrite.
+- **turboembed.com — new row.** `GET /api/download/tiers?s=<code>` exposes the quality
+  (`{"file":"540p","label":"540p","height":480}` — `height` is unreliable, the label is
+  the token); `GET /api/download/get?s=<code>&t=<tier>` **302**s to a signed mp4 CDN URL
+  (`94.131.217.39`, `Range` → 206 `video/mp4`). 5/13 sampled videos were hlsfast-only and
+  had **zero** sources before this run.
+- **cdn.loadvid.com (sv2) — new row.** `window.LoadVidConfig` + CSRF meta →
+  `POST /videos/resolve-token` returns the manifest *content* (browser wraps it in a
+  `blob:`). It is a **single-segment** VOD playlist; the segment is MPEG-TS (188-byte
+  sync, PAT/PMT) served under a `.png` name with `content-type: image/png`. Playable shape
+  = that segment as progressive video; multi-segment manifests are dropped. Also: some
+  player.php responses emit `src=" https://…"` (leading space) — `Parse.embedIframe` trims.
+- **listeamed.net (sv2 on 2 samples) — host-side dead end.** Embeds carry a filename
+  suffix → 404 `not found`; bare `/e/<id>` is a JS JWT+`sid`-cookie challenge that loops
+  and then 429s. No server-side player HTML → no adapter possible; data-completeness note.
+- **Listing types**: `old` exists as `?order=asc` (43 pages on `/classic-porn`, newest-last);
+  `/old-movies` 404 and the theme's own `/asc/` 302 target 404s. `popular` is a homepage
+  widget (`#halim-ajax-popular-post`, 15 items, not pageable) — `/popular` 404,
+  `?order=popular|views` ignored. `/new-movies` = 718 pages, 20/page, tails on the last page.
+- verify.sh: **PASS** (5 videos, `/new-movies` p1+p2, search p1+p2+agreement); the loadvid
+  leg's `.png` content-type is verified separately (documented FAIL, TS bytes).
