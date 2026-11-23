@@ -5,12 +5,113 @@
 # (ADR-0012 review finding: push dir + log format need live confirmation).
 # `adb logcat -v time` renders the tag as `I/PluginManager( 4355):`, so the tag pattern
 # tolerates both that and the plain `I PluginManager:` form.
+# plugin_name <raw> — the plugin *stem* every comparison uses: strip the path, the `.cs3`
+# suffix and the ` (N)` version suffix upstream prints after a loaded name. Normalising here
+# is what lets `unsettled()` compare whole names instead of substrings (review finding: a
+# substring match settles `Porn` on a `PornHub` verdict, i.e. attributes silence to the wrong
+# plugin).
+plugin_name() {
+  printf '%s\n' "$1" | sed -e 's#.*/##' -e 's/[[:space:]]*$//' \
+    -e 's/[[:space:]]*([0-9][0-9]*)$//' -e 's/\.cs3$//' -e 's/[[:space:]]*$//'
+}
+
 extract_loaded() {
-  grep -oP 'PluginManager(?:\(\s*\d+\))?: Loaded plugin \K.*(?= successfully)' "$1" 2>/dev/null | sort -u
+  # `|| true`: grep exits 1 on "no match", and every caller runs under `set -e`/pipefail where
+  # that would abort the run on a perfectly readable log that simply has no verdict yet.
+  {
+    grep -oP 'PluginManager(?:\(\s*\d+\))?: Loaded plugin \K.*(?= successfully)' "$1" 2>/dev/null || true
+  } | while IFS= read -r n; do plugin_name "$n"; done \
+    | { grep -v '^$' || true; } | sort -u
 }
 
 extract_failed() {
-  grep -oP 'PluginManager(?:\(\s*\d+\))?: Failed to load plugin \K.*?(?=:)' "$1" 2>/dev/null | sed 's/\.cs3$//' | sort -u
+  {
+    # Manifest branch: `Failed to load plugin  <file>: <reason>` (two spaces before the file).
+    grep -oP 'PluginManager(?:\(\s*\d+\))?: Failed to load plugin\s+\K[^:]+' "$1" 2>/dev/null || true
+    # Catch-all branch: `Failed to load <absolute path>: <stack>` — what a `load()` that throws
+    # actually prints (PluginManager.loadPlugin). Missing it left a real provider failure
+    # visible only as "expected minus loaded", i.e. a verdict inferred from silence (#1545).
+    # The negative lookahead keeps the manifest line from also yielding `plugin  <file>`.
+    grep -oP 'PluginManager(?:\(\s*\d+\))?: Failed to load (?!plugin)\K[^:]+(?=:)' "$1" 2>/dev/null || true
+  } | while IFS= read -r n; do plugin_name "$n"; done \
+    | { grep -v '^$' || true; } | sort -u
+}
+
+# failing_stems <log> — named failures that are *not* also loaded. A plugin can print a
+# failure and later a success (a failed first attempt that the app retried, or the same line
+# arriving through both the live stream and the final buffer dump). Success wins: keeping the
+# failure would turn a recovered round into a red run after every verdict was already in
+# (review finding on final-buffer recovery).
+failing_stems() {
+  local log=$1 loaded failed
+  loaded=$(extract_loaded "$log" || true)
+  failed=$(extract_failed "$log" || true)
+  [[ -n $failed ]] || return 0
+  if [[ -z $loaded ]]; then
+    printf '%s\n' "$failed"
+    return 0
+  fi
+  grep -vxF -f <(printf '%s\n' "$loaded") <<<"$failed" || true
+}
+
+# unsettled <log> <expected-file> — expected plugin stems the log never decided on: no
+# `Loaded plugin … successfully` and no named `Failed to load …`. Those are not failures and
+# must never become a failing set (#1545): on 2026-11-23 three such plugins (`Javbangers`,
+# `MissAV`, `ixiporn`) were reported as the failing set while 24/27 had verdicts — their
+# `load()` never returned, nothing threw, and the app's next round skipped them as
+# `Plugin with name X already exists` (the map is keyed by path, filled before `load()` runs),
+# so the silence could not resolve. Attribution comes from a verdict line, never from silence.
+unsettled() {
+  local log=$1 expected_file=$2 e
+  local verdicts
+  verdicts=$({ extract_loaded "$log"; extract_failed "$log"; } || true)
+  while read -r e; do
+    [[ -n $e ]] || continue
+    # Whole-name match against normalised stems. A substring match would settle `Porn` on a
+    # `PornHub` verdict and `MissAV` on `MissAVX` — the exact-matching finding — while
+    # `plugin_name` already handles the versioned `EPorner (4)` form the old substring needed.
+    grep -qxF "$e" <<<"$verdicts" || echo "$e"
+  done < "$expected_file"
+}
+
+# verdict_outcome <log> <expected-file> — the round's *final* state, from the recovered log:
+# `failed` (a named failure), `stalled` (a plugin with no verdict) or `pass`. Deliberately not
+# a function of a live-reader timeout: a slow reader that lost a verdict line but whose final
+# `logcat -d` dump recovered it is a pass with a warning, not a red run.
+verdict_outcome() {
+  local log=$1 expected_file=$2 failed stalled
+  failed=$(failing_stems "$log" || true)
+  [[ -z $failed ]] || { echo failed; return 0; }
+  stalled=$(unsettled "$log" "$expected_file" || true)
+  [[ -z $stalled ]] || { echo stalled; return 0; }
+  echo pass
+}
+
+# crashed <log> <package> — the app died instead of reporting. ART prints
+# `Process: <package>, PID: …` with FATAL EXCEPTION (and in ANR traces), so matching the
+# installed package identifies this app's death and not, say, a GMS crash in the same buffer.
+# The process line alone is *not* enough: process listings and unrelated AMS chatter carry the
+# same shape, so require the crash/ANR marker that makes it a death (review finding).
+# A crash explains a round's silence; it never names a plugin.
+crashed() {
+  local log=$1 pkg=${2:-}
+  [[ -n $pkg ]] || return 1
+  grep -qF "ANR in $pkg" "$log" 2>/dev/null && return 0
+  grep -qF 'FATAL EXCEPTION' "$log" 2>/dev/null \
+    && grep -qF "Process: $pkg," "$log" 2>/dev/null
+}
+
+# has_thread_dump <file> — did a `kill -3` thread dump actually land in this file? ART writes it
+# to /data/anr with a `----- pid <n> at <ts> -----` header followed by `Cmd line: <pkg>` — a
+# capital C and a space — while Dalvik-era images print `DALVIK THREADS` and `cmdline:`, and a
+# logcat mirror of the dump carries the same header. Matching only the Dalvik spellings read
+# every dump a modern image wrote as "missing" and deleted it, so the diagnostic #1545 promises
+# for the next stall could never appear (review finding on #1550). The logcat notice ART prints
+# (`Wrote stack traces to '/data/anr/traces.txt'`) is *not* a dump and must not match.
+has_thread_dump() {
+  local f=${1:-}
+  [[ -s $f ]] || return 1
+  grep -qE -- '(DALVIK THREADS|[Cc]md ?line:|^----- pid [0-9]+ at )' "$f" 2>/dev/null
 }
 
 # has_failed <log> — any explicit plugin-load failure line present?

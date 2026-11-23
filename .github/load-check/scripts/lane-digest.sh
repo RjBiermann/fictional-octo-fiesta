@@ -10,9 +10,14 @@ set -euo pipefail
 EVIDENCE=${1:-loadcheck-evidence}
 status() { case "${1:-skipped}" in success) echo "✅ pass" ;; skipped) echo "⏭️ skipped" ;; *) echo "❌ ${1:-fail}" ;; esac; }
 
-loaded=0 failing=0
+loaded=0 failing=0 stalled=0
 [[ -f $EVIDENCE/loaded-plugins.txt ]] && loaded=$(grep -c . "$EVIDENCE/loaded-plugins.txt" || true)
 [[ -f $EVIDENCE/failing-plugins.txt ]] && failing=$(grep -c . "$EVIDENCE/failing-plugins.txt" || true)
+# A stalled plugin (no verdict at all) is neither loaded nor failing; folding it into "failing"
+# would restate the misattribution #1545 fixed, and hiding it would show a red step as clean.
+[[ -f $EVIDENCE/stalled-plugins.txt ]] && stalled=$(grep -c . "$EVIDENCE/stalled-plugins.txt" || true)
+counts="$loaded loaded, $failing failing"
+[[ $stalled -gt 0 ]] && counts="$counts, $stalled stalled (no verdict)"
 # `|| true`: with pipefail an absent line would abort the digest, and the run where the
 # emulator never booted is exactly the run whose digest must still be posted.
 boot=$(grep -o "Boot completed in [0-9]* ms" "$EVIDENCE/emulator.log" 2>/dev/null | tail -1 || true)
@@ -22,7 +27,7 @@ boot=$(grep -o "Boot completed in [0-9]* ms" "$EVIDENCE/emulator.log" 2>/dev/nul
   echo
   echo "| tier | result |"
   echo "|---|---|"
-  echo "| load check | $(status "${LOAD:-}") — $loaded loaded, $failing failing |"
+  echo "| load check | $(status "${LOAD:-}") — $counts |"
   if [[ -f $EVIDENCE/probe-rejected ]]; then
     echo "| player probe | ❌ the app rejected the fixture stream — datasource/scheme defect (see probe-logcat.log) |"
   elif [[ -f $EVIDENCE/emulator-died || -f $EVIDENCE/probe-unrendered ]]; then
