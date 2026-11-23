@@ -30,9 +30,15 @@ enumeration needed, and not re-probed beyond that (`drift_confirmed` = 0, enumer
 
 | Canary | Expected | Observed | Result |
 | --- | --- | --- | --- |
-| `eporner-healthy` | plain-curl 200 | plain-curl **200** (3 591 B) | match — instrument healthy |
+| `eporner-healthy` | plain-curl 200 | plain-curl **200** (3 591 B — the **age-verification interstitial**, not the homepage) | **status-only** match; the canary is content-blind and did **not** prove the probe machine unwalled (**#1560** open) — live pair kept here; **no** `environment-degraded` branch taken |
 | `film1k-challenge-pair` | plain-curl 403, tls-impersonated 200 | plain-curl **200** (253 676 B) | **expectation-stale** (#1435 open) — live pair recorded here; **no** `environment-degraded` branch taken |
 | `pandamovies-redirect-origin` | plain-curl 302, tls-impersonated 200 | plain-curl **302 → https://pandamovies.org/** | plain-tier match; the TLS leg cannot run (#1434) |
+
+`eporner-healthy` therefore did **not** prove the probe machine was unwalled: its assertion is status
+only, and the 3 591 B body is Eporner's age-verification page rather than the homepage (the sibling
+`FINDINGS-1449.md`, ~2 h earlier, recorded 314 091 B for the same URL). The live pair is kept in the
+table and the gap is filed as **#1560**; the allclassic.porn verdict does not rest on this canary —
+every target-site surface answered real content and no `Blocked` occurred.
 
 ```
 $ curl -s -o /dev/null -w '%{http_code} %{size_download}\n' -A "$UA" https://www.eporner.com/  → 200 3591
@@ -126,9 +132,11 @@ answered **302 → 206**, `Content-Type: video/mp4`, body magic `0000 0020 6674 
 (`ftypisom`). No row needed a non-pass transcript — hence no raw transcript section beyond the
 chain below.
 
-Scan breadth (video-page enumeration, not just the table): **45 video pages** across **15 listing
-pages** covering every present D3 type plus the provider rows, at p1, p2 and the far end.
-Distribution:
+Scan breadth (video-page enumeration, not just the table): **45 video pages** across **15 D3 listing
+pages** — new/latest 3 (`/page/1/`, `/page/2/`, `/page/102/`), old 3 (`/40s/`, `/year/1950/` p1–p2),
+popular 3, categories 3, tags 3 — sampled at p1, p2 and the far end. The provider-row surfaces listed
+above (`/best/`, `/longest/`, `/most-commented/`, `/most-favourited/`, `/90s/2/`, `/year/1950/`) are
+enumeration checks **outside** that 45-page set. Distribution:
 
 | shape | count | note |
 | --- | --- | --- |
