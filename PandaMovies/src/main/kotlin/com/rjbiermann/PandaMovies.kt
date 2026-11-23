@@ -40,22 +40,33 @@ class PandaMovies : MainAPI() {
         var hasNext = false
         var fetched = false
         var lastError: Exception? = null
-        for ((index, row) in rows.withIndex()) {
+        // Walked with an explicit cursor instead of break/continue: the candidate walk is
+        // conditional on both the fetch and the card count, and detekt's
+        // UnconditionalJumpStatementInLoop reads the bare `break` as a first-iteration exit
+        // (false positive, CodeFactor on #1511) — `done` says the same thing without a jump.
+        var done = false
+        var index = 0
+        while (index < rows.size && !done) {
+            val row = rows[index]
             val document = try {
                 app.get(if (page <= 1) row else "$row/page/$page").document
             } catch (e: Exception) {
                 Log.d(name, "row $row: ${e.message}")
                 lastError = e
                 null
-            } ?: continue
-            fetched = true
-            val list = Parse.cards(document).mapNotNull { it.toSearchResult(this@PandaMovies) }
-            // an empty page is a dead route (404 shell / retired term slug): try the twin,
-            // and only report the empty row once every candidate is exhausted
-            if (list.isEmpty() && index < rows.lastIndex) continue
-            home = list
-            hasNext = Parse.hasNextPage(document)
-            break
+            }
+            if (document != null) {
+                fetched = true
+                val list = Parse.cards(document).mapNotNull { it.toSearchResult(this@PandaMovies) }
+                // an empty page is a dead route (404 shell / retired term slug): walk on to
+                // the twin, and only report the empty row once every candidate is exhausted
+                if (list.isNotEmpty() || index == rows.lastIndex) {
+                    home = list
+                    hasNext = Parse.hasNextPage(document)
+                    done = true
+                }
+            }
+            index++
         }
         // no candidate returned a document = transport failure, not an empty row (#1447 review)
         if (!fetched) throw lastError ?: IllegalStateException("no row candidate fetched")
@@ -274,7 +285,7 @@ object Parse {
     fun taxonomyTwin(url: String): String? {
         if (url.isBlank()) return null
         val parts = url.split("/")
-        for (i in (parts.size - 2) downTo 0) {
+        for (i in parts.size - 2 downTo 0) {
             val twin = TAXONOMY_TWINS[parts[i]] ?: continue
             return parts.toMutableList().also { it[i] = twin }.joinToString("/")
         }
