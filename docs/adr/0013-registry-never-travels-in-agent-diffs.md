@@ -30,8 +30,10 @@ Considered and rejected:
   for conflict_watch to see — the rebase lane never gets a chance.
 
 Consequences:
-- Registry updates land on main ≤ one orchestrator sweep (10 min) after
-  the verdict comment, not atomically with the PR.
+- Registry updates land on main within one orchestrator pass — minutes
+  after an event trigger (issue/PR/comment, or a review run completing),
+  or up to ~4–8 h when only the throttled cron sweep fires (GitHub runs
+  the `*/10` schedule a few times a day on this repo).
 - A later anchored entry on an already-applied issue is skipped until the
   dedupe marker is cleared (union makes the common retry a no-op anyway).
 - `add-comment` budget in 05-implement grows to 3 slots (stamp +
