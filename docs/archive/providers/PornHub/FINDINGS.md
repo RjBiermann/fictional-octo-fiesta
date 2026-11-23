@@ -58,6 +58,15 @@ itself shipped in S1/S2 (v7/v8), so every published plugin from v7 on already ca
 `#1490` traceability lives in this section and in §Selector traceability, not in a
 `build.gradle.kts` comment the lane rewrites on each push.
 
+**Addendum — S1 of the #1524 pagination re-probe spec (2026-11-23).** §Pagination → §Search now
+carries a re-probe at **v12** and the resolved M1/M1′/M2/M3/M4 table: the pipeline egress was
+**SFW/geo-gated** for this run (`isSfw:"1"`, `/video` → `302 → /` with `ph-redirect: 1041`), and
+under that gate the search page 1 carries cards but **no pagination mark-up of any kind** — the
+**M1′** shape, live — while page 2 answers `404 div.noResultsWrapper`. Verdict: **M1′ (degraded
+page 1 on a gated egress), no provider defect**; the missing mark-up and the last-page
+discriminator are handed to S2 as the guard-2 fixture. Read §Pagination (search) before changing
+the search stop rule.
+
 ## Engine fingerprint
 
 **Custom proprietary platform** (PornHub's own stack — not KVS/Kernel, not a WP video theme).
@@ -545,6 +554,197 @@ before scrolling (M2), and update the plugin to the current release, v10 (M3) �
 builds searched a constant `hasNext`. S3 re-ran the same probe on 2026-11-22 and reproduced
 this verdict unchanged (§Verification note (S3 of #1490)).
 
+> **Partly superseded by the v12 re-probe below (S1 of #1524, 2026-11-23).** On an **SFW-gated**
+> egress the same seam sees a page-1 body with cards and **no pagination mark-up at all**, and
+> page 2 answers `404 div.noResultsWrapper` — the **M1′** shape, now measured rather than
+> hypothetical. The M2/M3 reading above stands for an **ungated** egress (the reporter's
+> "homepage works" says theirs is), and M3 is further narrowed there: the reporter's v11 already
+> carries the derived stop (shipped in v6/v7), and this repo publishes v12.
+
+### Search pagination re-probe at v12 — M1′ is live on a gated egress (S1 of #1524, 2026-11-23)
+
+Release under test: **v12** — `PornHub/build.gradle.kts` `version = 12 // #1516: version bump
+(v12)`, and the published `builds`-branch `plugins.json` reports `PornHub 12`. Egress for every
+line below: **`134.33.76.213`, Phoenix/Arizona, `US`, AS8075 Microsoft** (`ipinfo.io`), probe
+window **2026-11-23 13:54–14:08 UTC**, cookie-less desktop Firefox UA (`verify.sh`'s own) unless
+a line says otherwise; the Chrome-124 and `okhttp/4.12.0` UAs were re-probed and answer the same
+shape, so nothing here is UA-dependent.
+
+**This egress is SFW/geo-gated, and the gate reaches search too.** The row URLs are gated exactly
+as §Risks records, the root is the SFW single feed, and the *search* bodies carry `"isSfw":"1"`:
+
+```
+GET /video/search?search=milf          Cookie: age_verified=1; platform=pc
+    → 200 968,694B  isSfw=1  rel_next=no  pagination3=no  cards=31
+GET /video/search?search=milf&isSfw=0  → 301 → /video/search?search=milf  (ph-redirect: 1041)
+```
+
+Neither the age cookie nor a `isSfw=0` parameter unlocks it (same conclusion as §Risks' "the gate
+is decided server-side per egress IP", re-confirmed here for the search surface).
+
+**Page-1 shape — cards present, every pagination signal absent** (one `14:04:21 UTC` snapshot;
+identical across 6/6 repeat fetches, 2 s apart):
+
+```
+/                          HTTP 200  706,528B  block=no  cards= 0 vkeys= 0 dur= 0 views= 0 resultsCount=     - rel_next=no  pagination3=no  page_next=no  page2hrefs= 0 isSfw=1
+/video                     HTTP 302        0B  ph-redirect=1041 ->/
+/video?page=2              HTTP 302        0B  ph-redirect=1041 ->/
+search=george+uhl page 1   HTTP 200  969,374B  block=yes cards=31 vkeys=32 dur=31 views=31 resultsCount=    32 rel_next=no  pagination3=no  page_next=no  page2hrefs= 0 isSfw=1
+search=george+uhl page 2   HTTP 404  600,348B  block=no  cards= 0 vkeys= 0 dur= 0 views= 0 resultsCount=     - rel_next=no  pagination3=no  page_next=no  isSfw=1 div.noResultsWrapper
+search=george+uhl page 3   HTTP 404  599,454B  block=no  cards= 0 vkeys= 0 dur= 0 views= 0 resultsCount=     - rel_next=no  pagination3=no  page_next=no  isSfw=1 div.noResultsWrapper
+search=milf page 1         HTTP 200  966,096B  block=yes cards=31 vkeys=32 dur=31 views=31 resultsCount=    32 rel_next=no  pagination3=no  page_next=no  page2hrefs= 0 isSfw=1
+search=milf page 2         HTTP 404  598,488B  block=no  cards= 0 vkeys= 0 dur= 0 views= 0 resultsCount=     - rel_next=no  pagination3=no  page_next=no  isSfw=1 div.noResultsWrapper
+search=teen page 1         HTTP 200  968,487B  block=yes cards=31 vkeys=32 dur=31 views=31 resultsCount=    32 rel_next=no  pagination3=no  page_next=no  page2hrefs= 0 isSfw=1
+search=teen page 100       HTTP 404  600,266B  block=no  cards= 0 vkeys= 0 dur= 0 views= 0 resultsCount=     - rel_next=no  pagination3=no  page_next=no  isSfw=1 div.noResultsWrapper
+```
+
+`block` = `ul#videoSearchResult` present; `cards` = `li.pcVideoListItem` **inside** it; `vkeys` =
+distinct `?viewkey=` in it; `dur`/`views` = cards carrying `var.duration` / `span.views`;
+`page2hrefs` = whole-body occurrences of `page=2`. So the card seam is intact — 31 parseable
+cards with title, poster, duration and views — and only the pagination mark-up is gone:
+
+```
+<li class="pcVideoListItem js-pop videoblock videoBox videoBoxesSearch" data-video-vkey="6a0ca93102062" …>
+  <a href="/view_video.php?viewkey=6a0ca93102062" title="How Lauren Phillips Turned ExtremeScenes Into a Brand" …>
+  <var class="bgShadeEffect duration tooltipTrig" data-title="Video Duration">54:46</var>
+  <span class="views"><i class="ph-icon-view-on tooltipTrig" …></i><var>113K</var></span>
+```
+
+What is missing on page 1, precisely — **both signals, and the last-page control as well**:
+
+- **`link rel="next"`: 0.** (Also 0 `rel="prev"` — page 1 of an ungated body carries `next`,
+  §Pagination (search).)
+- **`div.pagination3` / `li.page_next a[href]`: 0.** This is not the reachable-last-page shape —
+  that body carries the pagination block with `li.page_next` **`disabled`** (`search-last-page.html`,
+  §Pagination (search)). Here the whole block is **absent**: 0 occurrences of `pagination3`,
+  0 `page_next`, and **0 `?page=2` hrefs in the entire 969 KB body**.
+- **Page 2 is `HTTP 404` + `div.noResultsWrapper` ("No Search Results.")** — not a page-2 result
+  body, not a `302 → /`. So on this egress there is no page 2 to request; consecutive-page
+  viewkey overlap is therefore **not computable** (page 2 carries 0 result cards), which is a
+  Blocked-by-gate fact, not a pass of the distinct bar. Page 3 was fetched only to close that
+  loop (the story asks for it when page 2 is non-empty) and is the same 404.
+- **`resultsCount` is not usable as a page-count on this body — record the drift and do not lean
+  on it.** The same `milf` URL reported `"resultsCount":875019` at 13:56–14:00 UTC and `32` at
+  14:01–14:08 UTC in this one run (`teen`: 321297 → 32), same `block=yes cards=31` shape. Read it
+  as an unstable estimate; the *pagination decision* must come from the mark-up, which is exactly
+  what `Parse.hasNextPage` does.
+- The three queries return **different card sets** (viewkey overlap `george+uhl`↔`milf` 3,
+  `george+uhl`↔`teen` 8, `milf`↔`teen` 1), so the gate is filtering a real result set down to one
+  page rather than serving one canned list.
+
+`Parse.hasNextPage` therefore returns **`false`** on each page-1 body (no `link[rel=next]`, no
+enabled `li.page_next a[href]`), and `hasNext = false` is exactly the reported "search shows page
+1 only".
+
+**A genuine last page still carries its pagination control; this body carries none.** That is the
+only discriminator the mark-up offers, and it is testable purely offline — the two repo fixtures
+already pin both ends of it: `search-last-page.html` has `pagination3` ×2 with `<li class="page_next
+ disabled">`, `search-page-1.html` has `link rel="next"`. The gated body has **neither**.
+
+**The gate also thins the watch page** — supporting evidence that these are SFW-variant bodies
+and not selector drift (`viewkey=6b006f06066c7`, same egress):
+
+```
+GET /view_video.php?viewkey=6b006f06066c7  → 200 714,556B  isSfw=1
+  <meta property="og:*"> 0   application/ld+json 0   div.categoriesWrapper 0   div.tagsWrapper 0
+  div.pornstarsWrapper 1     h1 …span.inlineFree 1    var flashvars_ 1 (5 mediaDefinitions)
+```
+
+So under the gate the `og:*` metas and the JSON-LD `VideoObject` are gone (title falls back to the
+DOM `inlineFree` span, duration/year/plot have no source), while streams and actors still resolve
+— which is why verify.sh's poster/plot lines read `NOTE: … site does not expose it` on this run.
+Playback is unaffected: `6afbe046a6991` came back style B (all four HLS legs `410`), the second
+`6b006f06066c7` style A (all four legs `206 application/vnd.apple.mpegurl`) — §Stream sources'
+CDN host lottery, unchanged by the gate.
+
+**`verify.sh`** (the S4 command shape: four search URLs, both row URLs, one watch page with its
+live HLS leg as `--stream-url`, `--provider-src PornHub
+--load-response recommendations,tags,plot,duration,year,actors`):
+
+```
+── check 1: search pages (4)
+GET …search=george+uhl        → 200; 'ul#videoSearchResult li.pcVideoListItem' matches: 31
+GET …search=george+uhl&page=2 → 404; matches: 0        FAIL search (the gate's page-2 404)
+GET …search=milf              → 200; matches: 31
+GET …search=milf&page=2       → 404; matches: 0        FAIL search (same)
+FAIL duplicate search cards … href /view_video.php …   ← the documented url_path plateau, not drift
+NOTE: repeated poster on search across different videos …   ← series posters, same note class
+── check 1a: homepage pages (2)
+GET /video        → 200 (curl -L followed the gate's 302 → /); matches: 0   FAIL home (§Risks gate)
+GET /video?page=2 → 200 (same 302); matches: 0                            FAIL home (same)
+── check 1b: quick search (0)  → NOTE, hasQuickSearch=false (§Quick search)
+── check 2: video pages (1)
+GET …viewkey=6b006f06066c7 → 200; 'div#player' matches: 1
+GET stream (…/1080P_4000K_69935395.mp4/master.m3u8…) → 206 application/vnd.apple.mpegurl
+NOTE: no poster / no plot on the sampled page — the gate's body (above), not a selector
+NOTE: --video-tags-selector matches nothing — same gated body (div.tagsWrapper absent)
+field 'actors': present on all 1 sampled pages
+── check 5: search ↔ load agreement
+FAIL title mismatch for /view_video.php …              ← same plateau (every card collapses to one path)
+── check 6: LoadResponse completeness
+field 'recommendations'/'tags'/'plot'/'duration'/'year'/'actors': populated in PornHub
+RESULT: FAIL
+```
+
+Every `FAIL` is one of the two documented causes, neither a provider defect: the
+`url_path`-strips-`?viewkey=` instrument plateau (§Verification (S4)) or the §Risks gate
+suppressing page 2 / the row URLs on this egress. The substituted viewkey-keyed facts are the
+table above — 31 cards / 32 distinct viewkeys per page 1 (card identity intact), zero pagination
+mark-up, page 2 and 3 a `404 noResultsWrapper`.
+
+**Mechanism table, resolved (work item 3)**
+
+| # | Mechanism | Verdict from this run (v12, egress above) | Evidence pointer |
+|---|---|---|---|
+| M1 | Gated/degraded body delivered as a gate redirect on the **search URL** (`302 → /`, `ph-redirect: 1041`), or page 2 parsing empty | **Not the search shape.** The search URL answers **200**, not a gate redirect — the gate is visible only on the **row** URLs (`/video`, `/video?page=2` → `302 → /`, `ph-redirect: 1041`). Page 2 is not an "empty parse" either: it is a **404 `div.noResultsWrapper`** body. M1's *condition* (an `isSfw:"1"` egress) is what produces M1′ below. | transcript above; `/video` 302 rows |
+| M1′ | **Degraded page 1: cards present, pagination mark-up absent** | **PRIMARY — reproduced live (6/6 fetches).** Page 1 carries the scoped result block with 31 cards / 32 viewkeys and full card metadata, while `link rel=next`, `div.pagination3`, `li.page_next` and any `?page=2` href are **all zero** — neither signal, and not even the disabled last-page control. `Parse.hasNextPage` returns `false`; page 2 is a `404 noResultsWrapper`. | page-1 table + "missing on page 1" + last-page discriminator |
+| M2 | App bundles providers; the combined list's `hasNext` is the app's and paging is per provider via the expand control | **Not observable server-side, and not needed to explain this run** — page 2 does not exist on this egress, so no client can page it. Still the live secondary for a user on an **ungated** egress (the reporter's "homepage works" says theirs is one). | app-side; discriminator below |
+| M3 | Installed plugin predates the derived stop (< v5), or came from a foreign repo | **Excluded for this repo's builds.** The reporter is on v11 and the derived `hasNextPage` stop shipped in v6/v7 (S1/S2 of #1490); this repo now publishes **v12** (`builds` `plugins.json` → `PornHub 12`, matching `build.gradle.kts`). Only a foreign-repo build could still carry a constant. | §Verification note (S3 of #1490) version chain; `plugins.json` |
+| M4 | Search section not expanded in a bundled result list | **Not observable server-side; secondary.** Same standing as M2: it can only bite on an ungated egress where the provider does emit `hasNext = true`. | app-side |
+
+**Verdict: M1′ — a degraded page 1 on an SFW/geo-gated egress; no provider defect.**
+
+- Which mark-up was missing on page 1 (the fact work item 2 asks for): **neither** pagination
+  signal — no `link rel="next"` **and** no `div.pagination3 li.page_next a[href]` (the block is
+  absent, not `disabled`), with the scoped `ul#videoSearchResult` still holding 31 parseable
+  cards. The M1′ shape therefore **has live support**: S2's guard 2 is guarding a measured body.
+- Handed to S2 as the fixture to build: a page-1 body whose result block is present (cards,
+  titles, posters, durations, views) with **zero** pagination mark-up — the discriminator against
+  a genuine last page being the pagination block's presence there (`pagination3` + `li.page_next
+  disabled`) versus its total absence here. The `404 div.noResultsWrapper` page-2 body is a **stop
+  condition in its own right**, not merely a bound on a fallback (06-review finding, this round):
+  on this egress there is no page 2 to request at all, so "cards but no mark-up ⇒ keep paging open"
+  must **not** be S2's default — taking it here only re-requests a known-unreachable page. Stopping
+  is the same page-scoped shape `Parse.homeHasNext` already uses for the blank-body fallback, and
+  it is what `Parse.hasNextPage` does on this measured body (returns `false`). The "keep paging
+  open" fallback stays **conditional**: it is justified only when page 1 lacks the pagination
+  signals **and** independent evidence shows the next page is reachable (a `200` result body, as on
+  an ungated egress). With a `404 noResultsWrapper` page 2 — this measured body — the answer is
+  stop.
+- User action, stated plainly because the symptom is real: on a gated egress the site serves **no
+  page 2 at all** (`404` "No Search Results."), so **no provider change can restore pagination** —
+  use an ungated egress (VPN/region) with the current release (v12). If the list stops at one page
+  on an **ungated** egress, app-side is the leading **hypothesis** (not yet evidenced — it needs a
+  page-1/page-2 response pair from that egress): enable only PornHub and expand the PornHub
+  section before scrolling (M2/M4).
+
+**Reporter discriminator (#1524 work item 4) — unanswered, not blocking.** This run cannot answer
+it: there is no in-app observation here, and on this egress page 2 would `404` even with only
+PornHub enabled, so the discriminator is untestable from the pipeline egress. The maintainer's
+answer on #1524 decides the branch: *page 2 loads with only PornHub enabled* → M2/M4 (app-side,
+no provider fix); *it still stops* → M1′-class mark-up degradation on the reporter's own egress,
+and S2's guard 2 is the real target. The report's own clue — homepage pages in the same session —
+makes the **gate** *unlikely* on the reporter's egress; that is a **hypothesis, not proof of a
+response shape** (06-review finding, this round). Attributing *their* failure to M1′ or to M2/M4
+needs page-1 **and** page-2 response evidence from *their* egress — the search bodies themselves,
+not an app-side observation — which this run does not have. What the evidence here does support is
+narrower: M1′ is measured primary **on the pipeline egress**, and M2/M4 remain the live secondary
+pair to test on an ungated one, rather than a both/and on one cause.
+
+**Build gate (this run, unchanged tree):** `./gradlew PornHub:test` → **BUILD SUCCESSFUL**, 231
+tests / 0 failures across 30 suites; `./gradlew PornHub:make` → `PornHub.cs3` (171,675 B). The
+story adds no tests and changes no provider code.
+
 ### Related videos
 
 - **Does not paginate.** The `ul#relatedVideosListing` block is a fixed selection (35 cards on
@@ -1016,6 +1216,14 @@ Newest, `search=starbucks`), the search page-1/page-2 pair, the home page-1/page
   was recorded from a gated egress (the gate is decided server-side per egress IP).
   `Blocked: geo/SFW gate (302 -> / + ph-redirect: 1041, no unlock)` — a gated egress cannot
   verify the four home rows, and no re-probe is worth running from it.
+
+  **The gate also reaches the search surface (S1 of #1524, 2026-11-23).** On a gated egress
+  (`isSfw:"1"`) the search URL itself answers **200** — so there is no `302` to spot — but the
+  page-1 body keeps its cards and drops **all** pagination mark-up (`rel=next`, `pagination3`,
+  `page_next` and any `?page=2` href: 0), page 2 answers `404 div.noResultsWrapper`, and the watch
+  page loses its `og:*` metas and JSON-LD while keeping flashvars + actors. Neither
+  `age_verified=1; platform=pc` nor `isSfw=0` unlocks it. Record the egress with every pagination
+  claim too, not just with listing claims — transcript: §Pagination (search), S1 of #1524.
 - **Geo wall on watch pages not observed.** ~50 pages on 2026-11-18 (region not recorded) and
   all 5 S4 pages on 2026-11-21 carried `video_unavailable_country: "false"` (and `video_unavailable: false`);
   the parser still honours both flags, but there is no recorded geo-walled sample. Removed
@@ -1085,7 +1293,7 @@ carries its transcript:
 | `Parse.LINK` | `a[href^="/view_video.php?viewkey="]` | §Homepage (ad-slot filter), §Related videos |
 | `SEARCH_PATH` | `/video/search?search=<q>` (`+` encoding) | §Search, §Pagination (search) |
 | `Parse.pageUrl` | `page=N` query param | §Pagination (home, search) |
-| `Parse.hasNextPage` | `link[rel=next]`, `li.page_next:not(.disabled) a[href]` | §Pagination (search) — absent/disabled on page 100 and the 404 body; consumed by `search` **and** (since S2) by the home rows through `Parse.homeHasNext` |
+| `Parse.hasNextPage` | `link[rel=next]`, `li.page_next:not(.disabled) a[href]` | §Pagination (search) — absent/disabled on page 100 and the 404 body, and **entirely absent** (with the whole `pagination3` block) on the SFW-gated page-1 body (§Pagination (search), S1 of #1524); consumed by `search` **and** (since S2) by the home rows through `Parse.homeHasNext` |
 | `Parse.homeHasNext` | `hasNextPage` on every real body; a blank body keeps the row open only on page 1 | §Pagination (home) — four rows × two pages all carry `rel=next`; the past-the-end 404 (`home-past-end.html`) and a degraded body stop the row (§Verification note (S3 of #1490)) |
 | card `span.title a` | title | §Homepage (31/31 + `title` attr fallback) |
 | card `var.duration` | duration text | §Homepage (31/31, 43/43) |
