@@ -596,6 +596,21 @@ def merge_readiness():
             # override that with green checks (#1405)
             print(f"[orchestrator] PR #{num}: status/fixing-stuck — not ready")
             continue
+        if "status/fixing" in labels:
+            # 07 step 4 tells the agent to drop this after its push, but on a
+            # relay-fired run gh-aw resolves remove-labels to the *story*
+            # issue: #1516's repair deleted `issues/1448/labels/status%2Ffixing`
+            # (404, logged as "not present, skipping"), so the PR kept the
+            # label and round 2's pass added status/ready-to-merge on top —
+            # two state labels on a clean PR (#1405). A non-blocker verdict
+            # means the repair round is over; clear it here, where the encoded
+            # DELETE and the rc already exist.
+            rc, _ = run(["gh", "api", "-X", "DELETE",
+                         f"repos/{REPO}/issues/{num}/labels/status%2Ffixing"])
+            print(f"[orchestrator] PR #{num}: status/fixing cleared — verdict "
+                  f"is not a blocker" if rc == 0 else
+                  f"[orchestrator] PR #{num}: status/fixing clear rc={rc} — "
+                  f"retry next sweep")
         if not _effective_ready(num, mstate):
             print(f"[orchestrator] PR #{num}: mergeable_state={mstate} — not ready")
             continue

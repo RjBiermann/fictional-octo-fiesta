@@ -1476,3 +1476,60 @@ class TestRegistryCandidateMachineryAuthor(unittest.TestCase):
         thread = [{"body": orchestrator.REGISTRY_ANCHOR + "\n" + self.BODY.split("\n", 2)[2],
                    "user": {"login": "rjbiermann-machinery[bot]"}}]
         self.assertIsNone(orchestrator._registry_candidate(thread))
+
+
+class TestReadinessClearsRepairState(unittest.TestCase):
+    """A repair's status/fixing must not survive the pass verdict.
+
+    07 step 4 tells the agent to remove the label after its push, but on a
+    relay-fired run gh-aw resolves remove-labels to the *story* issue: PR
+    #1516's repair issued DELETE issues/1448/labels/status%2Ffixing, got 404,
+    logged "not present, skipping", and left the PR labelled status/fixing.
+    Round 2's pass then added status/ready-to-merge on top (#1405)."""
+
+    def run_readiness(self, labels, verdict):
+        pr = {"number": 1516,
+              "user": {"login": "rjbiermann-machinery[bot]"},
+              "head": {"ref": "devloop/issue-1448-x", "sha": "5891d79"}}
+        cmds = []
+        thread = [{"body": verdict, "created_at": "2026-11-23T03:06:52Z",
+                   "user": {"login": "github-actions[bot]"}}]
+
+        def fake_run(cmd, **kw):
+            cmds.append(cmd)
+            return 0, ""
+
+        def fake_api(path, *a, **kw):
+            if path.startswith("pulls/"):
+                return {"mergeable_state": "clean", "head": {"sha": "5891d79"}}
+            return thread
+
+        with mock.patch.object(orchestrator, "open_pulls", lambda: [pr]), \
+                mock.patch.object(orchestrator, "_agent_pr", lambda p: True), \
+                mock.patch.object(orchestrator, "_pr_labels_map",
+                                  lambda nums: {1516: set(labels)}), \
+                mock.patch.object(orchestrator, "api", fake_api), \
+                mock.patch.object(orchestrator, "run", fake_run), \
+                mock.patch.object(orchestrator, "_effective_ready",
+                                  lambda n, m: True), \
+                mock.patch.object(orchestrator, "AUTO_MERGE", False), \
+                mock.patch.object(orchestrator, "_has_marker",
+                                  lambda cs, m: False), \
+                mock.patch.object(orchestrator, "comments", lambda n: []), \
+                mock.patch.object(orchestrator, "label_issue",
+                                  lambda n, l: None), \
+                mock.patch.object(orchestrator, "post_comment",
+                                  lambda n, b: None):
+            orchestrator.merge_readiness()
+        return [" ".join(c) for c in cmds]
+
+    def test_pass_verdict_clears_status_fixing(self):
+        cmds = self.run_readiness({"status/fixing"}, "**Verdict:** no blockers")
+        self.assertTrue(any("status%2Ffixing" in c for c in cmds), cmds)
+
+    def test_blocker_verdict_keeps_status_fixing(self):
+        # a live blocker means the repair round is exactly what is wanted —
+        # the label must not be cleared on that path.
+        cmds = self.run_readiness({"status/fixing"},
+                                  "**Verdict: blocker** — Codacy red.")
+        self.assertFalse(any("status%2Ffixing" in c for c in cmds), cmds)
