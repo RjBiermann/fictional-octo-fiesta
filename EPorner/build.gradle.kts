@@ -1,5 +1,5 @@
 // ! Bu araç @ByAyzen tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 33 // #1516: version bump (v33)
+version = 34 // #1449: player-config parse — real HLS top-rung quality + plain-src HLS leg
 
 cloudstream {
     authors     = listOf("ByAyzen")
