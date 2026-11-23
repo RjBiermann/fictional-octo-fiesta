@@ -170,9 +170,40 @@ EOF
 crashed "$tmp/anr.log" com.lagradost.cloudstream3.prerelease || { echo "FAIL: ANR not detected as a crash"; exit 1; }
 crashed "$tmp/anr.log" com.example.other && { echo "FAIL: another package's ANR is not this app's"; exit 1; }
 
-echo "parse-log tests PASSED"
+# SIGQUIT thread-dump detection (review finding on #1550). ART writes the dump to /data/anr
+# with a `----- pid <n> at <ts> -----` header and `Cmd line: <pkg>` — capital C, with a space —
+# not the Dalvik-era `DALVIK THREADS` / `cmdline:` spellings the old predicate required. That
+# predicate therefore read every dump a modern image wrote as "missing" and deleted it, so the
+# diagnostic the ADR and #1545 promise for the next stall could never appear.
+cat > "$tmp/art-dump.log" <<'EOF'
+----- pid 4355 at 2026-11-23 16:00:00.123 -----
+Cmd line: com.lagradost.cloudstream3.prerelease
+Build fingerprint: 'google/sdk_gphone64_x86_64/google_apis_x86_64:14/UE1A/1234:userdebug/test-keys'
+"main" prio=5 tid=1 Native
+  | group="main" sCount=1 ucsCount=0 flags=1 obj=0x12c00000 self=0x7f8a1c0000
+  | sysTid=4355 nice=-10 cgrp=default sched=0/0 handle=0x7f8b2c0d50
+  | state=S schedstat=( 123456789 987654321 1234 ) utm=12 stm=3 core=0 HZ=100
+  kernel: __switch_to+0x0/0x0
+EOF
+has_thread_dump "$tmp/art-dump.log" || { echo "FAIL: a real ART dump ('Cmd line:') must be recognised"; exit 1; }
+# The legacy spellings and a logcat mirror of the same header must stay recognised: images
+# differ, and the fallback path copies a mirrored dump in.
+printf 'DALVIK THREADS:\n"main" prio=5 tid=1 NATIVE\n' > "$tmp/dalvik-dump.log"
+has_thread_dump "$tmp/dalvik-dump.log" || { echo "FAIL: Dalvik-era dump must stay recognised"; exit 1; }
+printf 'cmdline: com.lagradost.cloudstream3.prerelease\n' > "$tmp/old-dump.log"
+has_thread_dump "$tmp/old-dump.log" || { echo "FAIL: lowercase 'cmdline:' dump must stay recognised"; exit 1; }
+# The notice ART prints in logcat is not the dump itself: a run that only captured
+# "Wrote stack traces to ..." has no trace to attach, and must not claim one.
+printf '%s\n' "12-25 04:41:09.000 W/art( 4355): Wrote stack traces to '/data/anr/traces.txt'" \
+  > "$tmp/dump-notice.log"
+has_thread_dump "$tmp/dump-notice.log" && { echo "FAIL: the 'Wrote stack traces' notice is not a dump"; exit 1; }
+has_thread_dump "$tmp/does-not-exist.log" && { echo "FAIL: a missing file is not a dump"; exit 1; }
+: > "$tmp/empty-dump.log"
+has_thread_dump "$tmp/empty-dump.log" && { echo "FAIL: an empty file is not a dump"; exit 1; }
 
 # The digest is the human-facing half of the same contract: a stalled plugin must never be
 # folded into "failing" (that restates the #1545 misattribution) or hidden (a red step reading
 # clean). Its own self-check lives beside this one.
 bash "$(dirname "$0")/test-lane-digest.sh"
+
+echo "parse-log tests PASSED (incl. lane-digest self-check)"

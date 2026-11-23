@@ -101,6 +101,19 @@ crashed() {
     && grep -qF "Process: $pkg," "$log" 2>/dev/null
 }
 
+# has_thread_dump <file> — did a `kill -3` thread dump actually land in this file? ART writes it
+# to /data/anr with a `----- pid <n> at <ts> -----` header followed by `Cmd line: <pkg>` — a
+# capital C and a space — while Dalvik-era images print `DALVIK THREADS` and `cmdline:`, and a
+# logcat mirror of the dump carries the same header. Matching only the Dalvik spellings read
+# every dump a modern image wrote as "missing" and deleted it, so the diagnostic #1545 promises
+# for the next stall could never appear (review finding on #1550). The logcat notice ART prints
+# (`Wrote stack traces to '/data/anr/traces.txt'`) is *not* a dump and must not match.
+has_thread_dump() {
+  local f=${1:-}
+  [[ -s $f ]] || return 1
+  grep -qE -- '(DALVIK THREADS|[Cc]md ?line:|^----- pid [0-9]+ at )' "$f" 2>/dev/null
+}
+
 # has_failed <log> — any explicit plugin-load failure line present?
 has_failed() {
   grep -qP 'PluginManager(?:\(\s*\d+\))?: Failed to load ' "$1" 2>/dev/null

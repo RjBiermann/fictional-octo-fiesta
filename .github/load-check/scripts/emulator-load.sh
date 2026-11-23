@@ -77,11 +77,14 @@ dump_threads() {
   # `adb root` restarted adbd, which ended the live logcat stream above — re-read the whole
   # buffer (`-d`) so a mirrored dump is captured too before the device state is torn down.
   timeout 60 adb logcat -d -v time > "$EVIDENCE/logcat-after-dump.log" 2>/dev/null || true
-  if ! grep -q 'DALVIK THREADS\|cmdline:' "$EVIDENCE/thread-dump.log" 2>/dev/null \
-    && grep -q 'DALVIK THREADS\|cmdline:' "$EVIDENCE/logcat-after-dump.log" 2>/dev/null; then
+  # The dump's own header decides whether one was captured — `has_thread_dump` speaks ART's
+  # `Cmd line:` as well as the Dalvik spellings, because matching the legacy ones alone made a
+  # real dump look absent and deleted it (review finding on #1550).
+  if ! has_thread_dump "$EVIDENCE/thread-dump.log" \
+    && has_thread_dump "$EVIDENCE/logcat-after-dump.log"; then
     cp "$EVIDENCE/logcat-after-dump.log" "$EVIDENCE/thread-dump.log"
   fi
-  if grep -q 'DALVIK THREADS\|cmdline:' "$EVIDENCE/thread-dump.log" 2>/dev/null; then
+  if has_thread_dump "$EVIDENCE/thread-dump.log"; then
     printf '\n===== thread dump (kill -3, after the stall) — why load() never returned =====\n' >> "$EVIDENCE/logcat.log"
     cat "$EVIDENCE/thread-dump.log" >> "$EVIDENCE/logcat.log"
     echo "thread dump captured → $EVIDENCE/thread-dump.log"
