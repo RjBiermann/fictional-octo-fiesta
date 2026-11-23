@@ -215,3 +215,48 @@ href-less Tags-row anchors into one LinkedHashSet (dedupe) and drops the title-e
 Unit tests: `Javbangers/src/test/kotlin/.../JavbangersParseTest.kt` (fixture
 `javbangers_details.html`). verify.sh: PASS (3 videos; streams 206 video/mp4; Tags-row
 anchors 18/2/1 by grep on the saved pages).
+
+## 2026-11-23 video-source deep pass (issue #1451, S13 of #1354)
+Audit + fix, plain-curl tier, canaries healthy (eporner 200, film1k 200 = #1435 stale,
+pandamovies 302 → .org; #1434 TLS tier unavailable). Run report:
+`docs/archive/findings/FINDINGS-1451.md`.
+
+- **Third rendition dropped — FIXED (v22 → v23, TDD red → green).** KVS serves a third
+  rendition on most videos: `video_alt_url2` + `video_alt_url2_text: '1080p'`
+  (+ `video_alt_url2_hd: '1'`), after `video_url` 480p and `video_alt_url` 720p. `loadLinks`
+  hardcoded a two-key list, so the 1080p link was never emitted — **18 of 29** file-bearing
+  pages sampled carried it. Shared `KvsFlashvars.URL_KEYS` already lists
+  `video_url`/`video_alt_url`/`video_alt_url2`; the provider just never used it. New pure
+  `JavbangersParse.sources(flashvars)` walks `URL_KEYS`, label from `KvsFlashvars.quality`
+  (caption `*_text`, else the `_NNNp` filename token, else null → Unknown). Javbangers-specific
+  `http`-anchor filter kept (encrypted/shifted value = a page this provider must not emit).
+  Fixture `flashvars_412669.js` is the verbatim flashvars block; 6 new tests, 16 total green.
+- **Listing types (D3):** `new`/`latest` `/latest-updates/` (p1 30 / p2 30; far end
+  `/latest-updates/4444/` 200/30, `/9999/` 404), `popular` `/most-popular/` (24+24, far end
+  `/4444/`), `categories` `/categories/<slug>/` (milf 24+24 0 overlap, far end `/milf/200/` 200;
+  `/milf/2000/` 404). **`tags` absent** — `/tags/` is a 200 empty container (0 cards, 0 links,
+  intermittent origin 502) and `/tags/<slug>/` is 404 on every probed slug
+  (milf/uncensored/creampie/japanese/gangbang/big-tits); the Tags row on video pages is a series
+  of href-less anchors. **`genres` absent** — `/genres/`, `/genres/milf/` 404; `/categories/`
+  is the only taxonomy namespace. **`old` absent** — `/old/`, `/oldest/` 404 and every ordering
+  param is inert (`?sort_by=video_id&sort_dir=asc` byte-identical to p1, md5 913882fd…).
+- **Cross-page overlap is site-side:** in one pass, p1 vs p2 card-id overlap = most-popular 0,
+  milf 0, top-rated 2, latest-updates **5**, uncensored **15**. latest-updates moved 0 → 5
+  between 13:21 and 14:05 with no provider change (stale page-2 offset padding back into p1);
+  uncensored 15 is the small-category grid padding #656 already recorded. Provider mirrors the
+  site; enumeration unaffected; never a finding.
+- **Stream chain re-verified (unchanged):** `flashvars` URL → `get_file` 302 →
+  `origin<N>-direct.cdntrex.com/remote_control.php` → **206 video/mp4 with
+  `Referer: https://www.javbangers.com/`; 403 without it** (and 403 with a `jav.cdntrex.com`
+  referer). Origin shards rotate (origin11/13/24/25); `get_file` path shards vary
+  (/get_file/4|6|8|9/); `origin24` tolerated a missing referer on one sample (per-shard), so
+  the provider keeps the referer unconditional. `get_file` tokens are short-lived and IP/UA
+  bound — a URL replayed from a page fetched minutes earlier 404s at `get_file` itself.
+- **Quality labels:** plain `480p`/`720p`/`1080p` captions (no suffix such as "720p HD");
+  single-rendition pages (412690, 412680, 19376) carry **no** caption at all → `Unknown` is
+  correct, not a defect.
+- **Placeholder class unchanged:** 8 of 37 sampled pages have no `flashvars`, no `kt_player`,
+  no `get_file` (real og/title/details/related; e.g. `/video/412659/gvg-130-unc`, head of the
+  milf p1 grid). `load()` parses, `loadLinks` → false = the site's own empty player region.
+- **verify.sh PASS** on 8 live video pages (incl. 1080p overrides) — mints listed in
+  FINDINGS-1451. Search has no page 2 (`/search/<q>/2/` 404, #475 re-confirmed).
