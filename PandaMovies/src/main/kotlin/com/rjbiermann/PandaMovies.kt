@@ -20,18 +20,59 @@ class PandaMovies : MainAPI() {
 
     override val mainPage = mainPageOf(
         "$mainUrl" to "Latest",
-        "$mainUrl/genre/18-teens" to "18+ Teens",
-        "$mainUrl/genre/lesbian" to "Lesbian",
-        "$mainUrl/genre/anal" to "Anal",
+        "$mainUrl/movies" to "Porn Movies",
+        "$mainUrl/most-viewed" to "Most Viewed",
+        "$mainUrl/panda-top-rated" to "Top Rated",
+        "$mainUrl/genres/anal" to "Anal",
+        "$mainUrl/genres/lesbian" to "Lesbian",
     )
 
+    /**
+     * #1447 hardening — every row is resolved through [Parse.rowCandidates]: the site
+     * flipped its term routes singular→plural (`/genre/<slug>` → `/genres/<slug>`,
+     * `/release-year/` → `/years/`) and left its own indexes linking to the dead shapes,
+     * so all three genre rows 404'd. A row now carries its own fallback instead of
+     * trusting one hardcoded path.
+     */
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val url = if (page <= 1) request.data else "${request.data}/page/$page"
-        val document = app.get(url).document
-        val home = Parse.cards(document).mapNotNull { it.toSearchResult(this@PandaMovies) }
+        val rows = Parse.rowCandidates(request.data)
+        var home: List<SearchResponse> = emptyList()
+        var hasNext = false
+        var fetched = false
+        var lastError: Exception? = null
+        // Walked with an explicit cursor instead of break/continue: the candidate walk is
+        // conditional on both the fetch and the card count, and detekt's
+        // UnconditionalJumpStatementInLoop reads the bare `break` as a first-iteration exit
+        // (false positive, CodeFactor on #1511) — `done` says the same thing without a jump.
+        var done = false
+        var index = 0
+        while (index < rows.size && !done) {
+            val row = rows[index]
+            val document = try {
+                app.get(if (page <= 1) row else "$row/page/$page").document
+            } catch (e: Exception) {
+                Log.d(name, "row $row: ${e.message}")
+                lastError = e
+                null
+            }
+            if (document != null) {
+                fetched = true
+                val list = Parse.cards(document).mapNotNull { it.toSearchResult(this@PandaMovies) }
+                // an empty page is a dead route (404 shell / retired term slug): walk on to
+                // the twin, and only report the empty row once every candidate is exhausted
+                if (list.isNotEmpty() || index == rows.lastIndex) {
+                    home = list
+                    hasNext = Parse.hasNextPage(document)
+                    done = true
+                }
+            }
+            index++
+        }
+        // no candidate returned a document = transport failure, not an empty row (#1447 review)
+        if (!fetched) throw lastError ?: IllegalStateException("no row candidate fetched")
         return newHomePageResponse(
             list = HomePageList(name = request.name, list = home, isHorizontalImages = false),
-            hasNext = Parse.hasNextPage(document)
+            hasNext = hasNext
         )
     }
 
@@ -40,16 +81,25 @@ class PandaMovies : MainAPI() {
         // query/title overlap, reproduced live in this issue). Retry once via the
         // equivalent `?s=` endpoint. The zero-overlap detector can't catch garbage
         // that happens to contain a query token — accepted residual.
+        // #1447: `?s=` is now WAF-403 ("Access to this resource on the server is denied")
+        // while `/search/<slug>` stays 200 — the retry must degrade to the first response
+        // instead of throwing the whole search away.
         // ponytail: single retry per request; retry-loop if server junk persists.
         val slug = java.net.URLEncoder.encode(Parse.normalizeQuery(query.trim()), "UTF-8")
         var document = app.get(if (page <= 1) "$mainUrl/search/$slug" else "$mainUrl/search/$slug/page/$page").document
         val firstDoc = document
         var list = Parse.cards(document)
         if (Parse.queryMismatch(list, query)) {
-            val retryDoc = app.get("$mainUrl/?s=$slug").document
-            val retry = Parse.cards(retryDoc)
-            if (!Parse.queryMismatch(retry, query)) {
+            val retryDoc = try {
+                app.get("$mainUrl/?s=$slug").document
+            } catch (e: Exception) {
+                Log.d(name, "search retry: ${e.message}")
+                null
+            }
+            val retry = retryDoc?.let { Parse.cards(it) } ?: emptyList()
+            if (retryDoc != null && retry.isNotEmpty() && !Parse.queryMismatch(retry, query)) {
                 list = retry
+                // pagination must come from the response the emitted cards came from (#1447 review)
                 document = retryDoc
             } else {
                 document = firstDoc
@@ -121,6 +171,31 @@ private fun Parse.Card.toSearchResult(main: MainAPI): SearchResponse? = try {
  * Pure card/video/embed parsing (TDD-first, ADR-0005). Selector evidence: FINDINGS.md.
  */
 object Parse {
+    /**
+     * Singular↔plural term-route pairs (#1447). The site moved `/genre/<slug>` →
+     * `/genres/<slug>` and `/release-year/<yyyy>` → `/years/<yyyy>`; `/studio/` and
+     * `/actor/` follow the same pluralized family. Both directions are listed so a row
+     * written against either shape resolves.
+     */
+    private val TAXONOMY_TWINS = mapOf(
+        "genre" to "genres",
+        "genres" to "genre",
+        "studio" to "studios",
+        "studios" to "studio",
+        "actor" to "actors",
+        "actors" to "actor",
+        "director" to "directors",
+        "directors" to "director",
+        "tag" to "tags",
+        "tags" to "tag",
+        "category" to "categories",
+        "categories" to "category",
+        "year" to "years",
+        "years" to "release-year",
+        "release-year" to "years",
+        "release-years" to "years",
+    )
+
     data class Card(val title: String, val href: String, val poster: String?)
     data class VideoPage(
         val title: String,
@@ -188,11 +263,42 @@ object Parse {
     private fun wordBoundaryContains(title: String, token: String): Boolean =
         token in title.split(Regex("[^a-z0-9]+"))
 
-    /** Is there a next page? (#555): every listing surface (home / search / genre /
-     *  category / `?s=` search) serves a `nav.pg` block with an explicit
-     *  `a.next` anchor when more pages exist — anchor presence, not card count
-     *  (per-page counts vary: 49 home, 35 elsewhere). A last page is a plain
-     *  page with cards but no `a.next` (WP serves 404 only past the end). */
+    /**
+     * #1447 hardening — row URL candidates in dispatch order. The site flipped every term
+     * route from singular to plural between the 2026-10-17 deep pass and 2026-11-22
+     * (`/genre/<slug>` 404s while `/genres/<slug>` serves 27 cards) and its own index
+     * pages still link to the dead singular shapes. Hardcoding today's shape is how the
+     * last drift happened, so the twin is derived from [TAXONOMY_TWINS] and tried only
+     * when the configured URL yields no cards — either direction of a future flip heals
+     * itself.
+     */
+    fun rowCandidates(data: String): List<String> {
+        val twin = taxonomyTwin(data)?.takeIf { it != data } ?: return listOf(data)
+        return listOf(data, twin)
+    }
+
+    /**
+     * Rewrites the LAST term-route segment that has a slug after it (`/genres/anal` →
+     * `/genre/anal`). A bare route (`/genres`, `/movies`, the homepage) is an index or a
+     * plain page, not a term page — it has no twin and must be requested as-is.
+     */
+    fun taxonomyTwin(url: String): String? {
+        if (url.isBlank()) return null
+        val parts = url.split("/")
+        for (i in parts.size - 2 downTo 0) {
+            val twin = TAXONOMY_TWINS[parts[i]] ?: continue
+            return parts.toMutableList().also { it[i] = twin }.joinToString("/")
+        }
+        return null
+    }
+
+    /**
+     * Is there a next page? (#555): every listing surface (home / search / genre /
+     * category / `?s=` search) serves a `nav.pg` block with an explicit
+     * `a.next` anchor when more pages exist — anchor presence, not card count
+     * (per-page counts vary: 49 home, 35 elsewhere). A last page is a plain
+     * page with cards but no `a.next` (WP serves 404 only past the end).
+     */
     fun hasNextPage(document: org.jsoup.nodes.Document): Boolean =
         document.selectFirst("a.next.page-numbers") != null
 
@@ -236,6 +342,9 @@ object Parse {
      * Watch embeds: #555 player is `section.hlm[data-servers]` — a JSON array with the
      * stream hosts at key "u" (labels: DoodStream/MixDrop/…; download rows
      * (Rapidgator/NitroFlare) are separate anchors and not eligible).
+     * #1447: the host set rotates per upload (playmogo / lulustream / mixdrop.ag / voe.sx /
+     * vidara.so / vinovo.to / peeplayer.com observed in one 15-page sweep), so this stays
+     * host-agnostic — every "u" goes to loadExtractor, never an allowlist.
      */
     fun embeds(document: org.jsoup.nodes.Document): List<String> =
         document.select("section.hlm[data-servers]")
