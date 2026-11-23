@@ -15,6 +15,12 @@ on:
     # simply because this workflow never ran. Findings-only and cheap by
     # cap design; it can never merge (ADR-0001).
   roles: all
+  # Dependabot PRs (#1530 and every bump since): GitHub withholds repository
+  # secrets from runs triggered by dependabot[bot], so activation fails
+  # "Secret Verification Failed" before the agent starts — the review can
+  # never run, and each bump filed a [aw] failure issue (#1531, #1532).
+  # The bump is covered by CI + CodeQL; this lane adds nothing there.
+  skip-bots: [dependabot]
 imports:
   - .github/workflows/shared/engine-lane.md
   - .github/workflows/shared/gate.md

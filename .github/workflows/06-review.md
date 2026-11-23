@@ -22,6 +22,12 @@ on:
   # here instead, carrying the PR in aw_context (#1412).
   workflow_dispatch:
   roles: all
+  # Dependabot PRs (#1530 and every bump since): GitHub withholds repository
+  # secrets from runs triggered by dependabot[bot], so activation fails
+  # "Secret Verification Failed" before the agent starts — the review can
+  # never run, and each bump filed a [aw] failure issue (#1531, #1532).
+  # The bump is covered by CI + CodeQL; this lane adds nothing there.
+  skip-bots: [dependabot]
 concurrency:
   # issue/PR events: the PR; relayed rounds (ADR-0019): the item restored
   # from aw_context; anything else: per-run. Without this a dispatched
