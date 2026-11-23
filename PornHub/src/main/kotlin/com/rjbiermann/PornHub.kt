@@ -157,6 +157,14 @@ object Parse {
      *    #1524 measured), a `div.pagination3` block that still advertises a page beyond the one
      *    requested keeps the search open. A block that advertises nothing beyond it — the
      *    `page_next disabled` last reachable page, or no block at all — still stops.
+     *
+     * It deliberately never fires on a body with no next-page evidence: the M1′ body S1 measured
+     * has cards but no `rel=next` and **no** `pagination3` block at all, and its page 2 answers
+     * `404 div.noResultsWrapper`, so the search stops there (its guard 3 has nothing to read)
+     * rather than re-requesting a page the site does not serve (FINDINGS §Pagination (search),
+     * §Verification note (S2 of #1524)). The reachable last page (`rel=next` absent,
+     * `page_next disabled`) stops for the same reason; only a block advertising a page **beyond**
+     * the requested one keeps it open.
      */
     fun searchHasNext(html: String, page: Int = 1): Boolean {
         if (html.isBlank()) return page == 1
