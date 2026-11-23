@@ -766,8 +766,9 @@ class TestBranchMovedAfter(unittest.TestCase):
 
 
 class TestRepairInFlight(unittest.TestCase):
-    """07's concurrency group is shared and cancel-in-progress, so a
-    dispatch while a repair runs kills it (#1415 review)."""
+    """The guard is a spend limit: 07 keys its group per PR, so a new dispatch
+    no longer cancels a running repair for a *different* PR (#1415 review) —
+    the surrogate still deliberately allows one repair at a time."""
 
     VERDICT_TS = "2026-11-18T23:49:02Z"
 
@@ -786,8 +787,8 @@ class TestRepairInFlight(unittest.TestCase):
         self.assertFalse(self.in_flight("completed"))
 
     def test_any_running_repair_blocks_even_if_old(self):
-        # dispatch runs key the concurrency group on refs/heads/main, so an
-        # older running repair is still the one a new dispatch cancels
+        # one repair at a time repository-wide is deliberate (spend), not a
+        # concurrency accident — age never decides whether a new one fires
         self.assertTrue(self.in_flight("in_progress", "completed"))
 
     def test_empty_run_list(self):

@@ -2513,9 +2513,10 @@ def fix_surrogate():
     identity. Dedupe via the marker comment on the issue thread; bounded
     by the fix loop's own cycle cap + status/fixing-stuck."""
     # Dispatch registration is asynchronous, so a PR handled later in this
-    # same sweep cannot see the run a moment-earlier PR just started — and
-    # 07's concurrency group is shared and cancel-in-progress, so that
-    # second dispatch would kill the first repair. At most one per sweep.
+    # same sweep cannot see the run a moment-earlier PR just started. Since
+    # 07 keys its group per PR, a second dispatch no longer cancels the first
+    # — the cap stays as a spend limit, matching `_repair_in_flight()`'s one
+    # repair at a time repository-wide.
     dispatched = False
     for pr in open_pulls():
         if not _fixable_pr(pr):
