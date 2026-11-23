@@ -77,6 +77,46 @@ page ends the search instead of replaying duplicates (the EPorner #537 class).
 `Parse.hasNextPage` keeps its head-signal semantics and home keeps `Parse.homeHasNext`; read
 §Pagination (search) and §Verification note (S2 of #1524) before touching the stop rule.
 
+**Addendum — S3 of the #1524 close-out spec (2026-11-23).** Release marker + durable record:
+`PornHub/build.gradle.kts` now carries **`version = 14 // #1524: version bump (v14)`**, so a
+post-evidence build is distinguishable from the v11/v12 builds that failed in the reporter's
+install. The version chain is: **v12** (published when S3 was planned — `builds` `plugins.json`
+→ `PornHub 12`) → **#1547** (S2's own PR) 12 → 13 → **this story** 13 → 14. The story's planned
+target of v13 was already spent when this branch was cut, so the next free number is used and the
+chain is recorded here rather than forced back, exactly as #1490's S3 did. The guards shipped in
+S2; this story's code diff is the version comment plus one doc-comment paragraph on
+`Parse.searchHasNext` (below). S1's verdict stands: **M1′ (degraded page 1 on an SFW/geo-gated
+egress) — no provider defect**, resolved on the pipeline egress (cards present, no
+`rel=next`/`pagination3` mark-up, page 2 `404 div.noResultsWrapper`); M2/M4 remain the live
+secondary pair for a reporter on an ungated egress. S2's three guards, each with its fixture:
+
+1. **Page-scoped blank body** — stops a site answering blank bodies past page 1 while keeping a
+   blank page 1 open (a transport hiccup must not end the search); exercised against
+   `search-page-1.html` / `search-page-2.html` plus an in-test blank body.
+2. **Page echo** — stops an ignored `page=N` that re-serves an earlier page, which would replay
+   duplicates; the echoed body is synthesised in-test from `search-page-2.html` (its canonical
+   rewritten to the page-1 form).
+3. **Pagination-block backstop** — keeps the search open when `<link rel=next>` is gone but
+   `div.pagination3` still advertises a page beyond the requested one; the head-less-but-paginated
+   body composes `search-page-1.html` with the block from `search-last-page.html`, which also
+   pins the `page_next disabled` last-page stop; `search-no-results.html` pins the 404 stop.
+
+**Documented user action (quote verbatim into #1524 / to the reporter):**
+
+> 1. Update the PornHub plugin to the **v14 or later** build from this repo's `repo.json`
+>    (`builds` `plugins.json` carries it once this PR merges). The v11/v12 builds in the
+>    reporter's install predate S2's guards.
+> 2. If the search still loads only one page on the updated build: enable **only PornHub** for
+>    that search, or expand the PornHub section in the bundled result list — with more than one
+>    provider the combined list's `hasNext` is the app's (M2/M4). The signature of this class is
+>    **home rows paging while search does not**.
+> 3. If S1's verdict is the cause (M1′ — a degraded page 1 on an SFW/geo-gated egress): guard 3
+>    of `Parse.searchHasNext` keeps the search open only when a `div.pagination3` block advertises
+>    a page beyond the requested one. On the measured M1′ body there is **no block at all** and
+>    page 2 is a `404`, so the search stops — expect no page 2 on such an egress and use an
+>    ungated egress (VPN/region). No provider change can restore pagination the site does not
+>    serve.
+
 ## Engine fingerprint
 
 **Custom proprietary platform** (PornHub's own stack — not KVS/Kernel, not a WP video theme).
@@ -806,6 +846,66 @@ The `matches:` numbers are global, not container-scoped (FINDINGS §Verification
 30 suites (the three guards add 4 tests: page-scoped blank body, head-less-but-paginated body,
 numbered-link backstop, page echo); `./gradlew PornHub:make` → `PornHub.cs3` (172,459 B). No
 version bump in this story (S3 owns the release marker).
+
+### Verification note (S3 of #1524 — release marker + live re-run, 2026-11-23)
+
+Probed **2026-11-23 18:43–18:47 UTC** from the pipeline egress **`40.74.205.247`, San
+Antonio/Texas, US, AS8075 Microsoft** (`ipinfo.io` → `"country": "US"`, `"region": "Texas"`) —
+**ungated** for this run (every search and home URL answered `200` with full pagination
+mark-up; no `302 → /`, no `isSfw:"1"`). The tree carries `version = 14 // #1524: version bump
+(v14)`; `builds` `plugins.json` still reads `PornHub 13` until this PR merges, so the published
+number is **pending the merge** and is the only acceptance fact this run cannot observe.
+
+Search (reporter's query + broad query, scoped to `ul#videoSearchResult`; `cards` =
+`li.pcVideoListItem`, `distinct vkeys` = distinct `?viewkey=` in the block — a card links its
+key twice) and the home rows:
+
+```
+/video/search?search=george+uhl          p1  200 1117967B cards=31 vkeys=32 rel_next=1 pagination3=1
+/video/search?search=george+uhl&page=2   p2  200 1200599B cards=43 vkeys=44 rel_next=1 pagination3=1  shared=0
+/video/search?search=teen                p1  200 cards=31 vkeys=32 rel_next=1 pagination3=1
+/video/search?search=teen&page=2         p2  200 cards=43 vkeys=44 rel_next=1 pagination3=1  shared=0
+/video/search?search=teen&page=100       p100 200 cards=43 vkeys=44 rel_next=0 pagination3=1 page_next disabled
+/video/search?search=teen&page=101       p101 404 cards=0  vkeys=0  rel_next=0 pagination3=0
+/video                                   p1  200 cards=31 vkeys=32 rel_next=1 pagination3=1
+/video?page=2                            p2  200 cards=43 vkeys=44 rel_next=1 pagination3=1  shared=0
+RESULT: PASS
+```
+
+So `Parse.searchHasNext` returns `true` on pages 1 and 2 of both queries and on all four live
+home bodies, and `false` on the reachable last page (page 100, `page_next disabled`) and the
+`404` (page 101). **0 shared viewkeys** between consecutive pages on both search queries and the
+home row.
+
+`verify.sh` (the S2 command shape: four search URLs, both home URLs, one watch page with its
+fresh highest HLS leg as `--stream-url`, `--provider-src PornHub --load-response
+recommendations,tags,plot,duration,year,actors`):
+
+```
+── check 1: search pages (4)      all 200; global matches 38 / 50 / 37 / 50
+   FAIL duplicate search cards    ← url_path strips ?viewkey= (documented plateau, §Risks)
+── check 1a: homepage pages (2)   /video 200 (matches 45), /video?page=2 200 (matches 57)
+   FAIL duplicate home cards      ← same plateau
+── check 2: video page (1)        viewkey 6aec722848c4d → 200, div#player 3 matches
+   stream → 206 application/vnd.apple.mpegurl   (ev-h 1080p leg, style A on the second page fetch)
+   field 'tags': present; NOTE: --video-actors-selector matched nothing — this upload credits no
+   models (the no-credit shape, §Video pages), not selector drift
+── check 5: search ↔ load          FAIL title/poster mismatch ← same plateau (one stripped path)
+── check 6: LoadResponse           recommendations/tags/plot/duration/year/actors all populated
+RESULT: FAIL
+```
+
+Every `FAIL` is the documented one-root-cause `url_path` plateau (§Verification (S4)), not
+drift: the viewkey-keyed transcript above is the authoritative distinct-bar evidence. The
+stream leg was probed before the run; the first page fetch for that viewkey landed on a style-B
+(`hv-h`) token answering `410`, and the second fetch landed style A (`ev-h`) answering `206` —
+the §Stream sources CDN lottery, not a provider change.
+
+**Build gates:** `./gradlew PornHub:test` → **BUILD SUCCESSFUL**, 235 tests / 0 failures across
+30 suites (the task reports 470 executions across the debug+release variants, 0 failures) — S2's
+guard tests included, none changed; `./gradlew PornHub:make` → `PornHub.cs3` (172,455 B). The
+only code changes in this story are the version comment and the `Parse.searchHasNext` doc
+paragraph naming what the stop rule deliberately does not fire on.
 
 ### Related videos
 
