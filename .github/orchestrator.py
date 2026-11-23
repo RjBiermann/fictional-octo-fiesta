@@ -2624,8 +2624,18 @@ def api_run_jobs(run_id):
     return jobs if isinstance(jobs, list) else None
 
 
-def _repair_in_flight():
-    """A 07-fix-loop run is still running.
+# gh-aw's own activation gate (check_cooldown.cjs in 07's pre_activation) skips
+# the agent when the same workflow completed inside this window. A dispatch
+# there still creates a run, still exits `success`, and posts nothing — the
+# surrogate's fire marker counts it all the same, and two such markers escalate
+# a PR that never had a single attempt (#1540: verdict 15:18:26, markers at
+# 15:31:35 `500 s remaining` and 16:08:11 `82 s remaining`, both skipped, then
+# status/fixing-stuck).
+FIX_LOOP_COOLDOWN_SEC = 600
+
+
+def _repair_in_flight(now=None):
+    """A 07-fix-loop run is still running — or finished too recently to start one.
 
     The surrogate's fire marker is itself an issue_comment on the PR, so
     95 re-enters the sweep seconds later. Without this guard the second
@@ -2636,12 +2646,19 @@ def _repair_in_flight():
     (`repair-<N>`, `07-fix-loop.lock.yml`): a re-dispatch for the same PR
     would still cancel the repair that has not pushed yet — the marker cap
     then stamps `status/fixing-stuck` on a PR that was never repaired. The
-    guard stays global (repo-wide, unfiltered by time) as a spend limit too:
-    one repair at a time. Narrowing it to the PR's own runs would let N
-    repairs run concurrently — a cost decision, not a correctness one.
+    guard stays global (repo-wide, every 07 run in the window, not just this
+    PR's) as a spend limit too: one repair at a time. Narrowing it to the PR's
+    own runs would let N repairs run concurrently — a cost decision, not a
+    correctness one.
+
+    The time filter is `FIX_LOOP_COOLDOWN_SEC` and it is not optional: a run
+    that finished inside gh-aw's activation cooldown still blocks, because a
+    dispatch now cannot start and its fire marker would count as an attempt
+    anyway. Callers that treat this as "something is running right now" are
+    reading it one notch too literally.
     """
     out = run(["gh", "run", "list", "--workflow", "07-fix-loop.lock.yml",
-               "--limit", "10", "--json", "status"]).strip()
+               "--limit", "10", "--json", "status,updatedAt"]).strip()
     # Fail closed: an unreadable run list must not read as "nothing running".
     # Skipping one sweep costs hours; dispatching over a live repair kills it.
     try:
@@ -2652,7 +2669,30 @@ def _repair_in_flight():
         print("[orchestrator] fix surrogate: cannot read 07-fix-loop runs — "
               "skipping this sweep (never dispatch over a live repair)")
         return True
-    return any((r.get("status") or "") != "completed" for r in rows)
+    now = now or datetime.utcnow()
+    for r in rows:
+        if (r.get("status") or "") != "completed":
+            return True
+        # A just-finished run is not "in flight" for concurrency, but it does
+        # hold gh-aw's activation cooldown: dispatching now produces a run that
+        # cannot start, and the marker it leaves inflates the stuck count.
+        try:
+            done = datetime.strptime(r.get("updatedAt") or "",
+                                     "%Y-%m-%dT%H:%M:%SZ")
+        except ValueError:
+            # Fail open (a finished run is not evidence of a pending window),
+            # but say so: a renamed field would otherwise disable the guard in
+            # silence and the false-stuck class comes back with no trace.
+            print(f"[orchestrator] fix surrogate: unreadable updatedAt on 07 "
+                  f"run — cooldown not applied for it ({r.get('updatedAt')!r})")
+            continue
+        if (now - done).total_seconds() < FIX_LOOP_COOLDOWN_SEC:
+            print(f"[orchestrator] fix surrogate: a 07 run finished "
+                  f"{(now - done).total_seconds():.0f}s ago — inside gh-aw's "
+                  f"{FIX_LOOP_COOLDOWN_SEC}s activation cooldown, dispatch would "
+                  f"be swallowed; holding")
+            return True
+    return False
 
 
 # --------------------------------------------------- fix-loop surrogate
