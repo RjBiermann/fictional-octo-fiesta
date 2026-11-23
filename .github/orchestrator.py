@@ -2286,8 +2286,16 @@ def _latest_verdict(thread):
         # NOT a verdict is 06-review's work-attempt stamp — unless the verdict
         # is embedded in it (#1411 posted stamp and verdict combined).
         is_stamp = body.lstrip().startswith("gh-aw budget:")
-        if VERDICT_HINT.search(body) or (not is_stamp
-                                         and _blocker_verdict(body.lower())):
+        if is_stamp:
+            # The stamp's own summary line ("Review round at head `sha` …;
+            # blocker on …") matches the free-form hint, so at face value it
+            # shadows the verdict it points at (PR #1511: blocker 21:34:13,
+            # stamp 21:34:14, every later sweep read "no blocker"). Only the
+            # structural shapes count when the stamp IS the verdict (#1411).
+            if not (VERDICT_MARKER.search(body) or _blocker_verdict(body.lower())):
+                continue
+            return body, c.get("created_at", "")
+        if VERDICT_HINT.search(body) or _blocker_verdict(body.lower()):
             return body, c.get("created_at", "")
     return "", ""
 
