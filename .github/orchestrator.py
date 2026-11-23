@@ -34,7 +34,7 @@ import re
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import quote
 
 REPO = os.environ.get("GITHUB_REPOSITORY", "")
@@ -65,12 +65,18 @@ def _env_int(name, default):
         return default
 
 
-# Minimum spacing between event-driven sweeps (minutes). A review completing is
-# the cheapest wake this lane has; it is also the one that fires repeatedly
-# while PRs are active, and every wake spends the machinery App's API budget
-# for the whole process (GH_TOKEN is the App token, since writes need the
-# owner actor). 0 disables the throttle.
-SWEEP_COOLDOWN_MIN = _env_int("GH_AW_SWEEP_COOLDOWN_MIN", 10)
+# Hourly ceiling on real sweeps. A review completing is the cheapest wake this
+# lane has; it is also the one that fires repeatedly while PRs are active, and
+# every sweep spends the machinery App's API budget for the whole process
+# (GH_TOKEN is the App token, since writes need the owner actor). 0 disables
+# the ceiling.
+#
+# 3, not 10: sweeps run 11-24 min on one serialised concurrency group, so ~3/h
+# is already the physical rate — a higher ceiling would never bind and the
+# exhaustion #1528 measured came from ~3-4 sweeps an hour spending the budget
+# in parallel with the agent lanes.
+SWEEP_MAX_PER_HOUR = _env_int("GH_AW_SWEEP_MAX_PER_HOUR", 3)
+SWEEP_WINDOW_MIN = 60
 
 # A run shorter than this is a declined/throttled wake or a skipped churn run,
 # not a sweep: real ones take 11-24 min on this repo. Without the floor the
@@ -2733,48 +2739,126 @@ def fix_surrogate():
               f"{'fired' if ok else 'dispatch FAILED'}")
 
 
-def _sweep_ran_recently(rows, minutes=None, now=None,
-                        min_duration_min=None):
-    """True when a real sweep finished within `minutes`.
+def _sweep_budget_spent(rows, max_per_hour=None, now=None,
+                        min_duration_min=None, window_min=None):
+    """True when the workflow_run arm has already spent its sweep allowance.
 
-    Only the `workflow_run` arm consults this. A review completing is a cheap
-    event, but every one would buy a full sweep — ~150 API calls spent against
-    the machinery App's hourly budget, because the sweep sets GH_TOKEN to the
-    App token for the whole process (writes need the owner actor). On
-    2026-11-23 the 05:20 sweep logged 544 "rate limit already exceeded" lines
-    and ran blind.
+    Only the `workflow_run` arm consults this — `issues`, `issue_comment`,
+    `pull_request`, `pull_request_review` and `schedule` still sweep
+    unconditionally, so this is a WAKE-SUPPRESSION threshold, not a global cap.
 
-    Two details that make the difference between a working gate and a dead one:
-    sweeps run 11-24 min, so recency is measured from `updatedAt` (completion),
-    never `createdAt` — a run created 15 min ago and finished a minute ago is
-    recent; and a declined wake is itself a short *successful* run of this same
-    workflow, so runs under `min_duration_min` do not count as evidence.
+    Why a count: a review completing is the cheapest wake this lane has and the
+    one that fires repeatedly while PRs are active, and every sweep spends ~150
+    API calls against the machinery App's hourly budget (GH_TOKEN is the App
+    token for the whole process — writes need the owner actor). On 2026-11-23
+    the 05:20 sweep logged 544 "rate limit already exceeded" lines and ran
+    blind.
 
-    Unknown input (unreadable run list) is False: running a sweep costs calls,
-    skipping one costs latency — spending is the cheaper mistake.
+    Why a count and not "a sweep ran recently": recency drops the wake that
+    matters — on that same day a blocker verdict landed at 16:14:34 while a
+    sweep that started 16:05 was still running, so the 16:15:04 wake was
+    declined and #1550's repair waited for the next event. A sweep that began
+    *after* a wake is unreachable (the wake's event is the run that just
+    completed), so event-time reasoning cannot fix it either.
+
+    What the count actually guarantees: once the allowance is spent, no sweep
+    runs until a counted sweep falls out of the window. A counted run holds its
+    slot until `startedAt + 60`, so worst-case staleness is ~38 min, and the
+    carrier for a declined wake is the NEXT event — not a timer (this
+    workflow's own header documents the `*/10` cron as ~4-8 h apart here).
+
+    A "sweep" is measured by JOB wall time, not `run_started_at`: in this repo
+    `run_started_at == created_at`, i.e. queue time, and a declined wake queued
+    9m50s behind a running sweep then did 14 s of work (run 45199527098) —
+    counting that as a sweep would let no-ops consume the allowance and then
+    hold it (a no-op only ever happens once the allowance is spent, so
+    over-counting livelocks the arm).
     """
     if not isinstance(rows, list):
         return False
-    mins = SWEEP_COOLDOWN_MIN if minutes is None else minutes
+    ceiling = SWEEP_MAX_PER_HOUR if max_per_hour is None else max_per_hour
+    if ceiling <= 0:
+        return False
     floor = SWEEP_MIN_DURATION_MIN if min_duration_min is None else min_duration_min
+    window = SWEEP_WINDOW_MIN if window_min is None else window_min
     now = now or datetime.utcnow()
+    candidates = []
     for r in rows:
-        if (r.get("status") or "") != "completed":
-            continue
         if (r.get("conclusion") or "") != "success":
             continue
         try:
-            started = datetime.strptime(r.get("createdAt") or "",
+            started = datetime.strptime(r.get("startedAt") or "",
                                         "%Y-%m-%dT%H:%M:%SZ")
-            finished = datetime.strptime(r.get("updatedAt") or "",
-                                         "%Y-%m-%dT%H:%M:%SZ")
         except ValueError:
             continue
-        if (finished - started).total_seconds() < floor * 60:
-            continue          # a declined wake / skipped churn, not a sweep
-        if (now - finished).total_seconds() < mins * 60:
-            return True
-    return False
+        if (now - started).total_seconds() < window * 60:
+            candidates.append(r)
+    if len(candidates) < ceiling:
+        return False          # cheap path: allowance clearly not spent
+    # Only now pay for job timings — this is the decision that actually costs
+    # a sweep, and the cheap count cannot tell a declined wake from work.
+    real = 0
+    for r in candidates:
+        mins = _job_duration_min(r.get("databaseId"))
+        if mins is None:
+            # Unknown timing (API error): count it. Blind and late is the one
+            # combination that leaves the budget starved for the agent lanes.
+            real += 1
+        elif mins >= floor:
+            real += 1
+    return real >= ceiling
+
+
+def _job_duration_min(run_id):
+    """Wall time of the jobs in one run, in minutes; None when unreadable.
+
+    `gh run list`'s `startedAt` is `run_started_at`, which equals `createdAt`
+    here — queue time, not work time. The jobs endpoint is the only place the
+    real span exists (run 45199527098: 10m05s queued, 14 s of work).
+    """
+    if not run_id:
+        return None
+    out = run(["gh", "api",
+               f"repos/{REPO}/actions/runs/{run_id}/jobs?per_page=50"])
+    try:
+        jobs = json.loads(out or "{}").get("jobs") or []
+    except (ValueError, AttributeError):
+        return None
+    total = 0.0
+    for j in jobs:
+        try:
+            s = datetime.strptime(j.get("started_at") or "",
+                                  "%Y-%m-%dT%H:%M:%SZ")
+            f = datetime.strptime(j.get("completed_at") or "",
+                                  "%Y-%m-%dT%H:%M:%SZ")
+        except ValueError:
+            return None
+        total += max(0.0, (f - s).total_seconds())
+    return total / 60.0 if jobs else None
+
+
+def _recent_sweep_runs(now=None):
+    """`gh run list` bounded by --created, not by --limit.
+
+    A busy hour produces ~86 runs of this workflow (2026-11-23 15:00), so a
+    fixed --limit reads a truncated page and undercounts the window it claims
+    to count — on that day the gate saw 2 sweeps where the hour held 3, i.e.
+    the ceiling did nothing on exactly the shape it exists for. The `--created`
+    bound is what makes the count match the window; the limit is only a sanity
+    cap above the busiest observed hour.
+    """
+    now = now or datetime.utcnow()
+    # 2x the window: `--created` bounds by created_at while the predicate counts
+    # startedAt, so a re-run that reports a later run_started_at must still be
+    # on the page (a superset, never a truncated count).
+    since = (now - timedelta(minutes=2 * SWEEP_WINDOW_MIN)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    out = run(["gh", "run", "list", "--workflow", "95-orchestrator.yml",
+               "--created", f">={since}", "--limit", "200",
+               "--json", "databaseId,conclusion,startedAt,updatedAt"])
+    try:
+        return json.loads(out or "[]")
+    except ValueError:
+        return None
 
 
 def _preflight_labels():
@@ -2805,18 +2889,8 @@ if __name__ == "__main__":
         # A review completing is the wake this lane needed (#1516); it is also
         # several wakes an hour while PRs are active, and each is a full sweep
         # against one API budget. Collapse them — the sweep re-derives all
-        # state, so one per window loses nothing but latency.
-        #
-        # 50, not 10: the churn channels emit dozens of skipped runs an hour
-        # and would otherwise push the last real sweep out of the window.
-        out = run(["gh", "run", "list", "--workflow", "95-orchestrator.yml",
-                   "--limit", "50",
-                   "--json", "status,conclusion,createdAt,updatedAt"])
-        try:
-            rows = json.loads(out or "[]")
-        except ValueError:
-            rows = None
-        if _sweep_ran_recently(rows):
+        # state, so dropping a wake costs latency, never accuracy.
+        if _sweep_budget_spent(_recent_sweep_runs()):
             # Approvals still run: an action_required agent run must not wait
             # on the throttle — that is a human decision already made, not a
             # state read this sweep could have done.
@@ -2824,9 +2898,9 @@ if __name__ == "__main__":
                 approve_companion_runs()
             except Exception as e:
                 sys.stderr.write(f"[orchestrator] approvals failed: {e}\n")
-            print(f"[orchestrator] a real sweep finished within "
-                  f"{SWEEP_COOLDOWN_MIN} min — this workflow_run wake is a "
-                  f"no-op (the next event or the schedule carries the latency)")
+            print(f"[orchestrator] {SWEEP_MAX_PER_HOUR} sweeps in the last "
+                  f"{SWEEP_WINDOW_MIN} min — this workflow_run wake is a no-op "
+                  f"(the next event carries the latency)")
             sys.exit(0)
     steps = {
         "approvals": approve_companion_runs,
