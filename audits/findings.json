@@ -473,6 +473,18 @@
       "canaries": "eporner-healthy 200 match; pandamovies-redirect-origin plain-curl 302 -> pandamovies.org (plain-tier match, follow 403 challenge); film1k-challenge-pair plain-curl 200 vs expected 403 = expectation-stale (#1435 open, no environment-degraded branch)",
       "findings_filed": 0,
       "false_positives": []
+    },
+    {
+      "id": "run1452",
+      "issue": 1452,
+      "date": "2026-11-23",
+      "kind": "video-source audit (S14 of #1354)",
+      "verdict": "ok",
+      "tier": "plain-curl",
+      "escalation_tier": "unavailable",
+      "canaries": "eporner-healthy plain-curl 200 match; pandamovies-redirect-origin plain-curl 302 -> pandamovies.org match; film1k-challenge-pair plain-curl 200 vs expected 403 = expectation-stale (#1435 open, live pair recorded, no environment-degraded branch); TLS tier unavailable (#1434) so no Blocked was possible",
+      "findings_filed": 0,
+      "false_positives": []
     }
   ],
   "providers": {
@@ -935,20 +947,21 @@
     },
     "WatchPorn": {
       "site": "watchporn.to",
-      "verdict": "ok-drift",
-      "reason": "CONFIRMED DRIFT fixed 2026-10-16 (#649): full KVS theme redesign replaced the card and video-page grammar with \"wp-\" classes \u2014 span.thumb__title, h1.single__content-title, single__info-row tags/actors, li.next all dead at probe time \u2192 search/home parsed 0 cards and load() returned null for every video. All faces healthy on the new grammar: home p1/p2 19 cards disjoint (plus 1 identical ad card), /categories/<slug>/ now 301 \u2192 /sites/<slug>/ (19 cards, 1/19 site-native boundary repeat), search p1/p2 39 cards disjoint, quickSearch /suggest/ JSON unchanged, 5 video pages 200 with h1.wp-vi__title / a.wp-vchip / a.wp-cast intact and related 15/page, flashvars video_url/video_alt_url \u2192 302 \u2192 srv*.zload.cc \u2192 206 video/mp4 WITHOUT cookies/referer \u2014 the 2026-09-10 session-bound anti-leech note did not reproduce. Site no longer exposes a plot synopsis (ld+json/og:description = tag-glue or boilerplate); removed from load(). Fix in-run, TDD-first: pure WatchPornParse keeps legacy selectors as fallbacks (partial-rollout guard tested against the old fixture); version 15\u219216; 150 tests green; clean make green.",
+      "verdict": "ok",
+      "reason": "S14 video-source audit (2026-11-23), video-source leg only: clean, no code change, no version bump. 25 evidence rows across every present D3 listing type at both catalogue ends; every rendition resolved end-to-end flashvars -> get_file 302 -> srv44-52.zload.cc -> 206 video/mp4 with ftyp magic (49/49 requests, plus 105 more stream fetches in the enumeration pass, all 206). 451 unique video pages scanned: 443 carry video_url(720p) + video_alt_url(1080p), 8 are single-rendition *_720p imports with no _text label, 0 carry a third (video_alt_url2) rendition, 0 have no stream, 0 pages disagree between *_text label and filename token. Embed host is self-hosted /embed/<id> only (plus ad iframes) - no third-party video embed, nothing for shared/HostRegistry. Listing inventory: newest /latest-updates/ 39/page p1-p2 overlap 0, far end /300/../3000/ 200, /5000/ 404; popular /most-popular/ 19/page overlap 0, far end /4000/ 200, /9000/ 404; categories /categories/<genre>/ 19/page overlap 0, /categories/amateur/100/ 200, /500/ 404; tags /tags/<slug>/ 19/page overlap 0, /tags/airtight/3/ 200, /50/ 404, /tags/ index 160 curated slugs; old ABSENT (/old/, /oldest/ 404, four sort params byte-identical md5 826013b74749); genres ABSENT as its own namespace (/genres/, /genre/<x>/ 404 - the genre vocabulary is /categories/). Provider rows use /categories/<studio>/ which 301s to /sites/<studio>/ (redirect followed; /sites/ index 25 studios). Quick search /suggest/?q= JSON unchanged. Adjacent data-completeness observation OUT of D2 scope and not fixed here: the theme re-added a real per-video synopsis at div.wp-desc > p (12/14 sampled pages, distinct text; 4 pages in the 25-row sample serve the 151-char site boilerplate as og:description), so the #649 comment in load() is stale and plot stays unpopulated - filed as a triage/from-agent backlog issue.",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200 (top-rated p1/p2 disjoint; /categories/<slug>/ 301 \u2192 /sites/<slug/>, 1/19 repeat)",
-        "search": "200 (39 wp-cards + 1 ad card each, p1/p2 disjoint)",
-        "video": "200 (h1.wp-vi__title; related 15/page; JSON-LD duration/uploadDate intact)",
-        "quickSearch": "/suggest/ 200 JSON (20 Models + 20 Videos) \u2014 unchanged"
+        "home": "top-rated p1/p2 19+19 overlap 0, far end /300/ and /800/ 200, /9999/ 404; homepage rows resolve (categories/<studio> 301 -> sites/<studio>)",
+        "search": "from_videos=1/2 39+39 overlap 0, li.wp-pag__next present",
+        "video": "h1.wp-vi__title, div.wp-desc p (12/14), a.wp-vchip, a.wp-cast span.wp-cast__n, og:image, JSON-LD duration/uploadDate; related 15/page",
+        "quickSearch": "/suggest/?q= 200 JSON (20 Models + 20 Videos) - unchanged",
+        "stream": "flashvars video_url 720p + video_alt_url 1080p -> get_file 302 -> srv*.zload.cc 206 video/mp4, no referer/cookie needed, app UAs alike"
       },
       "issue": null,
       "standing_issue": null,
       "drift_confirmed": 1,
       "chronic": false,
-      "last_deep": "2026-10-16"
+      "last_deep": "2026-11-23"
     },
     "Xhamster": {
       "site": "xhamster.com",
