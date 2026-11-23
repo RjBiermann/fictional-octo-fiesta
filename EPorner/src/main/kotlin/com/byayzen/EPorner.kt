@@ -282,7 +282,10 @@ class EPorner : MainAPI() {
                         name = name,
                         source = "${name}:HLS",
                         url = source.url,
-                        type = ExtractorLinkType.VIDEO
+                        // A master playlist is HLS, not a progressive mp4: CloudStream maps
+                        // VIDEO to MimeTypes.VIDEO_MP4 and skips URI-extension inference, so
+                        // a .m3u8 sent as VIDEO never plays (07-fix-loop, PR #1526).
+                        type = ExtractorLinkType.M3U8
                     ) {
                         this.referer = mainUrl
                         this.quality = getQualityFromName(source.label)
