@@ -1,4 +1,4 @@
-version = 20 // #1447: term-route twin fallback (genre rows) + dead `?s=` search fallback (v20)
+version = 21 // #1516: version bump (v21)
 
 cloudstream {
     authors     = listOf("RjBiermann")
