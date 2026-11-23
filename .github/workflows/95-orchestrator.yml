@@ -173,11 +173,11 @@ jobs:
           # to throttle concurrent Implement runs (ADR-0014).
           GH_AW_ORCH_WAVE_CAP: ${{ vars.GH_AW_ORCH_WAVE_CAP }}
           # Which event woke this run — only the workflow_run arm is
-          # throttled (see SWEEP_COOLDOWN_MIN in orchestrator.py).
+          # throttled (see SWEEP_MAX_PER_HOUR in orchestrator.py).
           GH_AW_SWEEP_EVENT: ${{ github.event_name }}
-          # Minutes between event-driven sweeps; empty/absent means 10, "0"
-          # disables (`_env_int` treats an unset variable as the default).
-          GH_AW_SWEEP_COOLDOWN_MIN: ${{ vars.GH_AW_SWEEP_COOLDOWN_MIN }}
+          # Hourly ceiling on real sweeps; empty/absent means 3, "0" disables
+          # (`_env_int` treats an unset variable as the default).
+          GH_AW_SWEEP_MAX_PER_HOUR: ${{ vars.GH_AW_SWEEP_MAX_PER_HOUR }}
           # repo-agnostic adopter config: the append-only JSON registry
           # enables the mechanical findings/registry conflict auto-merge;
           # comma list of version-file suffixes (default build.gradle.kts).

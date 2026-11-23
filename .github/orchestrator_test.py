@@ -1782,61 +1782,111 @@ class TestMachineryNarrationIsNotAVerdict(unittest.TestCase):
         self.assertEqual(orchestrator._latest_verdict([c]), ("", ""))
 
 
-class TestSweepCooldown(unittest.TestCase):
-    """A review completion must not buy a sweep per completion.
+class TestSweepCeiling(unittest.TestCase):
+    """The workflow_run arm must not buy an unbounded number of sweeps.
 
     On 2026-11-23 the 05:20 sweep logged 544 "rate limit already exceeded"
-    lines: review-driven wakes had spent the machinery App's budget and the
-    sweep ran blind. Two things make the gate real — recency from COMPLETION
-    (sweeps take 11-24 min) and a duration floor (a declined wake is itself a
-    short successful run of this same workflow)."""
+    lines. The predicate counts real sweeps in a sliding hour, and "real" means
+    JOB wall time: `startedAt` is queue time here (run 45199527098 queued 9m50s
+    and worked 14 s), so a duration floor over it counts declined wakes."""
 
     NOW = __import__("datetime").datetime(2026, 11, 23, 6, 0, 0)
 
-    def row(self, finished_min_ago, duration_min=15, status="completed",
+    def row(self, started_min_ago, run_id=1, status="completed",
             conclusion="success"):
-        d = __import__("datetime").timedelta
-        fin = self.NOW - d(minutes=finished_min_ago)
-        start = fin - d(minutes=duration_min)
         fmt = "%Y-%m-%dT%H:%M:%SZ"
-        return {"status": status, "conclusion": conclusion,
-                "createdAt": start.strftime(fmt), "updatedAt": fin.strftime(fmt)}
+        start = self.NOW - __import__("datetime").timedelta(minutes=started_min_ago)
+        return {"databaseId": run_id, "status": status,
+                "conclusion": conclusion,
+                "startedAt": start.strftime(fmt),
+                "createdAt": start.strftime(fmt),
+                "updatedAt": start.strftime(fmt)}
 
-    def test_real_sweep_finished_a_minute_ago_throttles(self):
-        # the shape that matters: a 12-minute sweep that just finished
-        self.assertTrue(orchestrator._sweep_ran_recently(
-            [self.row(1, duration_min=12)], minutes=10, now=self.NOW))
+    def spent(self, rows, job_minutes, **kw):
+        kw.setdefault("max_per_hour", 3)
+        kw.setdefault("now", self.NOW)
+        with mock.patch.object(orchestrator, "_job_duration_min",
+                               side_effect=lambda rid: job_minutes):
+            return orchestrator._sweep_budget_spent(rows, **kw)
 
-    def test_a_declined_wake_does_not_count_as_a_sweep(self):
-        # 8-second no-op, itself a successful run of this workflow
-        self.assertFalse(orchestrator._sweep_ran_recently(
-            [self.row(1, duration_min=0)], minutes=10, now=self.NOW))
+    def test_three_real_sweeps_spend_the_allowance(self):
+        self.assertTrue(self.spent([self.row(5), self.row(25), self.row(45)], 13.0))
 
-    def test_old_sweep_does_not(self):
-        self.assertFalse(orchestrator._sweep_ran_recently(
-            [self.row(25)], minutes=10, now=self.NOW))
+    def test_two_sweeps_leave_a_slot(self):
+        self.assertFalse(self.spent([self.row(5), self.row(25)], 13.0))
 
-    def test_in_progress_and_failed_do_not_count(self):
-        self.assertFalse(orchestrator._sweep_ran_recently(
-            [self.row(1, status="in_progress", conclusion=None),
-             self.row(2, conclusion="failure")], minutes=10, now=self.NOW))
+    def test_sweeps_outside_the_window_do_not_count(self):
+        self.assertFalse(self.spent([self.row(5), self.row(25), self.row(90)], 13.0))
+
+    def test_declined_wakes_are_not_sweeps(self):
+        # queued 10 min, worked 14 s — the run 45199527098 shape
+        self.assertFalse(self.spent(
+            [self.row(5), self.row(25), self.row(45)], 0.23))
+
+    def test_failed_runs_are_not_sweeps(self):
+        self.assertFalse(self.spent(
+            [self.row(5, conclusion="failure"), self.row(25), self.row(45)], 13.0))
+
+    def test_unreadable_timing_counts_the_run(self):
+        # blind AND late is the combination that starves the agent lanes
+        self.assertTrue(self.spent([self.row(5), self.row(25), self.row(45)], None))
 
     def test_unreadable_run_list_fails_open(self):
-        self.assertFalse(orchestrator._sweep_ran_recently(None, minutes=10,
-                                                          now=self.NOW))
+        self.assertFalse(orchestrator._sweep_budget_spent(
+            None, max_per_hour=3, now=self.NOW))
 
-    def test_cooldown_zero_disables(self):
-        self.assertFalse(orchestrator._sweep_ran_recently(
-            [self.row(0)], minutes=0, now=self.NOW))
+    def test_zero_disables_the_ceiling(self):
+        self.assertFalse(self.spent(
+            [self.row(5), self.row(25), self.row(45)], 13.0, max_per_hour=0))
+
+    def test_below_the_allowance_costs_no_job_lookups(self):
+        with mock.patch.object(orchestrator, "_job_duration_min") as jd:
+            self.assertFalse(orchestrator._sweep_budget_spent(
+                [self.row(5), self.row(25)], max_per_hour=3, now=self.NOW))
+        jd.assert_not_called()
 
     def test_production_path_uses_the_module_constant(self):
-        # `minutes=None` is the only shape the gate calls with
-        with mock.patch.object(orchestrator, "SWEEP_COOLDOWN_MIN", 30):
-            self.assertTrue(orchestrator._sweep_ran_recently(
-                [self.row(20)], now=self.NOW))
-        with mock.patch.object(orchestrator, "SWEEP_COOLDOWN_MIN", 10):
-            self.assertFalse(orchestrator._sweep_ran_recently(
-                [self.row(20)], now=self.NOW))
+        rows = [self.row(5), self.row(25), self.row(45)]
+        with mock.patch.object(orchestrator, "SWEEP_MAX_PER_HOUR", 3):
+            self.assertTrue(self.spent(rows, 13.0, max_per_hour=None))
+        with mock.patch.object(orchestrator, "SWEEP_MAX_PER_HOUR", 4):
+            self.assertFalse(self.spent(rows, 13.0, max_per_hour=None))
+
+    def test_fetch_is_bounded_by_created_not_limit(self):
+        # a busy hour holds ~86 runs; a fixed --limit undercounts the window
+        with mock.patch.object(orchestrator, "run", return_value="[]") as r:
+            orchestrator._recent_sweep_runs(now=self.NOW)
+        argv = r.call_args[0][0]
+        self.assertIn("--created", argv)
+        since = argv[argv.index("--created") + 1]
+        self.assertEqual(since, ">=2026-11-23T04:00:00Z")   # 2x the 60 min window
+
+    def test_unreadable_fetch_fails_open(self):
+        with mock.patch.object(orchestrator, "run", return_value="not json"):
+            self.assertIsNone(orchestrator._recent_sweep_runs(now=self.NOW))
+
+    def test_job_duration_sums_job_spans(self):
+        payload = ('{"jobs":[{"started_at":"2026-11-23T05:00:00Z",'
+                   '"completed_at":"2026-11-23T05:12:00Z"},'
+                   '{"started_at":"2026-11-23T05:12:00Z",'
+                   '"completed_at":"2026-11-23T05:18:00Z"}]}')
+        with mock.patch.object(orchestrator, "run", return_value=payload):
+            self.assertAlmostEqual(orchestrator._job_duration_min(42), 18.0)
+
+    def test_job_duration_unreadable_is_none(self):
+        with mock.patch.object(orchestrator, "run", return_value="{}"):
+            self.assertIsNone(orchestrator._job_duration_min(42))
+        with mock.patch.object(orchestrator, "run", return_value="nope"):
+            self.assertIsNone(orchestrator._job_duration_min(42))
+
+    def test_workflow_passes_the_ceiling_knob(self):
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "workflows", "95-orchestrator.yml")
+        with open(path) as fh:
+            yml = fh.read()
+        self.assertIn("GH_AW_SWEEP_MAX_PER_HOUR: ${{ vars.GH_AW_SWEEP_MAX_PER_HOUR }}",
+                      yml)
+        self.assertIn("GH_AW_SWEEP_EVENT: ${{ github.event_name }}", yml)
 
 
 class TestEnvIntParsing(unittest.TestCase):
@@ -1848,18 +1898,18 @@ class TestEnvIntParsing(unittest.TestCase):
 
     def test_unset_and_empty_use_the_default(self):
         with mock.patch.dict(orchestrator.os.environ, {}, clear=False):
-            orchestrator.os.environ.pop("GH_AW_SWEEP_COOLDOWN_MIN", None)
-            self.assertEqual(orchestrator._env_int("GH_AW_SWEEP_COOLDOWN_MIN", 10), 10)
+            orchestrator.os.environ.pop("GH_AW_SWEEP_MAX_PER_HOUR", None)
+            self.assertEqual(orchestrator._env_int("GH_AW_SWEEP_MAX_PER_HOUR", 10), 10)
         with mock.patch.dict(orchestrator.os.environ,
-                             {"GH_AW_SWEEP_COOLDOWN_MIN": ""}):
-            self.assertEqual(orchestrator._env_int("GH_AW_SWEEP_COOLDOWN_MIN", 10), 10)
+                             {"GH_AW_SWEEP_MAX_PER_HOUR": ""}):
+            self.assertEqual(orchestrator._env_int("GH_AW_SWEEP_MAX_PER_HOUR", 10), 10)
 
     def test_non_numeric_uses_the_default(self):
         with mock.patch.dict(orchestrator.os.environ,
-                             {"GH_AW_SWEEP_COOLDOWN_MIN": "ten"}):
-            self.assertEqual(orchestrator._env_int("GH_AW_SWEEP_COOLDOWN_MIN", 10), 10)
+                             {"GH_AW_SWEEP_MAX_PER_HOUR": "ten"}):
+            self.assertEqual(orchestrator._env_int("GH_AW_SWEEP_MAX_PER_HOUR", 10), 10)
 
     def test_zero_is_honoured(self):
         with mock.patch.dict(orchestrator.os.environ,
-                             {"GH_AW_SWEEP_COOLDOWN_MIN": "0"}):
-            self.assertEqual(orchestrator._env_int("GH_AW_SWEEP_COOLDOWN_MIN", 10), 0)
+                             {"GH_AW_SWEEP_MAX_PER_HOUR": "0"}):
+            self.assertEqual(orchestrator._env_int("GH_AW_SWEEP_MAX_PER_HOUR", 10), 0)
