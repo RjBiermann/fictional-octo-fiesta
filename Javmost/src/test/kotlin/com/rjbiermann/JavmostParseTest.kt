@@ -112,6 +112,46 @@ class JavmostParseTest {
     @Test fun `embedTargets empty on error response without data`() =
         assertTrue(Javmost.Parse.embedTargets("{\"ok\":false,\"error\":\"bad token\"}").isEmpty())
 
+    // --- 2026-11 audit (S12): the AJAX `data[]` array is not always an embed PAGE — some
+    // server rows return the direct media URL itself (SPS-016: jl77.boldpureheart.site/.../v.m3u8;
+    // NHDTB-715: ek9n.aubrey-store.site/.../v.m3u8). loadLinks treated every target as an
+    // embed page: loadExtractor could not dispatch a bare m3u8 and resolveDoo found no
+    // x-embed metas, so these videos emitted ZERO links. Parse.isDirectHls separates the
+    // two shapes; the fixture is the verbatim SPS-016 AJAX response.
+    private fun directAjax() = javaClass.classLoader!!.getResource("ajax-direct-m3u8.json")!!.readText()
+
+    @Test fun `embedTargets keeps a direct m3u8 target from the ajax response`() =
+        assertEquals(
+            listOf("https://jl77.boldpureheart.site/oo5/XEn0ezMAjwPK3U_oUqJFbc79gVZ3z8oHFbTItxqPgxcFnNVwwtlTGmo/qc/v.m3u8"),
+            Javmost.Parse.embedTargets(directAjax())
+        )
+
+    @Test fun `isDirectHls true for an m3u8 target`() = assertTrue(
+        Javmost.Parse.isDirectHls(
+            "https://jl77.boldpureheart.site/oo5/token/qc/v.m3u8"
+        )
+    )
+
+    @Test fun `isDirectHls is case-insensitive`() = assertTrue(
+        Javmost.Parse.isDirectHls("https://cdn.example/V.M3U8")
+    )
+
+    @Test fun `isDirectHls false for a doo embed page`() = assertTrue(
+        !Javmost.Parse.isDirectHls("https://www.mostplayer.com/embed/e/MTc2MjU4MA.741098bd91d70860")
+    )
+
+    @Test fun `isDirectHls false for an emturbovid embed`() = assertTrue(
+        !Javmost.Parse.isDirectHls("https://emturbovid.com/t/UgrNrFTIMcjPf0xImAaH")
+    )
+
+    @Test fun `isDirectHls false for a dood mp4 embed page`() = assertTrue(
+        !Javmost.Parse.isDirectHls("https://dood.la/e/l8rz3ptrmn92/ABP-743_Chin.mp4")
+    )
+
+    @Test fun `isDirectHls ignores an m3u8 token in a query string`() = assertTrue(
+        !Javmost.Parse.isDirectHls("https://host.example/e/abc?next=v.m3u8")
+    )
+
     // --- issue #300 finding 1: recs are anchor-parent cards; self-link filtered downstream
     private fun recs() = Javmost.Parse.recs(
         Jsoup.parse(javaClass.classLoader!!.getResource("avsa-457-recs.html")!!.readText()),

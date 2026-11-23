@@ -103,6 +103,15 @@ class Javmost : MainAPI() {
                 .toList()
         }
 
+        /** 2026-11 audit (FINDINGS-1450): `data[]` is not always an embed PAGE. Some server
+         *  rows hand back the direct HLS stream itself (SPS-016: jl77.boldpureheart.site/.../v.m3u8;
+         *  NHDTB-715: ek9n.aubrey-store.site/.../v.m3u8). Treating those as embed pages dropped
+         *  the video entirely (loadExtractor cannot dispatch a bare m3u8, resolveDoo finds no
+         *  x-embed metas). HLS only: a dood-style embed page can also end in ".mp4" and must
+         *  keep going through the registry. Path-only, so a query token is not a false hit. */
+        fun isDirectHls(url: String): Boolean =
+            url.substringBefore('?').substringBefore('#').lowercase().endsWith(".m3u8")
+
         /** 2026-10 audit: dooplayer.com / mostplayer.com embed service is BACK (it was dead
          *  at the #332/#376 fixes, where the whole resolution branch was cut). The embed page
          *  (GET requires Sec-Fetch-Dest: iframe + Referer — 204 without, re-bisected) serves
@@ -289,7 +298,16 @@ class Javmost : MainAPI() {
                 ).text
                 for (embed in Parse.embedTargets(body)) {
                     if (!seenEmbeds.add(embed)) continue
-                    if (embed.contains("emturbovid.com")) {
+                    if (Parse.isDirectHls(embed)) {
+                        // FINDINGS-1450: server row returned the HLS stream itself, not an embed page.
+                        callback.invoke(
+                            newExtractorLink(name, name, embed) {
+                                this.referer = "$mainUrl/"
+                                this.quality = Qualities.Unknown.value
+                                this.type = ExtractorLinkType.M3U8
+                            }
+                        )
+                    } else if (embed.contains("emturbovid.com")) {
                         val m3u8 = resolveEmturbovid(embed, data) ?: continue
                         callback.invoke(
                             newExtractorLink(name, name, m3u8) {
