@@ -30,6 +30,15 @@ permissions:
   contents: read
   issues: read
   pull-requests: read
+concurrency:
+  # Every relay-fired repair (ADR-0019) is a workflow_dispatch: no
+  # pull_request.number, `github.ref` is refs/heads/main, so gh-aw's default
+  # group collapsed them into ONE slot with cancel-in-progress — a dispatch
+  # for PR B killed PR A's in-flight repair. Keyed per PR now, same shape
+  # 06-review already uses. Serialization across PRs stays where it is
+  # deliberate: 95's `_repair_in_flight()` guard (spend), not a cancelled run.
+  group: repair-${{ github.event.pull_request.number || (github.event.inputs.aw_context && fromJSON(github.event.inputs.aw_context).item_number) || github.run_id }}
+  cancel-in-progress: true
 timeout-minutes: 30
 max-turns: 30
 max-ai-credits: 1200
@@ -144,7 +153,10 @@ in this run, derive the expected identity from your own context and assert it:
    the push via `push-to-pull-request-branch` (max 3 per run) — the
    safe-output job performs the push; you yourself stay read-only, so
    even the fixer never holds a write token.
-4. Remove `status/fixing` after the push; let re-review re-fire.
+4. Remove `status/fixing` after the push; let re-review re-fire. (On a
+   relay-fired run this removal resolves to the story issue and no-ops —
+   `merge_readiness()` clears the PR's label once a pass verdict lands, so
+   the state still ends clean. Emit it anyway: it is the intent.)
 
 **No actionable findings?** The correct outcome is usually "nothing to fix"
 — bot reports, status annotations and stale noise are data, not tasks. But

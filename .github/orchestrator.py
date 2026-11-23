@@ -2477,13 +2477,16 @@ def _repair_in_flight():
 
     The surrogate's fire marker is itself an issue_comment on the PR, so
     95 re-enters the sweep seconds later. Without this guard the second
-    pass dispatches again, and 07's concurrency group is shared and
-    cancel-in-progress — the second dispatch cancels the repair that has
-    not pushed yet, and the marker cap then escalates a PR that was never
-    actually repaired once (#1415 review). The lock is global and
-    unfiltered by time because the group is: dispatch runs key on
-    `refs/heads/main`, so ANY running repair is the one a new dispatch
-    would cancel, however old it is.
+    pass dispatches again, and the marker cap then escalates a PR that was
+    never actually repaired once (#1415 review).
+
+    Since 07 keys its concurrency group on the PR (`aw_context.item_number`,
+    `07-fix-loop.lock.yml`), a second dispatch no longer cancels a repair for
+    a *different* PR — this guard is now purely a spend limit: one repair at
+    a time per repo, however long the queue. It stays global and unfiltered by
+    time on purpose. Narrowing it to the PR's own runs would let N repairs run
+    concurrently (more AI spend, faster conveyor); that is a cost decision,
+    not a correctness one, and nothing here blocks it.
     """
     out = run(["gh", "run", "list", "--workflow", "07-fix-loop.lock.yml",
                "--limit", "10", "--json", "status"]).strip()
