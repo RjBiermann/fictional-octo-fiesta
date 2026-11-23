@@ -96,8 +96,10 @@ this transcript (same limitation recorded in FINDINGS-649).
 ## Evidence rows (D4)
 
 `type | sample URL | instrument tier | stream host | quality | verdict` — 25 videos, ≥2 per present
-type, both catalogue ends where the type is pageable. Every row resolved **both** renditions
-(720p `video_url` + 1080p `video_alt_url`) end-to-end; row 25 is the single-rendition class.
+type, both catalogue ends where the type is pageable. 24 rows resolved **both** renditions
+(720p `video_url` + 1080p `video_alt_url`) end-to-end; row 25 is the single-rendition class, drawn
+from the `tags` surface (`/tags/big-tits/` p1) rather than from a newest-listing page — the `type`
+cell names the class, the `listing position` cell names the surface it came from.
 
 | # | type | sample URL (`/video/<id>/<slug>/`) | listing position | tier | stream host | quality | verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -125,7 +127,7 @@ type, both catalogue ends where the type is pageable. Every row resolved **both*
 | 22 | tags (`airtight`) | `/video/171790/ada-paradiso-mesmera-trixxx-athena-star-rocco-s-sex-experience-italian-studs/` | `/tags/airtight/` p1 | plain-curl | `srv45.zload.cc` | 720p + 1080p | **pass** |
 | 23 | tags (`airtight`, far end) | `/video/113784/nela-decker-and-vera-jarw-and-greta-foss-dp-dvp-cum-swap-orgy-evilangel/` | `/tags/airtight/3/` | plain-curl | `srv50.zload.cc` | 720p + 1080p | **pass** |
 | 24 | tags (`airtight`, far end) | `/video/113020/whitney-wright-and-ivy-ireland-i-ve-never-had-bbc-before-herlimit/` | `/tags/airtight/3/` | plain-curl | `srv51.zload.cc` | 720p + 1080p | **pass** |
-| 25 | new/latest (single-rendition class) | `/video/166665/lucy-mochi-episode-312-lucy-and-leo/` | `/tags/big-tits/` p1 | plain-curl | `srv47.zload.cc` | 720p (no `_text` label — filename token supplies it) | **pass** |
+| 25 | single-rendition class (tags surface) | `/video/166665/lucy-mochi-episode-312-lucy-and-leo/` | `/tags/big-tits/` p1 | plain-curl | `srv47.zload.cc` | 720p (no `_text` label — filename token supplies it) | **pass** |
 
 Every pass row was fetched with `Range: bytes=0-2047` and the in-app referer; all **49** stream
 requests answered `206 video/mp4`, `Content-Range` present, ftyp magic `00000020 66747970 69736f6d`
@@ -320,10 +322,19 @@ Code-half notes: `score` is assigned on cards in `toMainPageResult()`; `plot` is
 
 ## Registry write (ADR-0013 — nothing in the PR diff)
 
-Posted as a comment on #1452 (`<!-- findings-registry-entry -->` + fenced json) for the
+Posted as a comment on #1452 that **begins** with `<!-- findings-registry-entry -->` followed by a
+fenced ```json``` document in the delta shape `{providers: {WatchPorn: …}, last_runs: […]}` for the
 orchestrator's `registry_sync`: the WatchPorn provider entry (`verdict` **and** `tier`, `last_deep`
 2026-11-23, `drift_confirmed` 1, `chronic` false) and one `last_runs` entry with
 `false_positives: []` and `escalation_tier: unavailable` (#1434).
+
+That anchored delta supersedes the earlier registry comment on #1452 (2026-11-23T14:47:05Z), which
+shipped no anchor line and a `{provider, entry, last_run}` document shape: `_registry_entry()` skips
+it (anchor missing), `_registry_candidate()`'s self-heal skips it (no top-level `providers` dict),
+and anchoring it as-is would have unioned `provider`/`entry`/`last_run` into `audits/findings.json`
+as junk top-level keys instead of updating `providers.WatchPorn` / `last_runs` — so S14's registry
+update would have been lost once `Fixes #1452` closed the issue (`registry_sync()` scans only open
+issues).
 
 ## False positives
 
