@@ -54,6 +54,16 @@ class HlsFastParseTest {
         assertTrue(HlsFastParse.isDirectMedia("https://cdn.example/abc.mp4?token=1"))
         assertFalse(HlsFastParse.isDirectMedia("https://turboembed.com/1hri"))
     }
+
+    @Test
+    fun `a destination pointing back at hlsfast is refused`() {
+        assertTrue(HlsFastParse.isSelfTarget("https://hlsfast.com/#c5acrp"))
+        assertTrue(HlsFastParse.isSelfTarget(" HTTPS://HLSFAST.COM/#c5acrp "))
+        assertTrue(HlsFastParse.isSelfTarget("https://cdn.hlsfast.com/player"))
+        assertFalse(HlsFastParse.isSelfTarget("https://turboembed.com/1hri"))
+        assertFalse(HlsFastParse.isSelfTarget("https://hlsfast.com.evil.example/#c5acrp"))
+        assertFalse(HlsFastParse.isSelfTarget("not a url"))
+    }
 }
 
 /** turboembed.com download-tier grammar (the hlsfast destination host). */

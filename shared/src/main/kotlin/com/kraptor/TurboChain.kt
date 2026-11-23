@@ -29,6 +29,7 @@ import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.getQualityFromName
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
+import java.io.IOException
 
 /** Pure hlsfast chain helpers — framework-free so the unit-test classpath can load them
  *  (TDD-first, ADR-0005). */
@@ -41,13 +42,21 @@ object HlsFastParse {
     fun resolveTarget(body: String): String? = try {
         val root = com.fasterxml.jackson.databind.ObjectMapper().readTree(body)
         root.path("url").asText("").trim().takeIf { it.startsWith("http://") || it.startsWith("https://") }
-    } catch (e: Exception) {
+    } catch (e: IOException) {
         null
     }
 
     /** Some resolve answers point straight at a media file — those need no adapter. */
     fun isDirectMedia(url: String): Boolean =
         Regex("\\.(mp4|m3u8)([?#]|$)", RegexOption.IGNORE_CASE).containsMatchIn(url)
+
+    /** A resolve answer pointing back at hlsfast itself would recurse through
+     *  `loadExtractor` forever, so that hop is refused. */
+    fun isSelfTarget(url: String): Boolean {
+        val host = Regex("^https?://([^/:?#]+)", RegexOption.IGNORE_CASE).find(url.trim())
+            ?.groupValues?.get(1)?.lowercase() ?: return false
+        return host == "hlsfast.com" || host.endsWith(".hlsfast.com")
+    }
 }
 
 /** hlsfast.com player shell (issue #1448): `/#<hash>` → public resolve API → destination
@@ -67,7 +76,7 @@ open class HlsFast : ExtractorApi() {
         val hash = HlsFastParse.hash(url) ?: return
         val body = try {
             app.get("$mainUrl/api/public/resolve?file1=$hash", referer = "$mainUrl/").text
-        } catch (e: Exception) {
+        } catch (e: IOException) {
             Log.d(name, "resolve: ${e.message}")
             return
         }
@@ -86,6 +95,7 @@ open class HlsFast : ExtractorApi() {
             )
             return
         }
+        if (HlsFastParse.isSelfTarget(target)) return
         loadExtractor(target, "$mainUrl/", subtitleCallback, callback)
     }
 }
@@ -111,7 +121,7 @@ object TurboEmbedParse {
             val file = t.path("file").asText("").trim()
             if (file.isEmpty()) null else Tier(file, t.path("label").asText("").trim())
         }
-    } catch (e: Exception) {
+    } catch (e: IOException) {
         emptyList()
     }
 }
@@ -132,20 +142,27 @@ open class TurboEmbed : ExtractorApi() {
         val code = TurboEmbedParse.code(url) ?: return
         val tiers = try {
             TurboEmbedParse.tiers(app.get("$mainUrl/api/download/tiers?s=$code", referer = url).text)
-        } catch (e: Exception) {
+        } catch (e: IOException) {
             Log.d(name, "tiers: ${e.message}")
             return
         }
         for (tier in tiers) {
             // the 302 target is a signed CDN URL — resolve it here so the player never has
-            // to replay the redirect (and the signature is bound to this request time)
+            // to replay the redirect (and the signature is bound to this request time).
+            // `allowRedirects = false` keeps the 302 response from being drained through
+            // the full body (one held socket per tier otherwise).
             val file = try {
-                app.get("$mainUrl/api/download/get?s=$code&t=${tier.file}", referer = url).url
-            } catch (e: Exception) {
+                val res = app.get(
+                    "$mainUrl/api/download/get?s=$code&t=${tier.file}",
+                    referer = url,
+                    allowRedirects = false
+                )
+                res.headers["location"] ?: res.headers["Location"]
+            } catch (e: IOException) {
                 Log.d(name, "tier ${tier.file}: ${e.message}")
                 continue
             }
-            if (!file.startsWith("http")) continue
+            if (file.isNullOrEmpty() || !file.startsWith("http")) continue
             callback.invoke(
                 newExtractorLink(
                     source = name,
@@ -216,7 +233,7 @@ open class LoadVid : ExtractorApi() {
         LoadVidParse.hash(url) ?: return
         val html = try {
             app.get(url, referer = referer ?: "$mainUrl/").text
-        } catch (e: Exception) {
+        } catch (e: IOException) {
             Log.d(name, "embed: ${e.message}")
             return
         }
@@ -232,7 +249,7 @@ open class LoadVid : ExtractorApi() {
                     "Accept" to "application/vnd.apple.mpegurl,*/*"
                 )
             ).text
-        } catch (e: Exception) {
+        } catch (e: IOException) {
             Log.d(name, "resolve-token: ${e.message}")
             return
         }
