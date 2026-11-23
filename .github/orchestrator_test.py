@@ -1780,3 +1780,86 @@ class TestMachineryNarrationIsNotAVerdict(unittest.TestCase):
              "created_at": "2026-11-23T04:00:00Z",
              "user": {"login": "rjbiermann-machinery[bot]", "type": "Bot"}}
         self.assertEqual(orchestrator._latest_verdict([c]), ("", ""))
+
+
+class TestSweepCooldown(unittest.TestCase):
+    """A review completion must not buy a sweep per completion.
+
+    On 2026-11-23 the 05:20 sweep logged 544 "rate limit already exceeded"
+    lines: review-driven wakes had spent the machinery App's budget and the
+    sweep ran blind. Two things make the gate real — recency from COMPLETION
+    (sweeps take 11-24 min) and a duration floor (a declined wake is itself a
+    short successful run of this same workflow)."""
+
+    NOW = __import__("datetime").datetime(2026, 11, 23, 6, 0, 0)
+
+    def row(self, finished_min_ago, duration_min=15, status="completed",
+            conclusion="success"):
+        d = __import__("datetime").timedelta
+        fin = self.NOW - d(minutes=finished_min_ago)
+        start = fin - d(minutes=duration_min)
+        fmt = "%Y-%m-%dT%H:%M:%SZ"
+        return {"status": status, "conclusion": conclusion,
+                "createdAt": start.strftime(fmt), "updatedAt": fin.strftime(fmt)}
+
+    def test_real_sweep_finished_a_minute_ago_throttles(self):
+        # the shape that matters: a 12-minute sweep that just finished
+        self.assertTrue(orchestrator._sweep_ran_recently(
+            [self.row(1, duration_min=12)], minutes=10, now=self.NOW))
+
+    def test_a_declined_wake_does_not_count_as_a_sweep(self):
+        # 8-second no-op, itself a successful run of this workflow
+        self.assertFalse(orchestrator._sweep_ran_recently(
+            [self.row(1, duration_min=0)], minutes=10, now=self.NOW))
+
+    def test_old_sweep_does_not(self):
+        self.assertFalse(orchestrator._sweep_ran_recently(
+            [self.row(25)], minutes=10, now=self.NOW))
+
+    def test_in_progress_and_failed_do_not_count(self):
+        self.assertFalse(orchestrator._sweep_ran_recently(
+            [self.row(1, status="in_progress", conclusion=None),
+             self.row(2, conclusion="failure")], minutes=10, now=self.NOW))
+
+    def test_unreadable_run_list_fails_open(self):
+        self.assertFalse(orchestrator._sweep_ran_recently(None, minutes=10,
+                                                          now=self.NOW))
+
+    def test_cooldown_zero_disables(self):
+        self.assertFalse(orchestrator._sweep_ran_recently(
+            [self.row(0)], minutes=0, now=self.NOW))
+
+    def test_production_path_uses_the_module_constant(self):
+        # `minutes=None` is the only shape the gate calls with
+        with mock.patch.object(orchestrator, "SWEEP_COOLDOWN_MIN", 30):
+            self.assertTrue(orchestrator._sweep_ran_recently(
+                [self.row(20)], now=self.NOW))
+        with mock.patch.object(orchestrator, "SWEEP_COOLDOWN_MIN", 10):
+            self.assertFalse(orchestrator._sweep_ran_recently(
+                [self.row(20)], now=self.NOW))
+
+
+class TestEnvIntParsing(unittest.TestCase):
+    """Unset/empty/typo must mean the default, never 0 and never a crash.
+
+    An Actions repo variable that is not set renders as "" — the first shape
+    here (`int(x or 0)`) turned that into "disabled" for every adopter, and a
+    typo raised at import and killed all trigger arms."""
+
+    def test_unset_and_empty_use_the_default(self):
+        with mock.patch.dict(orchestrator.os.environ, {}, clear=False):
+            orchestrator.os.environ.pop("GH_AW_SWEEP_COOLDOWN_MIN", None)
+            self.assertEqual(orchestrator._env_int("GH_AW_SWEEP_COOLDOWN_MIN", 10), 10)
+        with mock.patch.dict(orchestrator.os.environ,
+                             {"GH_AW_SWEEP_COOLDOWN_MIN": ""}):
+            self.assertEqual(orchestrator._env_int("GH_AW_SWEEP_COOLDOWN_MIN", 10), 10)
+
+    def test_non_numeric_uses_the_default(self):
+        with mock.patch.dict(orchestrator.os.environ,
+                             {"GH_AW_SWEEP_COOLDOWN_MIN": "ten"}):
+            self.assertEqual(orchestrator._env_int("GH_AW_SWEEP_COOLDOWN_MIN", 10), 10)
+
+    def test_zero_is_honoured(self):
+        with mock.patch.dict(orchestrator.os.environ,
+                             {"GH_AW_SWEEP_COOLDOWN_MIN": "0"}):
+            self.assertEqual(orchestrator._env_int("GH_AW_SWEEP_COOLDOWN_MIN", 10), 0)

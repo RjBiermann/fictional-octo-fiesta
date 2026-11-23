@@ -52,6 +52,31 @@ OWNER = os.environ.get("GH_AW_ORCH_OWNER", "")
 
 MARK = "[orchestrator]"
 
+def _env_int(name, default):
+    """Integer env knob: unset, empty and non-numeric all mean `default`.
+
+    `int(os.environ.get(name, "") or 0)` was the shape here first, and it
+    turned an unset repo variable (which Actions renders as "") into 0 —
+    silently DISABLING the feature for adopters — while a typo raised at import
+    and killed every trigger arm of the conveyor, not just this one."""
+    try:
+        return int(os.environ.get(name, ""))
+    except (TypeError, ValueError):
+        return default
+
+
+# Minimum spacing between event-driven sweeps (minutes). A review completing is
+# the cheapest wake this lane has; it is also the one that fires repeatedly
+# while PRs are active, and every wake spends the machinery App's API budget
+# for the whole process (GH_TOKEN is the App token, since writes need the
+# owner actor). 0 disables the throttle.
+SWEEP_COOLDOWN_MIN = _env_int("GH_AW_SWEEP_COOLDOWN_MIN", 10)
+
+# A run shorter than this is a declined/throttled wake or a skipped churn run,
+# not a sweep: real ones take 11-24 min on this repo. Without the floor the
+# gate counts its own no-ops as proof of a recent sweep and slides forever.
+SWEEP_MIN_DURATION_MIN = 5
+
 # What a 06-review verdict comment looks like — the gate for the thread scan.
 # It must admit EVERY verdict shape, pass or blocker: a gate narrower than
 # _blocker_verdict() makes a clearing verdict invisible, so `_latest_verdict()`
@@ -2708,6 +2733,50 @@ def fix_surrogate():
               f"{'fired' if ok else 'dispatch FAILED'}")
 
 
+def _sweep_ran_recently(rows, minutes=None, now=None,
+                        min_duration_min=None):
+    """True when a real sweep finished within `minutes`.
+
+    Only the `workflow_run` arm consults this. A review completing is a cheap
+    event, but every one would buy a full sweep — ~150 API calls spent against
+    the machinery App's hourly budget, because the sweep sets GH_TOKEN to the
+    App token for the whole process (writes need the owner actor). On
+    2026-11-23 the 05:20 sweep logged 544 "rate limit already exceeded" lines
+    and ran blind.
+
+    Two details that make the difference between a working gate and a dead one:
+    sweeps run 11-24 min, so recency is measured from `updatedAt` (completion),
+    never `createdAt` — a run created 15 min ago and finished a minute ago is
+    recent; and a declined wake is itself a short *successful* run of this same
+    workflow, so runs under `min_duration_min` do not count as evidence.
+
+    Unknown input (unreadable run list) is False: running a sweep costs calls,
+    skipping one costs latency — spending is the cheaper mistake.
+    """
+    if not isinstance(rows, list):
+        return False
+    mins = SWEEP_COOLDOWN_MIN if minutes is None else minutes
+    floor = SWEEP_MIN_DURATION_MIN if min_duration_min is None else min_duration_min
+    now = now or datetime.utcnow()
+    for r in rows:
+        if (r.get("status") or "") != "completed":
+            continue
+        if (r.get("conclusion") or "") != "success":
+            continue
+        try:
+            started = datetime.strptime(r.get("createdAt") or "",
+                                        "%Y-%m-%dT%H:%M:%SZ")
+            finished = datetime.strptime(r.get("updatedAt") or "",
+                                         "%Y-%m-%dT%H:%M:%SZ")
+        except ValueError:
+            continue
+        if (finished - started).total_seconds() < floor * 60:
+            continue          # a declined wake / skipped churn, not a sweep
+        if (now - finished).total_seconds() < mins * 60:
+            return True
+    return False
+
+
 def _preflight_labels():
     """One-time existence check: every stamp silently fails if a label is
     missing (rc is stderr-only in the Actions UI)."""
@@ -2732,6 +2801,33 @@ if __name__ == "__main__":
         # unprivileged and gh-aw activation then rejects the fire. Using the
         # admin PAT keeps the actuator's identity the human's, not a bot's.
         os.environ["GH_TOKEN"] = PROXY_PAT
+    if os.environ.get("GH_AW_SWEEP_EVENT") == "workflow_run":
+        # A review completing is the wake this lane needed (#1516); it is also
+        # several wakes an hour while PRs are active, and each is a full sweep
+        # against one API budget. Collapse them — the sweep re-derives all
+        # state, so one per window loses nothing but latency.
+        #
+        # 50, not 10: the churn channels emit dozens of skipped runs an hour
+        # and would otherwise push the last real sweep out of the window.
+        out = run(["gh", "run", "list", "--workflow", "95-orchestrator.yml",
+                   "--limit", "50",
+                   "--json", "status,conclusion,createdAt,updatedAt"])
+        try:
+            rows = json.loads(out or "[]")
+        except ValueError:
+            rows = None
+        if _sweep_ran_recently(rows):
+            # Approvals still run: an action_required agent run must not wait
+            # on the throttle — that is a human decision already made, not a
+            # state read this sweep could have done.
+            try:
+                approve_companion_runs()
+            except Exception as e:
+                sys.stderr.write(f"[orchestrator] approvals failed: {e}\n")
+            print(f"[orchestrator] a real sweep finished within "
+                  f"{SWEEP_COOLDOWN_MIN} min — this workflow_run wake is a "
+                  f"no-op (the next event or the schedule carries the latency)")
+            sys.exit(0)
     steps = {
         "approvals": approve_companion_runs,
         "merge_readiness": merge_readiness,

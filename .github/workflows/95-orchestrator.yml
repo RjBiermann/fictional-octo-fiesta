@@ -172,6 +172,12 @@ jobs:
           # was the only effective value); adopters set the repo variable
           # to throttle concurrent Implement runs (ADR-0014).
           GH_AW_ORCH_WAVE_CAP: ${{ vars.GH_AW_ORCH_WAVE_CAP }}
+          # Which event woke this run — only the workflow_run arm is
+          # throttled (see SWEEP_COOLDOWN_MIN in orchestrator.py).
+          GH_AW_SWEEP_EVENT: ${{ github.event_name }}
+          # Minutes between event-driven sweeps; empty/absent means 10, "0"
+          # disables (`_env_int` treats an unset variable as the default).
+          GH_AW_SWEEP_COOLDOWN_MIN: ${{ vars.GH_AW_SWEEP_COOLDOWN_MIN }}
           # repo-agnostic adopter config: the append-only JSON registry
           # enables the mechanical findings/registry conflict auto-merge;
           # comma list of version-file suffixes (default build.gradle.kts).
