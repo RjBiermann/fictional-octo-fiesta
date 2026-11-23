@@ -5,16 +5,11 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.network.CloudflareKiller
-import com.fasterxml.jackson.databind.ObjectMapper
 import com.kraptor.CardFields
 import com.kraptor.SearchCard
 import com.kraptor.cfChallenge
 import com.kraptor.registerHostExtractors
-import okhttp3.Interceptor
 import org.jsoup.nodes.Element
-import javax.crypto.Cipher
-import javax.crypto.spec.IvParameterSpec
-import javax.crypto.spec.SecretKeySpec
 
 class Cat3Movie : MainAPI() {
     override var mainUrl = "https://cat3movie.org"
@@ -143,8 +138,10 @@ class Cat3Movie : MainAPI() {
         val postId = cfg.postId.toString()
         val nonce = cfg.nonce
 
-        // sv1..sv3 servers: hlsfree embeds yield a token stream URL, hlsfast embeds
-        // yield an AES-CBC encrypted api response (see extractHlsFast); loadvid is blob-gated
+        // sv1..sv3 servers: hlsfree (token m3u8), hlsfast (hash → public resolve → turboembed)
+        // and cdn.loadvid (JSON config → single-segment manifest) all dispatch through the
+        // host registry below
+        val embeds = LinkedHashSet<String>()
         for (sv in 1..3) {
             try {
                 // issue #250: player.php GETs are cached by Cloudflare and sit behind the
@@ -165,80 +162,23 @@ class Cat3Movie : MainAPI() {
                         "_" to System.currentTimeMillis().toString(),
                     )
                 ).text
-                val embed = Parse.embedIframe(playerHtml) ?: continue
-
-                if (embed.contains("hlsfast.com/#")) {
-                    val hash = embed.substringAfterLast('#')
-                    val hlsFast = extractHlsFast(hash, cfInterceptor)
-                    if (hlsFast != null) {
-                        callback.invoke(
-                            newExtractorLink(
-                                source = "HlsFast",
-                                name = "HlsFast",
-                                url = hlsFast,
-                                type = ExtractorLinkType.M3U8
-                            ) {
-                                this.referer = "https://hlsfast.com/"
-                                // issue #417: hlsfast segments are referer-gated just like
-                                // hlsfree (#247) — live probe: seg-1-f1-v1-a1.woff2 → 403
-                                // without Referer: https://hlsfast.com/, 200 with it. The
-                                // header map keeps the header on segment fetches regardless
-                                // of datasource path (same hardening HlsFree got for #247).
-                                this.headers = mapOf("Referer" to "https://hlsfast.com/")
-                                this.quality = Qualities.Unknown.value
-                            }
-                        )
-                    }
-                } else {
-                    // hlsfree token dance lives in the shared HlsFree adapter (issue #247:
-                    // preflight + fresh-token retry + Referer header map); any other host
-                    // family the registry has an adapter for now matches too
-                    loadExtractor(embed, mainUrl, subtitleCallback, callback)
-                }
+                Parse.embedIframe(playerHtml)?.let { embeds.add(it) }
             } catch (e: Exception) {
                 Log.d("Cat3Movie", "sv$sv: ${e.message}")
             }
         }
+        // Every leg dispatches through the host registry (ADR-0002). The old bespoke hlsfast
+        // branch (AES-CBC hex from /api/v1/video, issue #180) went dead: that endpoint now
+        // answers 404 for every hash and the player shell resolves `/#<hash>` through
+        // /api/public/resolve → turboembed.com (issue #1448). Keeping the dispatch here —
+        // rather than a host branch — is what lets a rotated destination host be a registry
+        // row instead of another provider rewrite.
+        // player.php serves the SAME iframe on sv1..sv3 for many videos, so the set collapses
+        // the duplicate legs into one dispatch per distinct URL.
+        for (embed in Parse.distinctEmbeds(embeds)) {
+            loadExtractor(embed, mainUrl, subtitleCallback, callback)
+        }
         return true
-    }
-
-    companion object {
-        private val mapper = ObjectMapper()
-
-        // hlsfast.com SPA (issue #180): GET /api/v1/video returns an AES-CBC encrypted hex
-        // blob; key/iv are constants generated in the obfuscated player JS
-        // (assets/index-DqFBtoPY.js, Z()/J()). Response JSON has "cfNative" (proxied
-        // through hlsfast.com) and "source" (direct IP) — prefer cfNative.
-        private const val HLSFAST_KEY = "kiemtienmua911ca"
-        private const val HLSFAST_IV = "1234567890oiuytr"
-
-        private fun aesCbcDecryptHex(hex: String): String {
-            val data = hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
-            val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
-            cipher.init(
-                Cipher.DECRYPT_MODE,
-                SecretKeySpec(HLSFAST_KEY.toByteArray(), "AES"),
-                IvParameterSpec(HLSFAST_IV.toByteArray())
-            )
-            return String(cipher.doFinal(data))
-        }
-
-        private suspend fun extractHlsFast(hash: String, cfInterceptor: Interceptor): String? = try {
-            val body = app.get(
-                "https://hlsfast.com/api/v1/video?id=$hash&w=1280&h=720&r=cat3movie.org",
-                referer = "https://hlsfast.com/",
-                interceptor = cfInterceptor
-            ).text.trim()
-            if (!body.matches(Regex("[0-9a-fA-F]+"))) return null
-            val json = mapper.readTree(aesCbcDecryptHex(body))
-            val url = json.get("cfNative")?.asText()?.takeIf { it.isNotBlank() }
-                ?: json.get("source")?.asText()?.takeIf { it.isNotBlank() }
-                ?: return null
-            if (url.startsWith("http")) url else "https://hlsfast.com" + url
-        } catch (e: Exception) {
-            Log.d("Cat3Movie", "hlsfast: ${e.message}")
-            null
-        }
     }
 }
 
@@ -296,9 +236,17 @@ object Parse {
     fun filterSeen(cards: List<CardFields>, seen: MutableSet<String>): List<CardFields> =
         cards.filter { seen.add(it.href) }
 
-    /** Embed src from the player.php response, double or single quotes. */
+    /** Embed src from the player.php response, double or single quotes. Live markup sometimes
+     *  opens the value with a space (`src=" https://…"`) — dispatch is a mainUrl prefix match,
+     *  so the value is trimmed before it leaves the parser. */
     fun embedIframe(html: String): String? =
-        Regex("iframe[^>]*src=[\"']([^\"']+)").find(html)?.groupValues?.get(1)
+        Regex("iframe[^>]*src=[\"']([^\"']+)").find(html)?.groupValues?.get(1)?.trim()
+
+    /** One dispatch per distinct embed URL, order preserved, blanks dropped: player.php
+     *  serves the same iframe on sv1..sv3 for many videos (three identical links shipped
+     *  before), and an empty iframe is not a source. */
+    fun distinctEmbeds(embeds: Collection<String>): List<String> =
+        embeds.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
 
     /** Cloudflare interstitial detector (issue #411). Real challenge pages carry the
      *  "Just a moment…" title or the cf-chl/_cf_chl challenge markers; healthy pages

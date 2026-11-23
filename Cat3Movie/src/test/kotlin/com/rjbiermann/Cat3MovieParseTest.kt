@@ -223,3 +223,38 @@ class Cat3MovieRowDedupeTest {
         assertEquals(page1, Parse.filterSeen(page1, seen))
     }
 }
+
+/**
+ * Issue #1448 (video-source audit): player.php serves the SAME iframe on sv1..sv3 for many
+ * videos — the pre-run code emitted one identical link per leg — and the live markup can
+ * open the `src` value with a space (`src=" https://cdn.loadvid.com/..."`), which a
+ * mainUrl-prefix dispatch silently drops. [Parse.distinctEmbeds] + the trim in
+ * [Parse.embedIframe] are the seams that keep one dispatch per distinct, clean URL.
+ */
+class Cat3MovieEmbedDispatchTest {
+
+    @Test fun `duplicate server legs collapse to one dispatch`() {
+        // three sv legs, one embed (observed on 5/9 sampled videos: sv1..sv3 → hlsfast)
+        assertEquals(
+            listOf("https://hlsfast.com/#c5acrp"),
+            Parse.distinctEmbeds(listOf("https://hlsfast.com/#c5acrp", "https://hlsfast.com/#c5acrp", "https://hlsfast.com/#c5acrp"))
+        )
+        // distinct legs are all kept, in order
+        assertEquals(
+            listOf("https://hlsfree.com/embed/hls/1487", "https://cdn.loadvid.com/videos/play/SiBZWePhaGYvOjJwjunK"),
+            Parse.distinctEmbeds(listOf("https://hlsfree.com/embed/hls/1487", "https://hlsfree.com/embed/hls/1487",
+                "https://cdn.loadvid.com/videos/play/SiBZWePhaGYvOjJwjunK"))
+        )
+    }
+
+    @Test fun `blank embeds are not sources`() {
+        assertEquals(emptyList<String>(), Parse.distinctEmbeds(listOf("", "   ")))
+        assertEquals(listOf("https://hlsfast.com/#dj8dpz"),
+            Parse.distinctEmbeds(listOf("", "https://hlsfast.com/#dj8dpz")))
+    }
+
+    @Test fun `iframe src is trimmed before dispatch`() {
+        assertEquals("https://cdn.loadvid.com/videos/play/QSyDi6qxZBa9NMoUuYDO",
+            Parse.embedIframe("<div><iframe class=\"embed-responsive-item\" src=\" https://cdn.loadvid.com/videos/play/QSyDi6qxZBa9NMoUuYDO\" allowfullscreen></iframe></div>"))
+    }
+}

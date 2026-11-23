@@ -238,6 +238,17 @@ internal fun sharedHostRegistry(): List<ExtractorApi> = listOf(
         KvsVideofile("https://videotxxx.com", "Txxx"),
         KvsVideofile("https://txxx.com", "Txxx"),
         KvsVideofile("https://txxx.me", "Txxx"),
+        // #1448 (Cat3Movie video-source audit): the hlsfast.com → turboembed.com chain.
+        // hlsfast's `/api/v1/video` AES endpoint (issue #180) is 404 on every hash — the
+        // player shell now resolves `/#<hash>` through a public redirect API whose
+        // destination host rotates (turboembed.com today, `host1: upn` retired in the
+        // response). HlsFast dispatches the destination back through loadExtractor, so a
+        // future host needs one row here, never a provider-side branch; TurboEmbed turns
+        // its download tiers into playable mp4 links. LoadVid (cat3movie sv2) is the third
+        // unregistered host these pages embed — same page-side JSON API family.
+        HlsFast(),
+        TurboEmbed(),
+        LoadVid(),
     )
 
 fun BasePlugin.registerHostExtractors(first: List<ExtractorApi> = emptyList()) {
