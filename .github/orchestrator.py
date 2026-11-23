@@ -243,6 +243,19 @@ def run(cmd, **kw):
     return r.stdout
 
 
+def run_rc(cmd, **kw):
+    """Exit status of a command whose stdout carries no success signal.
+
+    `run` returns stdout, so `rc, _ = run([...])` unpacked a string instead of
+    an exit code (and raised on the empty body of a successful DELETE). Label
+    deletes need the real code to decide whether readiness may proceed.
+    """
+    r = subprocess.run(cmd, capture_output=True, text=True, **kw)
+    if r.returncode != 0:
+        sys.stderr.write(f"[orchestrator] rc={r.returncode} on {' '.join(cmd[:5])}: {r.stderr.strip()[:300]}\n")
+    return r.returncode
+
+
 def dispatch_ok(cmd, env=None):
     """True iff a fire-and-forget command exited 0. `gh workflow run` prints
     nothing to stdout on success and errors only to stderr, so an
@@ -605,12 +618,23 @@ def merge_readiness():
             # two state labels on a clean PR (#1405). A non-blocker verdict
             # means the repair round is over; clear it here, where the encoded
             # DELETE and the rc already exist.
-            rc, _ = run(["gh", "api", "-X", "DELETE",
+            if not verdict_body:
+                # no verdict at all: the repair is still in flight, so neither
+                # the label nor readiness may move (review finding 1).
+                print(f"[orchestrator] PR #{num}: status/fixing without a "
+                      f"verdict — not ready")
+                continue
+            rc = run_rc(["gh", "api", "-X", "DELETE",
                          f"repos/{REPO}/issues/{num}/labels/status%2Ffixing"])
+            if rc != 0:
+                # A half-done transition must not publish readiness: the label
+                # is still there, so adding status/ready-to-merge would leave
+                # two state labels (#1405). A later sweep retries the clear.
+                print(f"[orchestrator] PR #{num}: status/fixing clear rc={rc} — "
+                      f"retry next sweep")
+                continue
             print(f"[orchestrator] PR #{num}: status/fixing cleared — verdict "
-                  f"is not a blocker" if rc == 0 else
-                  f"[orchestrator] PR #{num}: status/fixing clear rc={rc} — "
-                  f"retry next sweep")
+                  f"is not a blocker")
         if not _effective_ready(num, mstate):
             print(f"[orchestrator] PR #{num}: mergeable_state={mstate} — not ready")
             continue

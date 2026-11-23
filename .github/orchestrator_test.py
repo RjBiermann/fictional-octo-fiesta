@@ -1487,17 +1487,23 @@ class TestReadinessClearsRepairState(unittest.TestCase):
     logged "not present, skipping", and left the PR labelled status/fixing.
     Round 2's pass then added status/ready-to-merge on top (#1405)."""
 
-    def run_readiness(self, labels, verdict):
+    def run_readiness(self, labels, verdict, clear_rc=0):
         pr = {"number": 1516,
               "user": {"login": "rjbiermann-machinery[bot]"},
               "head": {"ref": "devloop/issue-1448-x", "sha": "5891d79"}}
         cmds = []
-        thread = [{"body": verdict, "created_at": "2026-11-23T03:06:52Z",
-                   "user": {"login": "github-actions[bot]"}}]
+        added = []
+        thread = ([] if verdict is None else
+                  [{"body": verdict, "created_at": "2026-11-23T03:06:52Z",
+                    "user": {"login": "github-actions[bot]"}}])
 
         def fake_run(cmd, **kw):
             cmds.append(cmd)
-            return 0, ""
+            return ""
+
+        def fake_run_rc(cmd, **kw):
+            cmds.append(cmd)
+            return clear_rc
 
         def fake_api(path, *a, **kw):
             if path.startswith("pulls/"):
@@ -1510,6 +1516,7 @@ class TestReadinessClearsRepairState(unittest.TestCase):
                                   lambda nums: {1516: set(labels)}), \
                 mock.patch.object(orchestrator, "api", fake_api), \
                 mock.patch.object(orchestrator, "run", fake_run), \
+                mock.patch.object(orchestrator, "run_rc", fake_run_rc), \
                 mock.patch.object(orchestrator, "_effective_ready",
                                   lambda n, m: True), \
                 mock.patch.object(orchestrator, "AUTO_MERGE", False), \
@@ -1517,19 +1524,43 @@ class TestReadinessClearsRepairState(unittest.TestCase):
                                   lambda cs, m: False), \
                 mock.patch.object(orchestrator, "comments", lambda n: []), \
                 mock.patch.object(orchestrator, "label_issue",
-                                  lambda n, l: None), \
+                                  lambda n, l: added.append(l)), \
                 mock.patch.object(orchestrator, "post_comment",
                                   lambda n, b: None):
             orchestrator.merge_readiness()
-        return [" ".join(c) for c in cmds]
+        return [" ".join(c) for c in cmds], added
 
     def test_pass_verdict_clears_status_fixing(self):
-        cmds = self.run_readiness({"status/fixing"}, "**Verdict:** no blockers")
+        cmds, _ = self.run_readiness({"status/fixing"},
+                                     "**Verdict:** no blockers")
         self.assertTrue(any("status%2Ffixing" in c for c in cmds), cmds)
 
     def test_blocker_verdict_keeps_status_fixing(self):
         # a live blocker means the repair round is exactly what is wanted —
         # the label must not be cleared on that path.
-        cmds = self.run_readiness({"status/fixing"},
-                                  "**Verdict: blocker** — Codacy red.")
+        cmds, _ = self.run_readiness({"status/fixing"},
+                                     "**Verdict: blocker** — Codacy red.")
         self.assertFalse(any("status%2Ffixing" in c for c in cmds), cmds)
+
+    def test_fixing_stuck_prevents_clearing(self):
+        cmds, added = self.run_readiness(
+            {"status/fixing", "status/fixing-stuck"}, "**Verdict:** no blockers")
+        self.assertFalse(any("status%2Ffixing" in c for c in cmds), cmds)
+        self.assertNotIn("status/ready-to-merge", added)
+
+    def test_no_verdict_leaves_status_fixing(self):
+        # review finding 1: without an explicit verdict the repair state must
+        # not be cleared, and readiness must not be published over it.
+        cmds, added = self.run_readiness({"status/fixing"}, None)
+        self.assertFalse(any("status%2Ffixing" in c for c in cmds), cmds)
+        self.assertNotIn("status/ready-to-merge", added)
+
+    def test_failed_clear_does_not_publish_readiness(self):
+        # review finding 2: a failed DELETE must not be reported as success,
+        # and readiness must not add status/ready-to-merge on top of the
+        # surviving label (a later sweep retries the clear).
+        cmds, added = self.run_readiness({"status/fixing"},
+                                         "**Verdict:** no blockers",
+                                         clear_rc=1)
+        self.assertTrue(any("status%2Ffixing" in c for c in cmds), cmds)
+        self.assertNotIn("status/ready-to-merge", added)
