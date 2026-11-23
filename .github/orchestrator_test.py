@@ -873,10 +873,21 @@ class TestRepairInFlight(unittest.TestCase):
 
     VERDICT_TS = "2026-11-18T23:49:02Z"
 
+    NOW = __import__("datetime").datetime(2026, 11, 23, 18, 0, 0)
+
+    def at(self, minutes_ago):
+        ts = self.NOW - __import__("datetime").timedelta(minutes=minutes_ago)
+        return ts.strftime("%Y-%m-%dT%H:%M:%SZ")
+
     def in_flight(self, *rows):
-        payload = json.dumps([{"status": s} for s in rows])
+        """rows: status strings, or (status, minutes_ago) pairs."""
+        items = []
+        for r in rows:
+            status, ago = (r, 60) if isinstance(r, str) else r
+            items.append({"status": status, "updatedAt": self.at(ago)})
+        payload = json.dumps(items)
         with mock.patch.object(orchestrator, "run", lambda cmd, **kw: payload):
-            return orchestrator._repair_in_flight()
+            return orchestrator._repair_in_flight(now=self.NOW)
 
     def test_running_repair_blocks(self):
         self.assertTrue(self.in_flight("in_progress"))
@@ -885,7 +896,32 @@ class TestRepairInFlight(unittest.TestCase):
         self.assertTrue(self.in_flight("queued"))
 
     def test_finished_repair_does_not_block(self):
-        self.assertFalse(self.in_flight("completed"))
+        self.assertFalse(self.in_flight(("completed", 30)))
+
+    def test_just_finished_repair_holds_the_dispatch(self):
+        # gh-aw's 600s activation cooldown: the dispatch would create a run
+        # that never starts, and its marker still counts toward the stuck cap
+        # (#1540: two such markers escalated a PR with zero attempts)
+        self.assertTrue(self.in_flight(("completed", 2)))
+
+    def test_repair_finished_inside_no_cooldown_blocks(self):
+        self.assertTrue(self.in_flight(("completed", 9)))
+
+    def test_cooldown_matches_the_fix_loop_frontmatter(self):
+        # the constant duplicates 07's own `cooldown: 10m`; silent drift here
+        # re-creates the false status/fixing-stuck it exists to prevent
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "workflows", "07-fix-loop.md")
+        with open(path) as fh:
+            md = fh.read()
+        m = re.search(r"^\s*cooldown:\s*(\d+)m\s*$", md, re.M)
+        self.assertIsNotNone(m, "07-fix-loop.md has no `cooldown: <n>m` line")
+        self.assertEqual(orchestrator.FIX_LOOP_COOLDOWN_SEC, int(m.group(1)) * 60)
+
+    def test_completed_row_without_a_timestamp_does_not_block(self):
+        payload = json.dumps([{"status": "completed"}])
+        with mock.patch.object(orchestrator, "run", lambda cmd, **kw: payload):
+            self.assertFalse(orchestrator._repair_in_flight(now=self.NOW))
 
     def test_any_running_repair_blocks_even_if_old(self):
         # dispatch runs key the concurrency group on refs/heads/main, so an
