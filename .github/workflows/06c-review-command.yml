@@ -39,6 +39,8 @@ jobs:
                   github.event.comment.author_association)
       && github.event.issue.state == 'open'
     runs-on: ubuntu-latest
+    timeout-minutes: 5      # one `gh workflow run`; the 360-min default parks
+                            # a runner for six hours if the CLI hangs
     steps:
       - name: Dispatch 06-review for this PR
         env:

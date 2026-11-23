@@ -39,7 +39,12 @@ permissions:
   issues: read
   pull-requests: read
 concurrency:
-  group: rebase-${{ github.event.pull_request.number }}
+  # Every rebase fires by workflow_dispatch (ADR-0019), where
+  # `pull_request.number` is empty — so the group was the literal `rebase-`
+  # for all of them. GitHub keeps one running + one pending per group, so a
+  # third conflicted PR replaced the second's pending run and that rebase
+  # never ran (the PR stayed dirty). Fall back to the dispatched inputs.
+  group: rebase-${{ github.event.pull_request.number || github.event.inputs.pr_number || (github.event.inputs.aw_context && fromJSON(github.event.inputs.aw_context).item_number) || github.run_id }}
 timeout-minutes: 25
 max-turns: 20
 max-ai-credits: 800

@@ -103,9 +103,19 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          # The sweep runs with `contents/issues/pull-requests/actions: write`
+          # and a minted App token, and `orchestrator.py` is not a workflow
+          # file (gh-aw's protected-commit guard does not cover it). On the
+          # `pull_request: [closed]` arm the default ref is the PR merge
+          # commit, so a closed-but-unmerged PR that edits orchestrator.py
+          # would run its own version of the conveyor with those tokens.
+          # Pin the code to the default branch: the state logic is never
+          # supposed to come from the PR under test.
+          ref: ${{ github.event.repository.default_branch }}
           # full history: conflict_watch's merge-tree needs a common base
           # between origin/main and the branch ref (shallow checkouts fail
-          # "refusing to merge unrelated histories")
+          # "refusing to merge unrelated histories"). depth 0 fetches every
+          # remote branch, so `ref:` above narrows the tree, not the refs.
           fetch-depth: 0
 
       # ADR-0020: the machinery GitHub App replaces the retired owner PAT
