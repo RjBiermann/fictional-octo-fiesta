@@ -23,7 +23,7 @@ Per-issue ceiling on Attempts per calendar day (0 = unlimited). The runaway-spen
 _Avoid_: rate limit, quota
 
 **Round**:
-One review pass over a pull request. Bounded by the workflow's attempt budget (`shared/budget.md`), not by a round label — no workflow applies an `ai-review-round-*` label, and repair rounds are bounded by the work-attempt cycle instead. A Round is spent only by a completed pass — a Superseded or failed run spends nothing.
+One review pass over a pull request. Bounded by the workflow's attempt budget (`shared/budget.md`), not by a round label — no workflow applies an `ai-review-round-*` label (the `ai-review-round-1/2` labels left in the repo are unused), and repair rounds are bounded by the work-attempt cycle instead. A Round is spent only by a completed pass — a Superseded or failed run spends nothing.
 _Avoid_: iteration, loop
 
 **Superseded**:
@@ -33,7 +33,7 @@ _Avoid_: cancellation, aborted run
 ### Triggers & artifacts
 
 **Trigger label**:
-A maintainer-applied issue label (`ai-fix`, `ai-new-site`, `ai-remove`) that starts a build. Issues without one are never processed. Renames stay inside the reserved `ai-` prefix — the contract the lane filters match on (`startsWith(label, 'ai-')`), so a rename can never orphan the trigger. Since ADR-0018, *machinery* (95-orchestrator) applies `ai-fix` to `status/queued` issues automatically — agents still never touch them.
+A maintainer-applied issue label (`ai-fix`, `ai-build`, `ai-new-site`, `ai-remove`) that starts a build. Issues without one are never processed. The lane matches that explicit tuple (`orchestrator.py`), so a rename must change the code as well as the label — the `ai-` prefix is reserved by convention, not matched as a prefix. Since ADR-0018, *machinery* (95-orchestrator) applies `ai-fix` to `status/queued` issues automatically — agents still never touch them.
 _Avoid_: auto label, bot label
 
 **Command**:
@@ -41,7 +41,7 @@ A maintainer comment on an issue or PR (`/retry`, `/review`) that the pipeline d
 _Avoid_: slash command, bot command, retrigger
 
 **Rebuild**:
-A pipeline-initiated redo of a build whose branch can no longer land cleanly: the sweep's rebase against `main` conflicts, the PR closes, and the issue re-enters the queue on fresh `main`. Counts against the attempt budget — unlike `/retry`, the human Command that resets it. Never triggered by agent output — only the sweep's rebase stage.
+A pipeline-initiated redo of a build whose branch can no longer land cleanly. Conflicts do not close the PR: `conflict_watch` either union-merges the mechanical class (registry, version bumps), or labels the PR `status/conflict` and dispatches the AI `14-rebase` lane — and pings the owner when that stalls. There is no automatic close-and-requeue path. Never triggered by agent output — only the sweep's conflict stage.
 _Avoid_: retry (that is the human Command), re-run
 
 **Re-fire**:
@@ -136,7 +136,7 @@ Content the secret-guard may redact: authored by `github-actions[bot]`, or carry
 _Avoid_: bot-authored (ambiguous — machinery posts are the normal case now)
 
 **Relay**:
-The machinery mechanism that makes one pipeline stage trigger the next: a `workflow_dispatch` carrying an `aw_context` item, fired by the orchestrator under the bot identity. GitHub's only loop-prevention-exempt way for a machine to fire a gh-aw workflow; label and comment *events* by machines fire nothing.
+The machinery mechanism that makes one pipeline stage trigger the next: a `workflow_dispatch` carrying an `aw_context` item, fired by the orchestrator under the bot identity. The documented loop-prevention-exempt way for a machine to fire a gh-aw workflow; label and comment *events* by machines fire nothing. `workflow_run` (a review run completing) and gh-aw's `on.bots` allowlist are the other two paths that survive loop prevention.
 _Avoid_: surrogate (the retired owner-PAT mechanism), PAT fire
 
 **Secret-guard**:
@@ -184,7 +184,7 @@ The per-provider live check that detects provider rot: search + one video page +
 _Avoid_: monitoring, health check (the report is a Health report; the probe is the action)
 
 **Health report**:
-The weekly open-issue state table `90-sweeper` posts on Mondays: the `gh issue list` default page of 30 open issues, with their labels. It is not a per-provider verdict table — that shape belonged to the retired `provider-health` tracker (#157) and no workflow produces it.
+The weekly open-issue state table `90-sweeper` posts on Mondays: the first 100 open issues from `gh issue list`, with their labels. It is not a per-provider verdict table — that shape belonged to the retired `provider-health` tracker (#157) and no workflow produces it.
 _Avoid_: status update, monitor output
 
 **Chronic**:

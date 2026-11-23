@@ -1,12 +1,15 @@
 name: Orchestrator (mechanical conveyor — approvals, readiness, chain, surrogate)
 
 # ADR-0017 (amended 2026-10-15): non-AI plain Actions, sibling of
-# 90-sweeper. Automates mechanics; surfaces decisions as @mentions;
-# humans still merge PRs by default (GH_AW_AUTO_MERGE=false).
+# 90-sweeper. Automates mechanics; surfaces decisions as @mentions.
+# Humans merge — machinery auto-merges only when the chain's owner-approval
+# receipt exists (`GH_AW_AUTO_MERGE=true` since ADR-0018; the repo variable
+# is what gates it, not this comment).
 
 on:
-  schedule:                 # background sweep (GitHub throttles schedules under
-    - cron: "*/10 * * * *"  # load; event triggers carry the chain latency)
+  schedule:                 # fallback sweep only: GitHub runs this */10 cron a
+    - cron: "*/10 * * * *"  # few times a day here (~4-8h), so the event
+                            # triggers below carry the chain latency
   workflow_dispatch:
   issues:
     types: [opened, labeled]      # fresh trigger labels / new specs go instantly
