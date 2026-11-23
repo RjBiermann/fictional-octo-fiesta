@@ -485,6 +485,18 @@
       "canaries": "eporner-healthy plain-curl 200 match; pandamovies-redirect-origin plain-curl 302 -> pandamovies.org match; film1k-challenge-pair plain-curl 200 vs expected 403 = expectation-stale (#1435 open, live pair recorded, no environment-degraded branch); TLS tier unavailable (#1434) so no Blocked was possible",
       "findings_filed": 0,
       "false_positives": []
+    },
+    {
+      "id": "run1453",
+      "issue": 1453,
+      "date": "2026-11-23",
+      "kind": "video-source audit (S15 of #1354)",
+      "verdict": "ok",
+      "tier": "plain-curl",
+      "escalation_tier": "unavailable",
+      "canaries": "eporner-healthy plain-curl 200 match; pandamovies-redirect-origin plain-curl 302 -> pandamovies.org match; film1k-challenge-pair plain-curl 200 vs expected 403 = expectation-stale (#1435 open, live pair recorded, no environment-degraded branch); TLS tier unavailable (#1434) so no Blocked was possible",
+      "findings_filed": 0,
+      "false_positives": []
     }
   ],
   "providers": {
@@ -661,13 +673,20 @@
     "AllClassicPorn": {
       "site": "allclassic.porn",
       "verdict": "ok",
-      "reason": "home /page/1/+2 and search pages disjoint (60 cards each); 5 fresh video pairs card-exact h1 titles; KVS get_file streams 206 video/mp4 (refresh 2026-10-16, single-use token note 2026-09-29 still holds)",
+      "reason": "video-source leg clean (S15, 2026-11-23): 11/11 sampled streams resolve cfg videoUrl -> get_file 302 -> cdn{1,3,9}.allclassic.porn 206 video/mp4 (ftyp) across new/latest, old (era rows + /page/ tail), popular, categories, tags at both catalogue ends; 45-page breadth scan: 45/45 cfg-only grammar (0 legacy video_url), quality from the _480p filename token on 45/45, 0 alt renditions, 0 iframes, self-hosted /embed/<id> only",
       "tier": "plain-curl",
       "surfaces": {
         "home": "200",
-        "search": "200",
+        "search": "200 (/search/milf/, 60/page, overlap 0)",
         "video": "200",
-        "stream": "206 video/mp4"
+        "stream": "206 video/mp4",
+        "new": "/page/ 200 (60/page, p1-p2 overlap 0; tail /page/102/ 200, /103/ 404)",
+        "old": "/40s/ 200 (47 cards, not pageable) + /page/102/ tail; no oldest-first sort route (/old/, /oldest/ 404)",
+        "popular": "/most-popular/ 200 (60/page, overlap 0; tail /102/ 200, /103/ 404)",
+        "categories": "/categories/milf/ 200 (60/page; tail /27/ 200, /28/ 404); /categories/ index 61 slugs",
+        "tags": "/tags/classic/ 200 (60/page, overlap 0; tail /4/ 200, /5/ 404); /tags/ index 574 slugs",
+        "genres": "absent (/genres/, /genre/, /genre/milf/ 404 \u2014 vocabulary is /categories/)",
+        "quicksearch": "absent (no distinct suggest endpoint; hasQuickSearch=false)"
       },
       "issue": null,
       "standing_issue": null,
