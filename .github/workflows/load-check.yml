@@ -92,8 +92,21 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ./gradlew bootstrapCloudstream
-          JAR=$(find ~/.m2/repository/com/lagradost/cloudstream3/pre-release -name 'classes*.jar' | head -1)
-          SHA=$(sha256sum "$JAR" | cut -d' ' -f1)
+          # The artifact bootstrapCloudstream writes is `cloudstream3-pre-release.jar`
+          # (build.gradle.kts), not `classes*.jar` — that pattern matched nothing,
+          # so sha256sum ran on an empty string and every load-check issue reported
+          # "Upstream jar SHA: unknown" (run 45024201161: `sha256sum: '': No such
+          # file or directory`). The path is fixed rather than searched, and a
+          # missing jar fails here instead of silently shipping an empty SHA.
+          JAR="$HOME/.m2/repository/com/lagradost/cloudstream3/pre-release/cloudstream3-pre-release.jar"
+          if [ ! -f "$JAR" ]; then
+            echo "::error::bootstrapCloudstream did not install $JAR"
+            exit 1
+          fi
+          # No pipeline: without `pipefail` a sha256sum failure would still
+          # yield an empty SHA (`SHA` takes the digest before the first space).
+          SHA=$(sha256sum "$JAR")
+          SHA=${SHA%% *}
           {
             echo "jar_sha=$SHA"
           } >> "$GITHUB_OUTPUT"
