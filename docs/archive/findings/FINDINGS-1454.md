@@ -72,12 +72,12 @@ evidence that proves it, never assumed.
 | `new` / `latest` | **`/movies`** (the provider's row; stable insertion order — two fetches ~2 s apart returned the same first five cards) — p1 **30**, p2 **30**, p1↔p2 overlap **0**, no in-page duplicate hrefs; far end `/movies?page=56` **200, 26** cards, `/movies?page=57` **404** (catalogue ≈ 1 676 movies). The year-sorted variant `/movies?sort=newest` is also live: p1 **30** (2024→2020), far end p56 **26** (1968→1933), p57 **404** | 200 |
 | `old` | **`/movies?sort=oldest`** (the filter bar's `sort=oldest` option; there is no `/old` or `/oldest` route — both **404**) — p1 **30** (1933, 1938, 1952 … 1968), p2 **30** (1968–1969), p1↔p2 overlap **0**; far end p56 **26** (2021–2024), p57 **404**. `/movies` and `/movies?sort=newest` p1 overlap the oldest p1 in **1** / **0** cards, confirming the ordering is real, not a re-render | 200 |
 | `popular` | **`/top`** — p1 **30**, p2 **30**, overlap **0**; far end `/top?page=57` **200, 11**, `/top?page=58` **404**. p1 shares **0** cards with `/movies` p1 (separate ranking) | 200 |
-| `genres` | **`/genre/<slug>`** — `/genre/drama` p1 **30**, p2 **30**, overlap **0**, far end `/genre/drama?page=33` **200, 19**, `/genre/drama?page=34` **404**. There is no `/genre` index (**404**), but the `/movies` filter form carries `select[name=genre]` with **20** slugs (`action, adventure, animation, comedy, crime, documentary, drama, family, fantasy, history, horror, music, mystery, romance, science-fiction, short, thriller, tv-movie, uncategorized`) and `?genre=horror` serves **200, 30** — that select is the genre vocabulary index. Recorded **present** | 200 |
+| `genres` | **`/genre/<slug>`** — `/genre/drama` p1 **30**, p2 **30**, overlap **0**, far end `/genre/drama?page=33` **200, 19**, `/genre/drama?page=34` **404**. There is no `/genre` index (**404**), but the `/movies` filter form carries `select[name=genre]` with **19** run-time slugs (`action, adventure, animation, comedy, crime, documentary, drama, family, fantasy, history, horror, music, mystery, romance, science-fiction, short, thriller, tv-movie, uncategorized`) — an earlier draft counted 20 against this same list (off by one) — and `?genre=horror` serves **200, 30**. A review-time re-probe (2026-11-23) returns **21**, adding `war` and `western` — either gained after the run or missed by its enumeration; the 19 above is the run-time record and the +2 is a later delta. That select is the genre vocabulary index. Recorded **present** | 200 |
 | `categories` | **absent as its own namespace.** `/categories` → **404** (19 B), `/category/drama` → **404**. The site's genre/category vocabulary *is* the `/genre/` namespace sampled above, so this is a route-shape fact, not a missing surface | 404 |
 | `tags` | **absent.** `/tags` → **404** (19 B), `/tag/drama` → **404**. No tag route exists anywhere in the nav, filter form, or detail-page markup (only `/genre/`, `/actor/`, `/year/`, `/country/`, `/director/` taxonomy links) | 404 |
 
 Provider-row surfaces re-probed for enumeration (not D3 types, same leg): `/tv-series` **200, 15**
-cards (14 on 2026-10-16 — catalogue grew) and `/tv-series?page=2` **404** (single page);
+cards (14 on 2026-10-16 — catalogue grew) and `/tv-series?page=2` **404** (single page; **was 200-with-0-cards at #636** — the site changed its past-the-end behaviour from an empty page to a 404, site-side and outside D3 scope, recorded here so the archive's two statements are linked);
 `/year/1984` **200, 30** cards; `/` (rank grid) **200, 60** cards.
 
 ### Search and quick search
@@ -104,8 +104,9 @@ function doSearch(q) {
 ```
 
 so `verify.sh`'s check-1b NOTE (no distinct quick-search endpoint) is the documented outcome, not a
-gap. The site has **no HTML search page**; this is the third consecutive record of the tool's
-check 1 being a FAIL-by-tool on this provider.
+gap. The site has **no HTML search page**; this is the fourth consecutive record of the tool's
+check 1 being a FAIL-by-tool on this provider (2026-09-11, 2026-10-15, 2026-10-16, today — #636
+already counted itself as the third).
 
 ---
 
@@ -115,8 +116,8 @@ check 1 being a FAIL-by-tool on this provider.
 type, both catalogue ends where the type is pageable. Every row resolved **end-to-end**: detail
 page → watch page `.epbtn[data-ep]` → sources API → `master.abyssssss.top/<token>/index.m3u8`
 **206 `application/vnd.apple.mpegurl`**; the backup embed (`player.abyssplayer.com/<id>`) was also
-decoded for **all 18 distinct titles** (the 19 rows re-sample `/hidden-face` at rows 5 and 10),
-each returning at least one `status: true` rung.
+decoded for **all 18 distinct titles — 19/19 rows** (the 19 rows re-sample `/hidden-face` at rows 5
+and 10), each returning at least one `status: true` rung.
 
 | # | type | sample URL | listing position | tier | stream host | quality | verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -125,7 +126,7 @@ each returning at least one `status: true` rung.
 | 3 | new/latest (`/movies`) | `/love-lesson` | p56 head (last page) | plain-curl | `master.abyssssss.top` | single HLS; backup 360p/720p | **pass** |
 | 4 | new/latest (`/movies`) | `/ciao-ciao` | p56 tail (last page) | plain-curl | `master.abyssssss.top` | single HLS; backup 360p/720p | **pass** |
 | 5 | new/latest (`?sort=newest`) | `/hidden-face` | p1 head (2024) | plain-curl | `master.abyssssss.top` | single HLS; backup 480p/720p | **pass** |
-| 6 | new/latest (`?sort=newest`) | `/boobs-a-lot` | p56 tail (1968) | plain-curl | `master.abyssssss.top` | single HLS; backup 360p/480p | **pass** |
+| 6 | new/latest (`?sort=newest`) | `/boobs-a-lot` | p56 head (1968) | plain-curl | `master.abyssssss.top` | single HLS; backup 360p/480p | **pass** |
 | 7 | old (`?sort=oldest`) | `/baby-face` | p1 head (1933) | plain-curl | `master.abyssssss.top` | single HLS; backup 360p/720p | **pass** |
 | 8 | old (`?sort=oldest`) | `/one-swedish-summer` | p1 tail (1968) | plain-curl | `master.abyssssss.top` | single HLS; backup 360p/480p | **pass** |
 | 9 | old (`?sort=oldest`) | `/palitan` | p56 head (2021) | plain-curl | `master.abyssssss.top` | single HLS; backup 360p/720p/1080p | **pass** |
@@ -249,8 +250,9 @@ stable sentinels; the provider reads them fresh from `data-ep` every time. Not d
 ## Instrument / site-side notes (recorded, never filed)
 
 1. **No HTML search page** — the site's only search surface is the JSON `/_ajax/search?q=`.
-   `verify.sh` asserts HTML `a.card`s, so check 1 is a **FAIL-by-tool** for this provider (third
-   consecutive record: 2026-09-11, 2026-10-15, 2026-10-16, today). Agreement is proven by curl
+   `verify.sh` asserts HTML `a.card`s, so check 1 is a **FAIL-by-tool** for this provider (fourth
+   consecutive record: 2026-09-11, 2026-10-15, 2026-10-16, today; #636 already counted itself as
+   the third). Agreement is proven by curl
    instead: `q=seule` → `{"slug":"seule","title":"Seule","year":2012}` matches load page
    `/seule` (h1 `Seule`, og:image `/uploads/4ffbb01dea08e1d29924.jpg` — the card's own
    `/uploads/4ffbb01dea08e1d29924.jpg` path).
