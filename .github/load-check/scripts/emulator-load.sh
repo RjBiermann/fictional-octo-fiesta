@@ -59,23 +59,35 @@ echo "package: $PKG"
 # which only the userdebug system image this lane runs (`google_apis`) allows, so every step is
 # best-effort: the run's verdict never depends on it.
 dump_threads() {
-  local pid
+  local pid listing trace
   pid=$(timeout 20 adb shell pidof "$PKG" 2>/dev/null | tr -d '\r' | awk '{print $1}') || true
   [[ -n ${pid:-} ]] || { echo "thread dump skipped: no pid for $PKG" >&2; return 0; }
   timeout 20 adb root >/dev/null 2>&1 || true
   timeout 60 adb wait-for-device >/dev/null 2>&1 || true
   timeout 20 adb shell kill -3 "$pid" >/dev/null 2>&1 || true
   sleep 5
-  # `adb root` restarted adbd, which ends the logcat stream above — re-read the whole buffer
-  # (`-d`) so the dump we just requested is captured before the device state is torn down.
-  timeout 60 adb logcat -d -v time > "$EVIDENCE/thread-dump.log" 2>/dev/null || true
+  # SIGQUIT makes ART write the stack to /data/anr (`traces.txt` on older images, `anr_<ts>`
+  # on newer ones) — logcat only carries the "Wrote stack traces to …" notice, so the old
+  # logcat-only read usually produced no dump at all. Read the trace file itself (newest
+  # first, `ls -t`), with logcat as the fallback for images that mirror the dump.
+  listing=$(timeout 20 adb shell 'ls -t /data/anr 2>/dev/null' | tr -d '\r') || true
+  trace=$(awk 'NF{print; exit}' <<<"${listing:-}") || true
+  [[ -n ${trace:-} ]] || trace=traces.txt
+  timeout 60 adb shell "cat /data/anr/$trace" > "$EVIDENCE/thread-dump.log" 2>/dev/null || true
+  # `adb root` restarted adbd, which ended the live logcat stream above — re-read the whole
+  # buffer (`-d`) so a mirrored dump is captured too before the device state is torn down.
+  timeout 60 adb logcat -d -v time > "$EVIDENCE/logcat-after-dump.log" 2>/dev/null || true
+  if ! grep -q 'DALVIK THREADS\|cmdline:' "$EVIDENCE/thread-dump.log" 2>/dev/null \
+    && grep -q 'DALVIK THREADS\|cmdline:' "$EVIDENCE/logcat-after-dump.log" 2>/dev/null; then
+    cp "$EVIDENCE/logcat-after-dump.log" "$EVIDENCE/thread-dump.log"
+  fi
   if grep -q 'DALVIK THREADS\|cmdline:' "$EVIDENCE/thread-dump.log" 2>/dev/null; then
     printf '\n===== thread dump (kill -3, after the stall) — why load() never returned =====\n' >> "$EVIDENCE/logcat.log"
     cat "$EVIDENCE/thread-dump.log" >> "$EVIDENCE/logcat.log"
     echo "thread dump captured → $EVIDENCE/thread-dump.log"
   else
     rm -f "$EVIDENCE/thread-dump.log"
-    echo "thread dump unavailable (adb root or kill -3 refused) — verdict unaffected" >&2
+    echo "thread dump unavailable (adb root, kill -3 or /data/anr read refused) — verdict unaffected" >&2
   fi
 }
 
@@ -158,7 +170,8 @@ done
 # process sees it; re-reading the buffers with `-d` at the end recovers everything still held.
 # Together with the enlarged buffers set before `logcat -c`, that makes every verdict line from
 # the round available, so "no verdict" means the app never printed one, not that this reader
-# missed it.
+# missed it. The *final* state is what decides the run — a live reader that timed out but whose
+# buffers held every verdict is a pass with a warning, never a red run (review finding).
 timeout 120 adb logcat -d -v time > "$EVIDENCE/logcat-buffers.log" 2>/dev/null || true
 cat "$EVIDENCE/logcat.log" "$EVIDENCE/logcat-buffers.log" > "$EVIDENCE/verdicts.log" 2>/dev/null || true
 VERDICTS=$EVIDENCE/verdicts.log
@@ -175,14 +188,25 @@ printf '%s\n' "$loaded" > "$EVIDENCE/loaded-plugins.txt"
 # never resolve inside the window (#1545, docs/archive/findings/FINDINGS-1545.md). Reading
 # "expected minus loaded" as a failing set is what turned that into a provider issue (#1500
 # treated a whole-round silence this way; a partial one is the same class).
-extract_failed "$VERDICTS" > "$EVIDENCE/failing-plugins.txt" || true
+# `failing_stems` drops a plugin that also has a loaded verdict: a failure line from an attempt
+# the app retried (or from the union) must not outvote the successful one.
+failing_stems "$VERDICTS" > "$EVIDENCE/failing-plugins.txt" || true
 sort -u -o "$EVIDENCE/failing-plugins.txt" "$EVIDENCE/failing-plugins.txt"
 silent=$unsettled_now
 printf '%s\n' "${silent:-}" > "$EVIDENCE/stalled-plugins.txt"
 [[ -z $silent ]] || echo "::warning::no plugin verdict (not a provider verdict): $(paste -sd' ' "$EVIDENCE/stalled-plugins.txt")"
 
+# The final attribution — computed from verdict lines only — is what ends the run. A live
+# reader that did not settle in time is a *latency* warning when the final buffer dump recovered
+# every verdict; it must not fail a round whose every plugin reported (review finding).
+outcome=$(verdict_outcome "$VERDICTS" "$EVIDENCE/expected-plugins.txt" || true)
+if [[ $outcome == pass ]]; then
+  [[ $timed_out -eq 0 ]] || echo "::warning::live logcat did not settle within the window; the final buffer dump recovered every verdict"
+fi
+
 if [[ -n $silent ]]; then
-  [[ $timed_out -eq 0 ]] || dump_threads
+  # A stall is the only way the loop reaches its deadline, so the thread dump belongs here.
+  dump_threads
   {
     echo "no plugin verdict for $(grep -c . "$EVIDENCE/stalled-plugins.txt") of ${#expected[@]} expected plugins — the app never decided on them:"
     sed 's/^/- /' "$EVIDENCE/stalled-plugins.txt"
@@ -192,10 +216,6 @@ if [[ -n $silent ]]; then
     echo "not a provider verdict: these printed neither 'Loaded plugin … successfully' nor 'Failed to load …' (#1357/#1500/#1545)"
     echo "a dropped log line looks the same — see logcat-buffer-sizes.txt and logcat-buffers.log; thread-dump.log names a parked frame when one could be taken"
   } > "$EVIDENCE/stall-note.txt"
-fi
-
-if [[ $timed_out -eq 1 ]]; then
-  echo "TIMED OUT waiting for plugin registration — check logcat.log" >&2
 fi
 
 # A stalled round with no named failure has nothing attributable: the infrastructure/human
@@ -212,5 +232,12 @@ if [[ -s $EVIDENCE/failing-plugins.txt ]]; then
   [[ -z $silent ]] || echo "note: $(grep -c . "$EVIDENCE/stalled-plugins.txt") plugin(s) additionally never reported — see stalled-plugins.txt" >&2
   exit 1
 fi
-[[ $timed_out -eq 0 && -z $silent ]] || exit 1
+if [[ -n $silent ]]; then
+  echo "STALLED: no verdict for $(grep -c . "$EVIDENCE/stalled-plugins.txt") plugin(s) — unattributable, not a provider failure" >&2
+  exit 1
+fi
+if [[ $outcome != pass ]]; then
+  echo "::error::could not classify the round (outcome '${outcome:-empty}') — see verdicts.log" >&2
+  exit 1
+fi
 echo "load check PASSED — all ${#expected[@]} plugins reported"

@@ -20,9 +20,12 @@ EOF
 
 loaded=$(extract_loaded "$tmp/sample.log")
 [[ $(grep -c . <<<"$loaded") -eq 3 ]] || { echo "FAIL: expected 3 loaded, got: $loaded"; exit 1; }
-grep -q 'EPorner (4)' <<<"$loaded" || { echo "FAIL: versioned name not captured"; exit 1; }
-grep -q 'HQPorner' <<<"$loaded" || { echo "FAIL: plain name not captured"; exit 1; }
-grep -q 'Eroticmv.cs3' <<<"$loaded" || { echo "FAIL: tag-form line not captured"; exit 1; }
+# Stems, not raw log names: the version suffix and `.cs3` are display detail, and every
+# comparison (`unsettled`, `failing_stems`) has to speak the same vocabulary as the expected
+# plugin list. A raw `EPorner (4)` can never equal the expected stem `EPorner` exactly.
+grep -qx 'EPorner' <<<"$loaded" || { echo "FAIL: versioned name not normalised to its stem: $loaded"; exit 1; }
+grep -qx 'HQPorner' <<<"$loaded" || { echo "FAIL: plain name not captured"; exit 1; }
+grep -qx 'Eroticmv' <<<"$loaded" || { echo "FAIL: tag-form .cs3 name not normalised: $loaded"; exit 1; }
 
 failed=$(extract_failed "$tmp/sample.log")
 [[ $failed == $'Javseen\nMissAV' ]] || { echo "FAIL: failed names '$failed' != Javseen+MissAV"; exit 1; }
@@ -89,6 +92,58 @@ unsettled "$tmp/sample.log" "$tmp/expected.txt" | grep -qx 'ixiporn' \
 : > "$tmp/none-expected.txt"
 [[ -z $(unsettled "$tmp/sample.log" "$tmp/none-expected.txt") ]] || { echo "FAIL: no expected plugins means nothing unsettled"; exit 1; }
 
+# Whole-name matching, not substring (review finding): `MissAV` is not settled by a verdict
+# naming `MissAVX`, and a versioned loaded name still settles its own stem. Substring matching
+# attributes silence to the wrong plugin, which is how a provider gets named for a stall.
+cat > "$tmp/overlap.log" <<'EOF'
+12-25 04:41:07.100 I/PluginManager( 4355): Loaded plugin MissAVX successfully
+12-25 04:41:08.100 I/PluginManager( 4355): Loaded plugin EPorner (4) successfully
+EOF
+printf 'MissAV\nMissAVX\nEPorner\n' > "$tmp/overlap-expected.txt"
+overlap=$(unsettled "$tmp/overlap.log" "$tmp/overlap-expected.txt")
+[[ $overlap == MissAV ]] || { echo "FAIL: exact matching must leave only MissAV unsettled, got '$overlap'"; exit 1; }
+
+# Success wins over a failure line for the same plugin (review finding on final-buffer
+# recovery): a retried first attempt, or the same line seen by both the live reader and the
+# final dump, must not keep a plugin in the failing set after it loaded.
+cat > "$tmp/transient.log" <<'EOF'
+12-25 04:41:07.000 E/PluginManager( 4355): Failed to load /x/EPorner.cs3: java.lang.IllegalStateException
+12-25 04:41:07.100 I/PluginManager( 4355): Loaded plugin EPorner.cs3 successfully
+12-25 04:41:08.000 E/PluginManager( 4355): Failed to load plugin  MissAV.cs3: No manifest found
+EOF
+printf 'EPorner\nMissAV\n' > "$tmp/transient-expected.txt"
+failing=$(failing_stems "$tmp/transient.log")
+[[ $failing == MissAV ]] || { echo "FAIL: a loaded plugin must not stay failed, got '$failing'"; exit 1; }
+[[ $(verdict_outcome "$tmp/transient.log" "$tmp/transient-expected.txt") == failed ]] \
+  || { echo "FAIL: a remaining named failure must read as failed"; exit 1; }
+
+# The round-level outcome ends the ambiguity between a lagging live reader and a bad round.
+# A timed-out live stream whose final buffer dump recovered every verdict is a PASS; a stall
+# (no verdict for an expected plugin) is `stalled`, never `failed`; a named failure is `failed`.
+cat > "$tmp/all-loaded.log" <<'EOF'
+12-25 04:41:07.100 I/PluginManager( 4355): Loaded plugin EPorner successfully
+12-25 04:41:07.200 I/PluginManager( 4355): Loaded plugin MissAV successfully
+EOF
+printf 'EPorner\nMissAV\n' > "$tmp/all-expected.txt"
+[[ $(verdict_outcome "$tmp/all-loaded.log" "$tmp/all-expected.txt") == pass ]] \
+  || { echo "FAIL: all verdicts recovered must be a pass regardless of reader latency"; exit 1; }
+[[ $(verdict_outcome "$tmp/all-loaded.log" "$tmp/expected.txt") == stalled ]] \
+  || { echo "FAIL: a silent expected plugin must read as stalled, not failed"; exit 1; }
+[[ $(verdict_outcome "$tmp/transient.log" "$tmp/transient-expected.txt") == failed ]] \
+  || { echo "FAIL: a named failure must read as failed"; exit 1; }
+
+# Union of live stream and final buffer: a verdict missing from the live reader but present in
+# the buffer is recovered, so the round still passes (the second silent-loss path #1545 closes).
+cat > "$tmp/live.log" <<'EOF'
+12-25 04:41:07.100 I/PluginManager( 4355): Loaded plugin EPorner successfully
+EOF
+cat > "$tmp/buffers.log" <<'EOF'
+12-25 04:41:07.200 I/PluginManager( 4355): Loaded plugin MissAV successfully
+EOF
+cat "$tmp/live.log" "$tmp/buffers.log" > "$tmp/union.log"
+[[ $(verdict_outcome "$tmp/union.log" "$tmp/all-expected.txt") == pass ]] \
+  || { echo "FAIL: buffer recovery must settle a verdict the live reader missed"; exit 1; }
+
 # A round that ends in a crash explains its own silence; the unattributable note says so instead
 # of implying the emulator wedged. `Process: <pkg>, PID: …` is the header line ART prints with
 # FATAL EXCEPTION (and in ANR traces), so matching the package identifies *this* app's death.
@@ -101,4 +156,23 @@ crashed "$tmp/crash.log" com.lagradost.cloudstream3.prerelease || { echo "FAIL: 
 crashed "$tmp/crash.log" com.example.other && { echo "FAIL: another process's crash is not this app's"; exit 1; }
 crashed "$tmp/progress.log" com.lagradost.cloudstream3.prerelease && { echo "FAIL: clean log flagged as crashed"; exit 1; }
 
+# A `Process: <pkg>, PID:` line on its own is how a process listing reads, not a death
+# (review finding): require the crash/ANR marker before claiming the app died. An ANR line
+# names the package directly and is its own evidence.
+cat > "$tmp/process-list.log" <<'EOF'
+12-25 04:41:09.000 I/ActivityManager(  519): Process: com.lagradost.cloudstream3.prerelease, PID: 4355
+EOF
+crashed "$tmp/process-list.log" com.lagradost.cloudstream3.prerelease \
+  && { echo "FAIL: a process-list entry is not a crash"; exit 1; }
+cat > "$tmp/anr.log" <<'EOF'
+12-25 04:41:09.000 E/ActivityManager(  519): ANR in com.lagradost.cloudstream3.prerelease (com.lagradost.cloudstream3.prerelease/.MainActivity)
+EOF
+crashed "$tmp/anr.log" com.lagradost.cloudstream3.prerelease || { echo "FAIL: ANR not detected as a crash"; exit 1; }
+crashed "$tmp/anr.log" com.example.other && { echo "FAIL: another package's ANR is not this app's"; exit 1; }
+
 echo "parse-log tests PASSED"
+
+# The digest is the human-facing half of the same contract: a stalled plugin must never be
+# folded into "failing" (that restates the #1545 misattribution) or hidden (a red step reading
+# clean). Its own self-check lives beside this one.
+bash "$(dirname "$0")/test-lane-digest.sh"
