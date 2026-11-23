@@ -168,6 +168,90 @@ class PornHubSearchParseTest {
         assertEquals(emptyList<Any>(), provider.parseVideoCards(html, search = true))
     }
 
+    // ---- S2 of #1524: the three structural guards on the search stop rule (FINDINGS
+    // §Pagination (search)). Each is asserted at the pure Parse seam — no HTTP mocking.
+
+    @Test fun `the search stop is page-scoped so a blank body cannot page for ever`() {
+        // Guard 1: a blank body carries no evidence. Page 1 keeps the search open (a transport
+        // hiccup must not end it); past page 1 the same blank body stops it, so a site that
+        // answers blank bodies can never leave the search with an endless "next" (the same
+        // page-scoped shape `Parse.homeHasNext` uses, FINDINGS §Pagination (home)).
+        assertTrue("a blank page-1 body keeps the search open", Parse.searchHasNext("", 1))
+        assertTrue("a whitespace-only page-1 body is the same case",
+            Parse.searchHasNext(" \n\t ", 1))
+        assertFalse("a blank page-2 body stops the search", Parse.searchHasNext("", 2))
+        assertFalse("whitespace-only past page 1 does too", Parse.searchHasNext(" \n\t ", 3))
+        // A real body still follows the site's own signals on every page.
+        assertTrue("page 1 announces page 2",
+            Parse.searchHasNext(fixture("search-page-1.html"), 1))
+        assertTrue("page 2 announces page 3",
+            Parse.searchHasNext(fixture("search-page-2.html"), 2))
+        assertFalse("the last reachable page stops at page 100",
+            Parse.searchHasNext(fixture("search-last-page.html"), 100))
+        assertFalse("the no-results 404 stops the search",
+            Parse.searchHasNext(fixture("search-no-results.html"), 1))
+    }
+
+    @Test fun `a head-less but paginated body keeps the search open`() {
+        // Guard 2: the M1′ shape S1 measured drops the head's `link rel=next` while the result
+        // block stays; a body whose pagination block still advertises a page beyond the one
+        // requested must keep paging instead of silently ending the search (FINDINGS
+        // §Pagination (search), S1 of #1524).
+        val headNext = """<link rel="next" href="https://www.pornhub.com/video/search?search=george+uhl&amp;page=2" />"""
+        val page1 = fixture("search-page-1.html")
+        assertTrue("the page-1 fixture must carry the head signal to strip",
+            page1.contains(headNext))
+        // The repo's page-1 capture is trimmed to head lines + result block, so the verbatim
+        // `div.pagination3` block captured on the last-page response stands in for the block the
+        // live page-1 body carries; the guard reads only "advertises a page beyond the request".
+        val pagination = fixture("search-last-page.html").substringAfterLast("-->")
+        assertTrue("the transplanted block is the pagination shape",
+            pagination.contains("pagination3"))
+        val headless = page1.replace(headNext, "") + pagination
+        assertFalse("the head signal alone would end the search", Parse.hasNextPage(headless))
+        assertTrue("the pagination block keeps the search open",
+            Parse.searchHasNext(headless, 1))
+        // The asymmetry the guard turns on: the same "no rel=next, page_next disabled, empty
+        // href" block is a stop when the request already is the page it advertises.
+        assertFalse("the last reachable page still stops at page 100",
+            Parse.searchHasNext(fixture("search-last-page.html"), 100))
+    }
+
+    @Test fun `the pagination backstop reads the numbered links beyond the request`() {
+        // The focused form of guard 2: no head signal, no `page_next` anchor at all — the only
+        // evidence of a further page is a numbered link beyond the one requested. Attribute
+        // values arrive entity-decoded (`&amp;` → `&`), which this shape also pins.
+        val html = """<html><head><title>Pornhub</title></head><body>
+            <div class="pagination3"><ul>
+                <li class="page_number"><a class="greyButton"
+                    href="/video/search?search=teen&amp;page=4">4</a></li>
+                <li class="page_current"><span class="greyButton">5</span></li>
+                <li class="page_number"><a class="greyButton"
+                    href="/video/search?search=teen&amp;page=6">6</a></li>
+            </ul></div></body></html>"""
+        assertFalse("no head signal and no enabled Next anchor", Parse.hasNextPage(html))
+        assertTrue("page 6 is advertised beyond page 5", Parse.searchHasNext(html, 5))
+        assertFalse("nothing is advertised beyond page 6", Parse.searchHasNext(html, 6))
+    }
+
+    @Test fun `a page echo stops the search instead of replaying duplicates`() {
+        // Guard 3: the site can ignore `page=N` and re-serve page 1. A page-1 body carries
+        // `rel=next`, so the head signal alone would keep the app replaying page 1 for ever;
+        // the body's own canonical page marker is what ends it (the duplicate loop class this
+        // repo already hit on EPorner, #537). Fixture: the page-2 body re-captured at the
+        // page-1 canonical — the synthesis models exactly "asked page 2, answered page 1".
+        val page2 = fixture("search-page-2.html")
+        val canonical2 = """<link rel="canonical" href="https://www.pornhub.com/video/search?search=george+uhl&page=2" />"""
+        val canonical1 = """<link rel="canonical" href="https://www.pornhub.com/video/search?search=george+uhl" />"""
+        assertTrue("the page-2 fixture must carry its own canonical page marker",
+            page2.contains(canonical2))
+        val echoed = page2.replace(canonical2, canonical1)
+        assertTrue("the echo still announces a next page", Parse.hasNextPage(echoed))
+        assertFalse("a page-1 canonical answering page 2 is an echo",
+            Parse.searchHasNext(echoed, 2))
+        assertTrue("the untouched page-2 body keeps paging", Parse.searchHasNext(page2, 2))
+    }
+
     @Test fun `search urls encode the query the way the site canonicalises it`() {
         assertEquals("$BASE/video/search?search=teen", Parse.searchUrl("teen", 1))
         assertEquals("$BASE/video/search?search=teen&page=2", Parse.searchUrl("teen", 2))

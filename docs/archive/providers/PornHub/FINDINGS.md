@@ -67,6 +67,16 @@ page 1 on a gated egress), no provider defect**; the missing mark-up and the las
 discriminator are handed to S2 as the guard-2 fixture. Read §Pagination (search) before changing
 the search stop rule.
 
+**Addendum — S2 of the #1524 search-stop spec (2026-11-23).** The search stop is now three
+guards at the pure `Parse` seam — `Parse.searchHasNext(html, page)`, wired into
+`MainAPI.search`: (1) a page-scoped blank-body fallback (page 1 keeps the search open, past
+page 1 stops it) mirroring `homeHasNext`; (2) a pagination-block backstop — a head-less body
+whose `div.pagination3` still advertises a page beyond the one requested keeps paging (the M1′
+shape S1 measured); (3) a page-echo guard — a canonical page marker earlier than the requested
+page ends the search instead of replaying duplicates (the EPorner #537 class).
+`Parse.hasNextPage` keeps its head-signal semantics and home keeps `Parse.homeHasNext`; read
+§Pagination (search) and §Verification note (S2 of #1524) before touching the stop rule.
+
 ## Engine fingerprint
 
 **Custom proprietary platform** (PornHub's own stack — not KVS/Kernel, not a WP video theme).
@@ -416,10 +426,19 @@ constant fallback, page-scoped: an empty body past page 1 stops the row — FIND
   (`Parse.searchUrl` reuses `Parse.pageUrl`).
 - Page 2 is fresh: 43 cards, **0 shared viewkeys** with page 1 (transcript below).
 - Page 1 carries ad slots (`li.sniperModeEngaged`, 31 real cards); every page 2+ has 43.
-- Signal: the site's own `<link rel="next" href="…&page=N+1">` in `<head>`, with
-  `div.pagination3 li.page_next a[href]` (same href) as the backstop. Both are **absent /
-  disabled on the last reachable page** and on the 404 no-results response, so `hasNext` is
-  derived, never a constant (`Parse.hasNextPage`).
+- **Signal — derived, never a constant (S2 of #1490, hardened by S2 of #1524):** the site's own
+  `<link rel="next" href="…&page=N+1">` in `<head>`, with
+  `div.pagination3 li.page_next a[href]` (same href) as the backstop — both **absent / disabled
+  on the last reachable page** and on the 404 no-results response (`Parse.hasNextPage`).
+  `Parse.searchHasNext(html, page)` wraps that with the three S2-of-#1524 guards, in order:
+  1. **page-scoped blank body** — page 1 stays open, past page 1 stops (`homeHasNext`'s shape);
+  2. **page echo** — a `<link rel="canonical">` page earlier than the requested one means the
+     site ignored `page=N`; stop even though the re-served body carries `rel=next`;
+  3. **pagination-block backstop** — with the head signal gone, a `div.pagination3` block that
+     advertises a page **beyond** the one requested keeps the search open; a block advertising
+     nothing beyond it (the `page_next disabled` last page, or a page's own current marker)
+     does not. The M1′ body S1 measured (`pagination3` absent entirely) therefore still stops,
+     which is the correct answer for its measured 404 page 2.
 - Which page is last depends on the query's result count: `search=teen` reports
   `resultsCount: 320365` in `page_params.VIDEOS_FILTER` and still stops at **page 100**
   (43 cards, no `link rel=next`, `li.page_next disabled` with `href=""`). Page 101+ answers
@@ -744,6 +763,49 @@ pair to test on an ungated one, rather than a both/and on one cause.
 **Build gate (this run, unchanged tree):** `./gradlew PornHub:test` → **BUILD SUCCESSFUL**, 231
 tests / 0 failures across 30 suites; `./gradlew PornHub:make` → `PornHub.cs3` (171,675 B). The
 story adds no tests and changes no provider code.
+
+### Verification note (S2 of #1524 — search stop guards, 2026-11-23)
+
+Probed **2026-11-23 15:29–15:31 UTC** from the pipeline egress with `verify.sh`'s own
+cookie-less desktop Firefox UA. Unlike S1's gated run, this egress is **ungated**: every search
+page requested answered `200` with the full result block and pagination mark-up.
+
+```
+GET /video/search?search=george+uhl          -> 200  canonical page=1  rel_next=1  pagination3=1  cards=31  distinct vkeys=32
+GET /video/search?search=george+uhl&page=2   -> 200  canonical page=2  rel_next=1  pagination3=1  cards=43  distinct vkeys=44  shared with p1=0
+GET /video/search?search=teen                -> 200  canonical page=1  rel_next=1  pagination3=1  cards=31  distinct vkeys=32
+GET /video/search?search=teen&page=2         -> 200  canonical page=2  rel_next=1  pagination3=1  cards=43  distinct vkeys=44  shared with p1=0
+GET /video/search?search=teen&page=100       -> 200  canonical page=100 rel_next=0  pagination3=1  current=100  page_next disabled
+GET /video/search?search=teen&page=101       -> 404  no canonical, no rel_next, no pagination3
+```
+
+`cards` counts `li.pcVideoListItem` inside `ul#videoSearchResult`; `distinct vkeys` counts
+`?viewkey=` occurrences in that block (a card links its viewkey twice). The distinct bar holds
+on both queries: **0 shared viewkeys** between page 1 and page 2, and 32 / 44 distinct per page.
+
+`verify.sh` (four search URLs, both home rows, one watch page with its own 1080p HLS leg as
+`--stream-url`, `--provider-src PornHub --load-response
+recommendations,tags,plot,duration,year,actors`):
+
+```
+── check 1: search pages (4)   all four GETs -> 200; 'ul#videoSearchResult li.pcVideoListItem' matches: 38 / 50 / 38 / 50
+   FAIL duplicate search cards … href /view_video.php   ← documented url_path plateau (§Verification (S4))
+── check 1a: homepage pages (2)  /video -> 200 (matches 45); /video?page=2 -> 200 (matches 57)
+   FAIL duplicate home cards …   ← same plateau
+── check 2: video page (1)     viewkey=676ac3c466bb6 -> 200; 'div#player' matches: 3; stream -> 206 application/vnd.apple.mpegurl
+── check 5: search ↔ load agreement  FAIL title/poster mismatch  ← same plateau (one stripped path, global comparison)
+── check 6: LoadResponse completeness  recommendations/tags/plot/duration/year/actors all populated
+RESULT: FAIL
+```
+
+Every `FAIL` is the documented `url_path`-strips-`?viewkey=` instrument plateau (§Verification
+(S4)), not drift; the viewkey-keyed transcript above is the authoritative distinct-bar evidence.
+The `matches:` numbers are global, not container-scoped (FINDINGS §Verification (S4)).
+
+**Build gate:** `./gradlew PornHub:test` → **BUILD SUCCESSFUL**, 235 tests / 0 failures across
+30 suites (the three guards add 4 tests: page-scoped blank body, head-less-but-paginated body,
+numbered-link backstop, page echo); `./gradlew PornHub:make` → `PornHub.cs3` (172,459 B). No
+version bump in this story (S3 owns the release marker).
 
 ### Related videos
 

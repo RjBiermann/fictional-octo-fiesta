@@ -28,6 +28,7 @@ import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.net.URLEncoder
 
@@ -116,8 +117,9 @@ object Parse {
      * query, where `li.page_next` is `disabled` with an empty href) and on the 404 no-results
      * response — never a constant (FINDINGS §Pagination (search)).
      */
-    fun hasNextPage(html: String): Boolean {
-        val doc = Jsoup.parse(html, BASE)
+    fun hasNextPage(html: String): Boolean = hasNextPage(Jsoup.parse(html, BASE))
+
+    private fun hasNextPage(doc: Document): Boolean {
         if (doc.selectFirst("link[rel=next]") != null) return true
         val next = doc.selectFirst("li.page_next:not(.disabled) a[href]") ?: return false
         return next.attr("href").isNotBlank()
@@ -138,6 +140,60 @@ object Parse {
      */
     fun homeHasNext(html: String, page: Int = 1): Boolean =
         if (html.isBlank()) page == 1 else hasNextPage(html)
+
+    /**
+     * Search stop rule (S2 of #1524): three independent guards over the same seams [hasNextPage]
+     * reads, each derived from the site's own mark-up — never a constant (FINDINGS
+     * §Pagination (search)).
+     *
+     * 1. **Page-scoped blank body** — a blank body carries no evidence. Page 1 keeps the search
+     *    open (a transport hiccup must not end it); past page 1 the same blank body means
+     *    "nothing left to show" and stops it, exactly like [homeHasNext].
+     * 2. **Page echo** — when the body's own `<link rel="canonical">` names an earlier page than
+     *    the one requested, the site ignored `page=N` and re-served that page. It stops the
+     *    search even though the re-served body still carries `rel=next`; otherwise the app would
+     *    replay the same page for ever (the duplicate-loop class this repo hit on EPorner, #537).
+     * 3. **Pagination-block backstop** — with the head `rel=next` absent (the M1′ shape S1 of
+     *    #1524 measured), a `div.pagination3` block that still advertises a page beyond the one
+     *    requested keeps the search open. A block that advertises nothing beyond it — the
+     *    `page_next disabled` last reachable page, or no block at all — still stops.
+     */
+    fun searchHasNext(html: String, page: Int = 1): Boolean {
+        if (html.isBlank()) return page == 1
+        val doc = Jsoup.parse(html, BASE)
+        val canonical = canonicalPage(doc)
+        if (page > 1 && canonical != null && canonical < page) return false
+        return hasNextPage(doc) || advertisedPage(doc) > page
+    }
+
+    /**
+     * The page a response says it is: the `page` argument of its own `<link rel="canonical">`
+     * (page 1 carries none). Null when the body has no canonical — no evidence, never an echo.
+     */
+    private fun canonicalPage(doc: Document): Int? {
+        val href = doc.selectFirst("link[rel=canonical]")?.attr("href")?.trim()
+        if (href.isNullOrEmpty()) return null
+        return pageArgument(href)
+    }
+
+    /** `page=N` in [url] (1 when absent or unusable, like the site's own page-1 URLs). */
+    private fun pageArgument(url: String): Int {
+        val raw = Regex("""[?&]page=([^&#]*)""").find(url)?.groupValues?.get(1) ?: return 1
+        return raw.toIntOrNull() ?: 1
+    }
+
+    /**
+     * Highest page the body's own `div.pagination3` block advertises — its numbered page links
+     * plus the current-page marker (0 when the body carries no block). The block is **absent** on
+     * the M1′ body and **`disabled`/at the current page** on a reachable last page; that asymmetry
+     * is what [searchHasNext]'s backstop reads (FINDINGS §Pagination (search)).
+     */
+    private fun advertisedPage(doc: Document): Int {
+        val block = doc.selectFirst("div.pagination3") ?: return 0
+        val pages = block.select("a[href]").map { pageArgument(it.attr("href")) } +
+            block.select("li.page_current").mapNotNull { it.text().trim().toIntOrNull() }
+        return pages.maxOrNull() ?: 0
+    }
 
     /** Watch-page metadata. [related] is empty when the page exposes no related block. */
     data class VideoDetails(
@@ -395,7 +451,9 @@ class PornHub : MainAPI() {
         val html = app.get(Parse.searchUrl(query, page)).text
         return newSearchResponseList(
             parseVideoCards(html, search = true),
-            hasNext = Parse.hasNextPage(html), // the site's own rel=next, never a constant
+            // The three guards of FINDINGS §Pagination (search): blank-body scope, page echo,
+            // then the site's own signals with the pagination-block backstop.
+            hasNext = Parse.searchHasNext(html, page),
         )
     }
 
