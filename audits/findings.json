@@ -461,6 +461,18 @@
           "verification": "verify.sh PASS over 6 video pages / 6 distinct streams (3 mp4 206 video/mp4, 3 HLS master 200 application/vnd.apple.mpegurl, incl. both src-only legs the old regex dropped); search p1+p2 60+60 cards clean on the delivered draw; home / + /2/ 66+60; related 24-30/page with no self-reference; tags + duration exposed on all 6 pages; code completeness for recommendations/tags/plot/duration/year/actors. Caveat recorded in FINDINGS: the site re-samples listing pages per request, so the cross-page zero-duplicate check is draw-dependent (6 consecutive cowgirl draws failed on 1-3 rotating cards first); check 5 not exercised by the tool (random draw) - card<->load title/poster agreement proven directly in FINDINGS."
         }
       ]
+    },
+    {
+      "id": "run1450",
+      "issue": 1450,
+      "date": "2026-11-23",
+      "kind": "video-source audit (S12 of #1354)",
+      "verdict": "ok-drift",
+      "tier": "plain-curl",
+      "escalation_tier": "unavailable",
+      "canaries": "eporner-healthy 200 match; pandamovies-redirect-origin plain-curl 302 -> pandamovies.org (plain-tier match, follow 403 challenge); film1k-challenge-pair plain-curl 200 vs expected 403 = expectation-stale (#1435 open, no environment-degraded branch)",
+      "findings_filed": 0,
+      "false_positives": []
     }
   ],
   "providers": {
@@ -760,18 +772,25 @@
     "Javmost": {
       "site": "www.javmost.ws",
       "verdict": "ok-drift",
-      "reason": "P1 confirmed drift fixed 2026-10-16 (#640): dooplayer/mostplayer embed service healed but the provider's x-embed branch had been cut at #332/#376 \u2014 doo-hosted pages emitted 0 links since then; branch restored host-agnostically (metas-keyed contract) + select_part parent/child fix. 480 pagination condition cleared, re-probed disjoint. emturbovid suspected runner-IP artifact.",
+      "reason": "S12 video-source deep pass 2026-11-23 (#1450, plain curl, #1434 escalation unavailable). 6 listing surfaces probed; 'old' is ABSENT as a type (/release/old/ and /release/all/ silently serve New Release, /old/ 404, ?order=old / ?order=asc / ?sort=old ignored, /category/all/old/ 200 with 0 cards, showlist2/old answers the latest feed). 13 evidence rows (>=2 per present type, both catalogue ends where pageable); doo/mostplayer m3u8 chain resolved end-to-end 200/206 with #EXTM3U; m3u8 hosts require the embed Referer. ONE CONFIRMED DEFECT FIXED THIS RUN (v27 -> v28), TDD red->green: the /ri3123o235r/ AJAX data[] array can return the HLS stream itself instead of an embed page (SPS-016 jl77.boldpureheart.site/.../v.m3u8; NHDTB-715 ek9n.aubrey-store.site/.../v.m3u8), and loadLinks treated every target as an embed -> 0 links. New pure Parse.isDirectHls (path-only, HLS only; a dood ...file.mp4 embed page stays on the registry path) emits the target as an M3U8 ExtractorLink before the emturbovid/doo branches. Direct hosts answer Cloudflare 403 from the runner (Suspected, #1434) and /AV-164/ (last censor page) media is site-side dead ('403 Media unavailable'); emturbovid TCP-refused and voe DDoS-Guard 403 are runner artifacts; playersb (ad lander) and javpoll (DNS/TCP dead) are dead sources, not unsupported adapters. No findings filed; false positives none. verify.sh PASS on 6 live videos (m3u8 200 / mp4 206), 219 test executions 0 failures.",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200 (p1/p2/p3 disjoint, all four rows)",
-        "search": "200 (24/page, disjoint)",
-        "video": "200 (doo+emturbovid rows; emturbovid TCP-dead from probe IP \u2014 suspected)"
+        "home": "200 /category/all/page/1/ 24 cards; /category/all/page/2/ 24; catalogue tail /category/all/page/13821/ 6 cards",
+        "search": "200 /search/milf/ 24 cards + /search/milf/page/2/ 24 cards; provider JSON feed /showlist2/<q>/<page>/search/",
+        "video": "200 x13; doo/mostplayer x-embed dominant; direct-HLS targets on SPS-016 and NHDTB-715 (fixed)",
+        "stream": "doo mostplayer m3u8 200 application/vnd.apple.mpegurl (single media playlist, no RESOLUTION); mp4 206 video/mp4; m3u8 needs Referer (embed host)",
+        "quickSearch": "no distinct endpoint (delegates to search)",
+        "categories": "200 /category/censor/ p1 .. page/4000/ last (page/5000/ 200, 0 cards); /category/uncensor/ p1",
+        "genres": "200 /category/Solowork/ p1 .. page/1500/ far end",
+        "tags": "200 /tag/debut/ 24 cards; /tag/debut/page/2/ 410 Gone (not pageable)",
+        "old": "absent (/release/old/ + /release/all/ silently fall back to New Release; /old/ 404; ?order=old / ?order=asc / ?sort=old ignored; /category/all/old/ 200 0 cards)"
       },
       "issue": null,
       "standing_issue": null,
-      "drift_confirmed": 2,
+      "drift_confirmed": 3,
       "chronic": false,
-      "last_deep": "2026-10-16"
+      "last_deep": "2026-11-23",
+      "suspected_excluded": []
     },
     "Javseen": {
       "site": "javseen.tv",
