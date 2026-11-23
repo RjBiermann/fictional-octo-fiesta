@@ -567,11 +567,11 @@ def merge_readiness():
         # computing (the FIRST GET returns u and warms the cache — this
         # fetch is the warm one). Clear only on definitive not-dirty states.
         if "status/conflict" in labels and mstate in ("blocked", "clean", "unstable"):
-            out = run(["gh", "api", "-X", "DELETE",
-                       f"repos/{REPO}/issues/{num}/labels/status/conflict"])
+            rc, _ = run(["gh", "api", "-X", "DELETE",
+                         f"repos/{REPO}/issues/{num}/labels/status%2Fconflict"])
             print(f"[orchestrator] PR #{num}: stale status/conflict label "
-                  f"cleared (state={mstate})" if out == "" else
-                  f"[orchestrator] PR #{num}: status/conflict clear rc!=0")
+                  f"cleared (state={mstate})" if rc == 0 else
+                  f"[orchestrator] PR #{num}: status/conflict clear rc={rc} — retry next sweep")
         thread = api(f"issues/{num}/comments?per_page=100")
         if thread is None:
             # unreadable thread: readiness must not read that as "no findings"
@@ -1935,10 +1935,17 @@ def _merge_tree(branch):
 def _conflict_files(branch):
     """Conflict file set when merging main into branch (no worktree)."""
     rc, _, names = _merge_tree(branch)
-    if rc != 1:
+    if rc == 1:
+        print(f"[orchestrator] merge-tree rc=1 for {branch}: {sorted(names)}")
+        return names
+    if rc == 0:
         return frozenset()
-    print(f"[orchestrator] merge-tree rc=1 for {branch}: {sorted(names)}")
-    return names
+    # rc>=2 is a git error / missing ref / shallow checkout: the conflict
+    # state is UNKNOWN. Returning an empty set here read as "conflict gone",
+    # which deleted status/conflict and skipped the 14-rebase handoff on a
+    # conflict that was still live.
+    print(f"[orchestrator] merge-tree rc={rc} for {branch}: conflict state unknown")
+    return None
 
 
 VERSION_RE = re.compile(r"^\s*version\s*=\s*(\d+)\s*(?://.*)?$", re.M)
@@ -2076,11 +2083,15 @@ def conflict_watch():
         if "status/conflict" in label_map.get(num, set()):
             _pl(["git", "fetch", "origin", branch])
             files = _conflict_files(branch)
+            if files is None:
+                continue          # merge-tree unreadable: never read as "gone"
             if not files:
-                run(["gh", "api", "-X", "DELETE",
-                     f"repos/{REPO}/issues/{num}/labels/status/conflict"])
+                rc, _ = run(["gh", "api", "-X", "DELETE",
+                             f"repos/{REPO}/issues/{num}/labels/status%2Fconflict"])
                 print(f"[orchestrator] PR #{num}: conflict gone per local "
-                      f"merge-tree — status/conflict label cleared")
+                      f"merge-tree — status/conflict label cleared" if rc == 0 else
+                      f"[orchestrator] PR #{num}: conflict gone but label "
+                      f"clear rc={rc} — retry next sweep")
                 continue
         d = api(f"pulls/{num}") or {}
         mstate = (d.get("mergeable_state") or "").lower()
@@ -2093,6 +2104,8 @@ def conflict_watch():
             continue
         _pl(["git", "fetch", "origin", branch])
         files = _conflict_files(branch)
+        if files is None:
+            continue          # merge-tree unreadable: keep the label, retry
         if not files and mstate == "unknown":
             continue          # cache-free read says clean
         # NB: "dirty" with an empty file set is NOT a no-op — that is the
@@ -2101,6 +2114,13 @@ def conflict_watch():
                          or any(f.endswith(suf) for suf in REGISTRY_VERSION_SUFFIXES)
                          for f in files):
             if _auto_resolve_conflict(branch):
+                # The merge commit went out with the checkout's GITHUB_TOKEN,
+                # so no `synchronize` event fires (loop prevention). That
+                # leaves a head newer than the verdict with no review run and
+                # no repair, and `_branch_moved_after` then reads the blocker
+                # as served — silently stranded. Re-review the new head
+                # explicitly (dispatch is the documented exception).
+                _fire_workflow("06-review.lock.yml", "pull_request", num)
                 continue
         # ADR-0019: the handoff needs no owner identity — the label is
         # display state and the fire is a workflow_dispatch (bot lane,
@@ -2276,7 +2296,12 @@ def _latest_verdict(thread):
     shape, again, on PR #1466).
     """
     for c in reversed(thread):
-        if (c.get("user") or {}).get("login") != "github-actions[bot]":
+        login = (c.get("user") or {}).get("login")
+        # ADR-0020 step 3: once 06 posts through the machinery App the verdict
+        # arrives as <slug>-machinery[bot], not github-actions[bot]. Read both
+        # here or both readiness and the fix surrogate go blind the day that
+        # `github-app:` block lands (05/07/14 already have it).
+        if login != "github-actions[bot]" and not _machinery_login(c):
             continue
         body = c.get("body") or ""
         if "fix-loop re-fired for the verdict at" in body:
@@ -2424,8 +2449,14 @@ def _repair_consumed(num, iso_ts, cs=None, pr=None):
     if owner and owner != num:
         # `since` keeps a long-lived story issue brief: only comments updated
         # after the verdict can belong to this repair round.
-        threads.append(api(f"issues/{owner}/comments?per_page=100&since={quote(iso_ts)}")
-                       or [])
+        owned = api(f"issues/{owner}/comments?per_page=100&since={quote(iso_ts)}")
+        if owned is None:
+            # Unreadable is unknown, not "not consumed" — the same rule the
+            # run-list read below applies. Failing open here re-fires a repair
+            # that already landed as a comment (#1482 shape) and ends in
+            # status/fixing-stuck on a repaired PR.
+            return True
+        threads.append(owned)
     evidence = _run_ids(threads)
     aborted = _run_ids(threads, abort_only=True)
     out = run(["gh", "run", "list", "--workflow", "07-fix-loop.lock.yml",
@@ -2541,11 +2572,19 @@ def fix_surrogate():
         # (shared cancel-in-progress group).
         fire_marker = f"{MARK} fix-loop re-fired for the verdict at {vtime}"
         markers = sum(1 for c in cs if fire_marker in (c.get("body") or ""))
-        if (dispatched or _repair_in_flight()
-                or _branch_moved_after(num, vtime)
-                or _repair_consumed(num, vtime, cs=cs, pr=pr)):
-            continue
+        # The escalation arm runs before the sweep-local dispatch budget:
+        # needing a human is a fact about this PR, not about whether an
+        # earlier PR in the same pass already spent the one dispatch. Sitting
+        # behind `dispatched` made the arm unreachable whenever any earlier
+        # PR had been served — the state that must page a human was the one
+        # most likely to stay silent. A live repair for THIS PR still
+        # suppresses it (that run may yet resolve the verdict), as does a
+        # served verdict.
         if markers >= 2:
+            if (_repair_in_flight()
+                    or _branch_moved_after(num, vtime)
+                    or _repair_consumed(num, vtime, cs=cs, pr=pr)):
+                continue
             plabels = {l.get("name") for l in (api(f"issues/{num}") or {}).get("labels", [])}
             if "status/fixing-stuck" not in plabels:
                 # same clearable set as 90-sweeper / 07 step 2 (#1405): an
@@ -2562,6 +2601,10 @@ def fix_surrogate():
                     run(["gh", "api", "-X", "DELETE",
                          f"repos/{REPO}/issues/{num}/labels/{quote(lb, safe='')}"])
                 print(f"[orchestrator] PR #{num}: 2 unserved fix-loop fires — status/fixing-stuck")
+            continue
+        if (dispatched or _repair_in_flight()
+                or _branch_moved_after(num, vtime)
+                or _repair_consumed(num, vtime, cs=cs, pr=pr)):
             continue
         post_comment(num, fire_marker + " — dispatch fires 07 (machine relay, ADR-0019)")
         ok = dispatch_ok(["gh", "workflow", "run", "07-fix-loop.lock.yml",

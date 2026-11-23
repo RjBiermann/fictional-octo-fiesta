@@ -719,6 +719,95 @@ class TestFixSurrogateDedupe(unittest.TestCase):
         self.assertTrue(any("status/fixing-stuck" in " ".join(c)
                             for c in cmds), cmds)
 
+    def test_served_verdict_is_not_escalated(self):
+        # Two markers but the branch moved after the verdict: a repair landed,
+        # so the cap must not stamp status/fixing-stuck on a served PR — the
+        # escalation arm now runs before the sweep budget, and this is the
+        # guard that keeps it from paging on resolved work.
+        posted, fired, cmds = self.run_surrogate(markers=2, branch_moved=True)
+        self.assertEqual(fired, [])
+        self.assertEqual(posted, [])
+        self.assertFalse(any("status/fixing-stuck" in " ".join(c)
+                             for c in cmds), cmds)
+
+
+class TestEscalationNotStarvedBySweepBudget(unittest.TestCase):
+    """The needs-human stamp must not wait on the sweep-local dispatch slot.
+
+    fix_surrogate dispatches at most one PR per pass, and the `markers >= 2`
+    arm used to sit behind that `dispatched` flag — so a PR that had already
+    burned its two fires stayed silent for as long as any *earlier* PR in the
+    same pass was dispatchable. Terminal needs-human state was the one thing
+    the ordering could starve."""
+
+    BLOCKER = "## Review\n\n**Verdict: blocker** — rows parse empty."
+
+    def test_second_pr_escalates_after_the_first_dispensed_the_dispatch(self):
+        def pr(num, branch):
+            return {"number": num,
+                    "user": {"login": "rjbiermann-machinery[bot]"},
+                    "head": {"ref": branch}}
+        first = pr(1401, "devloop/issue-1400-a")
+        second = pr(1411, "devloop/issue-1407-b")
+        marker_b = (f"{orchestrator.MARK} fix-loop re-fired for the verdict "
+                    "at 2026-11-18T23:49:02Z")
+        threads = {1401: [bot_comment(self.BLOCKER)],
+                   1411: [bot_comment(self.BLOCKER)] + [bot_comment(marker_b)] * 2}
+        fired, cmds = [], []
+
+        def fake_run(cmd, **kw):
+            if cmd[:3] == ["gh", "run", "list"]:
+                return "[]"
+            return cmds.append(cmd) or ""
+
+        with mock.patch.object(orchestrator, "open_pulls", lambda: [first, second]), \
+                mock.patch.object(orchestrator, "_fixable_pr", lambda p: True), \
+                mock.patch.object(orchestrator, "comments", lambda n: threads[n]), \
+                mock.patch.object(orchestrator, "_repair_in_flight", lambda: False), \
+                mock.patch.object(orchestrator, "_branch_moved_after",
+                                  lambda n, ts: False), \
+                mock.patch.object(orchestrator, "api_run_jobs", lambda rid: []), \
+                mock.patch.object(orchestrator, "api",
+                                  lambda path: [] if "comments" in path
+                                  else {"labels": []}), \
+                mock.patch.object(orchestrator, "post_comment", lambda n, b: None), \
+                mock.patch.object(orchestrator, "run", fake_run), \
+                mock.patch.object(orchestrator, "dispatch_ok",
+                                  lambda cmd, **kw: fired.append(cmd) or True):
+            orchestrator.fix_surrogate()
+        self.assertEqual(len(fired), 1, "only one PR may dispatch per sweep")
+        self.assertTrue(any("status/fixing-stuck" in " ".join(c) for c in cmds),
+                        "the starved PR must still be escalated")
+
+
+class TestRepairConsumedFailClosed(unittest.TestCase):
+    def test_unreadable_owner_thread_reads_as_unknown(self):
+        # An API failure on the story thread drops the comment-only-repair
+        # evidence (#1482 shape). Unknown must never read as "not consumed":
+        # that re-fires a repaired PR and ends in status/fixing-stuck.
+        pr = {"number": 1500,
+              "user": {"login": "rjbiermann-machinery[bot]"},
+              "head": {"ref": "devloop/issue-1448-abc"}}
+        with mock.patch.object(orchestrator, "comments", lambda n: []), \
+                mock.patch.object(orchestrator, "_pr_owner_issue", lambda p: 1448), \
+                mock.patch.object(orchestrator, "api", lambda path: None), \
+                mock.patch.object(orchestrator, "run", lambda cmd, **kw: "[]"):
+            self.assertTrue(orchestrator._repair_consumed(
+                1500, "2026-11-23T00:00:00Z", pr=pr))
+
+
+class TestVerdictAuthorIdentity(unittest.TestCase):
+    def test_machinery_app_verdict_is_read(self):
+        # ADR-0020 step 3: once 06 posts through the App the verdict arrives
+        # as <slug>-machinery[bot]. Reading only github-actions[bot] would
+        # blind both merge_readiness and fix_surrogate on that day.
+        c = {"body": "**Verdict: blocker** — x",
+             "created_at": "2026-11-23T00:00:00Z",
+             "user": {"login": "rjbiermann-machinery[bot]", "type": "Bot"}}
+        body, ts = orchestrator._latest_verdict([c])
+        self.assertEqual(body, c["body"])
+        self.assertEqual(ts, c["created_at"])
+
 
 class TestBranchMovedAfter(unittest.TestCase):
     def moved(self, commit_date):
