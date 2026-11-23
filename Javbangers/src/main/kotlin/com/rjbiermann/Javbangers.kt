@@ -100,14 +100,8 @@ class Javbangers : MainAPI() {
     ): Boolean {
         val html = app.get(data).document.html()
         val flash = html.substringAfter("flashvars = {").substringBefore("};")
-        // Shared grammar (audit finding 1); the http-anchor filter is Javbangers-specific:
-        // a non-url video_url value means a page this provider must not emit.
-        val sources = listOf("video_url", "video_alt_url").mapNotNull { key ->
-            KvsFlashvars.field(flash, key)?.takeIf { it.startsWith("http") }?.let { key to it }
-        }
-        for ((key, url) in sources) {
-            // quality label from video_url_text / video_alt_url_text
-            val label = KvsFlashvars.label(flash, key)
+        val sources = JavbangersParse.sources(flash)
+        for ((label, url) in sources) {
             callback(
                 newExtractorLink(
                     source = name,
@@ -130,6 +124,24 @@ class Javbangers : MainAPI() {
 // TDD for issue #297: video pages carry a Tags row (div.item starting "Tags:") whose
 // anchors have no href — the old categories-only selector never captured it.
 object JavbangersParse {
+    /**
+     * Stream renditions from a KVS flashvars block (issue #1451): every key in the shared
+     * [KvsFlashvars.URL_KEYS] list — `video_url`, `video_alt_url`, `video_alt_url2` — in
+     * key order (base → best), paired with the label the site exposes. The old hardcoded
+     * two-key list dropped `video_alt_url2` (1080p) on 18 of 29 file-bearing pages.
+     * Label = `<key>_text` caption when present, else the filename's `_NNNp` token; null
+     * (→ Unknown quality) when the site exposes neither.
+     *
+     * The http-anchor filter is Javbangers-specific: a non-url value (KVS encrypted /
+     * shifted shape) means a page this provider must not emit.
+     */
+    fun sources(flashvars: String): List<Pair<String?, String>> =
+        KvsFlashvars.URL_KEYS.mapNotNull { key ->
+            KvsFlashvars.field(flashvars, key)
+                ?.takeIf { it.startsWith("http") }
+                ?.let { KvsFlashvars.quality(flashvars, key) to it }
+        }
+
     /** Categories + Tags row merged, deduped, title-echo entries dropped. */
     fun tagsFromDetails(details: Element?, title: String?): List<String> {
         if (details == null) return emptyList()
