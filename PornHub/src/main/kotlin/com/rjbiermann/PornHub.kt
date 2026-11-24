@@ -30,7 +30,9 @@ import com.lagradost.cloudstream3.utils.newExtractorLink
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import java.net.URLDecoder
 import java.net.URLEncoder
+import java.text.Normalizer
 
 /**
  * Pure parsing for the /video listing cards (TDD-first, ADR-0005) — fixtures in
@@ -104,12 +106,50 @@ object Parse {
         if (page <= 1) base else "$base${if (base.contains("?")) "&" else "?"}page=$page"
 
     /**
-     * Search URL for [query] on [page]. Spaces become `+`, which is the form the site
-     * canonicalises to — a `%20` query answers 301 and costs a redirect round trip
-     * (FINDINGS §Search). Page 1 carries no `page` argument, exactly like the listing rows.
+     * The form the site's own 301 rewrites a search query to (FINDINGS §Query shapes): trim,
+     * lowercase, fold diacritics, turn `'` and `.` into spaces, collapse whitespace runs.
+     * Sending the normalised form up front keeps `&page=N` alive — the site's 301 **drops** the
+     * page argument, so an un-normalised query would silently re-serve page 1 past page 1.
+     *
+     * Deliberately not rewritten: `-`, `,`, `&`. Those belong to a different site response
+     * class (`404 Page Not Found`), so rewriting them would change what the user asked for.
+     */
+    fun normaliseQuery(query: String): String =
+        Normalizer.normalize(query.trim().lowercase(), Normalizer.Form.NFD)
+            .replace(Regex("""\p{M}+"""), "")
+            .replace('\'', ' ')
+            .replace('.', ' ')
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+
+    /**
+     * Search URL for [query] on [page]. [normaliseQuery] is applied first, so the request is
+     * never the shape the site 301s away; spaces become `+`, the canonical form (FINDINGS
+     * §Query shapes, §Search). Page 1 carries no `page` argument, exactly like the listing rows.
      */
     fun searchUrl(query: String, page: Int): String =
-        pageUrl(BASE + SEARCH_PATH + "?search=" + URLEncoder.encode(query.trim(), "UTF-8"), page)
+        pageUrl(
+            BASE + SEARCH_PATH + "?search=" + URLEncoder.encode(normaliseQuery(query), "UTF-8"),
+            page,
+        )
+
+    /**
+     * Retry query when [html] is a canonical **echo** — the site ignored `page=N` and re-served an
+     * earlier page (FINDINGS §Query shapes). Null on page 1, on a body whose canonical names the
+     * requested page, and on a body with no canonical at all.
+     *
+     * The retry query is the canonical's own `search=` value when it carries one (the `Teen` →
+     * `teen` shape); the `/pornstar/<slug>` canonical carries no `search=`, so the normalised
+     * request query is used instead (the `Riley+Reid` shape). The caller retries **once**, and
+     * [searchHasNext] reads the retried body — an echo on the retry still ends the search, so no
+     * loop is possible.
+     */
+    fun searchEchoTarget(html: String, page: Int, query: String): String? {
+        if (page <= 1) return null
+        val href = canonicalHref(Jsoup.parse(html, BASE)) ?: return null
+        if (pageArgument(href) >= page) return null
+        return searchArgument(href) ?: normaliseQuery(query)
+    }
 
     /**
      * Pagination signal: the site's own `<link rel="next">`, with the pagination block's enabled
@@ -174,20 +214,31 @@ object Parse {
         return hasNextPage(doc) || advertisedPage(doc) > page
     }
 
+    /** The body's own `<link rel="canonical">` href, or null when it carries none. */
+    private fun canonicalHref(doc: Document): String? =
+        doc.selectFirst("link[rel=canonical]")?.attr("href")?.trim()?.takeIf { it.isNotEmpty() }
+
     /**
-     * The page a response says it is: the `page` argument of its own `<link rel="canonical">`
-     * (page 1 carries none). Null when the body has no canonical — no evidence, never an echo.
+     * The page a response says it is: the `page` argument of its own canonical href (page 1
+     * carries none). Null when the body has no canonical — no evidence, never an echo.
      */
-    private fun canonicalPage(doc: Document): Int? {
-        val href = doc.selectFirst("link[rel=canonical]")?.attr("href")?.trim()
-        if (href.isNullOrEmpty()) return null
-        return pageArgument(href)
-    }
+    private fun canonicalPage(doc: Document): Int? =
+        canonicalHref(doc)?.let { pageArgument(it) }
 
     /** `page=N` in [url] (1 when absent or unusable, like the site's own page-1 URLs). */
     private fun pageArgument(url: String): Int {
         val raw = Regex("""[?&]page=([^&#]*)""").find(url)?.groupValues?.get(1) ?: return 1
         return raw.toIntOrNull() ?: 1
+    }
+
+    /** Decoded `search=` in [url], or null when the URL carries none (the `/pornstar/` shape). */
+    private fun searchArgument(url: String): String? {
+        val raw = Regex("""[?&]search=([^&#]*)""").find(url)?.groupValues?.get(1) ?: return null
+        return try {
+            URLDecoder.decode(raw, "UTF-8").trim().takeIf { it.isNotEmpty() }
+        } catch (e: Exception) {
+            null
+        }
     }
 
     /**
@@ -456,11 +507,18 @@ class PornHub : MainAPI() {
     }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
-        val html = app.get(Parse.searchUrl(query, page)).text
+        var html = app.get(Parse.searchUrl(query, page)).text
+        // At most one retry: a canonical echo means the site dropped `page=N` and re-served an
+        // earlier page, so re-request the normalised/canonical query once (FINDINGS §Query
+        // shapes). Cards and hasNext read the body actually used; an echo on the retry still
+        // stops the search at guard 2, so this cannot loop.
+        Parse.searchEchoTarget(html, page, query)?.let { target ->
+            html = app.get(Parse.searchUrl(target, page)).text
+        }
         return newSearchResponseList(
             parseVideoCards(html, search = true),
-            // The three guards of FINDINGS §Pagination (search): blank-body scope, page echo,
-            // then the site's own signals with the pagination-block backstop.
+            // The three guards of FINDINGS §Pagination (search): blank-body scope, page echo
+            // (on the body actually used), then the site's own signals with the block backstop.
             hasNext = Parse.searchHasNext(html, page),
         )
     }
