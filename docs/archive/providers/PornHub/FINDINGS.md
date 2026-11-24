@@ -83,8 +83,12 @@ marker for the S1 normalisation fix: the 6-query × 3-page live matrix (`Teen`, 
 — 6 queries × 3 pages**, with the out-of-scope `big-tits` → `Page Not Found` row, the
 `Riley Reid` pornstar-canonical page 1, and a user-facing note on normalisation. Every row
 answered 200 with its own canonical and fresh cards (0 shared viewkeys page-to-page), so no
-echo retry fired; `PornHub/build.gradle.kts` now reads `version = 15 // #1574: version bump
-(v15) — normalised search queries + echo retry`.
+echo retry fired. The release marker is the version-bump lane's, not a hand-written one (see the
+§S3-of-#1490 addendum): this branch landed a manual `version = 15 // #1574: …` comment, and the
+lane's own commit `5188722 chore(version): bump affected providers (#1586)` rewrote it to the
+marker the **merged tree** actually carries — **`version = 16 // #1586: version bump (v16)`**.
+`main` had already spent v15 (`version = 15 // #1578: version bump (v15)`), so the chain is
+**v15 (#1578) → v16 (#1586)**.
 
 **Addendum — S3 of the #1524 close-out spec (2026-11-23).** Release marker + durable record:
 `PornHub/build.gradle.kts` now carries **`version = 14 // #1524: version bump (v14)`**, so a
@@ -659,10 +663,14 @@ non-echo deeper page, no-loop); `./gradlew PornHub:make` → `PornHub.cs3` (174,
 non-Latin test was confirmed **red** on the legacy normaliser (`PornHubSearchQueryTest.
 non-Latin marks are lexical…`, `ComparisonFailure` at the `हिंदी` row) and green after the fix.
 
-**Version:** the story itself does not bump. `chore(version): bump affected providers (#1578)`
-raised `PornHub/build.gradle.kts` to `15` after the story landed; S2 lands the manual release
-marker — `version = 15 // #1574: version bump (v15) — normalised search queries + echo retry`
-(see §Acceptance matrix below).
+**Version:** `chore(version): bump affected providers (#1578)` had already raised
+`PornHub/build.gradle.kts` to `15` (`version = 15 // #1578: version bump (v15)`) before S2 was
+cut, and the version-bump lane owns that comment and rewrites it on every push — a hand-written
+marker here would not survive, which is exactly what the §S3-of-#1490 addendum above records.
+This branch did open with `version = 15 // #1574: …`; the lane's commit
+`5188722 chore(version): bump affected providers (#1586)` replaced it with the marker the merged
+tree carries, **`version = 16 // #1586: version bump (v16)`**. Chain: **v15 (#1578) → v16
+(#1586)** — a post-fix install is the v16 artefact (see §Acceptance matrix below).
 
 ### Acceptance matrix — 6 queries × 3 pages (S2 of #1574, 2026-11-24)
 
@@ -756,8 +764,9 @@ evidence. The stream leg needed **two page fetches**: the first watch-page fetch
 **Build gates:** `./gradlew PornHub:test` → **BUILD SUCCESSFUL**, 243 tests / 0 failures across
 31 suites (486 executions over the debug+release variants), no test changed by this story;
 `./gradlew PornHub:make` → `PornHub.cs3` (174,043 B) — the same artefact S1's build produced,
-which the marker comment cannot affect. This story's code diff is the `build.gradle.kts` version
-comment and this section; **no `Parse` behaviour changed**.
+which the marker comment cannot affect. This story's code diff is the version-bump lane's marker
+rewrite on `PornHub/build.gradle.kts` (`5188722`, v15 → v16) plus this section; **no `Parse`
+behaviour changed**.
 
 ### Search — reporter pagination (#1490 / #1494, 2026-11-22)
 
