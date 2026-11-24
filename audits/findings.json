@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "note": "Machine source of truth for the provider fleet audit. drift_confirmed counts only closed issues CONFIRMED as drift/broken (Suspected findings closed as false positives are exclusions, never occurrences). Audits update this file; the lint (scripts/check-findings.sh) must pass before delivery.",
-  "updated": "2026-10-18",
+  "updated": "2026-11-24",
   "last_runs": [
     {
       "id": "run1",
@@ -533,6 +533,22 @@
       "canaries": "eporner-healthy plain-curl 200 match (314111 B real homepage); pandamovies-redirect-origin plain-curl 302 -> pandamovies.org (plain-tier match); film1k-challenge-pair plain-curl 200 vs expected 403 = expectation-stale (#1435 open, live pair recorded, no environment-degraded branch); TLS tier unavailable (#1434) so no Blocked was possible from challenge evidence",
       "findings_filed": 0,
       "false_positives": []
+    },
+    {
+      "id": "run1439",
+      "date": "2026-11-21",
+      "pr": null,
+      "findings": [
+        {
+          "issue": 1439,
+          "provider": "HQPorner",
+          "verdict": "ok-drift",
+          "confirmed_drift_fixed": "hqwo.cc + www.flyflv.com player hosts had no dispatch path (zero links for ~33% of a 54-page census); shared Hqwo/FlyFlv rows + PLAYER_IFRAME selector, v25"
+        }
+      ],
+      "false_positives": [],
+      "escalation_tier": "unavailable",
+      "note": "run1439 (issue #1439, S1 of #1354 video-source leg; supersedes #1436's HQPorner half): 2 confirmed provider-side coverage conditions fixed in-run TDD-first (v24\u219225) \u2014 hqwo.cc had no HostRegistry row (prefix miss, fuzzy 71<80) and www.flyflv.com was never selected (fuzzy 78<80), so ~24%/~9% of the catalogue emitted zero links; fixed with shared Hqwo : MyDaddyExtractor + FlyFlv/FlyFlvParse rows, one PLAYER_IFRAME selector for loadLinks+playerPoster, emission-gated loadLinks. Post-fix streams 206 video/mp4 on every generation. genres absent site-side; old = catalogue tail (/hdporn/1374, no oldest-sort). Canaries: eporner 200 match, pandamovies 302\u2192.org match, film1k plain 200 expectation-stale (#1435), TLS tier unavailable (#1434) \u2192 escalation_tier unavailable; 0 Blocked. Gates: 147 tests green, clean make, verify.sh PASS x2 (referer-sensitive CDNs), check-findings PASS. 0 false positives this run (0 findings filed \u2014 conditions fixed in-run)."
     }
   ],
   "providers": {
@@ -785,20 +801,22 @@
     },
     "HQPorner": {
       "site": "hqporner.com",
-      "verdict": "ok",
-      "reason": "deep 2026-09-29: 67 rows, 55 p1/p2 fully disjoint, 12 with <=3 rotating featured repeats (benign); search p1/p2 disjoint; stream 206 via mydaddy embed (referer required); tags gap #527 filed 2026-10-09 (live /hdporn/<id> exposes tag set)",
+      "verdict": "ok-drift",
+      "reason": "VIDEO-SOURCE leg (S1, #1439) 2026-11-21: 2 confirmed conditions, both fixed in-run TDD-first (v24\u219225). (1) hqwo.cc player had no HostRegistry row \u2014 the older-upload host (13/54 sampled pages, 24%) serves the mydaddy template, but loadExtractor prefix dispatch missed and the Levenshtein fallback scored 71 (<80), so every older-upload tail (old listing, category ends, tag ends) emitted zero links; fixed with a shared Hqwo : MyDaddyExtractor row + pure MyDaddyParse. (2) www.flyflv.com player was never selected (5/54, 9%) \u2014 the iframe selector knew only mydaddy/hqwo and no row existed (fuzzy 78 < 80), zero links; fixed with PLAYER_IFRAME + shared FlyFlvParse/FlyFlv (source tags label 720p/360p; flyflv referer required \u2014 a hqporner referer 403s), and flyflv poster= now feeds PlayerPosterParse; loadLinks returns matched && sources > 0. Post-fix: new/top/category/tag samples 206 video/mp4 (mydaddy 360/720/1080, 2160 on 4K; hqwo 360/720; flyflv 720p/360p). genres absent site-side (categories+girls only; /genres,/genre/*,/tag/* 404); old has no dedicated sort \u2014 catalogue tail /hdporn/1374 sampled. Phase 0: eporner 200 match, pandamovies 302\u2192.org match, film1k plain 200 expectation-stale (#1435), TLS tier unavailable (#1434) \u2192 escalation_tier unavailable, 0 Blocked.",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200",
-        "search": "200",
-        "video": "200",
-        "stream": "206 video/mp4"
+        "home": "200 /top p1+p2 (row pagination; mainPage has no new/latest row)",
+        "search": "200 /?q=creampie p1+p2 (50/50 cards, no dup hrefs)",
+        "video": "200 x18 across new/old/popular/category/tag ends",
+        "stream": "mydaddy 206 video/mp4 360/720/1080 (+2160 4K); hqwo 206 360/720; flyflv 206 720p/360p",
+        "quick_search": "no distinct endpoint (hasQuickSearch=false)"
       },
-      "issue": null,
+      "issue": 1439,
       "standing_issue": null,
-      "drift_confirmed": 0,
+      "drift_confirmed": 2,
       "chronic": false,
-      "last_deep": "2026-09-29"
+      "last_deep": "2026-11-21",
+      "escalation_tier": "unavailable"
     },
     "JavGuru": {
       "site": "jav.guru",
