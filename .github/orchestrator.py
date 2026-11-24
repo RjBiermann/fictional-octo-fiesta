@@ -1811,6 +1811,16 @@ def _round_waiting_on(round_comment):
 
 
 # -------------------------------------------------------- transient watchdog
+# Diagnostic titles that are transient BY CONSTRUCTION: they name a skipped
+# run, not missing work. The daily-credit guardrail fails closed on a GitHub
+# API hiccup and gh-aw's own text says so ("the guardrail will retry
+# automatically on the next run; no action is required unless the failures
+# persist") — four of them (#1542, #1572, #1571, #1582) each needed a manual
+# NOT_PLANNED close because this list only knew the first two classes.
+TRANSIENT_DIAG_TITLES = ("no safe outputs", "reported incomplete",
+                         "could not verify daily AI credits")
+
+
 def watchdog():
     openi = api("issues?state=open&per_page=50") or []
     ml = []
@@ -1818,7 +1828,7 @@ def watchdog():
         t = i.get("title", "")
         if i.get("pull_request"):
             continue
-        if t.startswith("[aw]") and ("no safe outputs" in t or "reported incomplete" in t):
+        if t.startswith("[aw]") and any(x in t for x in TRANSIENT_DIAG_TITLES):
             ml.append((i["number"], i.get("created_at", "")))
     if not ml:
         return
@@ -1883,6 +1893,152 @@ def _registry_candidate(cs):
     return None
 
 
+# How far back a CLOSED issue is still scanned for a registry entry. An
+# entry posted during Implement was unioned only while its story stayed
+# open; 12-post-merge closes the story, so a sweep landing after the close
+# dropped the entry silently — five of eighteen delivered #1354 stories
+# left the registry stale (#1579). A window (not "all closed") keeps the
+# scan bounded and the applied-marker keeps it idempotent.
+REGISTRY_CLOSED_WINDOW_DAYS = 7
+# Bound on the closed-issue scan: the window is 7 days, so deeper pages only
+# matter under extraordinary churn. 10 pages = 500 threads.
+REGISTRY_CLOSED_MAX_PAGES = 10
+REGISTRY_CLOSED_PAGE_SIZE = 50
+
+
+def _registry_cutoff(now=None):
+    """Oldest `closed_at`/`updated_at` still inside the scan window."""
+    now = time.time() if now is None else now
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                         time.gmtime(now - REGISTRY_CLOSED_WINDOW_DAYS * 86400))
+
+
+def _registry_issue_set(openi, closedi, now=None):
+    """Open issues plus the ones closed inside the window."""
+    cutoff = _registry_cutoff(now)
+    out = [i for i in (openi or []) if "pull_request" not in i]
+    out += [i for i in (closedi or [])
+            if "pull_request" not in i and (i.get("closed_at") or "") >= cutoff]
+    return out
+
+
+def _registry_closed_issues(now=None, fetch=None):
+    """Closed issues inside the window, across pages.
+
+    The list is `sort=updated&direction=desc` because GitHub has no
+    server-side `closed_at` sort — and a single page of that order fills up
+    with OLD threads that were merely *updated* recently, dropping the
+    just-closed story this arm exists for (#1583 review). Pagination is
+    finite and safe: `closed_at <= updated_at`, so the first item older
+    than the cutoff proves every remaining page is older too."""
+    cutoff = _registry_cutoff(now)
+    fetch = fetch or api
+    out = []
+    for page in range(1, REGISTRY_CLOSED_MAX_PAGES + 1):
+        batch = fetch("issues?state=closed&sort=updated&direction=desc"
+                      f"&per_page={REGISTRY_CLOSED_PAGE_SIZE}&page={page}") or []
+        if not batch:
+            break
+        out += batch
+        if min((i.get("updated_at") or "") for i in batch) < cutoff:
+            break
+    return [i for i in out
+            if "pull_request" not in i and (i.get("closed_at") or "") >= cutoff]
+
+
+def _registry_entry_date(entry):
+    """Latest run date an entry carries ('' when it has no run record)."""
+    runs = [r.get("date") for r in ((entry or {}).get("last_runs") or [])
+            if isinstance(r, dict) and isinstance(r.get("date"), str)]
+    return max(runs) if runs else ""
+
+
+def _registry_flag_last_deep(entry):
+    """Report — never rewrite — a `last_deep` that predates the entry's own
+    run date (S15 #1453 posted the PREVIOUS deep date beside `reason: ...
+    (S15, 2026-11-23)`).
+
+    A run date proves a RUN, not a deep pass: SKILL.md keeps the sweep
+    (Phase 1) apart from the deep stamp (Phase 2), `05-implement.md` lets
+    any implement run post an entry, and the registry's own `tier` field
+    records the transport ("plain-curl"), not the depth. Advancing
+    `last_deep` on that evidence would defer a provider's deep rotation by
+    a cycle, silently — the #1354 re-payment inverted (#1583 review
+    blocker). The stale stamp needs a corrected entry, which stays a
+    human/agent decision; the flag makes it visible instead of silent."""
+    if not isinstance(entry, dict):
+        return entry
+    run_date = _registry_entry_date(entry)
+    if not run_date:
+        return entry
+    stale = sorted(n for n, p in (entry.get("providers") or {}).items()
+                   if isinstance(p, dict)
+                   and str(p.get("last_deep") or "") < run_date)
+    if stale:
+        print(f"[orchestrator] registry: {', '.join(stale)} last_deep predates "
+              f"the entry's run date {run_date} — flagged, not rewritten "
+              f"(a run date does not prove a deep pass)")
+    return entry
+
+
+def _registry_known_issues(doc):
+    """Issue numbers the registry on main already records a run for.
+    Most closed-window candidates are synced audit stories whose verdict is
+    already in the file, and `comments()` per candidate is the sweep's
+    dominant API cost (~87 closes vs 28 opens in a 7-day window, against
+    the secondary limit noted on `api()`) — skip those without a fetch
+    (#1583 review)."""
+    runs = (doc or {}).get("last_runs") or []
+    provs = ((doc or {}).get("providers") or {}).values()
+    nums = [r.get("issue") for r in runs if isinstance(r, dict)]
+    nums += [p.get("issue") for p in provs if isinstance(p, dict)]
+    return {n for n in nums if isinstance(n, int)}
+
+
+def _registry_pend_order(pend):
+    """Oldest first: `_union_findings` lets b win scalars, so the NEWEST
+    entry must be applied last. The widened scan mixes open and just-closed
+    threads and the issues API is newest-first on both arms, so applying in
+    scan order let an older closed-window entry overwrite a newer
+    `last_deep`/`reason` (#1583 review). Entries without a run record sort
+    by issue number, which is creation order."""
+    return sorted(pend, key=lambda ne: (_registry_entry_date(ne[1]), ne[0]))
+
+
+def _registry_pending(issues, fetch_comments=None):
+    """[(issue number, entry)] in apply order, with stale stamps flagged.
+
+    One append path for anchored entries and for the self-heal repost, so a
+    healed entry goes through the same checks as an anchored one — the
+    unanchored shape was exactly the #1439 case that kept a stale
+    `last_deep` (#1583 review)."""
+    read = fetch_comments or comments
+    pend = []
+    for i in issues:
+        cs = read(i["number"])
+        if _has_marker(cs, f"{MARK} registry entry applied"):
+            continue
+        e = _registry_entry(cs)
+        if not e:
+            # Self-heal the recurring agent-formatting defect (#777, three
+            # strandings): a fix-loop/review agent posts the fenced ```json```
+            # providers delta WITHOUT the REGISTRY_ANCHOR line, while its own
+            # fix report claims it is anchored — _registry_entry can never
+            # see it. Repost the candidate verbatim, anchored, as the owner.
+            # The posted comment is a real anchored entry; the union below
+            # makes any later repost a no-op.
+            cand = _registry_candidate(cs)
+            if not cand:
+                continue
+            post_comment(i["number"],
+                         f"{REGISTRY_ANCHOR}\n```json\n{cand}\n```")
+            e = _registry_entry(read(i["number"]))
+            if not e:
+                continue
+        pend.append((i["number"], _registry_flag_last_deep(e)))
+    return _registry_pend_order(pend)
+
+
 def registry_sync():
     """ADR-0013: agent diffs carry no registry. The agent posts its
     would-be registry entry as an add-comment starting with
@@ -1894,33 +2050,8 @@ def registry_sync():
         return  # feature off for this adopter
     # ADR-0019: no PAT needed — the push rides the checkout's actions token
     # (contents: write); the commit author is the conveyor identity.
-    pend = []
-    for i in api("issues?state=open&per_page=60") or []:
-        if i.get("pull_request"):
-            continue
-        cs = comments(i["number"])
-        if _has_marker(cs, f"{MARK} registry entry applied"):
-            continue
-        e = _registry_entry(cs)
-        if e:
-            pend.append((i["number"], e))
-            continue
-        # Self-heal the recurring agent-formatting defect (#777, three
-        # strandings): a fix-loop/review agent posts the fenced ```json```
-        # providers delta WITHOUT the REGISTRY_ANCHOR line, while its own
-        # fix report claims it is anchored — _registry_entry can never
-        # see it. Repost the candidate verbatim, anchored, as the owner.
-        # The posted comment is a real anchored entry; the union below
-        # makes any later repost a no-op.
-        cand = _registry_candidate(cs)
-        if cand:
-            post_comment(i["number"], f"{REGISTRY_ANCHOR}\n```json\n{cand}\n```")
-            cs = comments(i["number"])
-            e = _registry_entry(cs)
-            if e:
-                pend.append((i["number"], e))
-    if not pend:
-        return
+    # The registry on main is read FIRST: it is the union base and the
+    # pre-empt list for the closed arm (below).
     if _pl(["git", "fetch", "origin", "main"])[0] > 1:
         return
     _, cur_body = _pl(["git", "show", f"origin/main:{REGISTRY_PATH}"])
@@ -1929,10 +2060,20 @@ def registry_sync():
     except Exception as e:
         sys.stderr.write(f"[orchestrator] {REGISTRY_PATH} unparsable on main: {e}\n")
         return
+    known = _registry_known_issues(merged)
+    pend = _registry_pending(
+        _registry_issue_set(
+            api("issues?state=open&per_page=60"),
+            [i for i in _registry_closed_issues() if i["number"] not in known]))
+    if not pend:
+        return
     applied = [n for n, e in pend]
     for _, e in pend:
         # entry's list items append, entry's scalars win (draft 16-f6b shape)
         merged = _union_findings(merged, e)
+    # The file's own freshness field was frozen at the pre-run date, so
+    # nothing in the registry recorded that any union happened (#1579).
+    merged["updated"] = time.strftime("%Y-%m-%d", time.gmtime())
     payload = json.dumps(merged, indent=2) + "\n"
     idx = f"{os.environ.get('RUNNER_TEMP', '/tmp')}/orch-regidx.{os.getpid()}"
     ienv = {"GIT_INDEX_FILE": idx}

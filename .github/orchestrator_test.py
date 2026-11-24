@@ -9,6 +9,7 @@ Run: python3 -m unittest .github.orchestrator_test  (or:
      python3 -m unittest discover -s .github -p 'orchestrator_test.py')
 """
 
+import calendar
 import importlib.util
 import json
 import os
@@ -2020,3 +2021,249 @@ class TestEnvIntParsing(unittest.TestCase):
         with mock.patch.dict(orchestrator.os.environ,
                              {"GH_AW_SWEEP_MAX_PER_HOUR": "0"}):
             self.assertEqual(orchestrator._env_int("GH_AW_SWEEP_MAX_PER_HOUR", 10), 0)
+
+
+class TestTransientDiagClasses(unittest.TestCase):
+    """The watchdog is the only thing that stops transient `[aw]` noise from
+    accumulating: each class it does not know costs a manual close (#1579)."""
+
+    def _closed(self, title, later_success=True, created="2026-11-24T02:00:00Z"):
+        issue = {"number": 7, "title": title, "created_at": created,
+                 "labels": []}
+        runs = "2026-11-24T03:00:00Z\n" if later_success else ""
+        with mock.patch.object(orchestrator, "api", return_value=[issue]), \
+             mock.patch.object(orchestrator, "run", return_value=runs), \
+             mock.patch.object(orchestrator, "close_issue") as close:
+            orchestrator.watchdog()
+        return close
+
+    def test_daily_credit_guardrail_is_transient(self):
+        close = self._closed("[aw] Security scan (08+09 merged) could not "
+                             "verify daily AI credits")
+        close.assert_called_once()
+        self.assertEqual(close.call_args[0][1], "not planned")
+
+    def test_known_classes_still_close(self):
+        for t in ("[aw] Triage produced no safe outputs",
+                  "[aw] Review (findings only) reported incomplete result"):
+            with self.subTest(title=t):
+                self._closed(t).assert_called_once()
+
+    def test_real_failure_is_never_closed(self):
+        self._closed("[aw] Implement failed").assert_not_called()
+
+    def test_no_later_success_keeps_it_open(self):
+        self._closed("[aw] Security scan could not verify daily AI credits",
+                     later_success=False).assert_not_called()
+
+
+class TestRegistryClosedWindow(unittest.TestCase):
+    """#1579: an entry posted during Implement was only unioned while its
+    story was open, and 12-post-merge closes it — the delivered pass went
+    invisible to the next booking and the deep tier was paid twice."""
+
+    NOW = calendar.timegm((2026, 11, 24, 16, 0, 0, 0, 0, 0))
+
+    def test_just_closed_issue_is_scanned(self):
+        closed = [{"number": 1446, "closed_at": "2026-11-22T20:53:00Z"}]
+        got = orchestrator._registry_issue_set([], closed, now=self.NOW)
+        self.assertEqual([i["number"] for i in got], [1446])
+
+    def test_issue_closed_outside_the_window_is_not(self):
+        closed = [{"number": 1, "closed_at": "2026-10-01T00:00:00Z"}]
+        self.assertEqual(orchestrator._registry_issue_set([], closed,
+                                                          now=self.NOW), [])
+
+    def test_pull_requests_are_skipped_on_both_arms(self):
+        got = orchestrator._registry_issue_set(
+            [{"number": 2}, {"number": 3, "pull_request": {}}],
+            [{"number": 4, "closed_at": "2026-11-24T00:00:00Z",
+              "pull_request": {}}], now=self.NOW)
+        self.assertEqual([i["number"] for i in got], [2])
+
+
+class TestRegistryLastDeepFlag(unittest.TestCase):
+    """#1579 S15 shape: a correctly anchored entry whose last_deep was the
+    PREVIOUS deep date while its own reason named the new run. #1583 review:
+    a run date proves a run, not a deep pass — flag, never rewrite."""
+
+    def test_stale_last_deep_is_reported(self):
+        entry = {"last_runs": [{"date": "2026-11-23"}],
+                 "providers": {"AllClassicPorn": {"last_deep": "2026-10-16"}}}
+        with mock.patch.object(orchestrator, "print") as out:
+            orchestrator._registry_flag_last_deep(entry)
+        self.assertIn("AllClassicPorn", out.call_args[0][0])
+
+    def test_stale_last_deep_is_never_rewritten(self):
+        entry = {"last_runs": [{"date": "2026-11-23"}],
+                 "providers": {"AllClassicPorn": {"last_deep": "2026-10-16"}}}
+        with mock.patch.object(orchestrator, "print"):
+            orchestrator._registry_flag_last_deep(entry)
+        self.assertEqual(entry["providers"]["AllClassicPorn"]["last_deep"],
+                         "2026-10-16")
+
+    def test_multi_provider_entry_is_reported_too(self):
+        entry = {"last_runs": [{"date": "2026-11-23"}],
+                 "providers": {"A": {"last_deep": "2026-10-16"},
+                               "B": {"last_deep": "2026-11-24"}}}
+        with mock.patch.object(orchestrator, "print") as out:
+            orchestrator._registry_flag_last_deep(entry)
+        self.assertIn("A last_deep", out.call_args[0][0])
+        self.assertNotIn("B last_deep", out.call_args[0][0])
+
+    def test_fresh_last_deep_is_silent(self):
+        entry = {"last_runs": [{"date": "2026-11-23"}],
+                 "providers": {"X": {"last_deep": "2026-11-24"}}}
+        with mock.patch.object(orchestrator, "print") as out:
+            orchestrator._registry_flag_last_deep(entry)
+        out.assert_not_called()
+
+    def test_entry_without_runs_is_silent(self):
+        entry = {"providers": {"X": {"last_deep": "2026-10-16"}}}
+        with mock.patch.object(orchestrator, "print") as out:
+            orchestrator._registry_flag_last_deep(entry)
+        out.assert_not_called()
+
+
+class TestRegistryKnownIssuesPreempt(unittest.TestCase):
+    """#1583 review: the closed arm mostly re-derives answers the registry on
+    main already holds (87 closes vs 28 opens in a 7-day window), and each
+    candidate costs a `comments()` fetch against the secondary rate limit."""
+
+    DOC = {"last_runs": [{"id": "run1450", "issue": 1450},
+                         {"id": "run1", "issue": None}, {"bad": "shape"}],
+           "providers": {"PandaMovies": {"issue": 1447},
+                         "Neporn": {"issue": None}}}
+
+    def test_recorded_story_numbers_are_known(self):
+        self.assertEqual(orchestrator._registry_known_issues(self.DOC),
+                         {1450, 1447})
+
+    def test_missing_or_empty_doc_is_not_an_error(self):
+        self.assertEqual(orchestrator._registry_known_issues(None), set())
+        self.assertEqual(orchestrator._registry_known_issues({}), set())
+
+
+class TestRegistryClosedPaging(unittest.TestCase):
+    """#1583 review: closed issues are fetched `sort=updated desc` while the
+    window filter is `closed_at`, so one page can fill with old threads that
+    were merely updated recently — the just-closed story is then never
+    scanned by the very arm that exists for it."""
+
+    NOW = calendar.timegm((2026, 11, 24, 16, 0, 0, 0, 0, 0))
+
+    @staticmethod
+    def _fetch(pages, seen):
+        def fetch(url):
+            seen.append(url)
+            return pages[len(seen) - 1]
+        return fetch
+
+    def test_later_page_is_fetched_while_items_are_inside_the_window(self):
+        pages = [
+            [{"number": 1, "closed_at": "2026-11-23T00:00:00Z",
+              "updated_at": "2026-11-23T00:00:00Z"}],
+            [{"number": 2, "closed_at": "2026-11-22T00:00:00Z",
+              "updated_at": "2026-11-22T00:00:00Z"}],
+            [],
+        ]
+        seen = []
+        got = orchestrator._registry_closed_issues(
+            now=self.NOW, fetch=self._fetch(pages, seen))
+        self.assertEqual([i["number"] for i in got], [1, 2])
+        self.assertEqual(len(seen), 3)
+        self.assertIn("page=2", seen[1])
+
+    def test_scan_stops_once_a_page_predates_the_window(self):
+        pages = [[
+            {"number": 1, "closed_at": "2026-11-23T00:00:00Z",
+             "updated_at": "2026-11-23T00:00:00Z"},
+            {"number": 2, "closed_at": "2026-10-01T00:00:00Z",
+             "updated_at": "2026-10-01T00:00:00Z"},
+        ]]
+        seen = []
+        got = orchestrator._registry_closed_issues(
+            now=self.NOW, fetch=self._fetch(pages, seen))
+        self.assertEqual([i["number"] for i in got], [1])
+        self.assertEqual(len(seen), 1)
+
+    def test_pull_requests_are_dropped_from_the_paged_arm(self):
+        pages = [[{"number": 9, "pull_request": {},
+                   "closed_at": "2026-11-23T00:00:00Z",
+                   "updated_at": "2026-11-23T00:00:00Z"}], []]
+        got = orchestrator._registry_closed_issues(
+            now=self.NOW, fetch=self._fetch(pages, []))
+        self.assertEqual(got, [])
+
+
+class TestRegistryPendOrder(unittest.TestCase):
+    """#1583 review: `_union_findings` lets b win scalars, so the newest
+    entry must be applied last. The widened scan mixes open and just-closed
+    threads and the API returns newest-first on both arms."""
+
+    def test_newest_entry_is_applied_last(self):
+        older = {"last_runs": [{"date": "2026-11-20"}],
+                 "providers": {"X": {"last_deep": "2026-11-20",
+                                     "reason": "old"}}}
+        newer = {"last_runs": [{"date": "2026-11-24"}],
+                 "providers": {"X": {"last_deep": "2026-11-24",
+                                     "reason": "new"}}}
+        pend = orchestrator._registry_pend_order([(1446, newer), (1439, older)])
+        merged = {}
+        for _, e in pend:
+            merged = orchestrator._union_findings(merged, e)
+        self.assertEqual(merged["providers"]["X"]["last_deep"], "2026-11-24")
+        self.assertEqual(merged["providers"]["X"]["reason"], "new")
+
+    def test_entries_without_a_run_date_sort_by_issue_number(self):
+        a = {"providers": {"X": {"last_deep": "2026-10-16"}}}
+        b = {"providers": {"Y": {"last_deep": "2026-10-16"}}}
+        got = orchestrator._registry_pend_order([(7, b), (3, a)])
+        self.assertEqual([n for n, _ in got], [3, 7])
+
+
+class TestRegistryPendingScan(unittest.TestCase):
+    """#1583 review: the self-heal repost took a second append path that
+    skipped the stale-stamp check, so exactly the unanchored-but-correct
+    entry that has to be healed went unchecked."""
+
+    ENTRY = ('{"last_runs": [{"date": "2026-11-23"}],'
+             ' "providers": {"X": {"last_deep": "2026-10-16"}}}')
+
+    def _bot(self, body):
+        return {"body": body, "user": {"login": "github-actions[bot]",
+                                      "type": "Bot"}}
+
+    def test_self_healed_entry_goes_through_the_same_path(self):
+        unanchored = [self._bot("```json\n" + self.ENTRY + "\n```")]
+        anchored = [self._bot(orchestrator.REGISTRY_ANCHOR
+                              + "\n```json\n" + self.ENTRY + "\n```")]
+        posts = []
+
+        def fetch(num):
+            return anchored if posts else unanchored
+
+        with mock.patch.object(orchestrator, "post_comment",
+                               side_effect=lambda n, b: posts.append((n, b))), \
+             mock.patch.object(orchestrator, "print"):
+            got = orchestrator._registry_pending([{"number": 5}],
+                                                 fetch_comments=fetch)
+        self.assertEqual(len(posts), 1)
+        self.assertEqual(orchestrator.REGISTRY_ANCHOR in posts[0][1], True)
+        self.assertEqual(got[0][1]["providers"]["X"]["last_deep"],
+                         "2026-10-16")
+
+    def test_applied_marker_skips_the_issue(self):
+        cs = [{"body": f"{orchestrator.MARK} registry entry applied",
+               "user": {"login": "github-actions[bot]", "type": "Bot"}}]
+        got = orchestrator._registry_pending([{"number": 5}],
+                                             fetch_comments=lambda n: cs)
+        self.assertEqual(got, [])
+
+    def test_unanchored_entry_without_anchorable_shape_is_skipped(self):
+        cs = [self._bot("```json\n{\"note\": \"not an entry\"}\n```")]
+        with mock.patch.object(orchestrator, "post_comment") as post:
+            got = orchestrator._registry_pending([{"number": 5}],
+                                                 fetch_comments=lambda n: cs)
+        post.assert_not_called()
+        self.assertEqual(got, [])
