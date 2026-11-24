@@ -117,6 +117,15 @@ secondary pair for a reporter on an ungated egress. S2's three guards, each with
 >    ungated egress (VPN/region). No provider change can restore pagination the site does not
 >    serve.
 
+**Addendum — S1 of the #1574 query-normalisation spec (2026-11-24).** Search no longer lets
+the site's 301 eat `&page=N`: `Parse.searchUrl` sends `Parse.normaliseQuery` (trim, lowercase,
+Latin-only diacritic fold, `'`/`.` → space, whitespace collapse), and `MainAPI.search` retries a
+canonical **echo** once through `Parse.searchEchoTarget` + `Parse.searchRetryUrl` (the canonical's
+own form, sent verbatim) before `Parse.searchHasNext` reads the body actually used — so guard 2
+fires only when the retry also echoed. The measured 301-drop matrix, the Latin/site fold
+divergence, the `/pornstar/` canonical shape, both 404 shapes, and the fixtures are §Query
+shapes; read it before changing query encoding or the echo guard.
+
 ## Engine fingerprint
 
 **Custom proprietary platform** (PornHub's own stack — not KVS/Kernel, not a WP video theme).
@@ -473,12 +482,19 @@ constant fallback, page-scoped: an empty body past page 1 stops the row — FIND
   `Parse.searchHasNext(html, page)` wraps that with the three S2-of-#1524 guards, in order:
   1. **page-scoped blank body** — page 1 stays open, past page 1 stops (`homeHasNext`'s shape);
   2. **page echo** — a `<link rel="canonical">` page earlier than the requested one means the
-     site ignored `page=N`; stop even though the re-served body carries `rel=next`;
+     site ignored `page=N`. Since S1 of #1574 `MainAPI.search` answers that with **one** retry
+     (`Parse.searchEchoTarget` → `Parse.searchUrl`) and the guard reads the body actually used,
+     so it fires only when the retry also echoed. An echoed retry still stops the search, so no
+     loop is possible;
   3. **pagination-block backstop** — with the head signal gone, a `div.pagination3` block that
      advertises a page **beyond** the one requested keeps the search open; a block advertising
      nothing beyond it (the `page_next disabled` last page, or a page's own current marker)
      does not. The M1′ body S1 measured (`pagination3` absent entirely) therefore still stops,
      which is the correct answer for its measured 404 page 2.
+- **Query normalisation (S1 of #1574, 2026-11-24):** `Parse.searchUrl` now sends
+  `Parse.normaliseQuery(query)` — trim, lowercase, **Latin-only** diacritic fold, `'`/`.` → space,
+  whitespace collapse — so `&page=N` survives the site's 301, which **drops** it. Non-Latin marks
+  are lexical and pass through unchanged. The full 301/echo/404 matrix is §Query shapes.
 - Which page is last depends on the query's result count: `search=teen` reports
   `resultsCount: 320365` in `page_params.VIDEOS_FILTER` and still stops at **page 100**
   (43 cards, no `link rel=next`, `li.page_next disabled` with `href=""`). Page 101+ answers
@@ -517,6 +533,125 @@ S4 re-confirmed the past-last-page behaviour on 2026-11-21 (US egress), with the
 /video/search?search=big%20tits -> HTTP 301 -> the canonical `+` form (same 31 viewkeys once followed)
 RESULT: PASS
 ```
+
+### Query shapes (S1 of #1574, 2026-11-24)
+
+Probe egress: **`20.119.95.26`, Dulles Town Center/Virginia, `US`, AS8075 Microsoft**
+(`ipinfo.io` → `"country": "US"`, `"region": "Virginia"`); probe window **2026-11-24
+15:33–15:36 UTC**; cookie-less desktop Firefox 128 UA. Every line below is a live response
+from that window (the `m&s` probe is URL-encoded as `m%26s`, which is the real query string).
+
+The site 301s a query it wants to rewrite to its own normalised form, and **the 301 drops
+`&page=N`**. Following it therefore returns page 1, whose canonical names page 1:
+
+```
+GET /video/search?search=Teen&page=2        -> 301 Location: /video/search?search=teen
+GET /video/search?search=Lana%27s&page=2    -> 301 Location: /video/search?search=lana+s
+GET /video/search?search=big.tits&page=2    -> 301 Location: /video/search?search=big+tits
+GET /video/search?search=caf%C3%A9&page=2   -> 301 Location: /video/search?search=cafe
+GET /video/search?search=Riley+Reid&page=2  -> 301 Location: /video/search?search=riley+reid
+```
+
+Normalised requests answer 200 with fresh cards and a canonical that echoes the requested page:
+`?search=riley+reid&page=2` and `page=3` both answered 200, with canonical `page=2` / `page=3`
+and 43 result-block cards on page 3. `?search=Teen&page=2` followed to `?search=teen` answered
+200 with canonical page 1 and still carried `rel=next`.
+
+**Diacritic folding is Latin-only.** `Parse.normaliseQuery` decomposes (NFD) and drops a
+combining mark only when its base character is a Latin letter, then recomposes (NFC). The marks
+of every other script are lexical, not accents, so a non-Latin query must survive the round trip
+unchanged — `हिंदी` stays `हिंदी` (an unconditional `\p{M}` strip turned it into `हद`), likewise
+`বাংলা`, `สวัสดี`, Hebrew niqqud and Arabic harakat. Latin bases still fold (`café` → `cafe`) and
+lowercasing still applies.
+
+**The site's fold and ours can disagree — measured.**
+
+```
+GET /video/search?search=%C4%B0stanbul&page=2 -> 301 Location: /video/search?search=i%CC%87stanbul
+GET /video/search?search=i%CC%87stanbul       -> 200, canonical ?search=i%CC%87stanbul, rel=next
+GET /video/search?search=i%CC%87stanbul&page=2 -> 200
+GET /video/search?search=istanbul&page=2      -> 200
+```
+
+The site keeps the combining dot that lowercasing `İ` introduces (`i` + U+0307), while
+`Parse.normaliseQuery` folds Latin marks away (`istanbul`) — so for `İstanbul` the canonical's own
+`search=` differs from the normalised request query, and the echo branch genuinely has a
+different request to make. That is why `MainAPI.search` retries through
+`Parse.searchRetryUrl(target, page)`, which sends the canonical value **verbatim** instead of
+re-normalising it: re-folding would erase exactly the form the site asked for and turn the retry
+into a byte-identical repeat of the request it is meant to replace. On the fallback branch the
+target is already `normaliseQuery(query)`, so the retry is the normalised request by construction.
+
+**Pornstar-canonical shape.** The followed `Riley+Reid` redirect lands on a body whose canonical
+is `/pornstar/riley-reid` — no `search=` at all — while the normalised search answers real
+pages. `Parse.searchEchoTarget` therefore uses the canonical's own `search=` value when present
+(the `Teen` → `teen` shape) and falls back to `Parse.normaliseQuery(query)` when it is absent
+(the `/pornstar/...` shape).
+
+**404 shapes (not normalised on purpose).** The measured invalid-query class is a different
+response, not a redirect:
+
+```
+GET /video/search?search=zzqqxxww -> 404; <title>No results found - Pornhub.com</title>; div.noResultsWrapper; no result block
+GET /video/search?search=big-tits -> 404; <title>Page Not Found</title>; no noResultsWrapper
+GET /video/search?search=big,tits -> 404; <title>Page Not Found</title>; no noResultsWrapper
+GET /video/search?search=m%26s    -> 404; <title>Page Not Found</title>; no noResultsWrapper
+```
+
+Rewriting `-`, `,`, or `&` would silently change what the user asked for, so
+`Parse.normaliseQuery` leaves them unchanged. The empty-result `zzqqxxww` body is the
+`search-no-results.html` shape already in §Search; the `Page Not Found` bodies carry no result
+block.
+
+**Post-fix `hasNext` rule.** Layer A (`Parse.normaliseQuery`) keeps the app's request in the
+canonical form, so the 301 never fires. Layer B (`Parse.searchEchoTarget`) catches a residual
+echo with at most **one** retry per page, sent through `Parse.searchRetryUrl` so the canonical's
+own form survives verbatim; `MainAPI.search` returns the body actually used, and
+`Parse.searchHasNext` keeps guard 2 unchanged — **it fires only when the retry also echoed**.
+The site's own page-1/page-2 overlap (measured 2 of 47 viewkeys on the `Teen` echo) is not a
+stop signal; there is no dedup and no "any overlap ends the search" rule.
+
+Fixtures: `search-echo-page2.html` (followed `Teen` page 2: canonical page 1, still `rel=next`),
+`search-echo-pornstar-page2.html` (followed `Riley+Reid` page 2: canonical
+`/pornstar/riley-reid`), `search-echo-fold-page2.html` (`i̇stanbul` page 1: canonical
+`search=i%CC%87stanbul`, the divergence above — the one shape where the retry differs from the
+request), `search-normalised-page-3.html` (`riley+reid` page 3: canonical page 3, 43 cards).
+`PornHubSearchQueryTest` pins the normalise table (including the unchanged `big-tits` / `m&s`
+cases and the intact non-Latin rows), both echo branches, the verbatim retry URL, the non-echo
+deeper page, and the no-loop rule.
+
+**Verification note (S1 of #1574, 2026-11-24).** The four normalised page-2 requests the fixed
+`Parse.searchUrl` emits all answered **200** with a canonical naming page 2 (same egress/window
+as the matrix above):
+
+```
+?search=teen&page=2      -> 200 1,195,349B  canonical page 2
+?search=lana+s&page=2    -> 200 1,202,166B  canonical page 2
+?search=big+tits&page=2  -> 200 1,206,871B  canonical page 2
+?search=cafe&page=2      -> 200 1,195,983B  canonical page 2
+```
+
+The non-Latin rows the review blocker added (`normaliseQuery` keeps every non-Latin mark) were
+re-probed the same way on **2026-11-24 16:15 UTC** — the site echoes each query **verbatim**, with
+a canonical naming page 2, so marks are not something the site strips either, and folding them
+away (the legacy `\p{M}` strip) sent a query the site never asked for:
+
+```
+?search=日本人&page=2 (ja)     -> 200  canonical page 2
+?search=한국&page=2 (ko)       -> 200  canonical page 2
+?search=японка&page=2 (ru)    -> 200  canonical page 2
+?search=สาว&page=2 (th)       -> 200  canonical page 2
+```
+
+**Build gates:** `./gradlew PornHub:test` → **BUILD SUCCESSFUL**, 243 tests / 0 failures across
+31 suites (the new `PornHubSearchQueryTest` adds 8: normalise table, non-Latin marks intact,
+searchUrl normalisation, canonical-echo retry, pornstar-canonical fallback, verbatim retry URL,
+non-echo deeper page, no-loop); `./gradlew PornHub:make` → `PornHub.cs3` (174,043 B). The
+non-Latin test was confirmed **red** on the legacy normaliser (`PornHubSearchQueryTest.
+non-Latin marks are lexical…`, `ComparisonFailure` at the `हिंदी` row) and green after the fix.
+
+**Version:** the story itself does not bump. `chore(version): bump affected providers (#1578)`
+raised `PornHub/build.gradle.kts` to `15` after the story landed; S2 owns the manual bump.
 
 ### Search — reporter pagination (#1490 / #1494, 2026-11-22)
 
