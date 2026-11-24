@@ -521,6 +521,18 @@
       "canaries": "eporner-healthy plain-curl 200 match (312140 B real homepage); pandamovies-redirect-origin plain-curl 302 -> pandamovies.org (plain-tier match); film1k-challenge-pair plain-curl 200 vs expected 403 = expectation-stale (#1435 open, live pair recorded, no environment-degraded branch); TLS tier unavailable (#1434) so no Blocked was possible",
       "findings_filed": 0,
       "false_positives": []
+    },
+    {
+      "id": "run1456",
+      "issue": 1456,
+      "date": "2026-11-24",
+      "kind": "video-source audit (S18 of #1354)",
+      "verdict": "ok",
+      "tier": "plain-curl",
+      "escalation_tier": "unavailable",
+      "canaries": "eporner-healthy plain-curl 200 match (314111 B real homepage); pandamovies-redirect-origin plain-curl 302 -> pandamovies.org (plain-tier match); film1k-challenge-pair plain-curl 200 vs expected 403 = expectation-stale (#1435 open, live pair recorded, no environment-degraded branch); TLS tier unavailable (#1434) so no Blocked was possible from challenge evidence",
+      "findings_filed": 0,
+      "false_positives": []
     }
   ],
   "providers": {
@@ -922,7 +934,7 @@
     "PerverZija": {
       "site": "tube.perverzija.com",
       "verdict": "ok",
-      "reason": "deep 2026-10-16: 5 home rows p1/p2 disjoint x64 cards, search p1/p2 x64, quickSearch absent recorded, 29 video pages 200, masters #EXTM3U 18/18 + end-to-end TS on 9/18 tokens (per-token CDN deadness site-side); mixdrop.to embed on 1/29 = dead at source, no confirmed condition (registry row gap filed); version stays 13",
+      "reason": "S18 video-source audit 2026-11-24: 5 present D3 types sampled at both catalogue ends (new/latest / p1+p1700, old ?order=asc p1+p1700, popular ?orderby=view p1+p1700, categories /studio/brazzers/ p1+p2+p124, tags /tag/anal/ p1+p2+p362); genres absent (/genre/, /genres/ 404; /genre/<x>/ 301 to a video slug). 17/18 rows resolved end-to-end: gated XSFTK boot->manifest->key->AES segment->MPEG-TS 12/12 green, legacy xs1.php master->variant->plain TS 3/3 green; 1 known mixdrop.to alternate embed still dead at source (#702 closed not-actionable). #1353 loopback classification holds (sources emitted (127.0.0.1/redacted) -> verify.sh Blocked, emulator lane #1360). No condition confirmed, no code change, version stays 33.",
       "tier": "plain-curl",
       "surfaces": {
         "home": "200",
@@ -933,7 +945,7 @@
       "standing_issue": null,
       "drift_confirmed": 0,
       "chronic": false,
-      "last_deep": "2026-10-16"
+      "last_deep": "2026-11-24"
     },
     "PornXP": {
       "site": "pxp.news",
