@@ -918,6 +918,20 @@ class TestRepairInFlight(unittest.TestCase):
         self.assertIsNotNone(m, "07-fix-loop.md has no `cooldown: <n>m` line")
         self.assertEqual(orchestrator.FIX_LOOP_COOLDOWN_SEC, int(m.group(1)) * 60)
 
+    def test_cycle_cap_counts_repair_stamps_only(self):
+        # #1567: counting every work-attempt stamp let two review rounds eat
+        # the repair budget, so #1564 escalated to status/fixing-stuck after
+        # two real repairs with its findings still unserved.
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "workflows", "07-fix-loop.md")
+        with open(path) as fh:
+            md = fh.read()
+        i = md.index("cycle 4 or later")
+        window = md[i:i + 500]
+        self.assertIn("kind=fix", window)
+        self.assertIn("kind=repair", window)
+        self.assertNotIn("count work-attempt stamps", window)
+
     def test_completed_row_without_a_timestamp_does_not_block(self):
         payload = json.dumps([{"status": "completed"}])
         with mock.patch.object(orchestrator, "run", lambda cmd, **kw: payload):
