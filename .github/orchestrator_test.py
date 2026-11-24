@@ -2103,3 +2103,148 @@ class TestRegistryLastDeepClamp(unittest.TestCase):
         entry = {"providers": {"X": {"last_deep": "2026-10-16"}}}
         orchestrator._registry_clamp_last_deep(entry)
         self.assertEqual(entry["providers"]["X"]["last_deep"], "2026-10-16")
+
+
+class TestRegistryClampEvidence(unittest.TestCase):
+    """#1583 review: the clamp's evidence is a run record that names no
+    provider, so it vouches only for an entry covering a single provider —
+    advancing a provider the run never touched suppresses a deep pass."""
+
+    def test_multi_provider_entry_is_left_alone(self):
+        entry = {"last_runs": [{"date": "2026-11-23"}],
+                 "providers": {"A": {"last_deep": "2026-10-16"},
+                               "B": {"last_deep": "2026-10-16"}}}
+        orchestrator._registry_clamp_last_deep(entry)
+        self.assertEqual(entry["providers"]["A"]["last_deep"], "2026-10-16")
+        self.assertEqual(entry["providers"]["B"]["last_deep"], "2026-10-16")
+
+    def test_non_dict_provider_does_not_hide_a_single_one(self):
+        entry = {"last_runs": [{"date": "2026-11-23"}],
+                 "providers": {"A": {"last_deep": "2026-10-16"},
+                               "note": "not a provider"}}
+        orchestrator._registry_clamp_last_deep(entry)
+        self.assertEqual(entry["providers"]["A"]["last_deep"], "2026-11-23")
+
+
+class TestRegistryClosedPaging(unittest.TestCase):
+    """#1583 review: closed issues are fetched `sort=updated desc` while the
+    window filter is `closed_at`, so one page can fill with old threads that
+    were merely updated recently — the just-closed story is then never
+    scanned by the very arm that exists for it."""
+
+    NOW = calendar.timegm((2026, 11, 24, 16, 0, 0, 0, 0, 0))
+
+    @staticmethod
+    def _fetch(pages, seen):
+        def fetch(url):
+            seen.append(url)
+            return pages[len(seen) - 1]
+        return fetch
+
+    def test_later_page_is_fetched_while_items_are_inside_the_window(self):
+        pages = [
+            [{"number": 1, "closed_at": "2026-11-23T00:00:00Z",
+              "updated_at": "2026-11-23T00:00:00Z"}],
+            [{"number": 2, "closed_at": "2026-11-22T00:00:00Z",
+              "updated_at": "2026-11-22T00:00:00Z"}],
+            [],
+        ]
+        seen = []
+        got = orchestrator._registry_closed_issues(
+            now=self.NOW, fetch=self._fetch(pages, seen))
+        self.assertEqual([i["number"] for i in got], [1, 2])
+        self.assertEqual(len(seen), 3)
+        self.assertIn("page=2", seen[1])
+
+    def test_scan_stops_once_a_page_predates_the_window(self):
+        pages = [[
+            {"number": 1, "closed_at": "2026-11-23T00:00:00Z",
+             "updated_at": "2026-11-23T00:00:00Z"},
+            {"number": 2, "closed_at": "2026-10-01T00:00:00Z",
+             "updated_at": "2026-10-01T00:00:00Z"},
+        ]]
+        seen = []
+        got = orchestrator._registry_closed_issues(
+            now=self.NOW, fetch=self._fetch(pages, seen))
+        self.assertEqual([i["number"] for i in got], [1])
+        self.assertEqual(len(seen), 1)
+
+    def test_pull_requests_are_dropped_from_the_paged_arm(self):
+        pages = [[{"number": 9, "pull_request": {},
+                   "closed_at": "2026-11-23T00:00:00Z",
+                   "updated_at": "2026-11-23T00:00:00Z"}], []]
+        got = orchestrator._registry_closed_issues(
+            now=self.NOW, fetch=self._fetch(pages, []))
+        self.assertEqual(got, [])
+
+
+class TestRegistryPendOrder(unittest.TestCase):
+    """#1583 review: `_union_findings` lets b win scalars, so the newest
+    entry must be applied last. The widened scan mixes open and just-closed
+    threads and the API returns newest-first on both arms."""
+
+    def test_newest_entry_is_applied_last(self):
+        older = {"last_runs": [{"date": "2026-11-20"}],
+                 "providers": {"X": {"last_deep": "2026-11-20",
+                                     "reason": "old"}}}
+        newer = {"last_runs": [{"date": "2026-11-24"}],
+                 "providers": {"X": {"last_deep": "2026-11-24",
+                                     "reason": "new"}}}
+        pend = orchestrator._registry_pend_order([(1446, newer), (1439, older)])
+        merged = {}
+        for _, e in pend:
+            merged = orchestrator._union_findings(merged, e)
+        self.assertEqual(merged["providers"]["X"]["last_deep"], "2026-11-24")
+        self.assertEqual(merged["providers"]["X"]["reason"], "new")
+
+    def test_entries_without_a_run_date_sort_by_issue_number(self):
+        a = {"providers": {"X": {"last_deep": "2026-10-16"}}}
+        b = {"providers": {"Y": {"last_deep": "2026-10-16"}}}
+        got = orchestrator._registry_pend_order([(7, b), (3, a)])
+        self.assertEqual([n for n, _ in got], [3, 7])
+
+
+class TestRegistryPendingScan(unittest.TestCase):
+    """#1583 review: the self-heal repost took a second append path that
+    skipped the clamp, so exactly the unanchored-but-correct entry that has
+    to be healed kept its stale `last_deep`."""
+
+    ENTRY = ('{"last_runs": [{"date": "2026-11-23"}],'
+             ' "providers": {"X": {"last_deep": "2026-10-16"}}}')
+
+    def _bot(self, body):
+        return {"body": body, "user": {"login": "github-actions[bot]",
+                                      "type": "Bot"}}
+
+    def test_self_healed_entry_is_clamped_too(self):
+        unanchored = [self._bot("```json\n" + self.ENTRY + "\n```")]
+        anchored = [self._bot(orchestrator.REGISTRY_ANCHOR
+                              + "\n```json\n" + self.ENTRY + "\n```")]
+        posts = []
+
+        def fetch(num):
+            return anchored if posts else unanchored
+
+        with mock.patch.object(orchestrator, "post_comment",
+                               side_effect=lambda n, b: posts.append((n, b))):
+            got = orchestrator._registry_pending([{"number": 5}],
+                                                 fetch_comments=fetch)
+        self.assertEqual(len(posts), 1)
+        self.assertEqual(orchestrator.REGISTRY_ANCHOR in posts[0][1], True)
+        self.assertEqual(got[0][1]["providers"]["X"]["last_deep"],
+                         "2026-11-23")
+
+    def test_applied_marker_skips_the_issue(self):
+        cs = [{"body": f"{orchestrator.MARK} registry entry applied",
+               "user": {"login": "github-actions[bot]", "type": "Bot"}}]
+        got = orchestrator._registry_pending([{"number": 5}],
+                                             fetch_comments=lambda n: cs)
+        self.assertEqual(got, [])
+
+    def test_unanchored_entry_without_anchorable_shape_is_skipped(self):
+        cs = [self._bot("```json\n{\"note\": \"not an entry\"}\n```")]
+        with mock.patch.object(orchestrator, "post_comment") as post:
+            got = orchestrator._registry_pending([{"number": 5}],
+                                                 fetch_comments=lambda n: cs)
+        post.assert_not_called()
+        self.assertEqual(got, [])

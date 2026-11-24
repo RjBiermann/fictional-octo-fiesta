@@ -1900,17 +1900,57 @@ def _registry_candidate(cs):
 # left the registry stale (#1579). A window (not "all closed") keeps the
 # scan bounded and the applied-marker keeps it idempotent.
 REGISTRY_CLOSED_WINDOW_DAYS = 7
+# Bound on the closed-issue scan: the window is 7 days, so deeper pages only
+# matter under extraordinary churn. 10 pages = 500 threads.
+REGISTRY_CLOSED_MAX_PAGES = 10
+REGISTRY_CLOSED_PAGE_SIZE = 50
+
+
+def _registry_cutoff(now=None):
+    """Oldest `closed_at`/`updated_at` still inside the scan window."""
+    now = time.time() if now is None else now
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                         time.gmtime(now - REGISTRY_CLOSED_WINDOW_DAYS * 86400))
 
 
 def _registry_issue_set(openi, closedi, now=None):
     """Open issues plus the ones closed inside the window."""
-    now = time.time() if now is None else now
-    cutoff = time.strftime("%Y-%m-%dT%H:%M:%SZ",
-                           time.gmtime(now - REGISTRY_CLOSED_WINDOW_DAYS * 86400))
+    cutoff = _registry_cutoff(now)
     out = [i for i in (openi or []) if "pull_request" not in i]
     out += [i for i in (closedi or [])
             if "pull_request" not in i and (i.get("closed_at") or "") >= cutoff]
     return out
+
+
+def _registry_closed_issues(now=None, fetch=None):
+    """Closed issues inside the window, across pages.
+
+    The list is `sort=updated&direction=desc` because GitHub has no
+    server-side `closed_at` sort — and a single page of that order fills up
+    with OLD threads that were merely *updated* recently, dropping the
+    just-closed story this arm exists for (#1583 review). Pagination is
+    finite and safe: `closed_at <= updated_at`, so the first item older
+    than the cutoff proves every remaining page is older too."""
+    cutoff = _registry_cutoff(now)
+    fetch = fetch or api
+    out = []
+    for page in range(1, REGISTRY_CLOSED_MAX_PAGES + 1):
+        batch = fetch("issues?state=closed&sort=updated&direction=desc"
+                      f"&per_page={REGISTRY_CLOSED_PAGE_SIZE}&page={page}") or []
+        if not batch:
+            break
+        out += batch
+        if min((i.get("updated_at") or "") for i in batch) < cutoff:
+            break
+    return [i for i in out
+            if "pull_request" not in i and (i.get("closed_at") or "") >= cutoff]
+
+
+def _registry_entry_date(entry):
+    """Latest run date an entry carries ('' when it has no run record)."""
+    runs = [r.get("date") for r in ((entry or {}).get("last_runs") or [])
+            if isinstance(r, dict) and isinstance(r.get("date"), str)]
+    return max(runs) if runs else ""
 
 
 def _registry_clamp_last_deep(entry):
@@ -1918,20 +1958,69 @@ def _registry_clamp_last_deep(entry):
     S15 (#1453) posted the PREVIOUS deep date beside `reason: ... (S15,
     2026-11-23)`; the union applied it faithfully, so a delivered deep pass
     landed as stale and the rotation would re-pay for it (#1579). The run
-    record is the evidence; a stale stamp is healed, not trusted."""
+    record is the evidence; a stale stamp is healed, not trusted.
+
+    That evidence names no provider, so it can only vouch for an entry that
+    covers exactly one: clamping a multi-provider entry would advance the
+    providers the run never touched — suppressing their deep pass instead
+    of healing this one (#1583 review)."""
     if not isinstance(entry, dict):
         return entry
-    runs = [r.get("date") for r in (entry.get("last_runs") or [])
-            if isinstance(r, dict) and isinstance(r.get("date"), str)]
-    run_date = max(runs) if runs else ""
-    for name, p in (entry.get("providers") or {}).items():
-        if not isinstance(p, dict) or not run_date:
-            continue
+    provs = {n: p for n, p in (entry.get("providers") or {}).items()
+             if isinstance(p, dict)}
+    run_date = _registry_entry_date(entry)
+    if len(provs) != 1 or not run_date:
+        return entry
+    for name, p in provs.items():
         if str(p.get("last_deep") or "") < run_date:
             print(f"[orchestrator] registry: {name} last_deep {p.get('last_deep')} "
                   f"predates its run date {run_date} — clamped")
             p["last_deep"] = run_date
     return entry
+
+
+def _registry_pend_order(pend):
+    """Oldest first: `_union_findings` lets b win scalars, so the NEWEST
+    entry must be applied last. The widened scan mixes open and just-closed
+    threads and the issues API is newest-first on both arms, so applying in
+    scan order let an older closed-window entry overwrite a newer
+    `last_deep`/`reason` (#1583 review). Entries without a run record sort
+    by issue number, which is creation order."""
+    return sorted(pend, key=lambda ne: (_registry_entry_date(ne[1]), ne[0]))
+
+
+def _registry_pending(issues, fetch_comments=None):
+    """[(issue number, clamped entry)] in apply order.
+
+    One append path for anchored entries and for the self-heal repost, so a
+    healed entry gets the same clamp as an anchored one — the unanchored
+    shape was exactly the #1439 case that kept a stale `last_deep` (#1583
+    review)."""
+    read = fetch_comments or comments
+    pend = []
+    for i in issues:
+        cs = read(i["number"])
+        if _has_marker(cs, f"{MARK} registry entry applied"):
+            continue
+        e = _registry_entry(cs)
+        if not e:
+            # Self-heal the recurring agent-formatting defect (#777, three
+            # strandings): a fix-loop/review agent posts the fenced ```json```
+            # providers delta WITHOUT the REGISTRY_ANCHOR line, while its own
+            # fix report claims it is anchored — _registry_entry can never
+            # see it. Repost the candidate verbatim, anchored, as the owner.
+            # The posted comment is a real anchored entry; the union below
+            # makes any later repost a no-op.
+            cand = _registry_candidate(cs)
+            if not cand:
+                continue
+            post_comment(i["number"],
+                         f"{REGISTRY_ANCHOR}\n```json\n{cand}\n```")
+            e = _registry_entry(read(i["number"]))
+            if not e:
+                continue
+        pend.append((i["number"], _registry_clamp_last_deep(e)))
+    return _registry_pend_order(pend)
 
 
 def registry_sync():
@@ -1945,31 +2034,9 @@ def registry_sync():
         return  # feature off for this adopter
     # ADR-0019: no PAT needed — the push rides the checkout's actions token
     # (contents: write); the commit author is the conveyor identity.
-    pend = []
-    for i in _registry_issue_set(
-            api("issues?state=open&per_page=60"),
-            api("issues?state=closed&sort=updated&direction=desc&per_page=50")):
-        cs = comments(i["number"])
-        if _has_marker(cs, f"{MARK} registry entry applied"):
-            continue
-        e = _registry_entry(cs)
-        if e:
-            pend.append((i["number"], _registry_clamp_last_deep(e)))
-            continue
-        # Self-heal the recurring agent-formatting defect (#777, three
-        # strandings): a fix-loop/review agent posts the fenced ```json```
-        # providers delta WITHOUT the REGISTRY_ANCHOR line, while its own
-        # fix report claims it is anchored — _registry_entry can never
-        # see it. Repost the candidate verbatim, anchored, as the owner.
-        # The posted comment is a real anchored entry; the union below
-        # makes any later repost a no-op.
-        cand = _registry_candidate(cs)
-        if cand:
-            post_comment(i["number"], f"{REGISTRY_ANCHOR}\n```json\n{cand}\n```")
-            cs = comments(i["number"])
-            e = _registry_entry(cs)
-            if e:
-                pend.append((i["number"], e))
+    pend = _registry_pending(
+        _registry_issue_set(api("issues?state=open&per_page=60"),
+                            _registry_closed_issues()))
     if not pend:
         return
     if _pl(["git", "fetch", "origin", "main"])[0] > 1:
