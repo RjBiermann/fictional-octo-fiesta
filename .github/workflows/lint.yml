@@ -26,6 +26,15 @@ on:
     # is seconds long, so run them on every PR.
   workflow_dispatch:
 
+# These are required contexts, so superseded runs are cancelled per
+# workflow+event+ref — a new push forms its own group and the head-sha run is
+# the survivor, never a cancelled required check on the PR head (#1420 class).
+# Every job also carries a timeout: the 6 h default is what let a wedged run
+# bill a full night (#1590).
+concurrency:
+  group: lint-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -35,6 +44,7 @@ jobs:
     # a permanent SKIP, so a PR editing workflow YAML was never linted
     # before merge (#1438 review).
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - name: actionlint
@@ -58,6 +68,7 @@ jobs:
   jackson:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - name: Jackson must not exceed 2.13.1
@@ -79,6 +90,7 @@ jobs:
   # that nothing executed (#1438 review).
   orchestrator-unit:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - name: "orchestrator unit suite"
@@ -89,6 +101,7 @@ jobs:
   # check lives outside the vendored tree and fails when the guarantees go.
   wizard-template:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - name: "wizard env-writer: 0600, atomic, symlink-through, dotenv round-trip"
@@ -99,6 +112,7 @@ jobs:
   provider-count:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - name: "AGENTS.md provider count matches the tree"
@@ -123,6 +137,7 @@ jobs:
   # network), data-anchored, and must stay green on main.
   orchestrator-replay:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - name: "Replay #797 label-event fixtures through orchestrator.py"
@@ -133,6 +148,7 @@ jobs:
   # but ran in no workflow, so the gate could regress unnoticed — assert it here, every PR.
   verify-scheme-gate:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - name: verify.sh self-check (scheme gate + PYDOM invariants, offline)
@@ -141,6 +157,7 @@ jobs:
   dependency-review:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - name: Dependency review
@@ -153,6 +170,7 @@ jobs:
   plugin-shape:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - name: No legacy Plugin() classes or pass-through provider files

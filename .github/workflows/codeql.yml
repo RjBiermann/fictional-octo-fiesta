@@ -8,10 +8,21 @@ on:
   schedule:
     - cron: '40 0 * * 2'
 
+# Superseded scans were running to completion: 196 runs, 21.3 h = 17% of all
+# effective runner-hours in the 2026-11-21→24 window (#1590). Grouped per
+# workflow+event+ref, so a new push always forms its own run and the head-sha
+# run is the survivor — the required `CodeQL Advanced` context is never left
+# cancelled on the PR head (the #1420 BLOCKED-forever class). The event name
+# keeps the weekly schedule from cancelling a main-branch push run.
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       security-events: write
       packages: read

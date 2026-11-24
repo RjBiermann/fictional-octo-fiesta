@@ -510,21 +510,35 @@ def _owner_configured():
     return True
 
 
+def _parked_runs():
+    """Runs parked on approval, in ONE query.
+
+    This used to be a `gh run list --branch <b> --limit 40` history walk per
+    open agent PR, on every sweep, whether or not the PR's head moved. In
+    run 45455221600 that single call held the sweep for 889 s of its 929 s
+    step against a ~2,830-run/day history (#1588). `status=action_required`
+    is a server-side filter, so the answer costs one request regardless of
+    how many PRs or runs exist."""
+    data = api("actions/runs?status=action_required&per_page=100")
+    parked = {}
+    for r in (data or {}).get("workflow_runs") or []:
+        parked.setdefault(r.get("head_branch") or "", []).append(
+            (r.get("id"), r.get("name") or ""))
+    return parked
+
+
 def approve_companion_runs():
     if not PROXY_PAT:
         print("[orchestrator] GH_AW_PROXY_PAT unset — approvals stay manual")
+        return
+    parked = _parked_runs()
+    if not parked:
         return
     for pr in open_pulls():
         if not _agent_pr(pr):
             continue
         branch = pr.get("head", {}).get("ref", "")
-        runs = run(["gh", "run", "list", "--branch", branch, "--limit", "40",
-                    "--json", "databaseId,workflowName,conclusion",
-                    "--jq", '.[] | select(.conclusion=="action_required") | "\(.databaseId)|\(.workflowName)"'])
-        for line in runs.splitlines():
-            if not line.strip():
-                continue
-            rid, _, wname = line.partition("|")
+        for rid, wname in parked.get(branch, []):
             if wname in APPROVE_ALLOWLIST or (wname in AGENT_RUN_ALLOWLIST
                                               and branch.startswith(AGENT_BRANCHES)):
                 out = run(["curl", "-s", "-X", "POST",

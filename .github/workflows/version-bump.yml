@@ -44,6 +44,11 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
+    # A normal bump costs ~12 s; three runs sat with zero jobs ever scheduled
+    # and burned 13.8 h of queue wedging (#1590). 10 min is ~50x headroom and
+    # turns the next wedge into a timeout instead of an overnight stall.
+    # cancel-in-progress stays false: a cancelled mid-push loses the bump.
+    timeout-minutes: 10
     steps:
       - name: Checkout PR head
         uses: actions/checkout@v7
