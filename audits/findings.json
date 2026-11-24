@@ -934,7 +934,7 @@
     "PerverZija": {
       "site": "tube.perverzija.com",
       "verdict": "ok",
-      "reason": "S18 video-source audit 2026-11-24: 5 present D3 types sampled at both catalogue ends (new/latest / p1+p1700, old ?order=asc p1+p1700, popular ?orderby=view p1+p1700, categories /studio/brazzers/ p1+p2+p124, tags /tag/anal/ p1+p2+p362); genres absent (/genre/, /genres/ 404; /genre/<x>/ 301 to a video slug). 17/18 rows resolved end-to-end: gated XSFTK boot->manifest->key->AES segment->MPEG-TS 12/12 green, legacy xs1.php master->variant->plain TS 3/3 green; 1 known mixdrop.to alternate embed still dead at source (#702 closed not-actionable). #1353 loopback classification holds (sources emitted (127.0.0.1/redacted) -> verify.sh Blocked, emulator lane #1360). No condition confirmed, no code change, version stays 33.",
+      "reason": "S18 video-source audit 2026-11-24: 5 present D3 types sampled at both catalogue ends (new/latest / p1+p1700, old ?order=asc p1+p1700, popular ?orderby=view p1+p1700, categories /studio/brazzers/ p1+p2+p124, tags /tag/anal/ p1+p2+p362); genres absent (/genre/, /genres/ 404; /genre/<x>/ 301 to a video slug). 17/18 site-side chains resolved end-to-end (gated XSFTK boot->manifest->key->AES segment->MPEG-TS 15/15 green, legacy xs1.php master->variant->plain TS 2/2 green); 15 rows Blocked app-local (loopback, playback pending the emulator tier #1360); 1 row Suspected: the known mixdrop.to alternate embed, still dead at source (#702 closed not-actionable). Quality shapes: 1080/720/480 12 rows, 1080-only 1, 540/360 2 = 15 gated. No condition confirmed, no code change, version stays 33.",
       "tier": "plain-curl",
       "surfaces": {
         "home": "200",
