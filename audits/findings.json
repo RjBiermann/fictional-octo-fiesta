@@ -533,6 +533,18 @@
       "canaries": "eporner-healthy plain-curl 200 match (314111 B real homepage); pandamovies-redirect-origin plain-curl 302 -> pandamovies.org (plain-tier match); film1k-challenge-pair plain-curl 200 vs expected 403 = expectation-stale (#1435 open, live pair recorded, no environment-degraded branch); TLS tier unavailable (#1434) so no Blocked was possible from challenge evidence",
       "findings_filed": 0,
       "false_positives": []
+    },
+    {
+      "id": "run1457",
+      "issue": 1457,
+      "date": "2026-11-24",
+      "kind": "video-source audit (S19 of #1354)",
+      "verdict": "ok",
+      "tier": "plain-curl",
+      "escalation_tier": "unavailable",
+      "canaries": "eporner-healthy plain-curl 200 match (313334 B real homepage); pandamovies-redirect-origin plain-curl 302 -> pandamovies.org (plain-tier match); film1k-challenge-pair plain-curl 200 vs expected 403 = expectation-stale (#1435 open, live pair recorded, no environment-degraded branch); TLS tier unavailable (#1434) so no Blocked was possible from challenge evidence",
+      "findings_filed": 0,
+      "false_positives": []
     }
   ],
   "providers": {
@@ -950,20 +962,20 @@
     "PornXP": {
       "site": "pxp.news",
       "verdict": "ok",
-      "reason": "standing 476 stays clear re-confirmed live: /tags/<q> 36 cards p1+p2 disjoint; video 200 x3; source mp4 206 (2026-10-16 deep pass)",
+      "reason": "S19 video-source audit 2026-11-24: 4 present D3 types sampled at both catalogue ends (new/latest / p1+p2+p5721, old catalogue-tail p5721, popular /best/ p1+p2+p1341, tags /tags/ATKGirlfriends p1+p2+p121 + /tags/Vintage p1); genres and categories absent (404 / 0-byte routes; taxonomy is tags only). 16/18 sampled rows 206 video/mp4 end-to-end via #player > source; 2 rows are site-side dead CDN objects (404 from https.pornxp.sh, identical on the pornxp.farm mirror, no alternate) \u2014 not provider drift. Hosts rotate (sd/cc/c/d/xxx/sv/sz/https + look/watch.pxp.network), provider reads host from page. No embed/DRM/geo. No condition confirmed, no code change, version stays 24.",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200 p1/p3 href-disjoint (36 cards each; p1\u2229p2 data-id pair = 2 distinct mirror videos, href-disjoint, site-level)",
-        "search": "200 via /tags/<q>; /?q= still serves the unfiltered homepage grid (known #330 condition, provider uses /tags)",
-        "quicksearch": "no distinct quick-search endpoint (2.js only rewrites form submit to /tags/; /co/ empty 200 click counter) \u2014 absent, not drift",
-        "video": "200 x3 (home/tag/newest-grid listings)",
-        "stream": "<source> mp4 206 video/mp4, no referer needed; CDN subdomain rotates (ce\u2192cdrn\u2192xxx.pornxp.sh), provider extracts from page"
+        "home": "200 p1/p2 (36 cards each), p5721 17 cards no next",
+        "search": "200 via /tags/<q>; ATK p1/p2 36 cards, p121 last 32, p122 generic fallback; /?q= still serves homepage grid (known #330, provider uses /tags)",
+        "quicksearch": "no distinct quick-search endpoint (2.js rewrites form submit to /tags/) \u2014 absent, not drift",
+        "video": "200 x18 (new p1/p2/tail, best p1/p2/tail, ATK p1/p121, Vintage p1)",
+        "stream": "#player > source mp4 206 video/mp4; host rotates per page; 2/18 sampled rows dead at source (site-side 404), no alternate"
       },
       "issue": null,
       "standing_issue": 476,
       "drift_confirmed": 0,
       "chronic": false,
-      "last_deep": "2026-10-16"
+      "last_deep": "2026-11-24"
     },
     "Porntrex": {
       "site": "www.porntrex.com",
