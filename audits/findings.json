@@ -497,6 +497,18 @@
       "canaries": "eporner-healthy plain-curl 200 match; pandamovies-redirect-origin plain-curl 302 -> pandamovies.org match; film1k-challenge-pair plain-curl 200 vs expected 403 = expectation-stale (#1435 open, live pair recorded, no environment-degraded branch); TLS tier unavailable (#1434) so no Blocked was possible",
       "findings_filed": 0,
       "false_positives": []
+    },
+    {
+      "id": "run1454",
+      "issue": 1454,
+      "date": "2026-11-23",
+      "kind": "video-source audit (S16 of #1354)",
+      "verdict": "ok",
+      "tier": "plain-curl",
+      "escalation_tier": "unavailable",
+      "canaries": "eporner-healthy plain-curl 200 match (312661 B real homepage); pandamovies-redirect-origin plain-curl 302 -> pandamovies.org (plain-tier match); film1k-challenge-pair plain-curl 200 vs expected 403 = expectation-stale (#1435 open, live pair recorded, no environment-degraded branch); TLS tier unavailable (#1434) so no Blocked was possible",
+      "findings_filed": 0,
+      "false_positives": []
     }
   ],
   "providers": {
@@ -697,19 +709,19 @@
     "Cat3Film": {
       "site": "cat3film.com",
       "verdict": "ok",
-      "reason": "_ajax/search JSON contract alive: handmaiden->1, 'hot line'->hot-line (multi-word ok), sex->8, teen->8, anal->2, lesbian->2 (milf->0 persists = catalog reality on a niche site); home /movies p1/p2 30+30 disjoint, /tv-series 14+0 (empty past last page, not dupes); video x4 200; streams 4/4 master.abyssssss.top token + /index.m3u8 -> 200 m3u8. Backup embed dec-abyss 200; final sora CDN sssrr.org CF-IP-blocks the datacenter runner = suspected, only affects the 2nd route (2026-10-16)",
+      "reason": "S16 video-source pass 2026-11-23: every D3 type the site exposes answered plain-curl; 19 sampled videos resolved end-to-end via .epbtn[data-ep] -> /api/v1/episodes/<id>/sources -> master.abyssssss.top/<token>/index.m3u8 206 application/vnd.apple.mpegurl; backup player.abyssplayer.com -> dec-abyss -> sora mp4 206 on 19/19 rows (18 distinct titles; /hidden-face sampled twice; datacenter-blocked mirror now redirects via trycloudflare). categories and tags absent (404); genre vocabulary lives at /genre/<slug> + 19-slug filter select (21 at review time; war/western added). 0 conditions confirmed, 0 findings, no code change, version stays 28.",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200 (/movies p1/p2 disjoint; /tv-series empty past last page, site shape)",
-        "search": "200 (_ajax JSON)",
-        "video": "200 x4",
-        "streams": "200 m3u8 4/4"
+        "home": "200 (/movies p1/p2 30+30 disjoint, p56 far end 26, p57 404; /tv-series 15, single page)",
+        "search": "200 (_ajax JSON, single page; no HTML search route)",
+        "video": "200 x19",
+        "streams": "206 m3u8 x19 + backup mp4 206 x19 rows (18 distinct titles)"
       },
       "issue": null,
       "standing_issue": null,
       "drift_confirmed": 0,
       "chronic": false,
-      "last_deep": "2026-10-16"
+      "last_deep": "2026-11-23"
     },
     "Cat3Movie": {
       "site": "cat3movie.org",
