@@ -192,14 +192,16 @@ record, re-confirmed by the playlist above).
 
 ```
 GET https://player.abyssplayer.com/pFpmF0ohO                                       → 200
-  <title>5507.mp4</title>   const datas = "eyJzbHVnIjoiT3dqS1BtV1pXIiwibWQ1X2lkIjoyODMxODg3OCw…"
+  <title>m_1710.mp4</title>   const datas = "eyJzbHVnIjoicEZwbUYwb2hPIiwibWQ1X2lkIjozMjUyMTkxMCw…"
+    (decodes to {"slug":"pFpmF0ohO","md5_id":32521910,…} — datas.slug == the URL id)
 POST https://enc-dec.app/api/dec-abyss   (Origin: https://enc-dec.app)             → 200
   {"status":200,"result":{"sources":[
-    {"url":"https://p5bxlr4lz51.sssrr.org/sora/628137591/NkpMUVVU…","size":628137591,"type":"360p","codec":"h264","status":true},
-    {"url":"https://tk8b7ce9830.sssrr.org/sora/1184738611/bVorT0F4…","size":1184738611,"type":"720p","codec":"h264","status":true}]}}
-GET https://p5bxlr4lz51.sssrr.org/sora/…  -r 0-2047                              → 302
-  location: https://saint-stands-nations-ben.trycloudflare.com/sora/…
-GET (follow) https://saint-stands-nations-ben.trycloudflare.com/sora/…  -r 0-2047 → 206 video/mp4
+    {"url":"https://j4vbathl34.sssrr.org/sora/…","size":4791086,"type":"480p","codec":"h264","status":true},
+    {"url":"https://vsnaiq1323.sssrr.org/sora/…","size":10420137,"type":"720p","codec":"h264","status":true},
+    {"url":"https://vsnaiq1323.sssrr.org/sora/…","size":28997115,"type":"1080p","codec":"h264","status":true}]}}
+GET https://j4vbathl34.sssrr.org/sora/…  -r 0-2047                              → 302
+  location: https://<ephemeral-mirror>.trycloudflare.com/sora/…   (audit-time route shape)
+GET (follow) https://<ephemeral-mirror>.trycloudflare.com/sora/…  -r 0-2047 → 206 video/mp4
   00000000: 0000 0020 6674 7970 6973 6f6d 0000 0200  ... ftypisom....
 ```
 
@@ -208,7 +210,9 @@ and the apex `AbyssPlayer` row is also present — the sources-API backup URL pr
 explicit row, so the provider's second route no longer rides the Levenshtein fallback. **Note:**
 the 2026-10-16 deep pass recorded the final sora CDN (`*.sssrr.org`) hard-blocking datacenter IPs;
 today the sora hop redirects to a `*.trycloudflare.com` mirror that serves **206 video/mp4** from
-this runner, so both routes were playable end-to-end this run.
+this runner, so both routes were playable end-to-end this run. Replayed 2026-11-24 the fresh shards
+answered 403/404 from the same runner, so the mirror hop is intermittent again — the primary HLS
+route above is unaffected, and `<ephemeral-mirror>` is the audit-time route shape, not a stable host.
 
 ### Headers / referer
 
