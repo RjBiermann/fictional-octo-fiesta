@@ -34,7 +34,10 @@ Consequences:
   after an event trigger (issue/PR/comment, or a review run completing),
   or up to ~4–8 h when only the throttled cron sweep fires (GitHub runs
   the `*/10` schedule a few times a day on this repo).
-- A later anchored entry on an already-applied issue is skipped until the
-  dedupe marker is cleared (union makes the common retry a no-op anyway).
+- Dedupe is by registry evidence, not by the `registry entry applied`
+  comment: that marker is posted when the registry PR *opens*, so a PR that
+  later conflicts against a newer one strands its entry while its issue reads
+  as done. An issue the registry already records is skipped; one it does not
+  is re-pended, and the append-only union keeps the retry a no-op.
 - `add-comment` budget in 05-implement grows to 3 slots (stamp +
   narration + registry entry).

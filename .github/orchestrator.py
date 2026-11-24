@@ -2044,8 +2044,20 @@ def _registry_union(base, entry):
         cur = cur_provs.get(name)
         if not isinstance(p, dict) or not isinstance(cur, dict):
             continue
-        if str(cur.get("last_deep") or "") > run_date:
+        cur_deep = str(cur.get("last_deep") or "")
+        # The file keeps the provider when its own `last_deep` beats the
+        # entry's RUN date. An entry may also carry a STALE `last_deep`
+        # (`_registry_flag_last_deep` reports that shape, never rewrites it),
+        # so adopting the entry wholesale would rewind a deep pass the file
+        # already recorded — the #1354 re-payment. Keep the newer date and
+        # take the entry's verdict/reason: its run is the newer evidence.
+        ent_deep = str(p.get("last_deep") or "")
+        if cur_deep > run_date:
             merged["providers"][name] = cur
+        elif cur_deep > ent_deep:
+            settled = dict(merged["providers"].get(name) or p)
+            settled["last_deep"] = cur_deep
+            merged["providers"][name] = settled
     return merged
 
 
@@ -2129,8 +2141,10 @@ def registry_sync():
     already records is skipped, and one it does not is re-pended however its
     thread reads (the marker is written when the PR opens, so a PR that later
     conflicts strands its entry, #1581/#1587). A corrected same-issue entry
-    therefore re-applies on the next sweep — no marker-clearing ritual, and
-    the append-only union keeps the retry idempotent."""
+    therefore re-applies on the next sweep, as long as the registry does not
+    record it yet — `applied` skips before the thread is read. No
+    marker-clearing ritual, and the append-only union keeps the retry
+    idempotent."""
     if not REGISTRY_PATH:
         return  # feature off for this adopter
     # ADR-0019: no PAT needed — the push rides the checkout's actions token
@@ -2213,9 +2227,11 @@ def registry_sync():
                 ok = False
         if ok:
             for n in applying:
-                post_comment(n, f"{MARK} registry entry applied to `{REGISTRY_PATH}` via "
-                                f"registry PR (landed by auto-merge when green). "
-                                f"The registry never travels in an agent diff (ADR-0013).")
+                post_comment(n, f"{MARK} registry entry queued for `{REGISTRY_PATH}` via "
+                                f"registry PR. Landing is NOT proof: the next sweep "
+                                f"re-pends this entry if the registry does not record "
+                                f"it (the marker is a cache). The registry never "
+                                f"travels in an agent diff (ADR-0013).")
             print(f"[orchestrator] registry_sync applied entries from {applying} -> PR branch {branch}")
         else:
             print("[orchestrator] registry_sync push failed — entries stay pending on their issues")
