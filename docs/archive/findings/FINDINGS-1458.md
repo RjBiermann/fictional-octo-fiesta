@@ -8,10 +8,12 @@ end-to-end — video page → KVS flashvars → stream URL → quality passed to
 Provider state at run start: registry `last_deep` = 2026-10-16, `drift_confirmed` = 0,
 verdict at last deep = `ok` (#633), `version` = 32.
 
-**Result: `Blocked` — the origin refuses this runner's IP on every path, at all three
-escalation tiers. No video page, listing page, or stream URL was reachable this run, so the
-leg could not be probed. No provider condition is confirmed, nothing was filed as a finding
-(D8: a datacenter/geo refusal is never a finding), and no code change or version bump ships.**
+**Result: `Blocked` — `www.porntrex.com` returned a blanket `403` to this runner on every path,
+at all three escalation tiers. No video page, listing page, or stream URL was reachable this
+run, so the leg could not be probed. No provider condition is confirmed, nothing was filed as a
+finding, and no code change or version bump ships. The *cause* of the 403 is a leading
+hypothesis (IP/region refusal), not an established fact — see "Confidence" below. The tier that
+would decide it (a differential probe from a non-runner egress) was not available this run.**
 
 Run: `05-implement` for #1458, 2026-11-24, plain-curl + TLS-impersonated + headless-Chromium
 tiers, runner IP US/Virginia (Azure/GitHub Actions).
@@ -19,6 +21,39 @@ Workflow run: `https://github.com/RjBiermann/fictional-octo-fiesta/actions/runs/
 
 Out of scope per spec: a full listing audit (pagination/card-field correctness was
 #632–#659) and *rows* work. `drift_confirmed` = 0, so no hardening rung applies.
+
+---
+
+## Confidence — observed vs. inferred (read this before citing the diagnosis)
+
+**Observed (established by this run's transcripts):** the byte-identical 548-byte nginx `403`
+(`Server: nginx`, no `Set-Cookie`, no challenge page, no `Retry-After`) for `/` and every probed
+path; the same body at the plain-curl, TLS-impersonated (`curl_cffi` `chrome`) and
+headless-Chromium tiers; the same body over HTTP/1.0, HTTP/1.1 and HTTP/2, with and without a
+`User-Agent`, and on a direct `Host: www.porntrex.com` request to `88.80.24.7`; the same body on
+the second operator edge `www.porntrex.tv` (`88.80.24.3`); a Let's Encrypt certificate for
+`CN=porntrex.com` valid 2026-10-19 → 2027-01-17.
+
+**Inferred — hypothesis, not a conclusion:** that the refusal is scoped to this runner's
+US/Virginia datacenter IP (or its region). That is the most likely reading and nothing observed
+contradicts it, but **this run does not exclude an operator-wide blanket refusal** — a failed
+deploy, a maintenance window, or a WAF rule applied to all clients would produce a
+byte-identical 403 from here. Precisely:
+
+- cert freshness proves only that the TLS front-end still serves that vhost. Let's Encrypt
+  re-issue is automated ACME and completes even while the application behind the vhost is down;
+  it is **not** evidence the catalogue is being actively maintained.
+- a second edge under the same operator returning the same 403 shows the refusal is
+  operator-wide across edges, **not** that it is geo-scoped.
+- `RESIDENTIAL_PROXY_URL` was not set, so `scripts/differential.sh`'s residential tier — the
+  documented deciding instrument for probe-IP artifacts, and the only tier available that could
+  separate "this egress" from "everyone" — printed `NOT CONFIGURED` and did not run.
+
+**Falsification test for the next run:** re-probe from a different egress (VPN / non-US
+runner / residential). Healthy `200` there ⇒ the IP/region hypothesis is confirmed and this
+Blocked reason stands verbatim. The **same 548-byte `403`** there ⇒ the hypothesis is
+**falsified**: the refusal is site-wide, D8 does **not** exempt a site-wide refusal, and the run
+must file/escalate it rather than record another Blocked.
 
 ---
 
@@ -148,21 +183,33 @@ Cookie/query unlocks tried (the site's own age-gate vocabulary, per the #171 pro
 `http://www.porntrex.com/` and `https://porntrex.com/` → 301 to `https://www.porntrex.com/`
 (so the hostname is not the problem), then 403.
 
-### The origin is alive — this is a refusal, not a dead site
+### What the refusal does and does not establish
 
-- TLS certificate on `www.porntrex.com`: `CN=porntrex.com`, issuer Let's Encrypt `YE1`,
-  **valid 2026-10-19 → 2027-01-17** — freshly re-issued five weeks after the last healthy deep
-  pass, so the origin is actively maintained.
-- `www.porntrex.tv` (a second operator edge, `88.80.24.3`) returns the **same** 548-byte nginx
-  403 — the refusal follows the operator's edge, not one host.
-- The provider was fully healthy at the 2026-10-16 deep pass (`ok`, 120/120 home cards,
-  85+85 search, 5/5 streams `206 video/mp4`, 45 related items) — no in-provider change since.
+- **Not a path/UA/client defect** (established): the 403 is path-independent, UA-independent,
+  protocol-independent and unchanged by a real Chrome TLS fingerprint or a real headless browser
+  — so it is an origin-level refusal, not a JS challenge and not a client-rendering problem.
+- **Not one bad host** (established): `www.porntrex.tv` (a second operator edge, `88.80.24.3`)
+  returns the **same** 548-byte nginx 403; `porntrex.com` and `http://` variants 301 to
+  `https://www.porntrex.com/` and then 403.
+- **TLS front-end still serving** (established), **application healthy — not established**: the
+  certificate on `www.porntrex.com` is `CN=porntrex.com`, issuer Let's Encrypt `YE1`, valid
+  **2026-10-19 → 2027-01-17**. That is five weeks after the last healthy deep pass, but ACME
+  re-issue is automatic and proves only that the vhost's TLS is configured — not that content
+  paths are healthy.
+- **IP/region scoping — leading hypothesis only.** A fresh cert and a second refused edge are
+  equally consistent with an operator-wide blanket refusal (see "Confidence" above). Do not
+  read this section as proof of a geo block.
+- **No in-provider change since** the 2026-10-16 deep pass (`ok`, 120/120 home cards, 85+85
+  search, 5/5 streams `206 video/mp4`, 45 related items) — so the provider code is not the
+  explanation for a 403 that happens before any provider request shape matters.
 
 **Blocked reason (recorded so a future run does not re-probe the dead end):**
-`Blocked: 403 no unlock — origin nginx refuses this runner's US/Virginia datacenter IP on every
-path (host- and path-independent), at plain-curl, TLS-impersonated and headless-Chromium tiers;
-origin live (fresh Let's Encrypt cert 2026-10-19) so this is an IP/region refusal, not site
-death. Human in-app verification required; a VPN/other-region runner is the only probe path.`
+`Blocked: 403 no unlock — origin nginx returns the byte-identical 548-byte 403 to this runner on
+every path (host- and path-independent), at plain-curl, TLS-impersonated and headless-Chromium
+tiers. Leading hypothesis: IP/region refusal of the US/Virginia datacenter runner. NOT excluded:
+an operator-wide blanket refusal, which looks identical from here — re-probe from a different
+egress first, and treat the same 403 there as site-wide (a finding, not Blocked). Human in-app
+verification required.`
 
 Unrelated domains checked while confirming the site had not moved (both **not** the tube site,
 so neither is a provider lead): `www.porntrex.io` is a Hugo blog ("PornTrex 2026 – Best Free HD
@@ -261,7 +308,10 @@ Searched open **and** closed issues for `Porntrex`: #633 (deep pass, `ok`), #215
 false-FAILs, closed), #830 (API-contract audit, closed), #1361–#1363 (fleet load-check
 instrument, closed). **No standing issue describes a Porntrex refusal, geo-block, or
 video-source gap.** Nothing filed: per D8 a datacenter-IP/region refusal is `Suspected`-class
-evidence and **never a finding**, and no provider-side condition was confirmed.
+evidence and **never a finding**, and no provider-side condition was confirmed. Note the D8
+exemption is scoped to the datacenter-IP class: it is granted here **because** the diagnosis is
+the leading hypothesis, not because a blanket refusal was observed to be geo-scoped. A
+site-wide refusal is not exempt — see the falsification test under "Confidence".
 
 ---
 
@@ -324,8 +374,12 @@ Invocation used (selectors from `docs/archive/providers/Porntrex/FINDINGS.md`):
 
 ## Next-run guidance (the dead end is recorded, not left to be re-discovered)
 
-1. Re-probe from a **different egress** (VPN or non-US runner). The refusal is IP/region-scoped;
-   a US datacenter IP gets 403 at the operator's edge regardless of tier, UA, or path.
+1. Re-probe from a **different egress** (VPN, non-US runner, or residential via
+   `RESIDENTIAL_PROXY_URL`, which unblocks `scripts/differential.sh`'s deciding tier) **before**
+   concluding anything about scope. A US datacenter IP gets 403 at the operator's edge regardless
+   of tier, UA, or path — but this run cannot show that a non-US/residential egress is served.
+   If the second egress also gets the identical 548-byte 403, the IP/region hypothesis is
+   falsified: the refusal is site-wide and must be **filed**, not recorded Blocked again.
 2. Do **not** treat `genres`/`tags` as `absent` on the strength of this run — the 403 observed
    nothing about them.
 3. `last_deep` stays **2026-10-16** (that is still the last completed deep pass); this run adds
