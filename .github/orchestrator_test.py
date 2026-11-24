@@ -11,6 +11,7 @@ Run: python3 -m unittest .github.orchestrator_test  (or:
 
 import calendar
 import importlib.util
+import time
 import json
 import os
 import re
@@ -2447,3 +2448,48 @@ class TestRegistryUnionNewestPerProvider(unittest.TestCase):
         _merged, changed = orchestrator._registry_apply(
             self.MAIN, [(1457, self._entry("2026-11-30"))])
         self.assertTrue(changed)
+
+class TestRegistrySingletonPR(unittest.TestCase):
+    """#1600/#1601: timestamped branches made every sweep inside a PR's
+    lifetime open another byte-identical PR, and the twins then conflicted
+    with each other (#1581/#1587). One branch means one PR, which each sweep
+    force-updates from current main — no mergeability heuristic, no waiting
+    (#1603 review)."""
+
+    @staticmethod
+    def _pr(num, branch, repo=None):
+        return {"number": num,
+                "head": {"ref": branch,
+                         "repo": {"full_name": repo or orchestrator.REPO}}}
+
+    def test_the_registry_pr_is_found_by_its_singleton_branch(self):
+        pulls = [self._pr(1585, "devloop/issue-1458-abc"),
+                 self._pr(1603, "orch-registry/sync")]
+        with mock.patch.object(orchestrator, "open_pulls", return_value=pulls):
+            self.assertEqual(orchestrator._open_registry_pr(), 1603)
+
+    def test_no_open_registry_pr_means_create(self):
+        pulls = [self._pr(1585, "devloop/issue-1458-abc")]
+        with mock.patch.object(orchestrator, "open_pulls", return_value=pulls):
+            self.assertIsNone(orchestrator._open_registry_pr())
+
+    def test_a_fork_branch_with_the_same_name_is_not_the_lane(self):
+        """A branch name is not an identity: fork PRs list `head.ref` too, and
+        adopting one would push the lane's commit into a stranger's repo."""
+        pulls = [self._pr(999, "orch-registry/sync", repo="someone/fork")]
+        with mock.patch.object(orchestrator, "open_pulls", return_value=pulls):
+            self.assertIsNone(orchestrator._open_registry_pr())
+
+    def test_the_same_payload_is_not_pushed_again(self):
+        """Every sweep re-pends until the PR lands; re-pushing the identical
+        union restarts the checks the PR needs to merge."""
+        self.assertFalse(orchestrator._registry_push_needed("same", "same"))
+        self.assertTrue(orchestrator._registry_push_needed("older", "new"))
+        self.assertTrue(orchestrator._registry_push_needed("", "new"))
+
+    def test_a_timestamped_legacy_branch_is_not_the_lane(self):
+        """Existing orch-registry/<ts> PRs stay for the conflict lane; the
+        singleton is only the fixed name this code pushes to."""
+        pulls = [self._pr(1600, "orch-registry/1795548223")]
+        with mock.patch.object(orchestrator, "open_pulls", return_value=pulls):
+            self.assertIsNone(orchestrator._open_registry_pr())
