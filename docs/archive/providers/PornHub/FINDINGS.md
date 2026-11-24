@@ -77,6 +77,15 @@ page ends the search instead of replaying duplicates (the EPorner #537 class).
 `Parse.hasNextPage` keeps its head-signal semantics and home keeps `Parse.homeHasNext`; read
 §Pagination (search) and §Verification note (S2 of #1524) before touching the stop rule.
 
+**Addendum — S2 of the #1574 search close-out spec (2026-11-24).** Acceptance evidence + release
+marker for the S1 normalisation fix: the 6-query × 3-page live matrix (`Teen`, `BIG TITS`,
+`Lana's`, `café`, `Riley Reid`, `teen` control) is in §Pagination (search) → **Acceptance matrix
+— 6 queries × 3 pages**, with the out-of-scope `big-tits` → `Page Not Found` row, the
+`Riley Reid` pornstar-canonical page 1, and a user-facing note on normalisation. Every row
+answered 200 with its own canonical and fresh cards (0 shared viewkeys page-to-page), so no
+echo retry fired; `PornHub/build.gradle.kts` now reads `version = 15 // #1574: version bump
+(v15) — normalised search queries + echo retry`.
+
 **Addendum — S3 of the #1524 close-out spec (2026-11-23).** Release marker + durable record:
 `PornHub/build.gradle.kts` now carries **`version = 14 // #1524: version bump (v14)`**, so a
 post-evidence build is distinguishable from the v11/v12 builds that failed in the reporter's
@@ -651,7 +660,104 @@ non-Latin test was confirmed **red** on the legacy normaliser (`PornHubSearchQue
 non-Latin marks are lexical…`, `ComparisonFailure` at the `हिंदी` row) and green after the fix.
 
 **Version:** the story itself does not bump. `chore(version): bump affected providers (#1578)`
-raised `PornHub/build.gradle.kts` to `15` after the story landed; S2 owns the manual bump.
+raised `PornHub/build.gradle.kts` to `15` after the story landed; S2 lands the manual release
+marker — `version = 15 // #1574: version bump (v15) — normalised search queries + echo retry`
+(see §Acceptance matrix below).
+
+### Acceptance matrix — 6 queries × 3 pages (S2 of #1574, 2026-11-24)
+
+Probe egress **`74.235.127.164`, Dulles Town Center/Virginia, `US`, AS8075 Microsoft**
+(`ipinfo.io` → `"country": "US"`, `"region": "Virginia"`); probe window **2026-11-24
+17:06:24–17:07:00 UTC**; cookie-less desktop Firefox 130 UA. The requests are exactly the URLs
+the fixed `Parse.searchUrl` emits — the query in `Parse.normaliseQuery` form, spaces as `+`, no
+`page` argument on page 1 — and every row was fetched **without following a redirect**
+(`redirects=0` on all 18). `cards` counts `li.pcVideoListItem` **inside** `ul#videoSearchResult`
+(matched by nesting depth: result cards nest their own `<ul>`s); `vkeys` is distinct
+`data-video-vkey` per card — every card on every row is keyed and distinct.
+
+| query (typed) | normalised | page | HTTP | bytes | cards | vkeys | canonical page | `rel=next` |
+|---|---|---|---|---|---|---|---|---|
+| `Teen` | `teen` | 1 | 200 | 1,122,387 | 31 | 31 | 1 | yes |
+| `Teen` | `teen` | 2 | 200 | 1,200,829 | 43 | 43 | 2 | yes |
+| `Teen` | `teen` | 3 | 200 | 1,198,151 | 43 | 43 | 3 | yes |
+| `BIG TITS` | `big tits` | 1 | 200 | 1,125,644 | 31 | 31 | 1 | yes |
+| `BIG TITS` | `big tits` | 2 | 200 | 1,206,275 | 43 | 43 | 2 | yes |
+| `BIG TITS` | `big tits` | 3 | 200 | 1,205,373 | 43 | 43 | 3 | yes |
+| `Lana's` | `lana s` | 1 | 200 | 1,120,758 | 31 | 31 | 1 | yes |
+| `Lana's` | `lana s` | 2 | 200 | 1,200,156 | 43 | 43 | 2 | yes |
+| `Lana's` | `lana s` | 3 | 200 | 1,197,454 | 43 | 43 | 3 | yes |
+| `café` | `cafe` | 1 | 200 | 1,121,701 | 31 | 31 | 1 | yes |
+| `café` | `cafe` | 2 | 200 | 1,199,196 | 43 | 43 | 2 | yes |
+| `café` | `cafe` | 3 | 200 | 1,179,110 | 43 | 43 | 3 | yes |
+| `Riley Reid` | `riley reid` | 1 | 200 | 1,115,398 | 29 | 29 | 1 (`/pornstar/riley-reid`) | yes |
+| `Riley Reid` | `riley reid` | 2 | 200 | 1,197,705 | 43 | 43 | 2 | yes |
+| `Riley Reid` | `riley reid` | 3 | 200 | 1,205,089 | 43 | 43 | 3 | yes |
+| `teen` (control) | `teen` | 1 | 200 | 1,117,541 | 31 | 31 | 1 | yes |
+| `teen` (control) | `teen` | 2 | 200 | 1,197,661 | 43 | 43 | 2 | yes |
+| `teen` (control) | `teen` | 3 | 200 | 1,198,414 | 43 | 43 | 3 | yes |
+
+Earlier probes reported the `?viewkey=` **occurrence** count in the block (a card links its key
+twice); the column above is the per-card `data-video-vkey`, which is the identity the app keys
+on. Consecutive-page overlap is **0** on every query (p1∩p2 = 0, p2∩p3 = 0), so the pages are
+fresh results, not a re-served page 1.
+
+**No echo, no retry needed.** Every canonical names the page requested, and no request was
+301'd (`Location` never present), so `Parse.searchEchoTarget` never fired: **0 retries across
+18 rows**, well inside the "at most one retry" acceptance bar. The one non-search canonical in
+the matrix is page 1 of `Riley Reid` — the pornstar shape (below); its `pageArgument` is 1, so
+it is the page-1 canonical, not an echo, and page 1 is a real result page (29 cards,
+`rel=next` present). The retry path itself stays covered by `PornHubSearchQueryTest` (both
+echo branches, the verbatim retry URL, the no-loop rule), not by a live echo that no longer
+happens.
+
+**Out of scope by design — the site's own invalid-query class.** Not normalised on purpose
+(rewriting `-`, `,` or `&` would silently change what the user asked for):
+
+```
+GET /video/search?search=big-tits -> 404; <title>Page Not Found</title>; no result block; no div.noResultsWrapper
+GET /video/search?search=m%26s    -> 404; <title>Page Not Found</title>; no result block; no div.noResultsWrapper
+```
+
+A query the site rejects as invalid returns no cards and no pagination evidence, so
+`Parse.searchHasNext` stops there (guard 3 has nothing to read) rather than re-requesting pages
+the site does not serve. That is the expected end state, not drift. Distinct from the empty-result
+shape (`zzqqxxww` → `404 div.noResultsWrapper`, §Search).
+
+**User-facing note.** Queries are normalised to the site's own search form before the request
+(`Teen` → `teen`, `BIG TITS` → `big+tits`, `Lana's` → `lana+s`, `café` → `cafe`, `Riley Reid` →
+`riley+reid`), which is what keeps `&page=N` alive through the site's 301. Queries the site
+itself rejects as invalid (`big-tits`, `m&s`) return no results by design — the app shows an
+empty search, not an error.
+
+**Pipeline Verification (`.pi/skills/verify-provider/scripts/verify.sh`)** against the live site,
+same run window, with the S3-of-#1524 command shape (four search URLs, both home rows, one
+watch page + its own 1080p HLS leg, `--provider-src PornHub --load-response
+recommendations,tags,plot,duration,year,actors`):
+
+```
+── check 1: search pages (4)      all 200; global matches 38 / 50 / 50 / 50
+   FAIL duplicate search cards    ← url_path strips ?viewkey= (documented plateau, §Risks)
+── check 1a: homepage pages (2)   /video 200 (matches 45), /video?page=2 200 (matches 57)
+   FAIL duplicate home cards      ← same plateau
+── check 2: video page (1)        viewkey 6aee0e3a6fda3 → 200, div#player 3 matches
+   field 'tags': present; field 'actors': present
+   stream (ev-h 1080p leg) → 206 application/vnd.apple.mpegurl
+── check 5: search ↔ load          FAIL title/poster mismatch ← same plateau (one stripped path)
+── check 6: LoadResponse           recommendations/tags/plot/duration/year/actors all populated
+RESULT: FAIL
+```
+
+Every `FAIL` is the single documented `url_path`-strips-`?viewkey=` instrument plateau
+(§Verification (S4)), not drift; the viewkey-keyed matrix above is the authoritative identity
+evidence. The stream leg needed **two page fetches**: the first watch-page fetch landed a style-B
+`hv-h` token answering **410**, the second landed style A `ev-h` answering **206** — the
+§Stream sources CDN lottery, not a provider change.
+
+**Build gates:** `./gradlew PornHub:test` → **BUILD SUCCESSFUL**, 243 tests / 0 failures across
+31 suites (486 executions over the debug+release variants), no test changed by this story;
+`./gradlew PornHub:make` → `PornHub.cs3` (174,043 B) — the same artefact S1's build produced,
+which the marker comment cannot affect. This story's code diff is the `build.gradle.kts` version
+comment and this section; **no `Parse` behaviour changed**.
 
 ### Search — reporter pagination (#1490 / #1494, 2026-11-22)
 
