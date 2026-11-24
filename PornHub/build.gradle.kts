@@ -1,4 +1,4 @@
-version = 15 // #1574: version bump (v15) — normalised search queries + echo retry
+version = 16 // #1586: version bump (v16)
 
 cloudstream {
     authors     = listOf("RjBiermann")
