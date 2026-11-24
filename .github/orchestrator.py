@@ -2007,14 +2007,57 @@ def _registry_known_issues(doc):
     """Issue numbers the registry on main already records a run for.
     Most closed-window candidates are synced audit stories whose verdict is
     already in the file, and `comments()` per candidate is the sweep's
-    dominant API cost (~87 closes vs 28 opens in a 7-day window, against
-    the secondary limit noted on `api()`) — skip those without a fetch
-    (#1583 review)."""
-    runs = (doc or {}).get("last_runs") or []
-    provs = ((doc or {}).get("providers") or {}).values()
-    nums = [r.get("issue") for r in runs if isinstance(r, dict)]
-    nums += [p.get("issue") for p in provs if isinstance(p, dict)]
+    dominant API cost — skip those without a fetch (#1583 review).
+
+    The run→issue mapping mostly lives in the NESTED `findings[].issue`
+    (44 of 50 `last_runs` records carry no top-level `issue`), so harvesting
+    only the top level made landed entries look unrecorded and re-pend them
+    over newer data (#1598 review)."""
+    nums = []
+    for r in (doc or {}).get("last_runs") or []:
+        if not isinstance(r, dict):
+            continue
+        nums.append(r.get("issue"))
+        nums += [f.get("issue") for f in (r.get("findings") or [])
+                 if isinstance(f, dict)]
+    nums += [p.get("issue")
+             for p in ((doc or {}).get("providers") or {}).values()
+             if isinstance(p, dict)]
     return {n for n in nums if isinstance(n, int)}
+
+
+def _registry_union(base, entry):
+    """Union one entry into the registry — newest wins PER PROVIDER.
+
+    16-f6b shape: list items append, entry scalars win. That is right for a
+    fresh entry and wrong for a replay older than the file, so each provider
+    is settled on its own evidence: when the file's `last_deep` is NEWER than
+    the entry's run date, the file keeps the provider. A blanket direction
+    (always replay, always overwrite) drops a genuinely newer payload or
+    reverts a later pass (#1598 review)."""
+    merged = _union_findings(base, entry)
+    run_date = _registry_entry_date(entry)
+    if not run_date:
+        return merged
+    cur_provs = (base.get("providers") or {}) if isinstance(base, dict) else {}
+    for name, p in ((entry or {}).get("providers") or {}).items():
+        cur = cur_provs.get(name)
+        if not isinstance(p, dict) or not isinstance(cur, dict):
+            continue
+        if str(cur.get("last_deep") or "") > run_date:
+            merged["providers"][name] = cur
+    return merged
+
+
+def _registry_apply(base, pend):
+    """Union every pending entry. Returns (document, changed).
+
+    `changed` is what keeps a demoted marker from opening an empty registry
+    PR on every sweep: an entry the file already holds unions to itself."""
+    merged = base
+    for _, e in pend:
+        merged = _registry_union(merged, e)
+    return merged, merged != base
 
 
 def _registry_pend_order(pend):
@@ -2027,19 +2070,34 @@ def _registry_pend_order(pend):
     return sorted(pend, key=lambda ne: (_registry_entry_date(ne[1]), ne[0]))
 
 
-def _registry_pending(issues, fetch_comments=None):
-    """[(issue number, entry)] in apply order, with stale stamps flagged.
+def _registry_pending(issues, fetch_comments=None, applied=None):
+    """[(issue number, entry)] in apply order, stale stamps flagged.
 
     One append path for anchored entries and for the self-heal repost, so a
     healed entry goes through the same checks as an anchored one — the
     unanchored shape was exactly the #1439 case that kept a stale
-    `last_deep` (#1583 review)."""
+    `last_deep` (#1583 review).
+
+    The `applied` marker is written when the registry PR is OPENED, not when
+    it lands, so a registry PR that later conflicts against a newer one
+    strands its entry while its issue reads as done — #1581 (run1457) and
+    #1587 (run1458) both went CONFLICTING/DIRTY when #1595 rewrote the file,
+    and the sweep would never look at them again. The registry itself is the
+    evidence: skip only when the entry is actually recorded there (issue
+    number in `applied`, from `_registry_known_issues`).
+
+    A marker without a recorded entry means the PR that carried it died: the
+    entry re-pends, and `_registry_union` settles per provider whether its
+    scalars are newer than the file's (#1598 review)."""
     read = fetch_comments or comments
+    applied = applied or frozenset()
     pend = []
     for i in issues:
-        cs = read(i["number"])
-        if _has_marker(cs, f"{MARK} registry entry applied"):
+        # The registry is the evidence: an issue whose entry is recorded needs
+        # neither a re-post of its anchor (#777 self-heal) nor a union.
+        if i["number"] in applied:
             continue
+        cs = read(i["number"])
         e = _registry_entry(cs)
         if not e:
             # Self-heal the recurring agent-formatting defect (#777, three
@@ -2065,9 +2123,14 @@ def registry_sync():
     """ADR-0013: agent diffs carry no registry. The agent posts its
     would-be registry entry as an add-comment starting with
     REGISTRY_ANCHOR and a fenced ```json``` object; this step unions it
-    into GH_AW_REGISTRY_PATH on main (owner actor) and dedupes per
-    issue. A same-issue later entry needs the marker cleared by a human
-    or a fresh issue — union makes the common retry a no-op anyway."""
+    into GH_AW_REGISTRY_PATH on main (owner actor).
+
+    Dedupe is by EVIDENCE, not by the marker comment: an issue the registry
+    already records is skipped, and one it does not is re-pended however its
+    thread reads (the marker is written when the PR opens, so a PR that later
+    conflicts strands its entry, #1581/#1587). A corrected same-issue entry
+    therefore re-applies on the next sweep — no marker-clearing ritual, and
+    the append-only union keeps the retry idempotent."""
     if not REGISTRY_PATH:
         return  # feature off for this adopter
     # ADR-0019: no PAT needed — the push rides the checkout's actions token
@@ -2086,13 +2149,17 @@ def registry_sync():
     pend = _registry_pending(
         _registry_issue_set(
             api("issues?state=open&per_page=60"),
-            [i for i in _registry_closed_issues() if i["number"] not in known]))
+            [i for i in _registry_closed_issues() if i["number"] not in known]),
+        applied=known)
     if not pend:
         return
-    applied = [n for n, e in pend]
-    for _, e in pend:
-        # entry's list items append, entry's scalars win (draft 16-f6b shape)
-        merged = _union_findings(merged, e)
+    applying = [n for n, _ in pend]
+    merged, changed = _registry_apply(merged, pend)
+    if not changed:
+        # Every entry was already in the file (the marker is a cache, so a
+        # landed-but-unrecorded one re-pends): a no-op union must not open an
+        # empty registry PR every sweep.
+        return
     # The file's own freshness field was frozen at the pre-run date, so
     # nothing in the registry recorded that any union happened (#1579).
     merged["updated"] = time.strftime("%Y-%m-%d", time.gmtime())
@@ -2117,7 +2184,7 @@ def registry_sync():
         _, commit = _pl(["git", *GIT_AUTHOR_IDENTITY, "commit-tree", tree,
                          "-p", msha,
                          "-m", "registry: apply verdict entries from issues "
-                               f"#{', #'.join(str(n) for n in applied)} "
+                               f"#{', #'.join(str(n) for n in applying)} "
                                "(orchestrator registry_sync, ADR-0013)"])
         # Branch protection on main (7 required status checks, 2026-10-21)
         # kills both direct paths: GITHUB_TOKEN cannot push main, and a
@@ -2132,7 +2199,7 @@ def registry_sync():
             pr_out = run(["gh", "pr", "create", "--base", "main",
                           "--head", branch,
                           "--title", "[registry] apply findings entries "
-                          f"from #{', #'.join(str(n) for n in applied)}",
+                          f"from #{', #'.join(str(n) for n in applying)}",
                           "--body", f"Mechanical union of anchored registry "
                           f"entries into `{REGISTRY_PATH}` (ADR-0013 — the "
                           f"registry never travels in an agent diff). "
@@ -2145,11 +2212,11 @@ def registry_sync():
             else:
                 ok = False
         if ok:
-            for n in applied:
+            for n in applying:
                 post_comment(n, f"{MARK} registry entry applied to `{REGISTRY_PATH}` via "
                                 f"registry PR (landed by auto-merge when green). "
                                 f"The registry never travels in an agent diff (ADR-0013).")
-            print(f"[orchestrator] registry_sync applied entries from {applied} -> PR branch {branch}")
+            print(f"[orchestrator] registry_sync applied entries from {applying} -> PR branch {branch}")
         else:
             print("[orchestrator] registry_sync push failed — entries stay pending on their issues")
     finally:

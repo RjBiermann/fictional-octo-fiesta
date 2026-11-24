@@ -2139,6 +2139,14 @@ class TestRegistryKnownIssuesPreempt(unittest.TestCase):
         self.assertEqual(orchestrator._registry_known_issues(self.DOC),
                          {1450, 1447})
 
+    def test_nested_findings_issue_counts_as_recorded(self):
+        """44 of 50 `last_runs` carry no top-level `issue` — the mapping lives
+        in `findings[].issue`, and missing it re-pended landed entries over
+        newer data (#1598 review)."""
+        doc = {"last_runs": [{"id": "run9",
+                             "findings": [{"issue": 9, "provider": "X"}]}]}
+        self.assertEqual(orchestrator._registry_known_issues(doc), {9})
+
     def test_missing_or_empty_doc_is_not_an_error(self):
         self.assertEqual(orchestrator._registry_known_issues(None), set())
         self.assertEqual(orchestrator._registry_known_issues({}), set())
@@ -2210,8 +2218,7 @@ class TestRegistryPendOrder(unittest.TestCase):
                                      "reason": "new"}}}
         pend = orchestrator._registry_pend_order([(1446, newer), (1439, older)])
         merged = {}
-        for _, e in pend:
-            merged = orchestrator._union_findings(merged, e)
+        merged, _ = orchestrator._registry_apply({}, pend)
         self.assertEqual(merged["providers"]["X"]["last_deep"], "2026-11-24")
         self.assertEqual(merged["providers"]["X"]["reason"], "new")
 
@@ -2253,12 +2260,36 @@ class TestRegistryPendingScan(unittest.TestCase):
         self.assertEqual(got[0][1]["providers"]["X"]["last_deep"],
                          "2026-10-16")
 
-    def test_applied_marker_skips_the_issue(self):
-        cs = [{"body": f"{orchestrator.MARK} registry entry applied",
+    MARKED = {"body": f"{orchestrator.MARK} registry entry applied",
+              "user": {"login": "github-actions[bot]", "type": "Bot"}}
+
+    def test_a_recorded_issue_is_skipped_marker_or_not(self):
+        entry = ('{"last_runs": [{"id": "run5", "issue": 5}],'
+                 ' "providers": {}}')
+        anchored = {"body": orchestrator.REGISTRY_ANCHOR
+                    + "\n```json\n" + entry + "\n```",
+                    "user": {"login": "github-actions[bot]", "type": "Bot"}}
+        for cs in ([self.MARKED, anchored], [anchored]):
+            with self.subTest(marker=len(cs) == 2):
+                got = orchestrator._registry_pending([{"number": 5}],
+                                                     fetch_comments=lambda n: cs,
+                                                     applied={5})
+                self.assertEqual(got, [])
+
+    def test_marker_without_a_recorded_entry_re_pends(self):
+        """#1581/#1587 shape: the marker is written when the registry PR is
+        OPENED, so a PR that later conflicts strands its entry while the
+        issue reads as done. The registry, not the marker, is the evidence."""
+        body = ('{"last_runs": [{"id": "run1457", "issue": 1457,'
+                ' "date": "2026-11-24"}], "providers": {}}')
+        cs = [{"body": f"{orchestrator.REGISTRY_ANCHOR}\n```json\n{body}\n```",
+               "user": {"login": "github-actions[bot]", "type": "Bot"}},
+              {"body": f"{orchestrator.MARK} registry entry applied",
                "user": {"login": "github-actions[bot]", "type": "Bot"}}]
-        got = orchestrator._registry_pending([{"number": 5}],
-                                             fetch_comments=lambda n: cs)
-        self.assertEqual(got, [])
+        got = orchestrator._registry_pending([{"number": 1457}],
+                                             fetch_comments=lambda n: cs,
+                                             applied=set())
+        self.assertEqual([n for n, _ in got], [1457])
 
     def test_unanchored_entry_without_anchorable_shape_is_skipped(self):
         cs = [self._bot("```json\n{\"note\": \"not an entry\"}\n```")]
@@ -2356,3 +2387,48 @@ class TestApprovalQueryIsOneCall(unittest.TestCase):
         full = [{"id": 1, "name": "Lint", "head_branch": "x"} for _ in range(100)]
         calls, _, _ = self._run({1: full, 2: full, 3: full, 4: full}, [])
         self.assertEqual(len([c for c in calls if "actions/runs" in c]), 3)
+
+
+class TestRegistryUnionNewestPerProvider(unittest.TestCase):
+    """#1598 review: neither blanket direction is right. A stranded entry that
+    is OLDER than the file must not revert a later pass, and a genuinely newer
+    entry must not be dropped in favour of a stale record — so the per-provider
+    `last_deep` decides, and the entry's run record appends either way."""
+
+    MAIN = {"providers": {"X": {"last_deep": "2026-11-24", "reason": "new"}},
+            "last_runs": [{"id": "run9999"}]}
+
+    def _entry(self, date):
+        return {"last_runs": [{"id": "run1457", "date": date}],
+                "providers": {"X": {"last_deep": date, "reason": "entry"}}}
+
+    def test_older_entry_keeps_the_files_newer_provider_state(self):
+        merged = orchestrator._registry_union(self.MAIN, self._entry("2026-11-20"))
+        self.assertEqual(merged["providers"]["X"]["last_deep"], "2026-11-24")
+        self.assertEqual(merged["providers"]["X"]["reason"], "new")
+
+    def test_newer_entry_wins_over_the_files_stale_provider_state(self):
+        merged = orchestrator._registry_union(self.MAIN, self._entry("2026-11-30"))
+        self.assertEqual(merged["providers"]["X"]["last_deep"], "2026-11-30")
+        self.assertEqual(merged["providers"]["X"]["reason"], "entry")
+
+    def test_the_run_record_lands_in_both_directions(self):
+        for date in ("2026-11-20", "2026-11-30"):
+            with self.subTest(date=date):
+                merged = orchestrator._registry_union(self.MAIN, self._entry(date))
+                self.assertEqual({r["id"] for r in merged["last_runs"]},
+                                 {"run1457", "run9999"})
+
+    def test_a_no_op_union_reports_no_change(self):
+        """The guard that stops a demoted marker from opening an empty
+        registry PR every sweep (#1598 review round 1)."""
+        same = {"last_runs": [{"id": "run9999"}],
+                "providers": {"X": {"last_deep": "2026-11-24", "reason": "new"}}}
+        merged, changed = orchestrator._registry_apply(same, [(1457, same)])
+        self.assertFalse(changed)
+        self.assertEqual(merged, same)
+
+    def test_a_real_union_reports_a_change(self):
+        _merged, changed = orchestrator._registry_apply(
+            self.MAIN, [(1457, self._entry("2026-11-30"))])
+        self.assertTrue(changed)
