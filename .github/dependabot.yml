@@ -12,7 +12,20 @@ updates:
     ignore:
       # Deliberate pin: Jackson >2.13.1 breaks older Android devices
       # (build.gradle.kts). Dependabot otherwise re-opens the bump weekly.
+      # Both shapes on purpose (#1594 review): the glob covers the artifact
+      # this repo actually declares (com.fasterxml.jackson.module:
+      # jackson-module-kotlin, #94); the exact coordinates are what a
+      # version-update match names. Neither shape reaches a security job —
+      # see the note below.
       - dependency-name: "com.fasterxml.jackson*"
+      - dependency-name: "com.fasterxml.jackson.core:jackson-core"
+      - dependency-name: "com.fasterxml.jackson.core:jackson-databind"
+      - dependency-name: "com.fasterxml.jackson.core:jackson-annotations"
+      # NOT a fix for the recurring `dependency_not_found` run (#1592): that
+      # job is a security update naming 17 transitive coordinates of
+      # com.lagradost:cloudstream3:pre-release, which resolves from mavenLocal
+      # only (bootstrapCloudstream) and so is absent from the updater's
+      # snapshot. No ignore list reaches it; #1592 stays open.
       # Pinned: CodeQL's Kotlin extractor cannot parse newer Kotlin Gradle
       # plugins; codeql.yml downgrades to 2.4.10 to build (ADR-0010).
       - dependency-name: "org.jetbrains.kotlin:kotlin-gradle-plugin"

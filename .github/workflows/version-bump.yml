@@ -44,6 +44,12 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
+    # Bounds a hung RUNNING bump (a normal one costs ~12 s). It cannot reach a
+    # run stuck queued before job scheduling, which is the shape #1590
+    # measured (three runs, zero jobs ever scheduled, 13.8 h) — that needs
+    # GitHub's queue expiry or a sweeper, not a job timeout. cancel-in-progress
+    # stays false: a cancelled mid-push loses the bump commit.
+    timeout-minutes: 10
     steps:
       - name: Checkout PR head
         uses: actions/checkout@v7
