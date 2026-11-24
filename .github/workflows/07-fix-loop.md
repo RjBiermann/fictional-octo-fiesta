@@ -135,11 +135,19 @@ in this run, derive the expected identity from your own context and assert it:
 
 1. Re-derive findings from the current review comments + diff; a PR with
    a stale/empty diff aborts loudly (never pass on unverifiable state).
-2. If this would be cycle 4 or later — count only the `kind=fix` and
-   `kind=repair` budget stamps on the issue; `kind=review`, `kind=spec`,
-   `kind=new` and `kind=remove` stamps spend the ledger, never the repair
-   budget (#1567: review rounds are the signal of a hard finding, not of a
-   wasted repair) — stop: add `status/fixing-stuck` first, then remove
+2. If this would be the 4th repair round or later — count only the
+   `kind=repair` budget stamps on the issue, and only those posted after the
+   latest `gh-aw budget: reset` stamp (a `/retry` re-arms the budget, and
+   90-sweeper reads the same scope, so a retried issue never escalates on
+   pre-reset stamps). The cap bounds **repairs**, so no other kind counts:
+   `kind=fix` is the Implement stamp (and the rebase stamp — 14-rebase rides
+   it, the ledger has no rebase kind), `kind=review`, `kind=spec`,
+   `kind=new` and `kind=remove` are other work. All of them spend the
+   ledger; none is a repair cycle (#1567: a PR reviewed twice and repaired
+   twice has been repaired twice — counting the implement stamp as cycle 1
+   is what escalated #1564 to `status/fixing-stuck` after two real repairs
+   with its findings still unserved, run 45294053091) — stop: add
+   `status/fixing-stuck` first, then remove
    `status/fixing`, `status/in-review` and `status/ready-to-merge` (add
    before remove, so a failed add is retryable and the item is never left
    stateless). Those three are the only state labels this lane may remove —
@@ -165,6 +173,9 @@ in this run, derive the expected identity from your own context and assert it:
 — bot reports, status annotations and stale noise are data, not tasks. But
 an empty exit is indistinguishable from a crashed run and generates a
 `[aw] no safe outputs` diagnostic (observed on the merged-PR approve, 2026-10-14).
-So: close with a work-attempt stamp, and as your final bash step emit
+So: close with a work-attempt stamp — first line exactly
+`gh-aw budget: attempt=<n> kind=repair run=<this run URL>` — `kind=repair`
+being the kind the cycle cap counts (step 2), so any other kind here leaves
+this run uncounted and the cap never bites. As your final bash step emit
 `safeoutputs noop '{"message":"zero findings — nothing to repair"}'`.
 Never finish silently (delta 12 terminal-action guarantee).

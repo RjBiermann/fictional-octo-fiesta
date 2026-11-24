@@ -19,10 +19,11 @@ Rules (ported from `devloop/ledger.py`):
   prose that can never move an attempt budget. The sweeper's parser
   (90-sweeper.yml env) counts stamps back out of the history —
   `MAX_ATTEMPTS` 20 lifetime and `DAILY_ATTEMPT_CAP` 10 per issue per
-  day read the same scan; the repair session escalates to the human at
-  cycle 4 (07-fix-loop, which counts `kind=fix`/`kind=repair` stamps only —
-  reviews and specs spend the ledger, not the repair budget), whichever
-  bound bites first.
+  day read the same scan; the repair session escalates to the human at the
+  4th repair round (07-fix-loop counts `kind=repair` stamps only, after the
+  latest `reset` — implement/rebase (`kind=fix`), review, spec, new and
+  remove stamps spend the ledger, never a repair cycle), whichever bound
+  bites first.
 - **Never edit or reformat** an existing stamp; only append.
 - When posting results, always close your turn with a stamp if your
   workflow's body instructs it (attempt-bearing work only — narration
