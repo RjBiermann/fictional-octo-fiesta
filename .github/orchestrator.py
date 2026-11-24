@@ -2801,11 +2801,12 @@ def _sweep_budget_spent(rows, max_per_hour=None, now=None,
     *after* a wake is unreachable (the wake's event is the run that just
     completed), so event-time reasoning cannot fix it either.
 
-    What the count actually guarantees: once the allowance is spent, no sweep
-    runs until a counted sweep falls out of the window. A counted run holds its
-    slot until `startedAt + 60`, so worst-case staleness is ~38 min, and the
-    carrier for a declined wake is the NEXT event — not a timer (this
-    workflow's own header documents the `*/10` cron as ~4-8 h apart here).
+    What the count guarantees: once the allowance is spent, no full sweep runs
+    until a counted sweep falls out of the window (a counted run holds its slot
+    until `startedAt + 60`, so up to ~38 min of read-staleness). It does NOT
+    strand work: `sweep_declined()` still runs `fix_surrogate()` on every
+    declined wake, so a fresh blocker verdict is dispatched without waiting for
+    an unrelated event — which is exactly what failed on #1564 at 23:35.
 
     A "sweep" is measured by JOB wall time, not `run_started_at`: in this repo
     `run_started_at == created_at`, i.e. queue time, and a declined wake queued
@@ -2877,6 +2878,39 @@ def _job_duration_min(run_id):
     return total / 60.0 if jobs else None
 
 
+def sweep_declined():
+    """The hourly ceiling is spent — serve the one thing a wake can carry.
+
+    A full sweep is ~17 steps of App-token reads; that is what the ceiling
+    bounds. But declining the whole wake strands a fresh blocker verdict: on
+    2026-11-23 the round-2 verdict on #1564 landed at 23:35:11, the wake at
+    23:35:50 was declined ("3 sweeps in the last 60 min"), and with no further
+    event the PR sat on `status/fixing` for 30+ minutes with no repair
+    dispatched. The carrier "next event" is not a schedule.
+
+    `fix_surrogate()` is the step that turns a verdict into a 07 dispatch, and
+    it is one thread scan rather than seventeen steps' worth of reads. So a
+    declined wake runs exactly that, and nothing else.
+    """
+    try:
+        approve_companion_runs()
+    except Exception as e:
+        # Approvals are a human decision already made, not a state read the
+        # ceiling may skip.
+        sys.stderr.write(f"[orchestrator] approvals failed: {e}\n")
+    if not _owner_configured():
+        print(f"[orchestrator] {SWEEP_MAX_PER_HOUR} sweeps in the last "
+              f"{SWEEP_WINDOW_MIN} min — full sweep declined, no owner identity "
+              f"so repairs are not dispatched")
+        return
+    print(f"[orchestrator] {SWEEP_MAX_PER_HOUR} sweeps in the last "
+          f"{SWEEP_WINDOW_MIN} min — full sweep declined, repairs only")
+    try:
+        fix_surrogate()
+    except Exception as e:
+        sys.stderr.write(f"[orchestrator] fix_surrogate failed: {e}\n")
+
+
 def _recent_sweep_runs(now=None):
     """`gh run list` bounded by --created, not by --limit.
 
@@ -2931,16 +2965,7 @@ if __name__ == "__main__":
         # against one API budget. Collapse them — the sweep re-derives all
         # state, so dropping a wake costs latency, never accuracy.
         if _sweep_budget_spent(_recent_sweep_runs()):
-            # Approvals still run: an action_required agent run must not wait
-            # on the throttle — that is a human decision already made, not a
-            # state read this sweep could have done.
-            try:
-                approve_companion_runs()
-            except Exception as e:
-                sys.stderr.write(f"[orchestrator] approvals failed: {e}\n")
-            print(f"[orchestrator] {SWEEP_MAX_PER_HOUR} sweeps in the last "
-                  f"{SWEEP_WINDOW_MIN} min — this workflow_run wake is a no-op "
-                  f"(the next event carries the latency)")
+            sweep_declined()
             sys.exit(0)
     steps = {
         "approvals": approve_companion_runs,

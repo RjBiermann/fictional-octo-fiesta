@@ -1915,6 +1915,33 @@ class TestSweepCeiling(unittest.TestCase):
         with mock.patch.object(orchestrator, "run", return_value="nope"):
             self.assertIsNone(orchestrator._job_duration_min(42))
 
+    def test_declined_wake_still_serves_repairs(self):
+        # #1564: the ceiling declined the wake carrying a fresh blocker verdict
+        # and nothing dispatched the repair for 30+ minutes
+        with mock.patch.object(orchestrator, "approve_companion_runs"), \
+             mock.patch.object(orchestrator, "_owner_configured", lambda: True), \
+             mock.patch.object(orchestrator, "fix_surrogate") as fs:
+            orchestrator.sweep_declined()
+        fs.assert_called_once()
+
+    def test_declined_wake_respects_the_owner_gate(self):
+        # fix_surrogate is a mutation step: without the owner identity it must
+        # not run, exactly as `available` filters it in main()
+        with mock.patch.object(orchestrator, "approve_companion_runs"), \
+             mock.patch.object(orchestrator, "_owner_configured", lambda: False), \
+             mock.patch.object(orchestrator, "fix_surrogate") as fs:
+            orchestrator.sweep_declined()
+        fs.assert_not_called()
+
+    def test_declined_wake_survives_a_failing_step(self):
+        # a broken step must not turn a declined wake into a red run
+        with mock.patch.object(orchestrator, "approve_companion_runs",
+                               side_effect=RuntimeError("boom")), \
+             mock.patch.object(orchestrator, "_owner_configured", lambda: True), \
+             mock.patch.object(orchestrator, "fix_surrogate",
+                               side_effect=RuntimeError("boom")):
+            orchestrator.sweep_declined()      # must not raise
+
     def test_workflow_passes_the_ceiling_knob(self):
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                             "workflows", "95-orchestrator.yml")
