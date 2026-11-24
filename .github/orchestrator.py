@@ -1811,6 +1811,16 @@ def _round_waiting_on(round_comment):
 
 
 # -------------------------------------------------------- transient watchdog
+# Diagnostic titles that are transient BY CONSTRUCTION: they name a skipped
+# run, not missing work. The daily-credit guardrail fails closed on a GitHub
+# API hiccup and gh-aw's own text says so ("the guardrail will retry
+# automatically on the next run; no action is required unless the failures
+# persist") — four of them (#1542, #1572, #1571, #1582) each needed a manual
+# NOT_PLANNED close because this list only knew the first two classes.
+TRANSIENT_DIAG_TITLES = ("no safe outputs", "reported incomplete",
+                         "could not verify daily AI credits")
+
+
 def watchdog():
     openi = api("issues?state=open&per_page=50") or []
     ml = []
@@ -1818,7 +1828,7 @@ def watchdog():
         t = i.get("title", "")
         if i.get("pull_request"):
             continue
-        if t.startswith("[aw]") and ("no safe outputs" in t or "reported incomplete" in t):
+        if t.startswith("[aw]") and any(x in t for x in TRANSIENT_DIAG_TITLES):
             ml.append((i["number"], i.get("created_at", "")))
     if not ml:
         return
@@ -1883,6 +1893,47 @@ def _registry_candidate(cs):
     return None
 
 
+# How far back a CLOSED issue is still scanned for a registry entry. An
+# entry posted during Implement was unioned only while its story stayed
+# open; 12-post-merge closes the story, so a sweep landing after the close
+# dropped the entry silently — five of eighteen delivered #1354 stories
+# left the registry stale (#1579). A window (not "all closed") keeps the
+# scan bounded and the applied-marker keeps it idempotent.
+REGISTRY_CLOSED_WINDOW_DAYS = 7
+
+
+def _registry_issue_set(openi, closedi, now=None):
+    """Open issues plus the ones closed inside the window."""
+    now = time.time() if now is None else now
+    cutoff = time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                           time.gmtime(now - REGISTRY_CLOSED_WINDOW_DAYS * 86400))
+    out = [i for i in (openi or []) if "pull_request" not in i]
+    out += [i for i in (closedi or [])
+            if "pull_request" not in i and (i.get("closed_at") or "") >= cutoff]
+    return out
+
+
+def _registry_clamp_last_deep(entry):
+    """A provider's `last_deep` can not predate the entry's own run date.
+    S15 (#1453) posted the PREVIOUS deep date beside `reason: ... (S15,
+    2026-11-23)`; the union applied it faithfully, so a delivered deep pass
+    landed as stale and the rotation would re-pay for it (#1579). The run
+    record is the evidence; a stale stamp is healed, not trusted."""
+    if not isinstance(entry, dict):
+        return entry
+    runs = [r.get("date") for r in (entry.get("last_runs") or [])
+            if isinstance(r, dict) and isinstance(r.get("date"), str)]
+    run_date = max(runs) if runs else ""
+    for name, p in (entry.get("providers") or {}).items():
+        if not isinstance(p, dict) or not run_date:
+            continue
+        if str(p.get("last_deep") or "") < run_date:
+            print(f"[orchestrator] registry: {name} last_deep {p.get('last_deep')} "
+                  f"predates its run date {run_date} — clamped")
+            p["last_deep"] = run_date
+    return entry
+
+
 def registry_sync():
     """ADR-0013: agent diffs carry no registry. The agent posts its
     would-be registry entry as an add-comment starting with
@@ -1895,15 +1946,15 @@ def registry_sync():
     # ADR-0019: no PAT needed — the push rides the checkout's actions token
     # (contents: write); the commit author is the conveyor identity.
     pend = []
-    for i in api("issues?state=open&per_page=60") or []:
-        if i.get("pull_request"):
-            continue
+    for i in _registry_issue_set(
+            api("issues?state=open&per_page=60"),
+            api("issues?state=closed&sort=updated&direction=desc&per_page=50")):
         cs = comments(i["number"])
         if _has_marker(cs, f"{MARK} registry entry applied"):
             continue
         e = _registry_entry(cs)
         if e:
-            pend.append((i["number"], e))
+            pend.append((i["number"], _registry_clamp_last_deep(e)))
             continue
         # Self-heal the recurring agent-formatting defect (#777, three
         # strandings): a fix-loop/review agent posts the fenced ```json```
@@ -1933,6 +1984,9 @@ def registry_sync():
     for _, e in pend:
         # entry's list items append, entry's scalars win (draft 16-f6b shape)
         merged = _union_findings(merged, e)
+    # The file's own freshness field was frozen at the pre-run date, so
+    # nothing in the registry recorded that any union happened (#1579).
+    merged["updated"] = time.strftime("%Y-%m-%d", time.gmtime())
     payload = json.dumps(merged, indent=2) + "\n"
     idx = f"{os.environ.get('RUNNER_TEMP', '/tmp')}/orch-regidx.{os.getpid()}"
     ienv = {"GIT_INDEX_FILE": idx}

@@ -9,6 +9,7 @@ Run: python3 -m unittest .github.orchestrator_test  (or:
      python3 -m unittest discover -s .github -p 'orchestrator_test.py')
 """
 
+import calendar
 import importlib.util
 import json
 import os
@@ -2020,3 +2021,85 @@ class TestEnvIntParsing(unittest.TestCase):
         with mock.patch.dict(orchestrator.os.environ,
                              {"GH_AW_SWEEP_MAX_PER_HOUR": "0"}):
             self.assertEqual(orchestrator._env_int("GH_AW_SWEEP_MAX_PER_HOUR", 10), 0)
+
+
+class TestTransientDiagClasses(unittest.TestCase):
+    """The watchdog is the only thing that stops transient `[aw]` noise from
+    accumulating: each class it does not know costs a manual close (#1579)."""
+
+    def _closed(self, title, later_success=True, created="2026-11-24T02:00:00Z"):
+        issue = {"number": 7, "title": title, "created_at": created,
+                 "labels": []}
+        runs = "2026-11-24T03:00:00Z\n" if later_success else ""
+        with mock.patch.object(orchestrator, "api", return_value=[issue]), \
+             mock.patch.object(orchestrator, "run", return_value=runs), \
+             mock.patch.object(orchestrator, "close_issue") as close:
+            orchestrator.watchdog()
+        return close
+
+    def test_daily_credit_guardrail_is_transient(self):
+        close = self._closed("[aw] Security scan (08+09 merged) could not "
+                             "verify daily AI credits")
+        close.assert_called_once()
+        self.assertEqual(close.call_args[0][1], "not planned")
+
+    def test_known_classes_still_close(self):
+        for t in ("[aw] Triage produced no safe outputs",
+                  "[aw] Review (findings only) reported incomplete result"):
+            with self.subTest(title=t):
+                self._closed(t).assert_called_once()
+
+    def test_real_failure_is_never_closed(self):
+        self._closed("[aw] Implement failed").assert_not_called()
+
+    def test_no_later_success_keeps_it_open(self):
+        self._closed("[aw] Security scan could not verify daily AI credits",
+                     later_success=False).assert_not_called()
+
+
+class TestRegistryClosedWindow(unittest.TestCase):
+    """#1579: an entry posted during Implement was only unioned while its
+    story was open, and 12-post-merge closes it — the delivered pass went
+    invisible to the next booking and the deep tier was paid twice."""
+
+    NOW = calendar.timegm((2026, 11, 24, 16, 0, 0, 0, 0, 0))
+
+    def test_just_closed_issue_is_scanned(self):
+        closed = [{"number": 1446, "closed_at": "2026-11-22T20:53:00Z"}]
+        got = orchestrator._registry_issue_set([], closed, now=self.NOW)
+        self.assertEqual([i["number"] for i in got], [1446])
+
+    def test_issue_closed_outside_the_window_is_not(self):
+        closed = [{"number": 1, "closed_at": "2026-10-01T00:00:00Z"}]
+        self.assertEqual(orchestrator._registry_issue_set([], closed,
+                                                          now=self.NOW), [])
+
+    def test_pull_requests_are_skipped_on_both_arms(self):
+        got = orchestrator._registry_issue_set(
+            [{"number": 2}, {"number": 3, "pull_request": {}}],
+            [{"number": 4, "closed_at": "2026-11-24T00:00:00Z",
+              "pull_request": {}}], now=self.NOW)
+        self.assertEqual([i["number"] for i in got], [2])
+
+
+class TestRegistryLastDeepClamp(unittest.TestCase):
+    """#1579 S15 shape: a correctly anchored entry whose last_deep was the
+    PREVIOUS deep date while its own reason named the new run."""
+
+    def test_stale_last_deep_is_clamped_to_the_run_date(self):
+        entry = {"last_runs": [{"date": "2026-11-23"}],
+                 "providers": {"AllClassicPorn": {"last_deep": "2026-10-16"}}}
+        orchestrator._registry_clamp_last_deep(entry)
+        self.assertEqual(entry["providers"]["AllClassicPorn"]["last_deep"],
+                         "2026-11-23")
+
+    def test_fresh_last_deep_is_left_alone(self):
+        entry = {"last_runs": [{"date": "2026-11-23"}],
+                 "providers": {"X": {"last_deep": "2026-11-24"}}}
+        orchestrator._registry_clamp_last_deep(entry)
+        self.assertEqual(entry["providers"]["X"]["last_deep"], "2026-11-24")
+
+    def test_entry_without_runs_is_untouched(self):
+        entry = {"providers": {"X": {"last_deep": "2026-10-16"}}}
+        orchestrator._registry_clamp_last_deep(entry)
+        self.assertEqual(entry["providers"]["X"]["last_deep"], "2026-10-16")
