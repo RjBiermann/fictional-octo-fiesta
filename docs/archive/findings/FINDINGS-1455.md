@@ -13,7 +13,7 @@ condition were confirmed; nothing was.
 
 **Result: no condition confirmed on the video-source leg — the leg is clean, no code change, no
 version bump (stays 23).** No finding filed. Every listing type the site exposes answered
-plain-curl, and all 15 sampled rows resolved end-to-end (page → single 720p source → 302 → 206
+plain-curl, and all 17 sampled rows resolved end-to-end (page → single 720p source → 302 → 206
 `video/mp4`, ISO-BMFF `ftyp isom` magic).
 
 Run: `05-implement` for #1455, 2026-11-24, plain-curl tier, runner IP US (52.240.176.168).
@@ -44,7 +44,7 @@ ModuleNotFoundError: No module named 'curl_cffi'      # #1434 still open at run 
 
 **#1434 is still open**, so the registry `last_runs` entry carries `escalation_tier: unavailable`
 and any `Blocked` this run would downgrade to `Suspected`. None occurred — neporn.com answered
-plain-curl on every surface below, including all 15 streams.
+plain-curl on every surface below, including all 17 streams.
 
 Instrument = **plain-curl tier**, desktop Chrome UA
 (`Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36`).
@@ -100,7 +100,7 @@ The provider's search wiring is unchanged and correct: p1 via the KVS slug route
 
 ## Evidence rows (D4)
 
-`type | sample URL | instrument tier | stream host | quality | verdict` — 15 videos, ≥2 per present
+`type | sample URL | instrument tier | stream host | quality | verdict` — 17 videos, ≥2 per present
 type, both catalogue ends where the type is pageable. Every row resolved **end-to-end**:
 video page **200** → `flashvars.video_url` (single source, `_720p.mp4`) → **302** →
 `data00X.neporn.com/remote_control.php?...acctoken=…` → **206 `video/mp4`**.
@@ -123,14 +123,21 @@ video page **200** → `flashvars.video_url` (single source, `_720p.mp4`) → **
 | 14 | tags (`/tags/milf/`) | `/video/45202/mercedes-carrera-make-him-wait/` | p1 head | plain-curl | `data004.neporn.com` | 720p | **pass** |
 | 15 | tags (`/tags/milf/`) | `/video/44712/bridgette-b-rub-down/` | p1 tail | plain-curl | `data004.neporn.com` | 720p | **pass** |
 | 16 | tags (`/tags/milf/`) | `/video/53/le-wood-gizelle-blanco-next-gen-submission/` | p174 head (last page) | plain-curl | `data001.neporn.com` | 720p | **pass** |
+| 17 | top-rated (`/top-rated/`) | `/video/45187/luscious-babe-aleksa-mink-thrilled-by-huge-cock/` | p1690 head (last page) | plain-curl | `data004.neporn.com` | 720p | **pass** |
+| 18 | top-rated (`/top-rated/`) | `/video/45194/double-penetration-compilation/` | p1690 tail (last page) | plain-curl | `data004.neporn.com` | 720p | **pass** |
 
-All 15 URLs above are `https://neporn.com` + path. `old` has no ordering route (see D3), so its
+Rows 17–18 were added in the review fix round (`actions/runs/45307168882`) to close the top-rated
+last-page gap: `/top-rated/1690/` (**200, 4** cards, p1691 **404**) sampled at both ends and both
+resolved end-to-end like every other row. The earlier 41-page quality sweep already included
+`/top-rated/1689/`; this adds the end-to-end stream proof at that catalogue end.
+
+All 17 URLs above are `https://neporn.com` + path. `old` has no ordering route (see D3), so its
 two rows are the oldest catalogue content, reached through the `latest` surface's last page — the
 same videos an "old" listing would show, and the only place the site serves them.
 
 ---
 
-## Stream chain (raw transcript, 15/15)
+## Stream chain (raw transcript, 17/17)
 
 `flashvars.video_url` is a **session-bound bearer**: the `v-acctoken` encodes the requesting IP and
 an expiry. `get_file` answers **302** to `data00X.neporn.com/remote_control.php?file=…&acctoken=…`,
@@ -163,6 +170,33 @@ $ xxd -p -l 16 seg.bin → 000000206674797069736f6d00000200   # ISO-BMFF: size=0
 | 14 | tags p1 head | 302 → 206 video/mp4 | 328 608 150 |
 | 15 | tags p1 tail | 302 → 206 video/mp4 | 343 492 005 |
 | 16 | tags p174 head | 302 → 206 video/mp4 | 773 232 498 |
+| 17 | top-rated p1690 head | 302 → 206 video/mp4 | 425 817 111 |
+| 18 | top-rated p1690 tail | 302 → 206 video/mp4 | 391 272 482 |
+
+### Scope of this check — site-level chain, not a live `loadLinks` invocation
+
+This transcript is a **site-level** proof: page → `flashvars.video_url` → `get_file` **302** →
+`data00X` **206**. `verify.sh` cannot call the provider's `loadLinks` (an app-side `suspend`
+function; this repo has no local dev path, and `MainAPI`/HTTP flows are deliberately not
+mock-tested — ADR-0001, ADR-0005), so the position-matched `--stream-url` overrides feed the
+chain the page itself advertises. What the provider does with that URL is small and read
+directly in `Neporn.loadLinks`:
+
+```kotlin
+val sources = KvsFlashvars.videoSources(html)   // shared grammar, unit-tested
+for (src in sources) callback(newExtractorLink(..., url = src, type = VIDEO) {
+    referer = mainUrl
+    quality = if (src.contains("_720p")) Qualities.P720.value else Qualities.Unknown.value
+})
+```
+
+The parse half is covered at the Parse seam by unit tests (`shared/src/test/kotlin/com/kraptor/
+KvsFlashvarsTest.kt` for the flashvars grammar, `NepornParseTest` for actors/duration); the
+emission half has no branch beyond the `_720p` token and a constant `referer`. **Residual limit,
+stated plainly:** no live `loadLinks` invocation is asserted here — this PASS certifies the site
+chain and the parse seam, not a device-side playback run (app testing is maintainer-only, per
+ADR-0001). The `src.contains("_720p")` mapping is also evidenced catalogue-wide by the quality
+sweep below (every sampled page carries exactly one `_720p.mp4` source).
 
 **Embed host: none to register.** Neporn does not embed a third-party player — the video page's
 only iframe is the site's own `/embed/<id>` (`getEmbed()` in its player JS), and the stream is the
@@ -208,7 +242,7 @@ to fix; no data-completeness condition.
 
 ## Site-side notes (recorded, **not** provider findings)
 
-1. **`plot` mirrors the site's own meta, including its generic tagline.** On 4 of the 15 rows
+1. **`plot` mirrors the site's own meta, including its generic tagline.** On 4 of the 17 rows
    (`45235`, `7`, `45198`, `45202`) the page's `og:description` is the site-wide
    boilerplate *"If you're looking for the best adult website on the internet for free, full-length
    porn videos, Neporn.com is the place to be."*; the rest carry a real per-video synopsis (e.g.
@@ -306,6 +340,23 @@ Invocation notes (the FINDINGS lines the flags require):
 - `./gradlew Neporn:make` → **BUILD SUCCESSFUL**, clean `Neporn/build/Neporn.cs3` (161 445 B)
 - `.pi/skills/verify-provider/scripts/verify.sh` (live) → **RESULT: PASS**
 - No confirmed condition → **no code change, no version bump (Neporn stays 23)**
+
+### Review fix round — 2026-11-24 (`actions/runs/45307168882`)
+
+Codacy's two MEDIUM findings on this document were closed in a follow-up edit:
+
+1. **Top-rated last page unsampled** → rows 17–18 above, probed live from `/top-rated/1690/`
+   (200, 4 cards; p1691 404), both resolved page → `flashvars` → 302 → 206.
+2. **Stream check bypasses `loadLinks`** → the *Scope of this check* subsection now states plainly
+   that the transcript is a site-level chain proof, records why a live `loadLinks` call is not
+   available in this repo (app-side suspend function; no local dev path, no HTTP mocking —
+   ADR-0001/ADR-0005), and names the parse-seam unit coverage (`KvsFlashvarsTest`,
+   `NepornParseTest`) plus the non-branching `_720p` → `P720` emission.
+
+Gates re-run after the edit: `check-findings.sh` **PASS**, `./gradlew Neporn:test` **BUILD
+SUCCESSFUL**, `.pi/skills/verify-provider/scripts/verify.sh` (live) **RESULT: PASS** (5 videos,
+5/5 streams 206, stream URLs fetched fresh at invocation). No provider code changed — version
+stays 23.
 
 ---
 
