@@ -709,13 +709,13 @@
     "Cat3Film": {
       "site": "cat3film.com",
       "verdict": "ok",
-      "reason": "S16 video-source pass 2026-11-23: every D3 type the site exposes answered plain-curl; 19 sampled videos resolved end-to-end via .epbtn[data-ep] -> /api/v1/episodes/<id>/sources -> master.abyssssss.top/<token>/index.m3u8 206 application/vnd.apple.mpegurl; backup player.abyssplayer.com -> dec-abyss -> sora mp4 206 on 18/19 samples (datacenter-blocked mirror now redirects via trycloudflare). categories and tags absent (404); genre vocabulary lives at /genre/<slug> + 20-slug filter select. 0 conditions confirmed, 0 findings, no code change, version stays 28.",
+      "reason": "S16 video-source pass 2026-11-23: every D3 type the site exposes answered plain-curl; 19 sampled videos resolved end-to-end via .epbtn[data-ep] -> /api/v1/episodes/<id>/sources -> master.abyssssss.top/<token>/index.m3u8 206 application/vnd.apple.mpegurl; backup player.abyssplayer.com -> dec-abyss -> sora mp4 206 on 19/19 rows (18 distinct titles; /hidden-face sampled twice; datacenter-blocked mirror now redirects via trycloudflare). categories and tags absent (404); genre vocabulary lives at /genre/<slug> + 19-slug filter select (21 at review time; war/western added). 0 conditions confirmed, 0 findings, no code change, version stays 28.",
       "tier": "plain-curl",
       "surfaces": {
         "home": "200 (/movies p1/p2 30+30 disjoint, p56 far end 26, p57 404; /tv-series 15, single page)",
         "search": "200 (_ajax JSON, single page; no HTML search route)",
         "video": "200 x19",
-        "streams": "206 m3u8 x19 + backup mp4 206 x18"
+        "streams": "206 m3u8 x19 + backup mp4 206 x19 rows (18 distinct titles)"
       },
       "issue": null,
       "standing_issue": null,
