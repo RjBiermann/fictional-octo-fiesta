@@ -509,6 +509,18 @@
       "canaries": "eporner-healthy plain-curl 200 match (312661 B real homepage); pandamovies-redirect-origin plain-curl 302 -> pandamovies.org (plain-tier match); film1k-challenge-pair plain-curl 200 vs expected 403 = expectation-stale (#1435 open, live pair recorded, no environment-degraded branch); TLS tier unavailable (#1434) so no Blocked was possible",
       "findings_filed": 0,
       "false_positives": []
+    },
+    {
+      "id": "run1455",
+      "issue": 1455,
+      "date": "2026-11-24",
+      "kind": "video-source audit (S17 of #1354)",
+      "verdict": "ok",
+      "tier": "plain-curl",
+      "escalation_tier": "unavailable",
+      "canaries": "eporner-healthy plain-curl 200 match (312140 B real homepage); pandamovies-redirect-origin plain-curl 302 -> pandamovies.org (plain-tier match); film1k-challenge-pair plain-curl 200 vs expected 403 = expectation-stale (#1435 open, live pair recorded, no environment-degraded branch); TLS tier unavailable (#1434) so no Blocked was possible",
+      "findings_filed": 0,
+      "false_positives": []
     }
   ],
   "providers": {
@@ -891,20 +903,21 @@
     "Neporn": {
       "site": "neporn.com",
       "verdict": "ok",
-      "reason": "search/video 200; get_file bare (no acctoken) 403 = known session-bound class, reproduced-with-referer flow 302 -> 206 video/mp4; deep 2026-10-16: home p1/p2 24+24 disjoint, search 200/24 + async p2 200/24 (li.page.last halts), quickSearch absent (recorded, not drift), 3+ video pages 200 with Duration/tags exposure \u2014 provider covers all exposed fields; gr-648 re-probe unchanged",
+      "reason": "S17 video-source pass 2026-11-24: every D3 type the site exposes answered plain-curl (latest/popular/top-rated/categories/tags all pageable to their last page with disjoint p1/p2; genres absent, old absent as an ordering with KVS sort_by ignored and /oldest/ 404, its oldest content sampled from the latest deep tail p1690); 15 sampled videos resolved end-to-end via flashvars.video_url -> get_file/<id>_720p.mp4 -> 302 data00X.neporn.com/remote_control.php -> 206 video/mp4 (ftyp isom); 41-page quality sweep shows a single 720p rendition catalogue-wide with no video_alt_url*, so the _720p->P720 mapping is exact; no third-party embed host (only the site's own /embed/<id>), HostRegistry not on this path; tokenless get_file 403 = known session-bound class; 0 conditions confirmed, 0 findings filed, no code change, version stays 23",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200 (p1/p2 disjoint 24+24)",
-        "search": "200 (24 async items, async p2 disjoint)",
-        "video": "200 x3 (Duration/tags/ld+json uploadDate)",
+        "home": "200 (/latest-updates/ 24+24 p1/p2 disjoint, 1690 pages, last page 4)",
+        "search": "200 (24 cards p1, async from_videos=2 p2 24 disjoint; slug p2 404)",
+        "video": "200 x15 (tags/categories info-content, JSON-LD duration+uploadDate)",
         "stream": "get_file 302 -> 206 video/mp4",
-        "quick_search": "absent"
+        "quick_search": "absent",
+        "streams": "302 -> 206 video/mp4 x15"
       },
       "issue": null,
       "standing_issue": null,
       "drift_confirmed": 0,
       "chronic": false,
-      "last_deep": "2026-10-16"
+      "last_deep": "2026-11-24"
     },
     "PerverZija": {
       "site": "tube.perverzija.com",
