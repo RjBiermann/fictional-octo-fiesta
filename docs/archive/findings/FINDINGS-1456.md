@@ -11,9 +11,11 @@ at last deep `ok` (#651). Provider `version` = 33. `drift_confirmed` = 0 ⇒ a t
 allowed if a condition were confirmed; none was.
 
 **Result: no condition confirmed on the video-source leg — the leg is clean, no code change, no
-version bump (stays 33).** 17/18 sampled rows resolved end-to-end through their live chain
-(gated XSFTK: boot → XOR manifest → key → AES segment → MPEG-TS; legacy: `xs1.php` master →
-variant → plain MPEG-TS). The one non-resolving row is the same `mixdrop.to` alternate embed
+version bump (stays 33).** 17/18 **site-side chains** resolved end-to-end (gated XSFTK 15/15,
+legacy 2/2); 15 rows are **Blocked** app-local — playback pending the emulator tier #1360 — and
+1 row is **Suspected** (the dead `mixdrop.to` alternate embed, #702). The chains read gated XSFTK:
+boot → XOR manifest → key → AES segment → MPEG-TS; legacy: `xs1.php` master →
+variant → plain MPEG-TS. The one non-resolving row is the same `mixdrop.to` alternate embed
 recorded in FINDINGS-906, still dead upstream; #702 closed it as not actionable. The #1353
 loopback classification still holds: every gated source is emitted as
 `http://127.0.0.1:<port>/<id>.m3u8` and is **Blocked** (app-local) for `verify.sh`, not a failure.
@@ -47,7 +49,10 @@ ModuleNotFoundError: No module named 'curl_cffi'      # #1434 still open at run 
 
 **#1434 is still open**, so the registry `last_runs` entry carries `escalation_tier: unavailable`
 and any `Blocked` this run would downgrade to `Suspected`. None occurred — every PerverZija surface
-below answered plain-curl.
+below answered plain-curl. **Precedence:** #1434's downgrade covers challenge-evidence `Blocked`s
+only; a loopback `Blocked` is app-local (it is `verify.sh`'s own `is_app_local` classification, not
+challenge evidence), so the 15 loopback rows below stay `Blocked` even with
+`escalation_tier: unavailable`.
 
 Instrument = **plain-curl tier**, desktop Chrome UA
 (`Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36`)
@@ -155,8 +160,9 @@ player page → `XSFTK.boot(...)` → gated chain; no boot call and no gate mark
 | 17 | XSFTK | 200, 16 044 B | 1080/720/480 | `pervl4.xspcdn01.click` | 206 | key 200 (16 B), decrypt sync | **green** |
 | 18 | XSFTK | 200, 1 941 B | 540/360 | `pervl4.xspcdn01.click` | 206 (`540_enc/5400.html`) | key 200 (16 B), decrypt sync | **green** |
 
-Segment counts per row: 286, 283, 315, 234, 372, 151, 396, 288, 507, 284, 142, 217, 264, 321, 273,
-654, 137 (`#` refers to the table above; the alternate row has none).
+Segment counts by row (`#` above; row 8, the alternate embed, has no segments) — `1: 286, 2: 283,
+3: 315, 4: 234, 5: 372, 6: 151, 7: 396, 8: none, 9: 288, 10: 507, 11: 284, 12: 142, 13: 217,
+14: 264, 15: 321, 16: 273, 17: 654, 18: 137`.
 
 ### Raw transcript — gated XSFTK (row 1, `21eroticanal-kitana-lure…`)
 
@@ -189,6 +195,54 @@ Both URLs were fetched **without** a token (`xs1.php` is tokenless and live on t
 family), with the player-origin referer; without a referer the legacy master answers **403**, which
 is why the `verify.sh` invocation below passes `--header 'Referer: https://pervl11.xtremestream.xyz/'`.
 Gated segment files need neither token nor referer.
+
+### Raw transcripts — non-`pass` rows 5 / 8 / 10 / 16 / 18 (re-probed at repair time)
+
+Verbatim `curl` transcripts for the rows the *Stream chain* summary cannot stand in for: row 8 (the
+only `Suspected`), the two non-`1080/720/480` shapes (16, 18), the `1080`-only shape (5), and the
+`pervm1` subdomain (10). Row 19 (`genres` **absent**) is covered by the routing transcript in
+*Listing-type inventory* (`/genre/`, `/genres/` 404; `/genre/<x>/` 301). Player/proto requests carry
+the provider's player UA and the player-origin
+referer; tokens are per-fetch and rotate, so the ids below differ from the original run while the
+manifest sizes match the table above. Decoding is `XOR SHA-256("M|<id>|<token>")`, as in
+`XsftkParse.decodeXsManifest`.
+
+```
+# row 5 — /blackvalleygirls-vienna-black-the-horny-black-teen-matchmaker/  (perv host, 1080 only)
+video page 200, 400 331 B → iframe https://perv.xtremestream.xyz/player/index.php?data=7c2c48a32443ad8f805e48520f3b26a4
+player   200, 3 646 B → XSFTK.boot("7c2c48a32443ad8f805e48520f3b26a4", "567ddb472a7b9491a10c73da.1795500000", player)
+op=manifest → 200 application/octet-stream, 3 412 B → keys ["1080"], n=372, cdn[0]=perv.xspcdn01.click
+op=key  X-XS-P: 1 → 200 application/octet-stream, 16 B  (fa5061720b3827ec343e05dafb035261)
+GET https://perv.xspcdn01.click/cdn/down/7c2c48a3…/1080_enc/10800.html  Range: bytes=0-377 → 206, 378 B
+openssl aes-128-cbc -d (IV 0) → bytes 47 40 … 47 at 0 and 188 (MPEG-TS sync)
+
+# row 10 — /momswap-jenna-noelle-and-athena-anderson-lessons-on-motivation/  (pervm1 host)
+video page 200, 405 624 B → iframe https://pervm1.xtremestream.xyz/player/index.php?data=060afc8a563aaccd288f98b7c8723b61
+player   200, 3 653 B → XSFTK.boot("060afc8a563aaccd288f98b7c8723b61", "03a0d0a85ec580cba5e9e90d.1795503600", player)
+op=manifest → 200, 14 436 B → keys ["1080","720","480"], n=507 each, cdn[0]=pervm1.xspcdn01.click
+op=key  X-XS-P: 1 → 200, 16 B
+GET …/1080_enc/10800.html  Range: bytes=0-377 → 206, 378 B → openssl → 47 40 … 47 / 0x47 at 188
+
+# row 16 — /mandyiskinky-trisha-and-mandy-bright-demon-queen/  (j2 host, 540/360 shape)
+video page 200, 400 473 B → iframe https://j2.xtremestream.xyz/player/index.php?data=2c34b999c0da42ae3238869d2d11602c
+player   200, 3 627 B → XSFTK.boot("2c34b999c0da42ae3238869d2d11602c", "e8f93c1b9f6eb3d33dc9587e.1795503600", player)
+op=manifest → 200, 2 478 B → keys ["540","360"], n=273/286, cdn[0]=j2.xspcdn01.click
+op=key  X-XS-P: 1 → 200, 16 B
+GET …/540_enc/5400.html  Range: bytes=0-377 → 206, 378 B → openssl → 47 40 … 47 / 0x47 at 188
+
+# row 18 — /private-violet-and-veronica-are-sexy-nurses-who-know-how-to-make-it-better/  (pervl4, 540/360)
+video page 200, 392 603 B → iframe https://pervl4.xtremestream.xyz/player/index.php?data=4da9d7b6d119db4d2d564a2197798380
+player   200, 3 683 B → XSFTK.boot("4da9d7b6d119db4d2d564a2197798380", "5c8b9bdf074c21a34fc761ac.1795503600", player)
+op=manifest → 200, 1 941 B → keys ["540","360"], n=137/135, cdn[0]=pervl4.xspcdn01.click
+op=key  X-XS-P: 1 → 200, 16 B
+GET …/540_enc/5400.html  Range: bytes=0-377 → 206, 378 B → openssl → 47 40 … 47 / 0x47 at 188
+
+# row 8 — /private-terri-summers-terri-wears-her-helmet-while-getting-double-penetrated-by-two-guys/
+video page 200, 399 247 B → <iframe … src="//mixdrop.to/e/e0dp3ewa7i">   (no xtremestream player on this page)
+HEAD https://mixdrop.to/e/e0dp3ewa7i → 302, location: https://mxdrop.click/e/e0dp3ewa7i
+GET  https://mixdrop.to/e/e0dp3ewa7i -L → final https://mxdrop.click/e/e0dp3ewa7i, 200, 77 440 B
+body: "WE ARE SORRY … can't find the video you are looking for." · MDCore.wurl occurrences: 0
+```
 
 ### #1353 regression — loopback/XSFTK classification still holds
 
@@ -230,8 +284,9 @@ maintainer's at merge.
 
 - **Gated/XSFTK**: the decoded manifest's quality keys are the provider's emitted `quality`
   (`XsftkParse.cdnSources` → `QualitySource.quality` → `this.quality = source.quality`). Observed
-  catalogue shapes: 1080/720/480 (13 rows), 1080 only (1), 540/360 (2). Every rendered quality was
-  passed to CloudStream; none dropped.
+  catalogue shapes: 1080/720/480 (12 rows), 1080 only (1), 540/360 (2) — 15 gated rows, plus the 2
+  legacy rows and the 1 alternate row = 18. Every rendered quality was passed to CloudStream; none
+  dropped.
 - **Legacy**: the provider emits the tokenless master as an `M3U8` link with
   `Qualities.Unknown`. The legacy master this run served is **single-variant** (`q=360` or `q=480`),
   so there is no higher rendition to mislabel; the app's HLS player resolves the variant from the
