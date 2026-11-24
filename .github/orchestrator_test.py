@@ -2272,29 +2272,41 @@ class TestRegistryPendingScan(unittest.TestCase):
 class TestApprovalQueryIsOneCall(unittest.TestCase):
     """#1588: a `--branch <b> --limit 40` history walk per open agent PR held
     one sweep for 889 s of its 929 s step. `status=action_required` is a
-    server-side filter, so the sweep pays one request, not one per PR."""
+    server-side filter, so the sweep pays one paged fetch, not one query per
+    PR. `per_page=100` alone capped that fetch at its first page, so paging
+    is bounded — present, cheap, and never unbounded (#1594 review)."""
 
     def _run(self, parked, pulls, pat="tok"):
-        """Runs approve_companion_runs with api()/open_pulls mocked; returns
-        (calls to api, approve urls, allowlist decisions)."""
+        """Runs approve_companion_runs with api()/open_pulls mocked.
+
+        `parked` is one page (a list) or a {page: workflow_runs} mapping.
+        Returns (api calls, approve urls, open_pulls mock): the mock is
+        returned because an api-call count cannot observe PR *scanning* —
+        the regression `test_no_parked_runs_costs_no_pr_scan` is named for
+        (#1594 review)."""
         calls, approved = [], []
+        pages = parked if isinstance(parked, dict) else {1: parked}
 
         def api(path):
             calls.append(path)
-            return {"workflow_runs": parked} if "actions/runs" in path else []
+            page = int(path.rsplit("page=", 1)[-1]) if "page=" in path else 1
+            if "actions/runs" not in path:
+                return []
+            return {"workflow_runs": pages.get(page, [])}
 
         def run(cmd):
             if "curl" in cmd[0]:
                 approved.append(cmd[-1])
             return "{}"
 
+        open_pulls = mock.Mock(return_value=pulls)
         with mock.patch.object(orchestrator, "PROXY_PAT", pat), \
              mock.patch.object(orchestrator, "api", side_effect=api), \
-             mock.patch.object(orchestrator, "open_pulls", return_value=pulls), \
+             mock.patch.object(orchestrator, "open_pulls", open_pulls), \
              mock.patch.object(orchestrator, "run", side_effect=run), \
              mock.patch.object(orchestrator, "print"):
             orchestrator.approve_companion_runs()
-        return calls, approved
+        return calls, approved, open_pulls
 
     @staticmethod
     def _pr(num, branch):
@@ -2303,25 +2315,44 @@ class TestApprovalQueryIsOneCall(unittest.TestCase):
 
     def test_advisory_runs_are_fetched_once_not_per_pr(self):
         pairs = [self._pr(1, "devloop/issue-1-a"), self._pr(2, "devloop/issue-2-b")]
-        calls, approved = self._run(
+        calls, approved, open_pulls = self._run(
             [{"id": 11, "name": "Lint", "head_branch": "devloop/issue-1-a"}], pairs)
         self.assertEqual([c for c in calls if "actions/runs" in c],
-                         ["actions/runs?status=action_required&per_page=100"])
+                         ["actions/runs?status=action_required&per_page=100&page=1"])
+        open_pulls.assert_called_once()
         self.assertTrue(approved and approved[0].endswith("/runs/11/approve"))
 
     def test_parked_run_on_an_unrelated_branch_is_ignored(self):
-        calls, approved = self._run(
+        calls, approved, _ = self._run(
             [{"id": 12, "name": "Lint", "head_branch": "someone-elses-branch"}],
             [self._pr(1, "devloop/issue-1-a")])
         self.assertEqual(approved, [])
 
     def test_non_allowlisted_workflow_is_left_for_human(self):
-        calls, approved = self._run(
+        calls, approved, _ = self._run(
             [{"id": 13, "name": "Deploy Secrets", "head_branch": "devloop/issue-1-a"}],
             [self._pr(1, "devloop/issue-1-a")])
         self.assertEqual(approved, [])
 
     def test_no_parked_runs_costs_no_pr_scan(self):
-        calls, approved = self._run([], [self._pr(1, "devloop/issue-1-a")])
+        calls, approved, open_pulls = self._run([], [self._pr(1, "devloop/issue-1-a")])
         self.assertEqual(approved, [])
         self.assertEqual(len([c for c in calls if "actions/runs" in c]), 1)
+        open_pulls.assert_not_called()
+
+    def test_a_full_page_is_paged_through_not_truncated(self):
+        """A parked run past the first page still gets approved — `per_page=100`
+        without paging dropped it silently (#1594 review)."""
+        page_one = [{"id": 100 + i, "name": "Lint",
+                     "head_branch": "someone-elses-branch"} for i in range(100)]
+        page_two = [{"id": 300, "name": "Lint",
+                     "head_branch": "devloop/issue-1-a"}]
+        calls, approved, _ = self._run({1: page_one, 2: page_two},
+                                       [self._pr(1, "devloop/issue-1-a")])
+        self.assertEqual(len([c for c in calls if "actions/runs" in c]), 2)
+        self.assertTrue(approved and approved[0].endswith("/runs/300/approve"))
+
+    def test_paging_is_capped_so_a_backlog_cannot_rebuild_the_stall(self):
+        full = [{"id": 1, "name": "Lint", "head_branch": "x"} for _ in range(100)]
+        calls, _, _ = self._run({1: full, 2: full, 3: full, 4: full}, [])
+        self.assertEqual(len([c for c in calls if "actions/runs" in c]), 3)

@@ -511,19 +511,27 @@ def _owner_configured():
 
 
 def _parked_runs():
-    """Runs parked on approval, in ONE query.
+    """Runs parked on approval, paginated, indexed by head branch.
 
     This used to be a `gh run list --branch <b> --limit 40` history walk per
     open agent PR, on every sweep, whether or not the PR's head moved. In
     run 45455221600 that single call held the sweep for 889 s of its 929 s
     step against a ~2,830-run/day history (#1588). `status=action_required`
-    is a server-side filter, so the answer costs one request regardless of
-    how many PRs or runs exist."""
-    data = api("actions/runs?status=action_required&per_page=100")
+    is a server-side filter, so the answer is one request per page regardless
+    of how many PRs exist.
+
+    Paging is bounded at 3 pages (300 parked runs): a single `per_page=100`
+    silently dropped every parked run past the first page, while unbounded
+    paging would rebuild the stall it was introduced to fix (#1594 review)."""
     parked = {}
-    for r in (data or {}).get("workflow_runs") or []:
-        parked.setdefault(r.get("head_branch") or "", []).append(
-            (r.get("id"), r.get("name") or ""))
+    for page in (1, 2, 3):
+        data = api(f"actions/runs?status=action_required&per_page=100&page={page}")
+        runs = (data or {}).get("workflow_runs") or []
+        for r in runs:
+            parked.setdefault(r.get("head_branch") or "", []).append(
+                (r.get("id"), r.get("name") or ""))
+        if len(runs) < 100:
+            break
     return parked
 
 
