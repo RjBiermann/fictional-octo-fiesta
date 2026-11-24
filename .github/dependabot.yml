@@ -14,8 +14,9 @@ updates:
       # (build.gradle.kts). Dependabot otherwise re-opens the bump weekly.
       # Both shapes on purpose (#1594 review): the glob covers the artifact
       # this repo actually declares (com.fasterxml.jackson.module:
-      # jackson-module-kotlin, #94), the exact coordinates are the transitive
-      # ones a security job names — so the pin holds whichever shape matches.
+      # jackson-module-kotlin, #94); the exact coordinates are what a
+      # version-update match names. Neither shape reaches a security job —
+      # see the note below.
       - dependency-name: "com.fasterxml.jackson*"
       - dependency-name: "com.fasterxml.jackson.core:jackson-core"
       - dependency-name: "com.fasterxml.jackson.core:jackson-databind"

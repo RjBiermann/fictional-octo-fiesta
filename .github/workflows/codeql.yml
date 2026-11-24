@@ -10,10 +10,14 @@ on:
 
 # Superseded scans were running to completion: 196 runs, 21.3 h = 17% of all
 # effective runner-hours in the 2026-11-21→24 window (#1590). Grouped per
-# workflow+event+ref, so a new push always forms its own run and the head-sha
-# run is the survivor — the required `CodeQL Advanced` context is never left
-# cancelled on the PR head (the #1420 BLOCKED-forever class). The event name
-# keeps the weekly schedule from cancelling a main-branch push run.
+# workflow+event+ref, so a new push always forms its own run and that run is
+# the survivor. The event name keeps the weekly schedule from cancelling a
+# main-branch push run.
+#
+# Documented caveat (#1594 review): re-running an OLDER commit's scan replays
+# the original event, shares the ref group, and can cancel the current head's
+# check — recoverable with a re-run, not permanent like #1420. Grouping by
+# `github.sha` instead would restore the supersede cost this exists to remove.
 concurrency:
   group: codeql-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true

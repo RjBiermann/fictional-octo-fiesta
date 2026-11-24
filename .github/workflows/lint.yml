@@ -27,10 +27,13 @@ on:
   workflow_dispatch:
 
 # These are required contexts, so superseded runs are cancelled per
-# workflow+event+ref — a new push forms its own group and the head-sha run is
-# the survivor, never a cancelled required check on the PR head (#1420 class).
-# Every job also carries a timeout: the 6 h default is what let a wedged run
-# bill a full night (#1590).
+# workflow+event+ref: a new push forms its own group and its run is the
+# survivor. Documented caveat (#1594 review): a RERUN of an older commit's run
+# replays the original event, lands in the same ref group, and can cancel the
+# current head's check — recoverable by a re-run, not permanent. Grouping by
+# `github.sha` instead would restore the supersede cost this removes.
+# Every job also carries a timeout, because the 6 h default is what lets a hung
+# RUNNING job bill a full night (#1590); a queued run is outside its reach.
 concurrency:
   group: lint-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
