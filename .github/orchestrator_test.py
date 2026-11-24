@@ -918,6 +918,50 @@ class TestRepairInFlight(unittest.TestCase):
         self.assertIsNotNone(m, "07-fix-loop.md has no `cooldown: <n>m` line")
         self.assertEqual(orchestrator.FIX_LOOP_COOLDOWN_SEC, int(m.group(1)) * 60)
 
+    def repair_cap_block(self):
+        """Step 2 of 07-fix-loop.md (the cycle cap), whitespace-unwrapped so
+        the assertions do not depend on where the prose happens to wrap."""
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "workflows", "07-fix-loop.md")
+        with open(path) as fh:
+            md = " ".join(fh.read().split())
+        self.assertIn("repair round or later", md,
+                      "07 step 2 no longer states the repair-round cap")
+        start = md.index("repair round or later")
+        return md[start:md.index("3. Otherwise:", start)]
+
+    def test_cycle_cap_counts_repair_stamps_only(self):
+        # #1567: counting every work-attempt stamp let two review rounds eat
+        # the repair budget, so #1564 escalated to status/fixing-stuck after
+        # two real repairs with its findings still unserved. Naming
+        # `kind=fix` as counted was not enough (#1569 review): fix is the
+        # Implement (and rebase) stamp, so one implement + two repairs still
+        # read as "cycle 4" and the third repair stayed refused.
+        block = self.repair_cap_block()
+        self.assertIn("count only the `kind=repair` budget stamps", block)
+        self.assertIn("after the latest `gh-aw budget: reset` stamp", block)
+        self.assertNotIn("count work-attempt stamps", block)
+        # Every other kind spends the ledger and must be named as excluded,
+        # or "count work attempts" creeps back in one kind at a time.
+        for kind in ("fix", "review", "spec", "new", "remove"):
+            self.assertIn(f"`kind={kind}`", block,
+                          f"kind={kind} must be named as ledger-only")
+
+    def test_shared_budget_states_the_same_repair_cap(self):
+        # Two documents state the cap (07 step 2 and shared/budget.md);
+        # drift between them is what left the repair budget unbound by
+        # repairs in the first place (#1567). The lifetime/daily bounds stay
+        # flat, independent counters.
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "workflows", "shared", "budget.md")
+        with open(path) as fh:
+            md = " ".join(fh.read().split())
+        self.assertIn("4th repair round", md)
+        self.assertIn("`kind=repair` stamps only", md)
+        self.assertIn("after the latest `reset`", md)
+        self.assertIn("`MAX_ATTEMPTS` 20", md)
+        self.assertIn("`DAILY_ATTEMPT_CAP` 10", md)
+
     def test_completed_row_without_a_timestamp_does_not_block(self):
         payload = json.dumps([{"status": "completed"}])
         with mock.patch.object(orchestrator, "run", lambda cmd, **kw: payload):
