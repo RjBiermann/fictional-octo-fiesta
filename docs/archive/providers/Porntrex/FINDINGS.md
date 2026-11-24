@@ -348,24 +348,25 @@ deliverable).
 ## Risks / blockers — origin refuses the CI runner (2026-11-24, issue #1458)
 
 **Blocked reason (do not re-probe from a US datacenter IP without escalating):**
-`Blocked: 403 no unlock — origin nginx returns the byte-identical 548-byte 403 to this runner
-on every path, at plain-curl, TLS-impersonated and headless-Chromium tiers. Leading hypothesis:
-IP/region refusal of the US/Virginia datacenter runner. NOT excluded: an operator-wide blanket
-refusal, which looks identical from here.`
+`Blocked: 403 no unlock — origin nginx returns the same bare 403 page to this runner on every
+path (548 B with the desktop UA, a shorter minimal page without one), at plain-curl,
+TLS-impersonated and headless-Chromium tiers. Leading hypothesis: IP/region refusal of the
+US/Virginia datacenter runner. NOT excluded: an operator-wide blanket refusal, which looks
+identical from here.`
 
 **Scope is a hypothesis, not a conclusion.** What this run establishes is the refusal's *shape*
 (path-, UA-, protocol- and TLS-fingerprint-independent; no unlock; both operator edges) and
-that the TLS front-end still serves the vhost (fresh Let's Encrypt cert 2026-10-19 → 2027-01-17
-— ACME re-issue is automatic, so it does **not** prove the catalogue is healthy). It does not
-establish that a non-US/residential client is served: `RESIDENTIAL_PROXY_URL` was unset, so
-`scripts/differential.sh`'s deciding residential tier never ran. An operator-wide refusal would
-be byte-identical from this runner. **Falsification test:** from a different egress, a healthy
-`200` confirms the IP/region hypothesis (this reason stands); the *same* 548-byte `403`
-falsifies it — the refusal is site-wide, which is **not** D8-exempt and must be filed, not
-recorded Blocked.
+that the TLS front-end still serves the vhost (fresh Let's Encrypt cert 2026-10-19 → 2027-01-17,
+issued three days after the 2026-10-16 deep pass — ACME re-issue is automatic, so it does **not**
+prove the catalogue is healthy). It does not establish that a non-US/residential client is
+served: `RESIDENTIAL_PROXY_URL` was unset, so `scripts/differential.sh`'s deciding residential
+tier never ran. An operator-wide refusal would look the same from this runner. **Falsification
+test:** from a different egress, a healthy `200` confirms the IP/region hypothesis (this reason
+stands); the *same bare nginx `403`* (match the shape, not the byte count) falsifies it — the
+refusal is site-wide, which is **not** D8-exempt and must be filed, not recorded Blocked.
 
-Every surface returns the byte-identical 548-byte nginx page (`Server: nginx`,
-`Content-Length: 548`) — `/`, `/robots.txt`, `/favicon.ico`, `/static/`, `/latest-updates/`,
+Every surface returns the same bare nginx 403 page (`Server: nginx`; 548 B with the desktop
+`User-Agent`, a shorter minimal 146-B page with none) — `/`, `/robots.txt`, `/favicon.ico`, `/static/`, `/latest-updates/`,
 `/top-rated/`, `/most-popular/`, `/categories/<x>/`, `/tags/<x>/`, `/search/<q>/`,
 `/video/{id}/`, `/embed/{id}/`, `/related_videos_html/{id}/`, and the `mode=async…from=2`
 listing endpoint. There is no challenge page and no unlock: `confirmed=true`,

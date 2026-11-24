@@ -26,13 +26,16 @@ Out of scope per spec: a full listing audit (pagination/card-field correctness w
 
 ## Confidence — observed vs. inferred (read this before citing the diagnosis)
 
-**Observed (established by this run's transcripts):** the byte-identical 548-byte nginx `403`
-(`Server: nginx`, no `Set-Cookie`, no challenge page, no `Retry-After`) for `/` and every probed
-path; the same body at the plain-curl, TLS-impersonated (`curl_cffi` `chrome`) and
-headless-Chromium tiers; the same body over HTTP/1.0, HTTP/1.1 and HTTP/2, with and without a
-`User-Agent`, and on a direct `Host: www.porntrex.com` request to `88.80.24.7`; the same body on
-the second operator edge `www.porntrex.tv` (`88.80.24.3`); a Let's Encrypt certificate for
-`CN=porntrex.com` valid 2026-10-19 → 2027-01-17.
+**Observed (established by this run's transcripts):** a bare nginx `403` (`Server: nginx`, no
+`Set-Cookie`, no challenge page, no `Retry-After`) for `/` and every probed path. Its body is the
+same minimal page but **not the same byte count at every `User-Agent`**: **548 B** with the
+desktop UA (the size every quoted transcript below was measured with), a shorter **146 B** page
+when no `User-Agent` is sent, and **144 B** as measured on the Chromium leg. The same `403` came
+at the plain-curl, TLS-impersonated (`curl_cffi` `chrome`) and headless-Chromium tiers; over
+HTTP/1.0, HTTP/1.1 and HTTP/2, with and without a `User-Agent`; on a direct
+`Host: www.porntrex.com` request to `88.80.24.7`; and on the second operator edge
+`www.porntrex.tv` (`88.80.24.3`). A Let's Encrypt certificate for `CN=porntrex.com` is valid
+2026-10-19 → 2027-01-17.
 
 **Inferred — hypothesis, not a conclusion:** that the refusal is scoped to this runner's
 US/Virginia datacenter IP (or its region). That is the most likely reading and nothing observed
@@ -51,9 +54,10 @@ byte-identical 403 from here. Precisely:
 
 **Falsification test for the next run:** re-probe from a different egress (VPN / non-US
 runner / residential). Healthy `200` there ⇒ the IP/region hypothesis is confirmed and this
-Blocked reason stands verbatim. The **same 548-byte `403`** there ⇒ the hypothesis is
-**falsified**: the refusal is site-wide, D8 does **not** exempt a site-wide refusal, and the run
-must file/escalate it rather than record another Blocked.
+Blocked reason stands verbatim. The **same bare nginx `403`** there (same status and the same
+minimal page — match the shape, not the byte count, which tracks the `User-Agent`) ⇒ the
+hypothesis is **falsified**: the refusal is site-wide, D8 does **not** exempt a site-wide
+refusal, and the run must file/escalate it rather than record another Blocked.
 
 ---
 
@@ -146,7 +150,8 @@ strict-transport-security: max-age=63072000; includeSubDomains; preload
 content-encoding: br
 ```
 
-Body: the identical 548-byte nginx page. A real Chrome TLS fingerprint changes nothing.
+Body: the same bare nginx 403 page (548 B under the impersonated Chrome UA). A real Chrome TLS
+fingerprint changes nothing.
 
 ### Tier 3 — browser diagnosis (headless Chromium 159, `playwright`)
 
@@ -189,13 +194,14 @@ Cookie/query unlocks tried (the site's own age-gate vocabulary, per the #171 pro
   protocol-independent and unchanged by a real Chrome TLS fingerprint or a real headless browser
   — so it is an origin-level refusal, not a JS challenge and not a client-rendering problem.
 - **Not one bad host** (established): `www.porntrex.tv` (a second operator edge, `88.80.24.3`)
-  returns the **same** 548-byte nginx 403; `porntrex.com` and `http://` variants 301 to
-  `https://www.porntrex.com/` and then 403.
+  returns the **same** bare nginx 403 (548 B under the desktop UA); `porntrex.com` and `http://`
+  variants 301 to `https://www.porntrex.com/` and then 403.
 - **TLS front-end still serving** (established), **application healthy — not established**: the
   certificate on `www.porntrex.com` is `CN=porntrex.com`, issuer Let's Encrypt `YE1`, valid
-  **2026-10-19 → 2027-01-17**. That is five weeks after the last healthy deep pass, but ACME
-  re-issue is automatic and proves only that the vhost's TLS is configured — not that content
-  paths are healthy.
+  **2026-10-19 → 2027-01-17** — issued **three days after** the last healthy deep pass
+  (2026-10-16) and five weeks before this run. That proves only that the vhost's TLS is
+  configured: ACME re-issue is automatic and completes even while the application behind the
+  vhost is down, so it says nothing about content-path health.
 - **IP/region scoping — leading hypothesis only.** A fresh cert and a second refused edge are
   equally consistent with an operator-wide blanket refusal (see "Confidence" above). Do not
   read this section as proof of a geo block.
@@ -204,9 +210,9 @@ Cookie/query unlocks tried (the site's own age-gate vocabulary, per the #171 pro
   explanation for a 403 that happens before any provider request shape matters.
 
 **Blocked reason (recorded so a future run does not re-probe the dead end):**
-`Blocked: 403 no unlock — origin nginx returns the byte-identical 548-byte 403 to this runner on
-every path (host- and path-independent), at plain-curl, TLS-impersonated and headless-Chromium
-tiers. Leading hypothesis: IP/region refusal of the US/Virginia datacenter runner. NOT excluded:
+`Blocked: 403 no unlock — origin nginx returns the same bare 403 page to this runner on every
+path (host- and path-independent; 548 B with the desktop UA, a shorter minimal page without one),
+at plain-curl, TLS-impersonated and headless-Chromium tiers. Leading hypothesis: IP/region refusal of the US/Virginia datacenter runner. NOT excluded:
 an operator-wide blanket refusal, which looks identical from here — re-probe from a different
 egress first, and treat the same 403 there as site-wide (a finding, not Blocked). Human in-app
 verification required.`
@@ -281,8 +287,9 @@ $ for u in <row URL>; do curl -s -o /dev/null -A "$UA" -H 'X-Requested-With: XML
 /related_videos_html/3364971/                 → 403 548
 ```
 
-The response body is byte-identical for all of them — the single nginx-403 page quoted under
-"Tier 1" (`Content-Length: 548`, `Server: nginx`).
+The response body is byte-identical for all of them (every row above was measured with the
+desktop UA) — the single nginx-403 page quoted under "Tier 1" (`Content-Length: 548`,
+`Server: nginx`).
 
 `loadLinks` end-to-end therefore **could not be exercised**. The chain the next run must walk
 (unchanged from the 2026-10-16 pass): video page → `var flashvars` (`video_url` +
@@ -378,8 +385,9 @@ Invocation used (selectors from `docs/archive/providers/Porntrex/FINDINGS.md`):
    `RESIDENTIAL_PROXY_URL`, which unblocks `scripts/differential.sh`'s deciding tier) **before**
    concluding anything about scope. A US datacenter IP gets 403 at the operator's edge regardless
    of tier, UA, or path — but this run cannot show that a non-US/residential egress is served.
-   If the second egress also gets the identical 548-byte 403, the IP/region hypothesis is
-   falsified: the refusal is site-wide and must be **filed**, not recorded Blocked again.
+   If the second egress also gets the same bare nginx 403 (match the shape, not the byte count),
+   the IP/region hypothesis is falsified: the refusal is site-wide and must be **filed**, not
+   recorded Blocked again.
 2. Do **not** treat `genres`/`tags` as `absent` on the strength of this run — the 403 observed
    nothing about them.
 3. `last_deep` stays **2026-10-16** (that is still the last completed deep pass); this run adds
@@ -389,8 +397,45 @@ Invocation used (selectors from `docs/archive/providers/Porntrex/FINDINGS.md`):
 
 ## Registry write (ADR-0013 — nothing in the PR diff)
 
-The provider entry + one `last_runs` entry (`false_positives: []`) are posted as a comment on
-#1458 beginning `<!-- findings-registry-entry -->` and followed by a fenced json object, for the
-orchestrator's `registry_sync`. Expected shape: `verdict: "blocked"`, `tier: "plain-curl"`,
+The provider entry + one `last_runs` entry (`false_positives: []`) belong in the #1458 thread, not
+in this diff. **What actually happened** (recorded so the next reader is not misled, and because
+an earlier version of this section claimed otherwise):
+
+- The run's delta comment (`2026-11-24T17:12:56Z`) was posted **unanchored** — a bare fenced json
+  object with **no** `<!-- findings-registry-entry -->` line — so `registry_sync`'s
+  `_registry_entry()` could never see it.
+- The orchestrator's #777 self-heal (`.github/orchestrator.py`, `_registry_candidate()`) re-posted
+  that delta **verbatim** under the anchor at `2026-11-24T17:28:34Z` and applied it through
+  registry PR #1587 (`[orchestrator] registry entry applied`, `17:28:44Z`).
+- That self-healed copy still carried the round-1 over-claim — `providers.Porntrex.reason` ended
+  "…So this is an IP/region refusal, not site death, not drift…" and the `last_runs` `canaries`
+  tail said "No degradation, so Blocked stays available" — i.e. the conclusion round 1 removed
+  from the docs survived in the record future runs read first.
+- **Repair round 2 (PR #1585, 06-review blocker at `2026-11-24T17:31:19Z`)** therefore posted a
+  **corrected anchored** `<!-- findings-registry-entry -->` comment on #1458 whose `reason` and
+  `canaries` carry the qualified wording of the Blocked reason above (leading hypothesis / NOT
+  excluded: operator-wide blanket refusal / re-probe from a different egress; the same bare 403
+  there ⇒ site-wide, file it, not Blocked). `_registry_entry()` scans the thread in **reverse** and
+  returns the latest anchored object, so the corrected comment supersedes the self-healed one; the
+  older comments stay in place.
+
+Caveat the next reader needs (recorded, **not** repaired here — ADR-0013 keeps machinery out of a
+docs diff): `registry_sync` skips any issue that already carries the `[orchestrator] registry
+entry applied` marker, so the corrected entry is the authoritative **thread** record but is *not*
+re-unioned into `audits/findings.json` by a later sweep, and registry PR **#1587 is still open**
+with the earlier unqualified text (`_union_findings()` also appends `last_runs` by identity, so a
+union of the corrected entry would sit beside the old record rather than replace it). The registry
+correction is therefore a maintainer decision on #1587 — do not merge it as-is expecting the
+qualified reason to be there. Filed as a `[backlog-report]` machinery finding during repair round
+2 ("registry_sync cannot apply a corrected anchored entry to an already-applied story — the
+applied marker is per issue, not per entry") rather than fixed in this PR: ADR-0013 keeps
+machinery out of an agent docs diff.
+
+**PR body (maintainer action).** The 05-implement body still states "so this is an IP/region
+refusal, not site death" as fact. This lane's safe-output allow-list has no PR-body tool, so the
+repair cannot rewrite it; the qualified replacement paragraph is posted on #1458 with the repair
+report and must be applied to the PR body by a human at merge.
+
+Expected shape: `verdict: "blocked"`, `tier: "plain-curl"`,
 `escalation_tier: available (curl_cffi 0.17.0 + Chromium 159) — all tiers 403`,
 `drift_confirmed: 0`, `chronic: false`, `last_deep: "2026-10-16"`.
