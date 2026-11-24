@@ -75,7 +75,7 @@ site does not expose is recorded **`absent`**, never assumed.
 | --- | --- | --- |
 | `new` / `latest` | **`/` default order (date desc)** — p1 **200, 64** cards, p2 **200, 64**, last `/page/1700/` **200, 64**; `/page/1701/` **301 → /** | p1 head `pornfidelity-harlow-harrison-walk-the-streets-4-e622` `datePublished` **2026-11-24**; p1700 tail `blackvalleygirls-vienna-black…` **2019-05-14** ⇒ newest-first, both catalogue ends sampled |
 | `old` | **`/?order=asc` (date ascending)** — p1 **200, 64** (oldest), p2 **200, 64**, last `/page/1700/?order=asc` **200, 64** (newest end); `/page/1701/?order=asc` **301 → /?order=asc** | asc p1 head `21eroticanal-kitana-lure…` **2018-12-28** (oldest listed); asc p1700 tail `transdaylight-ceyba-sol…` **2026-11-03** (newest) ⇒ explicit ascending ordering, both ends sampled |
-| `popular` | **`/?orderby=view`** (the nav's "Most Popular" sort; the provider row `/studio/?orderby=view` is the studio index sorted by views) — p1 **200, 64**, p2 **200, 64**, last `/page/1700/?orderby=view` **200, 64**; `/page/1701/?orderby=view` **301 → /?orderby=view** | p1 head `freeusefantasy-gabbie-carter…` **2021-02-25** (most viewed); p1700 tail `pornworld-lou-lou-petite…` **2026-10-19** (least viewed) ⇒ separate ranking, both ends sampled |
+| `popular` | **`/?orderby=view`** (the nav's "Most Popular" sort, applied globally — it also orders `/studio/`; the provider's `Porn Scenes` row is `/studio`, date order) — p1 **200, 64**, p2 **200, 64**, last `/page/1700/?orderby=view` **200, 64**; `/page/1701/?orderby=view` **301 → /?orderby=view** | p1 head `freeusefantasy-gabbie-carter…` **2021-02-25** (most viewed); p1700 tail `pornworld-lou-lou-petite…` **2026-10-19** (least viewed) ⇒ separate ranking, both ends sampled |
 | `genres` | **absent.** `/genre/` → **404**, `/genres/` → **404**; `/genre/anal/` and `/genres/anal/` **301** to a *video slug* (`/anal-beauty-lady-dee-upset-girl-cheats-with-a-bartender/`) — WordPress's slug guess, not a taxonomy. No genre vocabulary in the nav or the video-page tax list; the subject vocabulary is `Tags` | 404 (route) / 301 (slug guess) |
 | `categories` | **`/studio/<slug>/`** — the theme's category taxonomy: video pages mark Studio links `rel="category tag"`, `/categories/` **301 → `/studios/`**, `/category/brazzers/` **301 → `/studio/brazzers/`**, `/category/` **404**. Index `/studios/` **200**, **1 950** studio links. `/studio/brazzers/` p1 **200, 64**, p2 **200, 64**, last `/studio/brazzers/page/124/` **200, 26**, p125 **404** | 200 |
 | `tags` | **`/tag/<slug>/`** — index `/tags/` **200, 389 131 B**, **949** tag links. `/tag/anal/` p1 **200, 64**, p2 **200, 64**, last `/tag/anal/page/362/` **200, 43**, p363 **404**. Provider rows `/tag/4k-quality/` and `/tag/classic/` (classic last page 5, 11 cards) are the same taxonomy | 200 |
@@ -100,9 +100,10 @@ to a live page. Pagination/card-field correctness is the #632–#659 listing aud
 
 ## Evidence rows (D4)
 
-`type | sample URL | instrument tier | stream host | quality | verdict` — 18 rows, ≥2 per present
-type, both catalogue ends where the type is pageable. Row 1 is the #1353 regression row (gated
-XSFTK → loopback → Blocked). All URLs are `https://tube.perverzija.com` + path.
+`type | sample URL | instrument tier | stream host | quality | verdict` — 18 sampled rows + 1
+`absent` type row (19 table lines), ≥2 per present type, both catalogue ends where the type is
+pageable. Row 1 is the #1353 regression row (gated XSFTK → loopback → Blocked). All URLs are
+`https://tube.perverzija.com` + path.
 
 | # | type | sample URL | listing position | tier | stream host | quality | verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -201,9 +202,12 @@ Gated segment files need neither token nor referer.
 Verbatim `curl` transcripts for the rows the *Stream chain* summary cannot stand in for: row 8 (the
 only `Suspected`), the two non-`1080/720/480` shapes (16, 18), the `1080`-only shape (5), and the
 `pervm1` subdomain (10). Row 19 (`genres` **absent**) is covered by the routing transcript in
-*Listing-type inventory* (`/genre/`, `/genres/` 404; `/genre/<x>/` 301). Player/proto requests carry
-the provider's player UA and the player-origin
-referer; tokens are per-fetch and rotate, so the ids below differ from the original run while the
+*Listing-type inventory* (`/genre/`, `/genres/` 404; `/genre/<x>/` 301). Rows 4, 6, 7, 9, 11–15, 17
+are deliberately table-only: they are homogeneous `1080/720/480` gated rows, covered by rows 1 and 5
+verbatim plus the *Stream chain* table — the set above is chosen for shape divergence, not for
+coverage gaps, so a later drift report diffs against the shapes that can differ. Player/proto
+requests carry the provider's player UA and the player-origin referer; tokens are per-fetch and
+rotate, so the ids below differ from the original run while the
 manifest sizes match the table above. Decoding is `XOR SHA-256("M|<id>|<token>")`, as in
 `XsftkParse.decodeXsManifest`.
 
@@ -283,7 +287,8 @@ maintainer's at merge.
 ### Quality
 
 - **Gated/XSFTK**: the decoded manifest's quality keys are the provider's emitted `quality`
-  (`XsftkParse.cdnSources` → `QualitySource.quality` → `this.quality = source.quality`). Observed
+  (`XsftkParse.cdnSources` → `PlannedSource.quality` →
+  `this.quality = source.quality.toIntOrNull() ?: Qualities.Unknown.value`). Observed
   catalogue shapes: 1080/720/480 (12 rows), 1080 only (1), 540/360 (2) — 15 gated rows, plus the 2
   legacy rows and the 1 alternate row = 18. Every rendered quality was passed to CloudStream; none
   dropped.
