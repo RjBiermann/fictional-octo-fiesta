@@ -549,6 +549,30 @@
       "false_positives": [],
       "escalation_tier": "unavailable",
       "note": "run1439 (issue #1439, S1 of #1354 video-source leg; supersedes #1436's HQPorner half): 2 confirmed provider-side coverage conditions fixed in-run TDD-first (v24\u219225) \u2014 hqwo.cc had no HostRegistry row (prefix miss, fuzzy 71<80) and www.flyflv.com was never selected (fuzzy 78<80), so ~24%/~9% of the catalogue emitted zero links; fixed with shared Hqwo : MyDaddyExtractor + FlyFlv/FlyFlvParse rows, one PLAYER_IFRAME selector for loadLinks+playerPoster, emission-gated loadLinks. Post-fix streams 206 video/mp4 on every generation. genres absent site-side; old = catalogue tail (/hdporn/1374, no oldest-sort). Canaries: eporner 200 match, pandamovies 302\u2192.org match, film1k plain 200 expectation-stale (#1435), TLS tier unavailable (#1434) \u2192 escalation_tier unavailable; 0 Blocked. Gates: 147 tests green, clean make, verify.sh PASS x2 (referer-sensitive CDNs), check-findings PASS. 0 false positives this run (0 findings filed \u2014 conditions fixed in-run)."
+    },
+    {
+      "id": "run1457",
+      "issue": 1457,
+      "date": "2026-11-24",
+      "kind": "video-source audit (S19 of #1354)",
+      "verdict": "ok",
+      "tier": "plain-curl",
+      "escalation_tier": "unavailable",
+      "canaries": "eporner-healthy plain-curl 200 match (313334 B real homepage); pandamovies-redirect-origin plain-curl 302 -> pandamovies.org (plain-tier match); film1k-challenge-pair plain-curl 200 vs expected 403 = expectation-stale (#1435 open, live pair recorded, no environment-degraded branch); TLS tier unavailable (#1434) so no Blocked was possible from challenge evidence",
+      "findings_filed": 0,
+      "false_positives": []
+    },
+    {
+      "id": "run1458",
+      "issue": 1458,
+      "date": "2026-11-24",
+      "kind": "video-source audit (S20 of #1354)",
+      "verdict": "blocked",
+      "tier": "plain-curl",
+      "escalation_tier": "available (curl_cffi 0.17.0 venv + Chromium 159) \u2014 all three tiers 403",
+      "canaries": "eporner-healthy plain-curl 200 (3590 B SSR age-verification page \u2014 recorded expectation matches, purpose text stale); pandamovies-redirect-origin plain-curl 302 -> pandamovies.org (plain-tier match); film1k-challenge-pair plain-curl 200 vs expected 403 = expectation-stale (#1435 open, live pair recorded, no environment-degraded branch). No degradation, so Blocked stays available (D8).",
+      "findings_filed": 0,
+      "false_positives": []
     }
   ],
   "providers": {
@@ -968,32 +992,33 @@
     "PornXP": {
       "site": "pxp.news",
       "verdict": "ok",
-      "reason": "standing 476 stays clear re-confirmed live: /tags/<q> 36 cards p1+p2 disjoint; video 200 x3; source mp4 206 (2026-10-16 deep pass)",
+      "reason": "S19 video-source audit 2026-11-24: 4 present D3 types sampled at both catalogue ends (new/latest / p1+p2+p5721, old catalogue-tail p5721, popular /best/ p1+p2+p1341, tags /tags/ATKGirlfriends p1+p2+p121 + /tags/Vintage p1); genres and categories absent (404 / 0-byte routes; taxonomy is tags only). 16/18 sampled rows 206 video/mp4 end-to-end via #player > source; 2 rows are site-side dead CDN objects (404 from https.pornxp.sh, identical on the pornxp.farm mirror, no alternate) \u2014 not provider drift. Hosts rotate (sd/cc/c/d/xxx/sv/sz/https + look/watch.pxp.network), provider reads host from page. No embed/DRM/geo. No condition confirmed, no code change, version stays 24.",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200 p1/p3 href-disjoint (36 cards each; p1\u2229p2 data-id pair = 2 distinct mirror videos, href-disjoint, site-level)",
-        "search": "200 via /tags/<q>; /?q= still serves the unfiltered homepage grid (known #330 condition, provider uses /tags)",
-        "quicksearch": "no distinct quick-search endpoint (2.js only rewrites form submit to /tags/; /co/ empty 200 click counter) \u2014 absent, not drift",
-        "video": "200 x3 (home/tag/newest-grid listings)",
-        "stream": "<source> mp4 206 video/mp4, no referer needed; CDN subdomain rotates (ce\u2192cdrn\u2192xxx.pornxp.sh), provider extracts from page"
+        "home": "200 p1/p2 (36 cards each), p5721 17 cards no next",
+        "search": "200 via /tags/<q>; ATK p1/p2 36 cards, p121 last 32, p122 generic fallback; /?q= still serves homepage grid (known #330, provider uses /tags)",
+        "quicksearch": "no distinct quick-search endpoint (2.js rewrites form submit to /tags/) \u2014 absent, not drift",
+        "video": "200 x18 (new p1/p2/tail, best p1/p2/tail, ATK p1/p121, Vintage p1)",
+        "stream": "#player > source mp4 206 video/mp4; host rotates per page; 2/18 sampled rows dead at source (site-side 404), no alternate"
       },
       "issue": null,
       "standing_issue": 476,
       "drift_confirmed": 0,
       "chronic": false,
-      "last_deep": "2026-10-16"
+      "last_deep": "2026-11-24"
     },
     "Porntrex": {
       "site": "www.porntrex.com",
-      "verdict": "ok",
-      "reason": "REVERIFIED 2026-10-16 (deep pass, run15 #633): all surfaces plain-curl ok \u2014 search p1/p2 85+85 disjoint; home p1/async-p2 120+120 (p1\u2229p2=5 proven site-native: async p2 \u2261 native /2/); quickSearch absent, album-only suggestion endpoint (#275 verdict re-confirmed); direct video pages serve the standing guest shell (#171/#256, unchanged) resolved by the /embed/ fallback (full flashvars, title/cats/tags); streams 206 video/mp4 on 5 fresh single-use tokens; related_videos_html 45 items with the provider's selectors matching. No new condition; no fix, no version bump (fix policy \u2014 fix on confirmed condition only). instrument note: verify.sh printed 2 false-FAILs this run \u2014 dedupe conflating two distinct same-title videos (href-keyed dedupe clean) and the plot '-' placeholder entering distinctness when the site exposes no plot \u2014 filed as a verify.sh backlog issue, not provider conditions",
+      "verdict": "blocked",
+      "reason": "S20 video-source audit 2026-11-24: the origin refuses this runner on every path. Full escalation ladder ran (plain curl -> TLS-impersonated curl_cffi 0.17.0 -> headless Chromium 159) and all three returned the identical 548-byte nginx 403; blanket across /, /robots.txt, /favicon.ico, /static/, /latest-updates/, /top-rated/, /most-popular/, /categories/<x>/, /tags/<x>/, /search/<q>/, /video/{id}/, /embed/{id}/, /related_videos_html/{id}/ and the mode=async from=2 endpoint. No unlock (confirmed=true / age_verified=1 / ?age_verified=1 all 403). www.porntrex.tv (second operator edge 88.80.24.3) same 403. Origin is alive: fresh Let's Encrypt cert CN=porntrex.com valid 2026-10-19..2027-01-17, five weeks after the ok deep pass 2026-10-16; runner region US/Virginia (datacenter). So this is an IP/region refusal, not site death, not drift, and the site has not moved (porntrex.io is an unrelated Hugo blog, porntrex.net a parked JS interstitial). D3: all six types blocked; genres/tags remain undetermined, never absent. No provider condition confirmed -> no code change, version stays 32; no finding filed (a datacenter-IP/region refusal is never a finding, D8). Re-probe from a different egress (VPN / non-US runner).",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "200",
-        "search": "200",
-        "video": "200 (guest shell; resolved via /embed/{id}/)",
-        "stream": "206 video/mp4 (fresh token per replay)",
-        "quick_search": "absent (album-only)"
+        "home": "403 548 (nginx, blanket)",
+        "search": "403 548",
+        "video": "403 548 (direct and /embed/{id}/ fallback)",
+        "stream": "unreachable this run (no video page, no flashvars)",
+        "quick_search": "undetermined this run (403)",
+        "related": "403 548 (related_videos_html)"
       },
       "issue": null,
       "standing_issue": null,
