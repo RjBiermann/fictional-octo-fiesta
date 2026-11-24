@@ -1,0 +1,11 @@
+<link rel="canonical" href="https://www.pornhub.com/video/search?search=i%CC%87stanbul" />
+<link rel="next" href="https://www.pornhub.com/video/search?search=i%CC%87stanbul&amp;page=2" />
+<!-- Above: the verbatim <link rel="canonical"/"next"> head lines of the page-1 body the site
+     serves for GET /video/search?search=i%CC%87stanbul (200, canonical names page 1, still
+     rel=next), captured 2026-11-24 from a US CI egress (FINDINGS §Query shapes).
+     Why this shape: the site's own fold of `İstanbul` KEEPS the combining dot
+     (`search=i̇stanbul` = `i` + U+0307), while `Parse.normaliseQuery` folds Latin marks away
+     (`istanbul`) — the one measured case where the canonical's `search=` differs from the
+     normalised request query, i.e. where the Layer B retry is a genuinely different request.
+     Trimmed away: the rest of the response, including the result block and `div.pagination3`,
+     because the echo seam reads only the canonical (FINDINGS §Query shapes). -->

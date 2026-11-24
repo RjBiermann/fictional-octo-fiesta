@@ -107,31 +107,77 @@ object Parse {
 
     /**
      * The form the site's own 301 rewrites a search query to (FINDINGS §Query shapes): trim,
-     * lowercase, fold diacritics, turn `'` and `.` into spaces, collapse whitespace runs.
-     * Sending the normalised form up front keeps `&page=N` alive — the site's 301 **drops** the
-     * page argument, so an un-normalised query would silently re-serve page 1 past page 1.
+     * lowercase, fold **Latin** diacritics, turn `'` and `.` into spaces, collapse whitespace
+     * runs. Sending the normalised form up front keeps `&page=N` alive — the site's 301 **drops**
+     * the page argument, so an un-normalised query would silently re-serve page 1 past page 1.
      *
      * Deliberately not rewritten: `-`, `,`, `&`. Those belong to a different site response
      * class (`404 Page Not Found`), so rewriting them would change what the user asked for.
+     *
+     * Mark folding is restricted to Latin bases: the marks of every other script are lexical,
+     * not accents, so an NFD round trip must leave them in place — `हिंदी` must stay `हिंदी`, not
+     * collapse to `हद` (the composition back to NFC restores what the decomposition split apart).
      */
-    fun normaliseQuery(query: String): String =
-        Normalizer.normalize(query.trim().lowercase(), Normalizer.Form.NFD)
-            .replace(Regex("""\p{M}+"""), "")
+    fun normaliseQuery(query: String): String {
+        val decomposed = Normalizer.normalize(query.trim().lowercase(), Normalizer.Form.NFD)
+        val folded = StringBuilder(decomposed.length)
+        var lastBaseIsLatin = false
+        var index = 0
+        while (index < decomposed.length) {
+            val codePoint = decomposed.codePointAt(index)
+            index += Character.charCount(codePoint)
+            if (isMark(codePoint)) {
+                // A mark is an accent only over a Latin base; otherwise it is part of the word.
+                if (lastBaseIsLatin) continue
+            } else {
+                lastBaseIsLatin = isLatinLetter(codePoint)
+            }
+            folded.appendCodePoint(codePoint)
+        }
+        return Normalizer.normalize(folded, Normalizer.Form.NFC)
             .replace('\'', ' ')
             .replace('.', ' ')
             .replace(Regex("""\s+"""), " ")
             .trim()
+    }
+
+    /** True for a combining mark (general category `M*`) — what diacritic folding can drop. */
+    private fun isMark(codePoint: Int): Boolean {
+        val type = Character.getType(codePoint)
+        return type == Character.NON_SPACING_MARK.toInt() ||
+            type == Character.COMBINING_SPACING_MARK.toInt() ||
+            type == Character.ENCLOSING_MARK.toInt()
+    }
+
+    /** True when [codePoint] is a Latin letter — the only base whose combining marks get folded. */
+    private fun isLatinLetter(codePoint: Int): Boolean =
+        Character.isLetter(codePoint) && when (Character.UnicodeBlock.of(codePoint)) {
+            Character.UnicodeBlock.BASIC_LATIN,
+            Character.UnicodeBlock.LATIN_1_SUPPLEMENT,
+            Character.UnicodeBlock.LATIN_EXTENDED_A,
+            Character.UnicodeBlock.LATIN_EXTENDED_B,
+            Character.UnicodeBlock.LATIN_EXTENDED_ADDITIONAL,
+            -> true
+            else -> false
+        }
 
     /**
      * Search URL for [query] on [page]. [normaliseQuery] is applied first, so the request is
      * never the shape the site 301s away; spaces become `+`, the canonical form (FINDINGS
      * §Query shapes, §Search). Page 1 carries no `page` argument, exactly like the listing rows.
      */
-    fun searchUrl(query: String, page: Int): String =
-        pageUrl(
-            BASE + SEARCH_PATH + "?search=" + URLEncoder.encode(normaliseQuery(query), "UTF-8"),
-            page,
-        )
+    fun searchUrl(query: String, page: Int): String = searchRetryUrl(normaliseQuery(query), page)
+
+    /**
+     * URL for a [searchEchoTarget] retry. Unlike [searchUrl] the term is **not** re-normalised:
+     * on the canonical branch it is already the site's own folded query, and folding it through
+     * our rules a second time can erase exactly the form the site asked for — measured
+     * 2026-11-24: the site keeps the combining dot in `İstanbul` (`search=i̇stanbul`), which
+     * [normaliseQuery] strips back to `istanbul`, so a re-folded retry would be byte-identical to
+     * the request it is meant to replace (FINDINGS §Query shapes).
+     */
+    fun searchRetryUrl(search: String, page: Int): String =
+        pageUrl(BASE + SEARCH_PATH + "?search=" + URLEncoder.encode(search, "UTF-8"), page)
 
     /**
      * Retry query when [html] is a canonical **echo** — the site ignored `page=N` and re-served an
@@ -140,9 +186,9 @@ object Parse {
      *
      * The retry query is the canonical's own `search=` value when it carries one (the `Teen` →
      * `teen` shape); the `/pornstar/<slug>` canonical carries no `search=`, so the normalised
-     * request query is used instead (the `Riley+Reid` shape). The caller retries **once**, and
-     * [searchHasNext] reads the retried body — an echo on the retry still ends the search, so no
-     * loop is possible.
+     * request query is used instead (the `Riley+Reid` shape). The caller retries **once**, through
+     * [searchRetryUrl] so the canonical's own form survives verbatim, and [searchHasNext] reads the
+     * retried body — an echo on the retry still ends the search, so no loop is possible.
      */
     fun searchEchoTarget(html: String, page: Int, query: String): String? {
         if (page <= 1) return null
@@ -506,14 +552,18 @@ class PornHub : MainAPI() {
         )
     }
 
+    // Same `kotlin:S6518` false positive as `getMainPage` above — NiceHttp's `app.get(...)` HTTP
+    // verb read as a collection accessor, one instance per page fetch.
+    @Suppress("kotlin:S6518")
     override suspend fun search(query: String, page: Int): SearchResponseList {
         var html = app.get(Parse.searchUrl(query, page)).text
         // At most one retry: a canonical echo means the site dropped `page=N` and re-served an
-        // earlier page, so re-request the normalised/canonical query once (FINDINGS §Query
-        // shapes). Cards and hasNext read the body actually used; an echo on the retry still
-        // stops the search at guard 2, so this cannot loop.
+        // earlier page, so re-request the canonical query once (FINDINGS §Query shapes).
+        // `searchRetryUrl` keeps the canonical's own form verbatim. Cards and hasNext read the
+        // body actually used; an echo on the retry still stops the search at guard 2, so this
+        // cannot loop.
         Parse.searchEchoTarget(html, page, query)?.let { target ->
-            html = app.get(Parse.searchUrl(target, page)).text
+            html = app.get(Parse.searchRetryUrl(target, page)).text
         }
         return newSearchResponseList(
             parseVideoCards(html, search = true),

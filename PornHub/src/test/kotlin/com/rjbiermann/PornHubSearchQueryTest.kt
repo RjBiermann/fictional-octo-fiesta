@@ -32,6 +32,36 @@ class PornHubSearchQueryTest {
         assertEquals("m&s", Parse.normaliseQuery("m&s"))
     }
 
+    @Test fun `non-Latin marks are lexical and survive normalisation intact`() {
+        // Only Latin diacritics are accents. Every other script's marks carry meaning, so an NFD
+        // round trip must hand the query back unchanged (`हिंदी` must never become `हद`).
+        assertEquals("हिंदी", Parse.normaliseQuery("हिंदी"))
+        assertEquals("বাংলা", Parse.normaliseQuery("বাংলা"))
+        assertEquals("สวัสดี", Parse.normaliseQuery("สวัสดี"))
+        // A Latin base still folds, including a lowercase that expands into a mark (`İ` → i + ̇).
+        assertEquals("istanbul", Parse.normaliseQuery("\u0130stanbul"))
+    }
+
+    @Test fun `a canonical whose fold differs from ours is retried verbatim`() {
+        // Measured divergence: the site keeps the combining dot of `İstanbul`
+        // (`search=i̇stanbul` = i + U+0307) while normaliseQuery folds it away, so the canonical
+        // branch yields a retry that really is a different request — and `searchRetryUrl` sends
+        // the site's own form instead of folding it back into the request it replaces.
+        val html = fixture("search-echo-fold-page2.html")
+        val target = Parse.searchEchoTarget(html, 2, "\u0130stanbul")
+        assertEquals("i\u0307stanbul", target)
+        assertFalse("the echo stops the search", Parse.searchHasNext(html, 2))
+        assertEquals(
+            "$BASE/video/search?search=i%CC%87stanbul&page=2",
+            Parse.searchRetryUrl(target!!, 2),
+        )
+        assertEquals(
+            "the plain request is the folded form, so the retry is not a repeat",
+            "$BASE/video/search?search=istanbul&page=2",
+            Parse.searchUrl("\u0130stanbul", 2),
+        )
+    }
+
     @Test fun `searchUrl sends the normalised query so the site never redirects it away`() {
         // The site's 301 drops `&page=N`, so page 2+ of an un-normalised query re-serves page 1.
         assertEquals("$BASE/video/search?search=teen&page=2", Parse.searchUrl("Teen", 2))
