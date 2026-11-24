@@ -344,3 +344,27 @@ real streams on a full page render also carry recognized Ints. `getStringByInt` 
 `480p`/`720p`/`1080p` tags in-app and the quality/priority sort now behaves like every
 other provider. In-app testing stays maintainer-only at merge time (never an agent
 deliverable).
+
+## Risks / blockers — origin refuses the CI runner (2026-11-24, issue #1458)
+
+**Blocked reason (do not re-probe from a US datacenter IP without escalating):**
+`Blocked: 403 no unlock — origin nginx refuses this runner's US/Virginia datacenter IP on
+every path, at plain-curl, TLS-impersonated and headless-Chromium tiers; origin live (fresh
+Let's Encrypt cert 2026-10-19 → 2027-01-17) so this is an IP/region refusal, not site death.`
+
+Every surface returns the byte-identical 548-byte nginx page (`Server: nginx`,
+`Content-Length: 548`) — `/`, `/robots.txt`, `/favicon.ico`, `/static/`, `/latest-updates/`,
+`/top-rated/`, `/most-popular/`, `/categories/<x>/`, `/tags/<x>/`, `/search/<q>/`,
+`/video/{id}/`, `/embed/{id}/`, `/related_videos_html/{id}/`, and the `mode=async…from=2`
+listing endpoint. There is no challenge page and no unlock: `confirmed=true`,
+`age_verified=1`, `?age_verified=1`, a full browser header set, HTTP/1.0/1.1/2, a direct
+`Host:` request to `88.80.24.7`, and a real headless Chromium (0 links, 0 videos, no
+subresource fetched) all get 403. `www.porntrex.tv` (second operator edge, `88.80.24.3`)
+returns the same 403.
+
+The site has **not** moved: `www.porntrex.io` is an unrelated Hugo blog and
+`www.porntrex.net` is a parked domain behind a JS interstitial — neither is the tube site.
+The provider's `mainUrl` (`https://www.porntrex.com`) remains canonical.
+
+Re-probe from a different egress (VPN / non-US runner). Full transcript:
+`docs/archive/findings/FINDINGS-1458.md`.
