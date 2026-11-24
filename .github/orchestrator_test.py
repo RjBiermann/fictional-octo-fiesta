@@ -2412,6 +2412,21 @@ class TestRegistryUnionNewestPerProvider(unittest.TestCase):
         self.assertEqual(merged["providers"]["X"]["last_deep"], "2026-11-30")
         self.assertEqual(merged["providers"]["X"]["reason"], "entry")
 
+    def test_a_stale_entry_last_deep_never_rewinds_a_later_deep_pass(self):
+        """#1599 (round-4 blocker on #1598): the entry's own claim is the
+        floor, not its run date. #1458's entry carries run 2026-11-24 with a
+        stale porntrex.last_deep 2026-10-16, so a file record in between was
+        being rewound — a deep rotation deferred silently."""
+        main = {"providers": {"X": {"last_deep": "2026-11-20", "reason": "file"}},
+                "last_runs": [{"id": "run1450"}]}
+        entry = {"last_runs": [{"id": "run1458", "date": "2026-11-24"}],
+                 "providers": {"X": {"last_deep": "2026-10-16",
+                                     "verdict": "blocked", "reason": "S20"}}}
+        merged = orchestrator._registry_union(main, entry)
+        self.assertEqual(merged["providers"]["X"]["last_deep"], "2026-11-20")
+        self.assertEqual(merged["providers"]["X"]["verdict"], "blocked")
+        self.assertEqual(merged["providers"]["X"]["reason"], "S20")
+
     def test_the_run_record_lands_in_both_directions(self):
         for date in ("2026-11-20", "2026-11-30"):
             with self.subTest(date=date):
