@@ -2082,48 +2082,66 @@ class TestRegistryClosedWindow(unittest.TestCase):
         self.assertEqual([i["number"] for i in got], [2])
 
 
-class TestRegistryLastDeepClamp(unittest.TestCase):
+class TestRegistryLastDeepFlag(unittest.TestCase):
     """#1579 S15 shape: a correctly anchored entry whose last_deep was the
-    PREVIOUS deep date while its own reason named the new run."""
+    PREVIOUS deep date while its own reason named the new run. #1583 review:
+    a run date proves a run, not a deep pass — flag, never rewrite."""
 
-    def test_stale_last_deep_is_clamped_to_the_run_date(self):
+    def test_stale_last_deep_is_reported(self):
         entry = {"last_runs": [{"date": "2026-11-23"}],
                  "providers": {"AllClassicPorn": {"last_deep": "2026-10-16"}}}
-        orchestrator._registry_clamp_last_deep(entry)
-        self.assertEqual(entry["providers"]["AllClassicPorn"]["last_deep"],
-                         "2026-11-23")
+        with mock.patch.object(orchestrator, "print") as out:
+            orchestrator._registry_flag_last_deep(entry)
+        self.assertIn("AllClassicPorn", out.call_args[0][0])
 
-    def test_fresh_last_deep_is_left_alone(self):
+    def test_stale_last_deep_is_never_rewritten(self):
+        entry = {"last_runs": [{"date": "2026-11-23"}],
+                 "providers": {"AllClassicPorn": {"last_deep": "2026-10-16"}}}
+        with mock.patch.object(orchestrator, "print"):
+            orchestrator._registry_flag_last_deep(entry)
+        self.assertEqual(entry["providers"]["AllClassicPorn"]["last_deep"],
+                         "2026-10-16")
+
+    def test_multi_provider_entry_is_reported_too(self):
+        entry = {"last_runs": [{"date": "2026-11-23"}],
+                 "providers": {"A": {"last_deep": "2026-10-16"},
+                               "B": {"last_deep": "2026-11-24"}}}
+        with mock.patch.object(orchestrator, "print") as out:
+            orchestrator._registry_flag_last_deep(entry)
+        self.assertIn("A last_deep", out.call_args[0][0])
+        self.assertNotIn("B last_deep", out.call_args[0][0])
+
+    def test_fresh_last_deep_is_silent(self):
         entry = {"last_runs": [{"date": "2026-11-23"}],
                  "providers": {"X": {"last_deep": "2026-11-24"}}}
-        orchestrator._registry_clamp_last_deep(entry)
-        self.assertEqual(entry["providers"]["X"]["last_deep"], "2026-11-24")
+        with mock.patch.object(orchestrator, "print") as out:
+            orchestrator._registry_flag_last_deep(entry)
+        out.assert_not_called()
 
-    def test_entry_without_runs_is_untouched(self):
+    def test_entry_without_runs_is_silent(self):
         entry = {"providers": {"X": {"last_deep": "2026-10-16"}}}
-        orchestrator._registry_clamp_last_deep(entry)
-        self.assertEqual(entry["providers"]["X"]["last_deep"], "2026-10-16")
+        with mock.patch.object(orchestrator, "print") as out:
+            orchestrator._registry_flag_last_deep(entry)
+        out.assert_not_called()
 
 
-class TestRegistryClampEvidence(unittest.TestCase):
-    """#1583 review: the clamp's evidence is a run record that names no
-    provider, so it vouches only for an entry covering a single provider —
-    advancing a provider the run never touched suppresses a deep pass."""
+class TestRegistryKnownIssuesPreempt(unittest.TestCase):
+    """#1583 review: the closed arm mostly re-derives answers the registry on
+    main already holds (87 closes vs 28 opens in a 7-day window), and each
+    candidate costs a `comments()` fetch against the secondary rate limit."""
 
-    def test_multi_provider_entry_is_left_alone(self):
-        entry = {"last_runs": [{"date": "2026-11-23"}],
-                 "providers": {"A": {"last_deep": "2026-10-16"},
-                               "B": {"last_deep": "2026-10-16"}}}
-        orchestrator._registry_clamp_last_deep(entry)
-        self.assertEqual(entry["providers"]["A"]["last_deep"], "2026-10-16")
-        self.assertEqual(entry["providers"]["B"]["last_deep"], "2026-10-16")
+    DOC = {"last_runs": [{"id": "run1450", "issue": 1450},
+                         {"id": "run1", "issue": None}, {"bad": "shape"}],
+           "providers": {"PandaMovies": {"issue": 1447},
+                         "Neporn": {"issue": None}}}
 
-    def test_non_dict_provider_does_not_hide_a_single_one(self):
-        entry = {"last_runs": [{"date": "2026-11-23"}],
-                 "providers": {"A": {"last_deep": "2026-10-16"},
-                               "note": "not a provider"}}
-        orchestrator._registry_clamp_last_deep(entry)
-        self.assertEqual(entry["providers"]["A"]["last_deep"], "2026-11-23")
+    def test_recorded_story_numbers_are_known(self):
+        self.assertEqual(orchestrator._registry_known_issues(self.DOC),
+                         {1450, 1447})
+
+    def test_missing_or_empty_doc_is_not_an_error(self):
+        self.assertEqual(orchestrator._registry_known_issues(None), set())
+        self.assertEqual(orchestrator._registry_known_issues({}), set())
 
 
 class TestRegistryClosedPaging(unittest.TestCase):
@@ -2206,8 +2224,8 @@ class TestRegistryPendOrder(unittest.TestCase):
 
 class TestRegistryPendingScan(unittest.TestCase):
     """#1583 review: the self-heal repost took a second append path that
-    skipped the clamp, so exactly the unanchored-but-correct entry that has
-    to be healed kept its stale `last_deep`."""
+    skipped the stale-stamp check, so exactly the unanchored-but-correct
+    entry that has to be healed went unchecked."""
 
     ENTRY = ('{"last_runs": [{"date": "2026-11-23"}],'
              ' "providers": {"X": {"last_deep": "2026-10-16"}}}')
@@ -2216,7 +2234,7 @@ class TestRegistryPendingScan(unittest.TestCase):
         return {"body": body, "user": {"login": "github-actions[bot]",
                                       "type": "Bot"}}
 
-    def test_self_healed_entry_is_clamped_too(self):
+    def test_self_healed_entry_goes_through_the_same_path(self):
         unanchored = [self._bot("```json\n" + self.ENTRY + "\n```")]
         anchored = [self._bot(orchestrator.REGISTRY_ANCHOR
                               + "\n```json\n" + self.ENTRY + "\n```")]
@@ -2226,13 +2244,14 @@ class TestRegistryPendingScan(unittest.TestCase):
             return anchored if posts else unanchored
 
         with mock.patch.object(orchestrator, "post_comment",
-                               side_effect=lambda n, b: posts.append((n, b))):
+                               side_effect=lambda n, b: posts.append((n, b))), \
+             mock.patch.object(orchestrator, "print"):
             got = orchestrator._registry_pending([{"number": 5}],
                                                  fetch_comments=fetch)
         self.assertEqual(len(posts), 1)
         self.assertEqual(orchestrator.REGISTRY_ANCHOR in posts[0][1], True)
         self.assertEqual(got[0][1]["providers"]["X"]["last_deep"],
-                         "2026-11-23")
+                         "2026-10-16")
 
     def test_applied_marker_skips_the_issue(self):
         cs = [{"body": f"{orchestrator.MARK} registry entry applied",

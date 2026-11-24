@@ -1953,30 +1953,46 @@ def _registry_entry_date(entry):
     return max(runs) if runs else ""
 
 
-def _registry_clamp_last_deep(entry):
-    """A provider's `last_deep` can not predate the entry's own run date.
-    S15 (#1453) posted the PREVIOUS deep date beside `reason: ... (S15,
-    2026-11-23)`; the union applied it faithfully, so a delivered deep pass
-    landed as stale and the rotation would re-pay for it (#1579). The run
-    record is the evidence; a stale stamp is healed, not trusted.
+def _registry_flag_last_deep(entry):
+    """Report — never rewrite — a `last_deep` that predates the entry's own
+    run date (S15 #1453 posted the PREVIOUS deep date beside `reason: ...
+    (S15, 2026-11-23)`).
 
-    That evidence names no provider, so it can only vouch for an entry that
-    covers exactly one: clamping a multi-provider entry would advance the
-    providers the run never touched — suppressing their deep pass instead
-    of healing this one (#1583 review)."""
+    A run date proves a RUN, not a deep pass: SKILL.md keeps the sweep
+    (Phase 1) apart from the deep stamp (Phase 2), `05-implement.md` lets
+    any implement run post an entry, and the registry's own `tier` field
+    records the transport ("plain-curl"), not the depth. Advancing
+    `last_deep` on that evidence would defer a provider's deep rotation by
+    a cycle, silently — the #1354 re-payment inverted (#1583 review
+    blocker). The stale stamp needs a corrected entry, which stays a
+    human/agent decision; the flag makes it visible instead of silent."""
     if not isinstance(entry, dict):
         return entry
-    provs = {n: p for n, p in (entry.get("providers") or {}).items()
-             if isinstance(p, dict)}
     run_date = _registry_entry_date(entry)
-    if len(provs) != 1 or not run_date:
+    if not run_date:
         return entry
-    for name, p in provs.items():
-        if str(p.get("last_deep") or "") < run_date:
-            print(f"[orchestrator] registry: {name} last_deep {p.get('last_deep')} "
-                  f"predates its run date {run_date} — clamped")
-            p["last_deep"] = run_date
+    stale = sorted(n for n, p in (entry.get("providers") or {}).items()
+                   if isinstance(p, dict)
+                   and str(p.get("last_deep") or "") < run_date)
+    if stale:
+        print(f"[orchestrator] registry: {', '.join(stale)} last_deep predates "
+              f"the entry's run date {run_date} — flagged, not rewritten "
+              f"(a run date does not prove a deep pass)")
     return entry
+
+
+def _registry_known_issues(doc):
+    """Issue numbers the registry on main already records a run for.
+    Most closed-window candidates are synced audit stories whose verdict is
+    already in the file, and `comments()` per candidate is the sweep's
+    dominant API cost (~87 closes vs 28 opens in a 7-day window, against
+    the secondary limit noted on `api()`) — skip those without a fetch
+    (#1583 review)."""
+    runs = (doc or {}).get("last_runs") or []
+    provs = ((doc or {}).get("providers") or {}).values()
+    nums = [r.get("issue") for r in runs if isinstance(r, dict)]
+    nums += [p.get("issue") for p in provs if isinstance(p, dict)]
+    return {n for n in nums if isinstance(n, int)}
 
 
 def _registry_pend_order(pend):
@@ -1990,12 +2006,12 @@ def _registry_pend_order(pend):
 
 
 def _registry_pending(issues, fetch_comments=None):
-    """[(issue number, clamped entry)] in apply order.
+    """[(issue number, entry)] in apply order, with stale stamps flagged.
 
     One append path for anchored entries and for the self-heal repost, so a
-    healed entry gets the same clamp as an anchored one — the unanchored
-    shape was exactly the #1439 case that kept a stale `last_deep` (#1583
-    review)."""
+    healed entry goes through the same checks as an anchored one — the
+    unanchored shape was exactly the #1439 case that kept a stale
+    `last_deep` (#1583 review)."""
     read = fetch_comments or comments
     pend = []
     for i in issues:
@@ -2019,7 +2035,7 @@ def _registry_pending(issues, fetch_comments=None):
             e = _registry_entry(read(i["number"]))
             if not e:
                 continue
-        pend.append((i["number"], _registry_clamp_last_deep(e)))
+        pend.append((i["number"], _registry_flag_last_deep(e)))
     return _registry_pend_order(pend)
 
 
@@ -2034,11 +2050,8 @@ def registry_sync():
         return  # feature off for this adopter
     # ADR-0019: no PAT needed — the push rides the checkout's actions token
     # (contents: write); the commit author is the conveyor identity.
-    pend = _registry_pending(
-        _registry_issue_set(api("issues?state=open&per_page=60"),
-                            _registry_closed_issues()))
-    if not pend:
-        return
+    # The registry on main is read FIRST: it is the union base and the
+    # pre-empt list for the closed arm (below).
     if _pl(["git", "fetch", "origin", "main"])[0] > 1:
         return
     _, cur_body = _pl(["git", "show", f"origin/main:{REGISTRY_PATH}"])
@@ -2046,6 +2059,13 @@ def registry_sync():
         merged = json.loads(cur_body or "{}")
     except Exception as e:
         sys.stderr.write(f"[orchestrator] {REGISTRY_PATH} unparsable on main: {e}\n")
+        return
+    known = _registry_known_issues(merged)
+    pend = _registry_pending(
+        _registry_issue_set(
+            api("issues?state=open&per_page=60"),
+            [i for i in _registry_closed_issues() if i["number"] not in known]))
+    if not pend:
         return
     applied = [n for n, e in pend]
     for _, e in pend:
