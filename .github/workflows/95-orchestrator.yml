@@ -184,4 +184,9 @@ jobs:
           # An adopter that configures neither keeps every conflict human.
           GH_AW_REGISTRY_PATH: ${{ vars.GH_AW_REGISTRY_PATH }}
           GH_AW_REGISTRY_VERSION_FILES: ${{ vars.GH_AW_REGISTRY_VERSION_FILES }}
+          # Unbuffered: a 13-min sweep whose `print`s all land at the END of
+          # the step is unattributable — the #1588 evidence came from one mid-run
+          # warning that happened to flush. With this, every blocking call
+          # shows its own timestamp and the next slow sweep names its own cause.
+          PYTHONUNBUFFERED: "1"
         run: python3 .github/orchestrator.py
