@@ -391,50 +391,68 @@ Invocation used (selectors from `docs/archive/providers/Porntrex/FINDINGS.md`):
 2. Do **not** treat `genres`/`tags` as `absent` on the strength of this run — the 403 observed
    nothing about them.
 3. `last_deep` stays **2026-10-16** (that is still the last completed deep pass); this run adds
-   no deep stake. The registry entry records `verdict: blocked` with the reason above.
+   no deep stake. The registry records `verdict: blocked`, but its `reason`/`canaries` **on main**
+   are still the unqualified round-1 text — read *Registry write* below before quoting the
+   machine record.
 4. Provider `version` stays **32** — no code change, no fixtures changed, `PorntrexParse` unit
    tests untouched and green.
 
 ## Registry write (ADR-0013 — nothing in the PR diff)
 
 The provider entry + one `last_runs` entry (`false_positives: []`) belong in the #1458 thread, not
-in this diff. **What actually happened** (recorded so the next reader is not misled, and because
-an earlier version of this section claimed otherwise):
+in this diff. **What actually happened**, checked against the thread and against
+`audits/findings.json` **on main** (read through the API, not quoted from memory):
 
 - The run's delta comment (`2026-11-24T17:12:56Z`) was posted **unanchored** — a bare fenced json
   object with **no** `<!-- findings-registry-entry -->` line — so `registry_sync`'s
   `_registry_entry()` could never see it.
 - The orchestrator's #777 self-heal (`.github/orchestrator.py`, `_registry_candidate()`) re-posted
-  that delta **verbatim** under the anchor at `2026-11-24T17:28:34Z` and applied it through
-  registry PR #1587 (`[orchestrator] registry entry applied`, `17:28:44Z`).
-- That self-healed copy still carried the round-1 over-claim — `providers.Porntrex.reason` ended
-  "…So this is an IP/region refusal, not site death, not drift…" and the `last_runs` `canaries`
-  tail said "No degradation, so Blocked stays available" — i.e. the conclusion round 1 removed
-  from the docs survived in the record future runs read first.
-- **Repair round 2 (PR #1585, 06-review blocker at `2026-11-24T17:31:19Z`)** therefore posted a
-  **corrected anchored** `<!-- findings-registry-entry -->` comment on #1458 whose `reason` and
-  `canaries` carry the qualified wording of the Blocked reason above (leading hypothesis / NOT
-  excluded: operator-wide blanket refusal / re-probe from a different egress; the same bare 403
-  there ⇒ site-wide, file it, not Blocked). `_registry_entry()` scans the thread in **reverse** and
-  returns the latest anchored object, so the corrected comment supersedes the self-healed one; the
-  older comments stay in place.
+  that delta **verbatim** under the anchor at `2026-11-24T17:28:34Z`, wrote its `registry entry
+  applied` marker (`17:28:44Z`) and opened registry PR #1587. That PR went `CONFLICTING` and was
+  **closed unmerged** on `2026-11-25T01:04:31Z`; the entry that *did* reach main arrived via
+  registry PR **#1606** (`[registry] apply findings entries from #1457, #1458`, merge commit
+  `38f0364`, merged `2026-11-24T23:59:56Z`).
+- The landed copy is the **unqualified** one. On main today `providers.Porntrex.reason` ends
+  "…So this is an IP/region refusal, not site death, not drift…" and
+  `last_runs[run1458].canaries` ends "No degradation, so Blocked stays available (D8)" — the
+  conclusion review round 1 removed from the docs is exactly what the machine record future runs
+  read first.
+- **Repair round 2** meant to fix that, but its "corrected anchored" comment
+  (`2026-11-24T18:42:03Z`) also went out **unanchored** — a bare json fence, no anchor line — so
+  `_registry_entry()` skips it and round 2's sentence "posted a corrected anchored comment" was
+  false. That false claim is what review round 2 caught.
+- **Repair round 3** (this PR, run
+  https://github.com/RjBiermann/fictional-octo-fiesta/actions/runs/45527013372) posts the
+  qualified entry **with** the `<!-- findings-registry-entry -->` anchor on #1458, carrying the
+  same `reason`/`canaries` wording as the Blocked reason above (leading hypothesis / NOT
+  excluded: operator-wide blanket refusal / falsification test: the same bare 403 from a
+  different egress ⇒ site-wide, file it, not Blocked). `_registry_entry()` scans the thread in
+  **reverse** and returns the latest anchored object, so that comment — not the self-healed
+  `17:28:34Z` one — is the entry the thread now hands the next reader.
 
-Caveat the next reader needs (recorded, **not** repaired here — ADR-0013 keeps machinery out of a
-docs diff): `registry_sync` skips any issue that already carries the `[orchestrator] registry
-entry applied` marker, so the corrected entry is the authoritative **thread** record but is *not*
-re-unioned into `audits/findings.json` by a later sweep, and registry PR **#1587 is still open**
-with the earlier unqualified text (`_union_findings()` also appends `last_runs` by identity, so a
-union of the corrected entry would sit beside the old record rather than replace it). The registry
-correction is therefore a maintainer decision on #1587 — do not merge it as-is expecting the
-qualified reason to be there. Filed as a `[backlog-report]` machinery finding during repair round
-2 ("registry_sync cannot apply a corrected anchored entry to an already-applied story — the
-applied marker is per issue, not per entry") rather than fixed in this PR: ADR-0013 keeps
-machinery out of an agent docs diff.
+**What the anchored entry does *not* do: the file stays unqualified.** `registry_sync` dedupes by
+**evidence**, not by the marker comment — it derives `applied = _registry_known_issues(merged)`
+from the registry on main and skips any issue number in that set *before* reading the thread
+(`if i["number"] in applied: continue`). `audits/findings.json` on main already records issue 1458
+in `last_runs[].issue`, so #1458 is skipped and **no** entry from this thread, anchored or not, is
+re-unioned by any later sweep. An earlier version of this section cited a `registry entry
+applied` **marker** skip and pointed at #1587 as the live correction vehicle; both were wrong at
+merge time — the marker no longer gates anything (it was removed with the evidence dedupe, #1583 /
+#1598 reviews) and #1587 is closed.
+
+**So the machine record is a maintainer action.** Correcting it means editing the two strings in
+`audits/findings.json` on main — `providers.Porntrex.reason` and `last_runs[run1458].canaries` —
+to the qualified wording above, or changing the machinery so a corrected entry can re-apply to a
+story it already records. ADR-0013 keeps this lane out of the registry either way. The
+`[backlog-report]` finding round 2 filed (**#1593**, "registry_sync cannot apply a corrected
+anchored entry…") is built on the removed marker logic and should be **superseded** rather than
+kept as the tracker of record — machinery too, so also a maintainer call.
 
 **PR body (maintainer action).** The 05-implement body still states "so this is an IP/region
-refusal, not site death" as fact. This lane's safe-output allow-list has no PR-body tool, so the
-repair cannot rewrite it; the qualified replacement paragraph is posted on #1458 with the repair
-report and must be applied to the PR body by a human at merge.
+refusal, not site death" as fact and calls the registry delta "posted … anchored". This lane's
+safe-output allow-list has no PR-body tool, so no repair round can rewrite it; the qualified
+replacement paragraph is posted on #1458 with each repair report and must be applied to the PR
+body by a human at merge.
 
 Expected shape: `verdict: "blocked"`, `tier: "plain-curl"`,
 `escalation_tier: available (curl_cffi 0.17.0 + Chromium 159) — all tiers 403`,
