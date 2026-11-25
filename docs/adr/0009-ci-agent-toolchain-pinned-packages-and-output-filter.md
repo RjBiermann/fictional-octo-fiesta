@@ -23,9 +23,11 @@ sink and a direct contributor to the issue-#421 budget exhaustion.
 
 ## Consequences
 
-- Caveman compresses run narration only; its own Boundaries rule (and this
+- ~~Caveman compresses run narration only; its own Boundaries rule (and this
   repo's evidence-first ADRs) keep PR bodies, issue text, and commits in
-  normal prose.
+  normal prose.~~ Superseded 2026-11-25: caveman is no longer in the pinned set
+  (see the amendment at the end). PR bodies, issue text, and commits stay
+  normal prose regardless.
 - rtk must never filter away verification evidence (stream URLs, HTTP codes,
   headers). First CI build after adoption diffs verify output before/after;
   if evidence is filtered, rtk's config is tightened or the step is dropped.
@@ -36,3 +38,11 @@ sink and a direct contributor to the issue-#421 budget exhaustion.
   `.pi/extensions/deny-human-only.ts` mirrors upstream `DENY_COMMANDS` as a
   deny-only tool_call hook. Delete it when upstream devloop ships a pi
   binding; same prefix-match ceiling as upstream (`gh api` paths uncovered).
+
+**Amended 2026-11-25:** the pinned set is now `ponytail` only, and ponytail
+tracks upstream `main` instead of a tag (`.pi/settings.json`). Caveman was
+dropped outright: its narration compression no longer paid for a pinned
+dependency, since PR bodies, issue text, verify reports, and commits stayed
+normal prose either way. Tracking `main` deliberately trades this ADR's
+reproducibility for freshness — every agent start reconciles to upstream head,
+so an upstream break reaches CI. Re-pin to a tag when stability outranks that.

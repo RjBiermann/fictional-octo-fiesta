@@ -1,13 +1,13 @@
 ---
 name: audit-providers
-description: Fleet-wide audit of all CloudStream providers in this repo — canary-calibrated instrument, sweep + rotating deep tier, machine-readable findings registry, dedup-aware findings lifecycle. Use on an ai-fix-labeled audit issue (e.g. #460).
+description: Fleet-wide audit of all CloudStream providers in this repo — canary-calibrated instrument, sweep + rotating deep tier, machine-readable findings registry, dedup-aware findings lifecycle. Use on an ai-fix-labeled audit issue (e.g. #460), and whenever a registry entry or canary must be recorded outside a run — the registry never travels in an agent diff (ADR-0013).
 ---
 
 # Provider Fleet Audit
 
-Audit every provider's live site and leave three artifacts on the run branch:
-`docs/archive/findings/FINDINGS-<issue>.md` (evidence), `audits/findings.json` (registry update),
-and updated finding issues. No provider code changes — artifacts only.
+Audit every provider's live site and leave three artifacts: `docs/archive/findings/FINDINGS-<issue>.md`
+(evidence), the anchored registry comment described under Delivery (ADR-0013), and updated finding
+issues. No provider code changes — artifacts only.
 
 This skill composes [site-probe](../site-probe/SKILL.md) per provider. All
 site-probe rules carry over: escalation ladder (plain curl → TLS-impersonated
@@ -82,12 +82,15 @@ Before filing a new finding issue for a provider:
 
 ## Delivery
 
-- Update `audits/findings.json` (providers, standing_issue links, drift
-  counts, `last_runs` entry with `false_positives` list — start it empty,
-  fill it from review).
+- Post the registry update as one `add-comment` on the **issue** (never the PR — `registry_sync`
+  drops every PR-keyed thread) starting `<!-- findings-registry-entry -->` followed by a fenced
+  ```json``` block (providers, standing_issue links, drift counts, `last_runs` entry with
+  `false_positives` list — start it empty, fill it from review). ADR-0013: never edit
+  `audits/findings.json` in the diff; the orchestrator's `registry_sync` unions the comment on main.
 - Write `docs/archive/findings/FINDINGS-<issue>.md` (run reports live in the archive,
-  never at the repo root — #922); cross-check it against findings.json.
-- Run `scripts/check-findings.sh` — it must pass; it is also the delivery
-  gate (`pipeline.verify`).
+  never at the repo root — #922); cross-check it against findings.json on `main`.
+- `scripts/check-findings.sh --block <comment-body-file>` runs the same verdict/tier/
+  `standing_issue`/`false_positives` checks against the fenced block before you post it — the tree
+  lint can no longer see the payload, and `registry_sync` unions it without re-validating.
 - PR body: per-provider verdict table, findings created/updated, canary
   outcome, false-positive-rate note (false positives this run / findings filed).

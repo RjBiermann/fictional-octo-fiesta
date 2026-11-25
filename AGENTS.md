@@ -90,10 +90,11 @@ committed — the domain skills are what the agent uses for provider work
 (probe → evidence → minimal change → build → verify). Only `.pi/git/`
 (package clones) is gitignored.
 
-Agent runs run with `ponytail` (minimal-code discipline) and `caveman`
-full mode active: caveman compresses run narration only — PR bodies, issue
-text, verify reports, and commits stay normal prose (caveman's own Boundaries
-rule). rtk filters bash output before the agent reads it (ADR-0009).
+Agent runs run with `ponytail` (minimal-code discipline, tracked from upstream
+`main`). rtk filters bash output before the agent reads it. Caveman was dropped
+from the pinned set on 2026-11-25 (ADR-0009 amended): PR bodies, issue text,
+verify reports, and commits were always normal prose, and the narration
+compression no longer paid for its pin.
 
 - **Trigger labels**: `ai-fix`, `ai-build`, `ai-new-site`, `ai-remove` —
   mutually exclusive, applied by humans only (machinery applies them only
