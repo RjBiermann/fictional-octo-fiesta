@@ -36,3 +36,11 @@ sink and a direct contributor to the issue-#421 budget exhaustion.
   `.pi/extensions/deny-human-only.ts` mirrors upstream `DENY_COMMANDS` as a
   deny-only tool_call hook. Delete it when upstream devloop ships a pi
   binding; same prefix-match ceiling as upstream (`gh api` paths uncovered).
+
+**Amended 2026-11-25:** the pinned set is now `ponytail` only, and ponytail
+tracks upstream `main` instead of a tag (`.pi/settings.json`). Caveman was
+dropped outright: its narration compression no longer paid for a pinned
+dependency, since PR bodies, issue text, verify reports, and commits stayed
+normal prose either way. Tracking `main` deliberately trades this ADR's
+reproducibility for freshness — every agent start reconciles to upstream head,
+so an upstream break reaches CI. Re-pin to a tag when stability outranks that.
