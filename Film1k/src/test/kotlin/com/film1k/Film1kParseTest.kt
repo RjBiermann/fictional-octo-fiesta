@@ -183,6 +183,89 @@ class Film1kParseTest {
         assertEquals("https://cdn3.turboviplay.com/data3/696f9b3d701a3/696f9b3d701a3.m3u8", url)
     }
 
+    // ---- issue #1462: card-markup drift - the theme renamed its card classes
+    // (header.entry-header / h2.entry-title -> figure.film1k-card__media /
+    // h2.film1k-card__title) while keeping the article.loop-post skeleton. Live
+    // fixtures 2026-11-25: homepage p1 and a video page's Related Videos block.
+    private val home20261125Doc by lazy {
+        javaClass.classLoader.getResource("film1k_home_20261125.html")!!.readText()
+    }
+    private val video20261125Doc by lazy {
+        javaClass.classLoader.getResource("film1k_video_related_20261125.html")!!.readText()
+    }
+
+    @Test fun `listing cards parse from the 2026-11 card skeleton`() {
+        val cards = Film1kParse.doc(home20261125Doc).select("article.loop-post")
+        assertEquals(24, cards.size)
+        val first = Film1kParse.cardOf(cards.first()!!)!!
+        assertEquals(
+            "https://www.film1k.com/the-story-of-o-the-series-submission-1992-eng-sub.html",
+            first.url
+        )
+        assertEquals("The Story of O \u2013 the Series: Submission (1992) [Eng Sub]", first.title)
+        assertEquals(
+            "https://img.film1k.com/video-thumbs/the-story-of-o-the-series-submission-1992-video.webp",
+            first.poster
+        )
+    }
+
+    @Test fun `lazy card poster resolves to data-src on the 2026-11 skeleton`() {
+        val cards = Film1kParse.doc(home20261125Doc).select("article.loop-post")
+        val second = Film1kParse.cardOf(cards[1])!!
+        assertTrue(second.poster.startsWith("https://img.film1k.com/video-thumbs/"))
+        assertTrue(!second.poster.startsWith("data:"))
+    }
+
+    @Test fun `listing cards stop at the page-not-found wrap`() {
+        // review #1621 blocker: the restored card parser also parses the WP 404 wrap
+        // (8 seeded article.loop-post cards), so a has-articles hasNext would paginate
+        // the tail forever. The gate — not the card parser — is what ends a listing.
+        val notFound = Film1kParse.doc(searchNotFoundP4Doc)
+        assertTrue(Film1kParse.isNotFoundTemplate(notFound))
+        assertEquals(
+            8,
+            notFound.select("article.loop-post").mapNotNull { Film1kParse.cardOf(it) }.size
+        )
+        assertEquals(0, Film1kParse.listingCards(notFound).size)
+        // …and it never suppresses a real listing surface
+        assertEquals(24, Film1kParse.listingCards(Film1kParse.doc(home20261125Doc)).size)
+        assertEquals(24, Film1kParse.listingCards(Film1kParse.doc(searchTabooP2Doc)).size)
+    }
+
+    @Test fun `card link falls back to the post html link when the h2 has no anchor`() {
+        // third fallback branch: title text is not wrapped in a link, the post link
+        // lives on the figure — still one card, not a dropped listing row
+        val card = Film1kParse.cardOf(
+            Jsoup.parse(
+                """<article class="loop-post">
+                   |  <figure><a href="/some-film-1971.html"><img src="https://i.imgur.com/x.jpg"></a></figure>
+                   |  <h2>Some Film (1971)</h2>
+                   |</article>""".trimMargin()
+            ).selectFirst("article.loop-post")!!
+        )!!
+        assertEquals("/some-film-1971.html", card.url)
+        assertEquals("Some Film (1971)", card.title)
+        assertEquals("https://i.imgur.com/x.jpg", card.poster)
+    }
+
+    @Test fun `legacy card skeleton still parses`() {
+        val legacy = Film1kParse.relatedOf(relatedDoc).first()
+        val card = Film1kParse.cardOf(legacy)!!
+        assertEquals("https://www.film1k.com/coffin-full-of-dollars-1971.html", card.url)
+        assertEquals("Coffin Full of Dollars (1971)", card.title)
+        assertEquals("https://i.imgur.com/JOwDFtx.jpg", card.poster)
+    }
+
+    @Test fun `related section header moved from h3 to h2 page-header`() {
+        val related = Film1kParse.relatedOf(Film1kParse.doc(video20261125Doc))
+        assertEquals(20, related.size)
+        assertEquals(
+            "https://www.film1k.com/fanny-hill-2007.html",
+            related.first().selectFirst("a")?.attr("href")
+        )
+        assertEquals("Fanny Hill (2007)", related.first().selectFirst("h2")?.text())
+    }
+
     @Test fun `turbovid master m3u8 rejects look-alike host`() {
         // page-controlled look-alike (evilturboviplay.com) must not be handed to the player
         assertNull(

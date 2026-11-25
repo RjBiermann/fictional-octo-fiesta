@@ -39,25 +39,27 @@ class Film1k : MainAPI() {
     }
 
     private fun org.jsoup.nodes.Element.toResult(): SearchResponse? {
-        val a = this.selectFirst("header.entry-header > a") ?: return null
-        val href = a.attr("href")
-        val title = this.selectFirst("h2.entry-title")?.text()?.trim() ?: return null
-        val img = this.selectFirst("figure img")
-        // lazy-poster theme: src is a data: placeholder, the real image is data-src (any host —
-        // related cards are mostly i.imgur.com/blogger, not just img.film1k.com)
-        val src = img?.attr("src").orEmpty()
-        val poster = img?.attr("data-src")?.takeIf {
-            it.startsWith("http") && (src.isBlank() || src.startsWith("data:"))
-        } ?: src
-        return newMovieSearchResponse(title, href, TvType.NSFW) { this.posterUrl = poster }
+        // issue #1462: the card identity is a pure Parse function (Film1kParse.cardOf),
+        // anchored on the article.loop-post skeleton rather than the theme's classes —
+        // the 2026-11 theme renamed entry-header/entry-title to film1k-card__*.
+        val card = Film1kParse.cardOf(this) ?: return null
+        return newMovieSearchResponse(card.title, card.url, TvType.NSFW) {
+            this.posterUrl = card.poster
+        }
     }
 
     private fun parseList(doc: org.jsoup.nodes.Document): List<SearchResponse> =
-        doc.select("article.loop-post").mapNotNull {
+        // review #1621: listingCards gates the WP 404 wrap (8 seeded cards) out, so the
+        // default hasNext = items.isNotEmpty() cannot paginate an exhausted row forever.
+        Film1kParse.listingCards(doc).mapNotNull {
             try { it.toResult() } catch (e: Exception) { null }
         }.distinctBy { it.url }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        // review #1621: past a row's tail (home p361, /category/action p39) the site answers
+        // with the WordPress 404 wrap and 8 seeded cards. parseList applies the
+        // listingCards isNotFoundTemplate gate, so the row ends (empty + hasNext = false)
+        // instead of paginating those 8 unrelated cards forever.
         val doc = app.get(pageUrl(request.data, page)).document
         val items = parseList(doc)
         return newHomePageResponse(request.name, items)

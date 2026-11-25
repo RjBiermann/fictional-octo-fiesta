@@ -5,6 +5,35 @@ import org.jsoup.nodes.Element
 
 /** Pure parsing helpers for issue #233 (related videos, year) — test-safe, no framework types. */
 object Film1kParse {
+    /** Card identity parsed from one `article.loop-post` card (issue #1462). */
+    data class Card(val url: String, val title: String, val poster: String)
+
+    /** issue #1462 card-markup drift: the 2026-11 theme dropped the classes the old
+     *  card parser keyed on (`header.entry-header > a` + `h2.entry-title`) and renders
+     *  `figure.film1k-card__media > a` + `h2.film1k-card__title > a` instead. The
+     *  skeleton (`article.loop-post` > `h2` with a link + `figure img`) survived both
+     *  themes, so the parse anchors on structure, not class names — the next cosmetic
+     *  rename cannot empty the listings again. Fixtures: film1k_home_20261125.html
+     *  (new skeleton) and film1k_video_related.html (legacy skeleton). */
+    fun cardOf(card: Element): Card? {
+        val url = card.select("h2 a[href]").firstOrNull()?.attr("href")?.takeIf { it.isNotBlank() }
+            ?: card.selectFirst("header a[href]")?.attr("href")?.takeIf { it.isNotBlank() }
+            ?: card.select("a[href]").firstOrNull { it.attr("href").contains(".html") }
+                ?.attr("href")?.takeIf { it.isNotBlank() }
+            ?: return null
+        val title = card.selectFirst("h2")?.text()?.trim()?.takeIf { it.isNotBlank() }
+            ?: card.selectFirst("img[alt]")?.attr("alt")?.trim()?.takeIf { it.isNotBlank() }
+            ?: return null
+        val img = card.selectFirst("figure img") ?: card.selectFirst("img")
+        // lazy-poster theme: src is a data: placeholder, the real image is data-src
+        // (any host — related cards are mostly i.imgur.com/blogger, not img.film1k.com)
+        val src = img?.attr("src").orEmpty()
+        val poster = img?.attr("data-src")?.takeIf {
+            it.startsWith("http") && (src.isBlank() || src.startsWith("data:"))
+        } ?: src
+        return Card(url, title, poster)
+    }
+
     /** issue #558 fixture-backed parse helper: one jsoup parse of the raw page html,
      *  handed to the scoped (player-strip) overloads of byseCode/abyssUrl. */
     fun doc(html: String): Document = org.jsoup.Jsoup.parse(html)
@@ -24,15 +53,24 @@ object Film1kParse {
     fun isNotFoundTemplate(doc: Document): Boolean =
         doc.title().contains("Page not found", ignoreCase = true)
 
+    /** Listing cards of a page, or none at all for the WordPress 404 wrap — review #1621:
+     *  the restored structural [cardOf] happily parses the 8 seeded cards of the 404 tail,
+     *  so every listing surface (home, category, tag, search) gates here and a has-cards
+     *  `hasNext` can no longer paginate the tail forever. Gate, not parser, ends a row. */
+    fun listingCards(doc: Document): List<Element> =
+        if (isNotFoundTemplate(doc)) emptyList() else doc.select("article.loop-post").toList()
+
     /** Related-videos block: scoped to <main>, the section after the `Related Videos` header.
      *  Card markup is identical to listings (`article.loop-post`), so the caller reuses the
      *  same card parser as parseList. Sidebar sections live outside <main> and are skipped. */
     fun relatedOf(doc: Document): List<Element> {
         val main = doc.selectFirst("main") ?: return emptyList()
-        val h3 = main.select("h3").firstOrNull {
-            it.text().equals("Related Videos", ignoreCase = true)
+        // issue #1462: the 2026-11 theme renders the block header as
+        // `h2.page-header` (was `h3`) — match the heading text at either level.
+        val heading = main.select("h2, h3").firstOrNull {
+            it.text().trim().equals("Related Videos", ignoreCase = true)
         } ?: return emptyList()
-        val section = h3.closest("section") ?: return emptyList()
+        val section = heading.closest("section") ?: return emptyList()
         return section.select("article.loop-post").toList()
     }
 
