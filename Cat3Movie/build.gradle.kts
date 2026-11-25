@@ -1,4 +1,4 @@
-version = 27 // #1448: hlsfast → turboembed chain + loadvid registered (shared adapters)
+version = 28 // #1613: version bump (v28)
 
 cloudstream {
     authors     = listOf("RjBiermann")

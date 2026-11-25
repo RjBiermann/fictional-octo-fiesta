@@ -1,4 +1,4 @@
-version = 23 // #1451: emit video_alt_url2 (1080p) — KVS third rendition was dropped
+version = 24 // #1613: version bump (v24)
 
 cloudstream {
     authors     = listOf("RjBiermann")

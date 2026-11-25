@@ -1,4 +1,4 @@
-version = 28 // #1450: direct-media AJAX targets emitted (was dropped as embed pages)
+version = 29 // #1613: version bump (v29)
 
 cloudstream {
     authors     = listOf("RjBiermann")

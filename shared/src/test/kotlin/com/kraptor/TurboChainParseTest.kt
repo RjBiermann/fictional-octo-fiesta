@@ -95,6 +95,26 @@ class TurboEmbedParseTest {
         assertEquals(emptyList<TurboEmbedParse.Tier>(), TurboEmbedParse.tiers("""{"message":"Player not found"}"""))
         assertEquals(emptyList<TurboEmbedParse.Tier>(), TurboEmbedParse.tiers("not json"))
     }
+
+    // #1459 (Sexfilm video-source audit): vsembed.com is the same player platform on a
+    // second host — filmcdm.top/e/<id> 302s there for part of that catalogue, and its
+    // download API carries the identical tiers grammar (`file`/`label` per quality).
+    @Test
+    fun `vsembed resolves the same code grammar on its own host`() {
+        assertEquals("r0hg", TurboEmbedParse.code("https://vsembed.com/r0hg", "vsembed.com"))
+        assertEquals("r0hg", TurboEmbedParse.code(" https://vsembed.com/r0hg ", "vsembed.com"))
+        assertEquals("6ulj9", TurboEmbedParse.code("https://vsembed.com/6ulj9?x=1", "vsembed.com"))
+        assertNull(TurboEmbedParse.code("https://vsembed.com/", "vsembed.com"))
+        assertNull(TurboEmbedParse.code("https://turboembed.com/1hri", "vsembed.com"))
+        assertNull(TurboEmbedParse.code("https://vsembed.com.evil.example/r0hg", "vsembed.com"))
+    }
+
+    @Test
+    fun `vsembed tiers carry the exposed quality labels`() {
+        val tiers = TurboEmbedParse.tiers(res("vsembed-tiers.json"))
+        assertEquals(listOf("1080p", "720p", "540p"), tiers.map { it.file })
+        assertEquals(listOf("1080p", "720p", "540p"), tiers.map { it.label })
+    }
 }
 
 /** cdn.loadvid.com page-config grammar + the single-segment manifest shape. */
