@@ -344,3 +344,41 @@ real streams on a full page render also carry recognized Ints. `getStringByInt` 
 `480p`/`720p`/`1080p` tags in-app and the quality/priority sort now behaves like every
 other provider. In-app testing stays maintainer-only at merge time (never an agent
 deliverable).
+
+## Risks / blockers — origin refuses the CI runner (2026-11-24, issue #1458)
+
+**Blocked reason (do not re-probe from a US datacenter IP without escalating):**
+`Blocked: 403 no unlock — origin nginx returns the same bare 403 page to this runner on every
+path (548 B with the desktop UA, a shorter minimal page without one), at plain-curl,
+TLS-impersonated and headless-Chromium tiers. Leading hypothesis: IP/region refusal of the
+US/Virginia datacenter runner. NOT excluded: an operator-wide blanket refusal, which looks
+identical from here.`
+
+**Scope is a hypothesis, not a conclusion.** What this run establishes is the refusal's *shape*
+(path-, UA-, protocol- and TLS-fingerprint-independent; no unlock; both operator edges) and
+that the TLS front-end still serves the vhost (fresh Let's Encrypt cert 2026-10-19 → 2027-01-17,
+issued three days after the 2026-10-16 deep pass — ACME re-issue is automatic, so it does **not**
+prove the catalogue is healthy). It does not establish that a non-US/residential client is
+served: `RESIDENTIAL_PROXY_URL` was unset, so `scripts/differential.sh`'s deciding residential
+tier never ran. An operator-wide refusal would look the same from this runner. **Falsification
+test:** from a different egress, a healthy `200` confirms the IP/region hypothesis (this reason
+stands); the *same bare nginx `403`* (match the shape, not the byte count) falsifies it — the
+refusal is site-wide, which is **not** D8-exempt and must be filed, not recorded Blocked.
+
+Every surface returns the same bare nginx 403 page (`Server: nginx`; 548 B with the desktop
+`User-Agent`, a shorter minimal 146-B page with none) — `/`, `/robots.txt`, `/favicon.ico`, `/static/`, `/latest-updates/`,
+`/top-rated/`, `/most-popular/`, `/categories/<x>/`, `/tags/<x>/`, `/search/<q>/`,
+`/video/{id}/`, `/embed/{id}/`, `/related_videos_html/{id}/`, and the `mode=async…from=2`
+listing endpoint. There is no challenge page and no unlock: `confirmed=true`,
+`age_verified=1`, `?age_verified=1`, a full browser header set, HTTP/1.0/1.1/2, a direct
+`Host:` request to `88.80.24.7`, and a real headless Chromium (0 links, 0 videos, no
+subresource fetched) all get 403. `www.porntrex.tv` (second operator edge, `88.80.24.3`)
+returns the same 403.
+
+The site has **not** moved: `www.porntrex.io` is an unrelated Hugo blog and
+`www.porntrex.net` is a parked domain behind a JS interstitial — neither is the tube site.
+The provider's `mainUrl` (`https://www.porntrex.com`) remains canonical.
+
+Re-probe from a different egress (VPN, non-US runner, or residential proxy). Full transcript:
+`docs/archive/findings/FINDINGS-1458.md` ("Confidence — observed vs. inferred" holds the
+observed/inferred split and the falsification test).
