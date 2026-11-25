@@ -24,6 +24,7 @@ permissions:
   contents: read
   issues: write
   actions: write   # stuck re-fire dispatches 05-implement (workflow_dispatch API, #880 r2)
+  pull-requests: read   # #1609: resolve each idle item's deliverable PR before re-firing
 
 concurrency:
   group: sweeper
@@ -97,6 +98,28 @@ jobs:
               r = subprocess.run(["gh",*a], capture_output=True, text=True)
               if r.returncode != 0:
                   raise RuntimeError(f"gh {' '.join(a[:3])}: {r.stderr.strip()[:160]}")
+          # #1609: an idle *story* whose deliverable PR is in review or merge-ready is
+          # waiting on a human merge, not stalled — the issue-side timer then measures
+          # the wrong object, and a re-fire only wakes the issue_comment readers
+          # (#1591). `closingIssuesReferences` is the same record the orchestrator
+          # trusts (#1379). One read, fail-soft: an unreadable PR state must never
+          # suppress a heal.
+          held = {}
+          try:
+              r = subprocess.run(["gh","pr","list","--repo",repo,"--state","open",
+                                  "--limit","200","--json",
+                                  "number,labels,closingIssuesReferences"],
+                                 capture_output=True, text=True)
+              if r.returncode != 0:
+                  raise RuntimeError(r.stderr.strip()[:160])
+              for pr in json.loads(r.stdout or "[]"):
+                  if not ({l["name"] for l in pr.get("labels") or []}
+                          & {"status/in-review", "status/ready-to-merge"}):
+                      continue
+                  for ref in pr.get("closingIssuesReferences") or []:
+                      held.setdefault(ref.get("number"), pr["number"])
+          except Exception as e:
+              print(f"::warning::open-PR pre-pass skipped: {e}")
           # --paginate emits one JSON value per page concatenated — NOT one
           # document. json.load dies with "Extra data" from the 2nd value.
           # Tolerant parse: stream-decode every whitespace-separated value.
@@ -174,6 +197,10 @@ jobs:
                   # dead channel that left S07 idle ~12h with a hollow run
                   # claiming the stamp.
                   if st and idle_h > stuck_h:
+                      if n in held:
+                          print(f"issue {n}: deliverable PR #{held[n]} is in review / "
+                                f"merge-ready — waiting on a human, not a stall")
+                          continue
                       if "status/planned" in st:
                           denv = dict(os.environ, GH_TOKEN=os.environ.get("GITHUB_TOKEN", ""))
                           r = subprocess.run(["gh","workflow","run","05-implement.lock.yml",
