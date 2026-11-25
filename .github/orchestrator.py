@@ -571,6 +571,29 @@ def approve_companion_runs():
 # conveyor's own run says nothing about the diff, so it is not readiness
 # evidence.
 SELF_CHECK_NAMES = frozenset({"orchestrate"})
+REPAIR_IN_FLIGHT_LABELS = frozenset({"status/fixing", "status/fixing-stuck"})
+
+
+def _pr_labels_now(num):
+    """The PR's label names as of RIGHT NOW.
+
+    Readiness runs off the sweep's `open_pulls()` snapshot, and a sweep is
+    ~13 min long: 07 adds `status/fixing` when it dispatches, so a repair
+    started mid-sweep is invisible to that sweep and readiness stamps on top
+    of it. #1585 ended up carrying `status/fixing` AND `status/ready-to-merge`
+    at once (01:42:23 / 01:51:38) — two state labels, the #1405 class, reached
+    through timing instead of through the DELETE path that code already
+    handles."""
+    try:
+        data = api(f"issues/{num}/labels")
+    except Exception:
+        return []          # an unreadable label set must not wedge readiness
+    return [label.get("name") for label in (data or []) if isinstance(label, dict)]
+
+
+def _repair_label_present(labels):
+    """True when a repair label is present in a freshly-read label set."""
+    return bool(REPAIR_IN_FLIGHT_LABELS & set(labels or ()))
 
 
 def _effective_ready(num, mstate):
@@ -742,6 +765,12 @@ def merge_readiness():
         # the label, a re-review at the SAME head must be able to label again
         # (the stale "ready … at <sha>" comment otherwise suppresses it
         # forever — #1469 R4's deadlock).
+        # Re-read the labels before publishing readiness: the snapshot this
+        # sweep started with predates any repair dispatched while it ran.
+        if _repair_label_present(_pr_labels_now(num)):
+            print(f"[orchestrator] PR #{num}: a repair started mid-sweep — "
+                  f"not stamping ready")
+            continue
         marker = (f"ready @{OWNER} — all checks green at `{sha}`; "
                   f"verdict {vtime or 'none'}")
         if _has_marker(comments(num), marker):
