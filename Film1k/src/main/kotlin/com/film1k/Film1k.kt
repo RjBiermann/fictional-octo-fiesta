@@ -39,17 +39,13 @@ class Film1k : MainAPI() {
     }
 
     private fun org.jsoup.nodes.Element.toResult(): SearchResponse? {
-        val a = this.selectFirst("header.entry-header > a") ?: return null
-        val href = a.attr("href")
-        val title = this.selectFirst("h2.entry-title")?.text()?.trim() ?: return null
-        val img = this.selectFirst("figure img")
-        // lazy-poster theme: src is a data: placeholder, the real image is data-src (any host —
-        // related cards are mostly i.imgur.com/blogger, not just img.film1k.com)
-        val src = img?.attr("src").orEmpty()
-        val poster = img?.attr("data-src")?.takeIf {
-            it.startsWith("http") && (src.isBlank() || src.startsWith("data:"))
-        } ?: src
-        return newMovieSearchResponse(title, href, TvType.NSFW) { this.posterUrl = poster }
+        // issue #1462: the card identity is a pure Parse function (Film1kParse.cardOf),
+        // anchored on the article.loop-post skeleton rather than the theme's classes —
+        // the 2026-11 theme renamed entry-header/entry-title to film1k-card__*.
+        val card = Film1kParse.cardOf(this) ?: return null
+        return newMovieSearchResponse(card.title, card.url, TvType.NSFW) {
+            this.posterUrl = card.poster
+        }
     }
 
     private fun parseList(doc: org.jsoup.nodes.Document): List<SearchResponse> =

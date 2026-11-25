@@ -183,6 +183,57 @@ class Film1kParseTest {
         assertEquals("https://cdn3.turboviplay.com/data3/696f9b3d701a3/696f9b3d701a3.m3u8", url)
     }
 
+    // ---- issue #1462: card-markup drift - the theme renamed its card classes
+    // (header.entry-header / h2.entry-title -> figure.film1k-card__media /
+    // h2.film1k-card__title) while keeping the article.loop-post skeleton. Live
+    // fixtures 2026-11-25: homepage p1 and a video page's Related Videos block.
+    private val home20261125Doc by lazy {
+        javaClass.classLoader.getResource("film1k_home_20261125.html")!!.readText()
+    }
+    private val video20261125Doc by lazy {
+        javaClass.classLoader.getResource("film1k_video_related_20261125.html")!!.readText()
+    }
+
+    @Test fun `listing cards parse from the 2026-11 card skeleton`() {
+        val cards = Film1kParse.doc(home20261125Doc).select("article.loop-post")
+        assertEquals(24, cards.size)
+        val first = Film1kParse.cardOf(cards.first()!!)!!
+        assertEquals(
+            "https://www.film1k.com/the-story-of-o-the-series-submission-1992-eng-sub.html",
+            first.url
+        )
+        assertEquals("The Story of O \u2013 the Series: Submission (1992) [Eng Sub]", first.title)
+        assertEquals(
+            "https://img.film1k.com/video-thumbs/the-story-of-o-the-series-submission-1992-video.webp",
+            first.poster
+        )
+    }
+
+    @Test fun `lazy card poster resolves to data-src on the 2026-11 skeleton`() {
+        val cards = Film1kParse.doc(home20261125Doc).select("article.loop-post")
+        val second = Film1kParse.cardOf(cards[1])!!
+        assertTrue(second.poster.startsWith("https://img.film1k.com/video-thumbs/"))
+        assertTrue(!second.poster.startsWith("data:"))
+    }
+
+    @Test fun `legacy card skeleton still parses`() {
+        val legacy = Film1kParse.relatedOf(relatedDoc).first()
+        val card = Film1kParse.cardOf(legacy)!!
+        assertEquals("https://www.film1k.com/coffin-full-of-dollars-1971.html", card.url)
+        assertEquals("Coffin Full of Dollars (1971)", card.title)
+        assertEquals("https://i.imgur.com/JOwDFtx.jpg", card.poster)
+    }
+
+    @Test fun `related section header moved from h3 to h2 page-header`() {
+        val related = Film1kParse.relatedOf(Film1kParse.doc(video20261125Doc))
+        assertEquals(20, related.size)
+        assertEquals(
+            "https://www.film1k.com/fanny-hill-2007.html",
+            related.first().selectFirst("a")?.attr("href")
+        )
+        assertEquals("Fanny Hill (2007)", related.first().selectFirst("h2")?.text())
+    }
+
     @Test fun `turbovid master m3u8 rejects look-alike host`() {
         // page-controlled look-alike (evilturboviplay.com) must not be handed to the player
         assertNull(

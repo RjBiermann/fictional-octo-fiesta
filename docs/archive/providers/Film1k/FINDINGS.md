@@ -190,3 +190,35 @@ Full evidence: `docs/archive/findings/FINDINGS-654.md`. Summary:
   instrument ALL PASS. Live verify.sh outside the block stays outstanding for the
   maintainer.
 - quickSearch endpoint: absent (recorded absent, not drift).
+
+## Refresh 2026-11-25 (issue #1462 — video-source pass, verdict ok-drift)
+
+Full evidence: `docs/archive/findings/FINDINGS-1462.md`. Summary:
+
+- **Card-markup drift, fixed (v29).** The 2026-11 theme renamed the listing classes:
+  `header.entry-header > a` + `h2.entry-title` → `figure.film1k-card__media > a` +
+  `h2.film1k-card__title > a`, and moved the Related Videos header from `h3` to
+  `h2.page-header`. `parseList` returned 0 cards on every listing surface and
+  `recommendations` was empty. Fix is structural, not a selector swap:
+  `Film1kParse.cardOf(article)` parses the `article.loop-post` skeleton (link from
+  `h2 a[href]` / `header a[href]` / first `.html` link, title from the card's `h2`,
+  poster from `figure img` with `data-src` fallback); `relatedOf` matches the heading
+  text at `h2, h3`. Red → green in `Film1kParseTest` against both skeletons
+  (`film1k_home_20261125.html`, `film1k_video_related_20261125.html` new;
+  `film1k_video_related.html` legacy).
+- Listing types confirmed: new `/`, old `?order=asc` (explicit ascending sort,
+  `/page/N?order=asc`), popular `/most-viewed` + `/most-liked`, categories
+  `/category/<slug>` (29 slugs), tags `/tag/<slug>` (23 listed, 48 linked on home).
+  `genre` is absent as a route — the WP `category` taxonomy is the genre vocabulary.
+- Streams: 11/11 sampled video pages resolved end-to-end — Byse `film1k.xyz`
+  (PoW captcha → verify → playback AES-256-GCM → sprintcdn `master.m3u8` 200) and
+  Abyss `abyssplayer.com`/`player.abyssplayer.com` (shared adapter → enc-dec →
+  sora CDN 302 → trycloudflare `206 video/mp4`). The sora 403 recorded in #654 is
+  referer-shaped: no `Referer` 403s, `Referer: https://abyssplayer.com` redirects
+  and serves.
+- Page shape: info block (Runtime/Genres/Actors) 10/11 (`love-gambler-1971` has none),
+  parenthesized year 10/11 (`entrechattes…` titles it bare), related 20 cards on 11/11,
+  player strip `#aa-videos-op` on 11/11, no quick-search endpoint (wp-json suggest 404).
+- `verify.sh` live **PASS** from this runner (browser UA; datacenter challenge is
+  UA-conditional today, see #1435). `escalation_tier: unavailable` (#1434) recorded in
+  the registry `last_runs` entry.
