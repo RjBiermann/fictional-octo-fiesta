@@ -598,6 +598,18 @@
       "findings_filed": 0,
       "standing_issue": 1512,
       "false_positives": []
+    },
+    {
+      "id": "run1462",
+      "issue": 1462,
+      "date": "2026-11-25",
+      "kind": "video-source audit (S24 of #1354)",
+      "verdict": "ok-drift",
+      "tier": "plain-curl",
+      "escalation_tier": "unavailable",
+      "canaries": "eporner-healthy plain-curl 200 match; pandamovies-redirect-origin plain-curl 302 -> pandamovies.org (plain-tier match); film1k-challenge-pair plain-curl 403 = recorded expectation, browser UA 200 (UA-conditional datacenter challenge; live pair recorded, #1435 stays open, no environment-degraded branch); curl_cffi and playwright absent -> escalation_tier unavailable, 0 Blocked",
+      "findings_filed": 0,
+      "false_positives": []
     }
   ],
   "providers": {
@@ -691,24 +703,24 @@
     },
     "Film1k": {
       "site": "www.film1k.com",
-      "verdict": "ok",
-      "reason": "CLEARED 2026-10-17 (deep pass #654, v13 fix): surfaces re-probed TLS-impersonated (plain curl 403 CF, tier tls-impersonated) \u2014 home p1/p2 24 article.loop-post each disjoint (article-scoped); SEARCH CONTRACT REVERSED vs the #408 note: /page/{N}/?s= serves real disjoint results again (taboo -> Page 2 of 3, p1/p2/p3 disjoint) \u2014 fixed this run (v13, TDD red->green): search() paginates via new Film1kParse.searchPageUrl, and the exhausted-search 404-wrap \u2014 which is NOT empty, it seeds 8 article.loop-post cards \u2014 is gated by new Film1kParse.isNotFoundTemplate so pagination terminates; no-results page stays 200/0-articles. Empty ?s= now serves the home fallback (previous No-articles template gone from ?s=) \u2014 benign, recorded. Player strip #aa-videos-op scoping holds (strip == doc-wide hits on all sampled pages); host mix rebalanced 3/4 abyssplayer (enc-dec chain live, all tokens decode 360p-1080p) vs 1/4 byse (tick-tock same code; PoW chain replayed green, master.m3u8 200) \u2014 both branches implemented, not drift. Metadata info-block (Runtime/Genres) now present on some pages only (null-safe parsing) \u2014 site characteristic, not drift. sora CDN 404/403 rotating-tunnel artifact from datacenter IP = Suspected-only, not filed (no residential differential). Historical #496 stays closed/harmless. verify.sh from this runner FAILx4 = CF block (same as #558/#593-S2); equivalent TLS-impersonated mechanical bar ALL PASS; live verify.sh outside the block outstanding for the maintainer. Historical record #496 closed; verdict stays ok.",
-      "tier": "tls-impersonated",
+      "verdict": "ok-drift",
+      "reason": "S24 video-source pass 2026-11-25: one confirmed drift, fixed in this run (v28 -> v29). The 2026-11 theme renamed the listing card classes (header.entry-header > a + h2.entry-title -> figure.film1k-card__media > a + h2.film1k-card__title > a) and moved the Related Videos header from h3 to h2.page-header, so parseList returned 0 cards on every listing surface and recommendations were empty; the fix is structural (new Film1kParse.cardOf anchors on the article.loop-post skeleton, relatedOf matches h2/h3 heading text), red -> green in Film1kParseTest against both skeletons. Listing types: new /, old ?order=asc (explicit ascending sort, /page/N?order=asc), popular /most-viewed + /most-liked, categories /category/<slug> (29 slugs), tags /tag/<slug> (23 listed, 48 linked on home), genres absent (/genre/<slug> and /genres 404 - taxonomy is the WP category). 11/11 sampled video pages resolved end-to-end: 10 Byse film1k.xyz (PoW captcha -> verify -> playback AES-256-GCM -> sprintcdn master.m3u8 200) and 1 Abyss abyssplayer.com/player.abyssplayer.com via the shared adapter (enc-dec -> sora CDN 302 -> trycloudflare 206 video/mp4; the bare-URL 403 from FINDINGS-654 is referer-shaped, the adapter sends Referer abyssplayer.com). No unregistered embed host, no standing condition, no finding filed.",
+      "tier": "plain-curl",
       "surfaces": {
-        "home": "200 TLS p1+p2 disjoint (24 loop-post each, article-scoped 0 overlap)",
-        "search": "200 TLS page1+2+3 real results (disjoint; /page/N/?s= canon); exhausted = 404 wrap (8 seed cards, Parse gate); no-results 200/0; quickSearch absent",
-        "video": "200 TLS",
-        "stream": "byse captcha/PoW chain replayed green (master.m3u8 200); abyssplayer enc-dec chain live (tokens decode); sora CDN datacenter 403/404 = Suspected probe-IP only"
+        "home": "200 browser UA, 24 article.loop-post p1/p2 disjoint, 360 pages, tail 13",
+        "search": "200, ?s= p1/p2 24 disjoint; exhausted 404 wrap gated by isNotFoundTemplate; no quick-search endpoint (wp-json suggest 404)",
+        "video": "200, h1.title + og:image + og:description 11/11, info block 10/11, related 20/20",
+        "stream": "10/10 Byse HLS 200 application/vnd.apple.mpegurl; 1/1 Abyss sora 302 -> 206 video/mp4"
       },
-      "issue": 496,
-      "standing_issue": 496,
-      "drift_confirmed": 1,
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 2,
       "suspected_excluded": [
         448,
         465
       ],
       "chronic": false,
-      "last_deep": "2026-10-17"
+      "last_deep": "2026-11-25"
     },
     "FreePornVideos": {
       "site": "www.freepornvideos.xxx",
