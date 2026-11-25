@@ -11,7 +11,6 @@ Run: python3 -m unittest .github.orchestrator_test  (or:
 
 import calendar
 import importlib.util
-import time
 import json
 import os
 import re
@@ -2482,14 +2481,58 @@ class TestRegistrySingletonPR(unittest.TestCase):
 
     def test_the_same_payload_is_not_pushed_again(self):
         """Every sweep re-pends until the PR lands; re-pushing the identical
-        union restarts the checks the PR needs to merge."""
-        self.assertFalse(orchestrator._registry_push_needed("same", "same"))
+        union restarts the checks the PR needs to merge. Feed the shapes the
+        call site really sees: `_pl()` strips `git show` output while
+        `payload` keeps its trailing newline (#1603 review)."""
+        self.assertFalse(orchestrator._registry_push_needed('{"a": 1}', '{"a": 1}\n'))
+        self.assertFalse(orchestrator._registry_push_needed("same\n", "same"))
         self.assertTrue(orchestrator._registry_push_needed("older", "new"))
         self.assertTrue(orchestrator._registry_push_needed("", "new"))
 
+    def test_an_update_push_rides_the_app_identity(self):
+        """A GITHUB_TOKEN push fires no `synchronize`, so an open singleton's
+        replaced head would carry none of its required checks and could never
+        merge — the update must go through the App identity, forced (the
+        commit is re-parented on origin/main)."""
+        with mock.patch.object(orchestrator, "PROXY_PAT", "app-token"), \
+             mock.patch.object(orchestrator, "_push_ref_via_api",
+                               return_value=True) as api_push, \
+             mock.patch.object(orchestrator, "_git_push") as git_push:
+            ok, _ = orchestrator._push_registry_branch(
+                1604, "orch-registry/sync", "sha")
+        self.assertTrue(ok)
+        api_push.assert_called_once_with("orch-registry/sync", "sha", force=True)
+        git_push.assert_not_called()
+
+    def test_an_update_without_the_app_identity_fails_closed(self):
+        """Degraded adopter (no App/PAT): a gh-api push would ride
+        GITHUB_TOKEN and wedge the head, so refuse it and retry next sweep."""
+        with mock.patch.object(orchestrator, "PROXY_PAT", ""), \
+             mock.patch.object(orchestrator, "_push_ref_via_api") as api_push, \
+             mock.patch.object(orchestrator, "_git_push") as git_push:
+            ok, _ = orchestrator._push_registry_branch(
+                1604, "orch-registry/sync", "sha")
+        self.assertFalse(ok)
+        api_push.assert_not_called()
+        git_push.assert_not_called()
+
+    def test_a_new_branch_push_uses_the_checkout(self):
+        """No open PR yet, so `gh pr create` fires `opened` and the checks run
+        on the pushed head — the checkout token is enough here."""
+        with mock.patch.object(orchestrator, "_push_ref_via_api") as api_push, \
+             mock.patch.object(orchestrator, "_git_push",
+                               return_value=(True, "")) as git_push:
+            ok, _ = orchestrator._push_registry_branch(
+                None, "orch-registry/sync", "sha")
+        self.assertTrue(ok)
+        git_push.assert_called_once_with("orch-registry/sync", "sha", force=True)
+        api_push.assert_not_called()
+
     def test_a_timestamped_legacy_branch_is_not_the_lane(self):
-        """Existing orch-registry/<ts> PRs stay for the conflict lane; the
-        singleton is only the fixed name this code pushes to."""
+        """Legacy `orch-registry/<ts>` twins are NOT the singleton and have no
+        automated cleanup: `orch-registry/*` is outside AGENT_BRANCHES, so
+        `conflict_watch` never sees them, and `stale.yml` never touches PRs —
+        a human closes them (#1603 review)."""
         pulls = [self._pr(1600, "orch-registry/1795548223")]
         with mock.patch.object(orchestrator, "open_pulls", return_value=pulls):
             self.assertIsNone(orchestrator._open_registry_pr())
