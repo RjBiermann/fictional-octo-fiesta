@@ -27,8 +27,9 @@ $ curl -s -o /dev/null -w '%{http_code}\n' https://www.eporner.com/       → 20
 $ curl -sI https://pandamovies.pw/ | head -2                              → HTTP/1.1 302 / location: https://pandamovies.org/
 ```
 
-**Escalation tier: unavailable (#1434).** `curl_cffi` is not installed and cannot be
-(no venv in this container), and the browser rung is unavailable too:
+**Escalation tier: unavailable (#1434, background).** The ladder's TLS rung is not runnable in
+this container — `curl_cffi` is not installed and cannot be, because the #1434 workaround venv
+is not present here — and the browser rung is unavailable too:
 
 ```
 $ python3 -c 'import curl_cffi'   → ModuleNotFoundError: No module named 'curl_cffi'
@@ -37,10 +38,13 @@ $ bash .pi/skills/site-probe/scripts/impersonate.sh https://www.film1k.com/
 $ python3 -c 'import playwright'  → ModuleNotFoundError: No module named 'playwright'
 ```
 
-Therefore, per #1434 + the issue spec: `escalation_tier: unavailable` in the registry
-`last_runs` entry, every `Blocked` this run is at most **`Suspected`**, and nothing in this
-document is filed as a finding from challenge evidence. Phase 0 was otherwise healthy
-(2/2 applicable canaries matched, `film1k` mismatch adjudicated stale).
+Therefore, per the issue spec — with #1434 cited as the recorded *reason* the TLS rung is
+unusable, not as a live gate; that issue is closed NOT_PLANNED (2026-11-24) and the
+`ModuleNotFoundError` transcript above is the actual justification — `escalation_tier:
+unavailable` goes in the registry `last_runs` entry, every `Blocked` this run is at most
+**`Suspected`**, and nothing in this document is filed as a finding from challenge evidence.
+Phase 0 was otherwise healthy (2/2 applicable canaries matched, `film1k` mismatch adjudicated
+stale).
 
 ---
 
@@ -107,9 +111,11 @@ CloudStream where the site exposes it" holds.
 | categories | `/genres/porn-movies/` p1, `/genres/gay-porn-movies/` p1 + p2 | `asian-schoolgirls-2`, `andre-cruise-used-by-francisco-2`, `discipline-tales-vol-367` | plain-curl | mixdrop.ag (206 mp4), lulustream (200 HLS), vidara.so (206 HLS) | HLS / mp4 | **pass** 3/3 resolved |
 | tags | — | — | — | — | — | **absent** (`/movies/tag/…`, `/tags/` 404 — recorded, never a finding) |
 
-12 video pages sampled in total (one over the D4 minimum on three types); **10/12 resolved
-end-to-end from the runner**, the other 2 are dood-only tail uploads that serve the
-datacenter-IP challenge class.
+12 video pages sampled in total — the D4 minimum is ≥2 per type across the five exposed types,
+i.e. 10, so this run is **two over the minimum on two types** (new/latest 3, categories 3); the
+other three types carry exactly the minimum of 2. **10/12 resolved end-to-end from the runner**,
+the other 2 are dood-only tail uploads that serve the datacenter-IP challenge class (their
+per-row transcripts are missing — declared in *Stream transcripts*, below).
 
 ### Host coverage across the 12 samples (`data-servers` payload)
 
@@ -124,7 +130,7 @@ datacenter-IP challenge class.
 | `vidara.so` | 2 pages | ✅ `VidaraSo()` | ✅ `206 application/vnd.apple.mpegurl` |
 | `content.st` | 1 page | ❌ none | `403 "Please turn off your VPN or proxy to watch this video"` → IP-gated, **Suspected** |
 
-## Stream transcripts (representative)
+## Stream transcripts (one per host class)
 
 lulustream → tnmr.org HLS (embed 301s to `lplaygo.com`, packed jwplayer config unpacks to
 a tokenised master):
@@ -153,13 +159,45 @@ $ POST https://vidara.so/api/stream  {"filecode":"Y9BD6NEsthfq5wq1eF4HKcquqg1UoM
 $ GET <that master.m3u8>                           → 206 application/vnd.apple.mpegurl
 ```
 
-dood/playmogo (the 2 Suspected rows):
+dood/playmogo (the host class behind the 2 `Suspected` rows):
 
 ```
-$ GET https://playmogo.com/e/g73dyikrihl2          → 200, title "… - DoodStream.com",
+$ GET https://playmogo.com/e/g73dyikrihl2          → 200 (5,317 bytes),
+    <title>BDSM Hookup - DoodStream.com</title>,
     <script src="//challenges.cloudflare.com/turnstile/v0/api.js">, .captcha-player CSS,
     no /pass_md5/<expiry>/<token> anywhere in the body
 ```
+
+### Row scope of that capture (repair round 1 correction)
+
+The block above is the dood/playmogo shell this runner IP gets, and its `<title>` names
+*BDSM Hookup* — the `bdsm-hookup` page, a **`pass`** row of the `old` slot that carries a dood
+value alongside its lulu + mixdrop ones. It is a **host-class** capture, not the per-row
+transcript the D4 rule asks of a non-`pass` row: the run did not retain the embed codes of
+the two `Suspected` rows (`love-drenched-closeness-returns-…`,
+`swedish-erotica-0353-soft-sell`). Stated instead of implied — **the per-row transcripts for
+the two `Suspected` rows are missing from this report.**
+
+Repair round 1 tried to close the gap and could not. `mangoporn.net` now answers 403 to
+every HTML *and* JSON surface from this runner IP (the implement run got 200 with a
+`Referer`; only search needed it then), so neither video page can be re-fetched for its
+`data-servers` payload and the embed codes are not derivable from any other surface:
+
+```
+$ GET https://mangoporn.net/movies/swedish-erotica-0353-soft-sell/     → 403 (3,291 bytes, br)
+$ GET https://mangoporn.net/movies/genre/anal/                         → 403 (the listing it came from)
+$ GET https://mangoporn.net/                                           → 403
+$ GET 'https://mangoporn.net/wp-json/turbosearch/v1/suggest?q=swedish' → 403 (the D2 JSON surface)
+$ GET https://playmogo.com/e/g73dyikrihl2                              → 200 (embed host still reachable;
+                                                                          the shell above reproduces)
+```
+
+Verdict scope: both rows stay **`Suspected`** — the escalation ladder permits nothing stronger
+(challenge from the datacenter probe IP, `escalation_tier: unavailable`) and nothing weaker is
+warranted, since the host *is* a registered Dood adapter and the observation is the same shell
+reproduced above. What is missing is evidence strength, not the verdict's direction. The next
+run that can reach the site should capture each row's `data-servers` payload and playmogo embed
+before re-asserting the row verdict.
 
 ## Load-surface spot checks (same pages, no drift)
 
@@ -227,6 +265,10 @@ need a **registry row**, not a hand-written adapter (the recaptcha hop goes thro
 
 ## Delivery gate
 
+Repair round 1 touched this document only (no provider, `shared/` or registry change), so the
+build gates below stand as the implement run recorded them; `check-findings.sh` was re-run on
+the corrected text.
+
 - `./gradlew Mangoporn:test` → BUILD SUCCESSFUL (provider + shared suites)
 - `./gradlew Mangoporn:make` → BUILD SUCCESSFUL → `Mangoporn/build/Mangoporn.cs3`
 - `.pi/skills/audit-providers/scripts/check-findings.sh` → `findings-lint: PASS`
@@ -254,3 +296,11 @@ need a **registry row**, not a hand-written adapter (the recaptcha hop goes thro
 dood Turnstile not runner-resolvable)`, `drift_confirmed: 3` (unchanged),
 `standing_issue: 1512`, `last_deep: 2026-11-25`, plus one `last_runs` entry
 (`false_positives: []`, `escalation_tier: unavailable`).
+
+**Anchor status (repair round 1).** The implement run's delta comment on #1461 did not begin
+with `<!-- findings-registry-entry -->`, so it was unanchored. Nothing is owed by this repair:
+the orchestrator's `_registry_candidate` self-heal (#777) re-posted the entry *anchored* on
+#1461 at 2026-11-25T19:15:55Z, and `registry_sync` landed it in `audits/findings.json` via
+**#1620** (merged 2026-11-25T19:24:07Z, commit `c54511e`). The registry is therefore current
+without a further comment from this lane; the lesson recorded for future implement runs is to
+open the delta comment with the anchor so the self-heal does not have to.
