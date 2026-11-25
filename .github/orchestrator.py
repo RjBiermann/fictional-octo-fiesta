@@ -193,20 +193,25 @@ def _pl(args, env=None):
     return r.returncode, r.stdout.strip()
 
 
-def _git_push(branch, commit):
+def _git_push(branch, commit, force=False):
     """Push via the checked-out origin (checkout embeds the actions token);
-    requires 95-orchestrator.yml `contents: write`. Falls back to gh-based
-    ref update carrying the PROXY_PAT explicitly."""
-    rc, out = _pl(["git", "push", "origin", f"{commit}:refs/heads/{branch}"])
+    requires 95-orchestrator.yml `contents: write`. `force` rewrites a
+    singleton branch (the registry lane) whose next commit is rebuilt from
+    current main, so it never descends from the previous head."""
+    rc, out = _pl(["git", "push"] + (["--force"] if force else [])
+                  + ["origin", f"{commit}:refs/heads/{branch}"])
     return rc == 0, out
 
 
-def _push_ref_via_api(branch, commit):
+def _push_ref_via_api(branch, commit, force=False):
     """Update refs/heads/<branch> to <commit> through the REST API with the
-    owner-actor PAT (PATCH /repos/.../git/refs/heads/<branch>). Success is
-    the returned ref JSON naming our commit."""
+    owner/App actor (PATCH /repos/.../git/refs/heads/<branch>). `force`
+    permits a non-fast-forward rewrite: the registry singleton is re-parented
+    on origin/main every sweep, so its update never descends from the
+    previous head. Success is the returned ref JSON naming our commit."""
     out = run(["gh", "api", "-X", "PATCH", f"repos/{REPO}/git/refs/heads/{branch}",
-               "-f", f"sha={commit}"])
+               "-f", f"sha={commit}"]
+              + (["-F", "force=true"] if force else []))
     try:
         return commit in (json.loads(out).get("object") or {}).get("sha", "")
     except Exception:
@@ -2061,6 +2066,87 @@ def _registry_union(base, entry):
     return merged
 
 
+REGISTRY_BRANCH = "orch-registry/sync"
+
+
+def _open_registry_pr():
+    """Number of the open registry PR, if any.
+
+    The lane keeps ONE branch, so the PR is a singleton: each sweep force-
+    updates `REGISTRY_BRANCH` from current main and the open PR follows it.
+    A timestamped branch instead made every sweep inside a PR's lifetime open
+    another byte-identical PR (#1600/#1601, 16 min apart), and those twins
+    then conflicted with each other — the stranded-entry class this lane
+    exists to repair. A singleton needs no mergeability heuristic to decide
+    whether to wait: it never waits, it updates (ADR-0013).
+
+    Lookup limitation: `open_pulls()` is one page (50), so if the singleton
+    ever drops off page 1 in a busy wave this returns None and the sweep
+    pushes the same branch then fails `gh pr create` on the duplicate head.
+    Fine at the repo's current PR count; paginate here if that changes."""
+    for pr in open_pulls():
+        head = pr.get("head") or {}
+        if (head.get("ref") or "") != REGISTRY_BRANCH:
+            continue
+        # A branch NAME is not an identity: `open_pulls()` lists fork PRs too,
+        # and for those `head.ref` is only the branch inside the fork. Anyone
+        # could open `their-fork:orch-registry/sync` and this sweep would adopt
+        # it, skip creating the real PR and push its commit there (#1603
+        # review).
+        if (head.get("repo") or {}).get("full_name") != REPO:
+            continue
+        return pr.get("number")
+    return None
+
+
+def _arm_auto_merge(num):
+    """Arm squash auto-merge, and be honest that it may not take.
+
+    The raw `PUT .../pulls/{n}/auto-merge` returns 404 while GitHub still
+    reports the PR's mergeability as UNKNOWN — which is the state of a
+    just-created PR, i.e. exactly when this used to fire once and never
+    again, so the "Auto-merge armed" claim in the PR body was never true
+    (#1603 review). `gh pr merge --auto` is the documented path and is a
+    no-op instead of an error when auto-merge is not yet available, so the
+    next sweep retries it."""
+    run(["gh", "pr", "merge", str(num), "--squash", "--auto"])
+
+
+def _registry_push_needed(branch_content, payload):
+    """Rewrite the singleton branch only when its content would change.
+
+    Until the PR lands, main does not record the entries, so `_registry_pending`
+    re-pends them and the union is `changed` on EVERY sweep. Pushing the same
+    payload again would restart the required checks the PR needs to merge — the
+    update path would keep its own PR unmergeable (#1603 review).
+
+    `_pl()` strips `git show` stdout, while `payload` ends with "\n", so the
+    comparison normalizes BOTH sides or it is always True (#1603 review)."""
+    return (branch_content or "").strip() != (payload or "").strip()
+
+
+def _push_registry_branch(opened, branch, commit):
+    """Push the singleton's commit. Returns (ok, detail).
+
+    An open PR's head is rewritten in place, and that update MUST ride the
+    App identity: `_git_push()` uses the checkout's GITHUB_TOKEN, and a
+    GITHUB_TOKEN push starts no workflow runs — the replaced head would carry
+    none of the required checks, so auto-merge could never land it
+    (`version-bump.yml:13-17` documents the same failure). The commit is also
+    re-parented on origin/main, hence `force=True`. A brand-new branch has no
+    open PR yet, so the checkout push is fine: `gh pr create` fires `opened`,
+    which runs the checks on that head."""
+    if opened:
+        if not PROXY_PAT:
+            # No App/PAT identity: `gh api` would ride GITHUB_TOKEN, which
+            # fires no runs, so the rewritten head would carry no required
+            # checks. Fail closed instead of wedging the singleton.
+            return False, "no App identity — refusing a GITHUB_TOKEN head rewrite"
+        ok = _push_ref_via_api(branch, commit, force=True)
+        return ok, "pushed via git/refs PATCH (machinery App)"
+    return _git_push(branch, commit, force=True)
+
+
 def _registry_apply(base, pend):
     """Union every pending entry. Returns (document, changed).
 
@@ -2178,6 +2264,18 @@ def registry_sync():
     # nothing in the registry recorded that any union happened (#1579).
     merged["updated"] = time.strftime("%Y-%m-%d", time.gmtime())
     payload = json.dumps(merged, indent=2) + "\n"
+    branch = REGISTRY_BRANCH
+    title = ("[registry] apply findings entries from #"
+             + ", #".join(str(n) for n in applying))
+    opened = _open_registry_pr()
+    if opened:
+        _arm_auto_merge(opened)
+        _pl(["git", "fetch", "origin", branch])
+        _, on_branch = _pl(["git", "show", f"origin/{branch}:{REGISTRY_PATH}"])
+        if not _registry_push_needed(on_branch, payload):
+            print(f"[orchestrator] registry_sync: #{opened} already carries the "
+                  f"current union — no push (checks stay green)")
+            return
     idx = f"{os.environ.get('RUNNER_TEMP', '/tmp')}/orch-regidx.{os.getpid()}"
     ienv = {"GIT_INDEX_FILE": idx}
     try:
@@ -2207,25 +2305,32 @@ def registry_sync():
         # 39607504429, 39610433015). PRs are the surviving route: required
         # checks fire/skip on the PR head, and squash auto-merge lands when
         # green (no review requirement on main).
-        branch = f"orch-registry/{int(time.time())}"
-        ok, out = _git_push(branch, commit)
+        ok, out = _push_registry_branch(opened, branch, commit)
         if ok:
-            pr_out = run(["gh", "pr", "create", "--base", "main",
-                          "--head", branch,
-                          "--title", "[registry] apply findings entries "
-                          f"from #{', #'.join(str(n) for n in applying)}",
-                          "--body", f"Mechanical union of anchored registry "
-                          f"entries into `{REGISTRY_PATH}` (ADR-0013 — the "
-                          f"registry never travels in an agent diff). "
-                          f"Auto-merge armed; purely mechanical payload."])
-            pm = re.search(r"pull/(\d+)", pr_out or "")
+            pm = opened
+            if not pm:
+                pr_out = run(["gh", "pr", "create", "--base", "main",
+                              "--head", branch,
+                              "--title", title,
+                              "--body", f"Mechanical union of anchored registry "
+                              f"entries into `{REGISTRY_PATH}` (ADR-0013 — the "
+                              f"registry never travels in an agent diff). "
+                              f"Auto-merge armed; purely mechanical payload."])
+                pm = re.search(r"pull/(\d+)", pr_out or "")
+                pm = pm.group(1) if pm else None
             if pm:
-                run(["gh", "api", "-X", "PUT",
-                     f"repos/{REPO}/pulls/{pm.group(1)}/auto-merge",
-                     "-f", "merge_method=squash"])
-            else:
-                ok = False
-        if ok:
+                if opened:
+                    # The singleton is reused across sweeps, so retitle it to
+                    # the payload it now carries — otherwise the name keeps
+                    # the first sweep's issue set (audit drift in the lane
+                    # whose job is recording evidence, #1603 review).
+                    run(["gh", "pr", "edit", str(opened), "--title", title])
+                _arm_auto_merge(pm)
+            print(f"[orchestrator] registry_sync: {'updated' if opened else 'opened'} "
+                  f"PR #{pm} on {branch}")
+            pr_out = pm
+            ok = bool(pm)
+        if ok and not opened:
             for n in applying:
                 post_comment(n, f"{MARK} registry entry queued for `{REGISTRY_PATH}` via "
                                 f"registry PR. Landing is NOT proof: the next sweep "
@@ -2233,7 +2338,7 @@ def registry_sync():
                                 f"it (the marker is a cache). The registry never "
                                 f"travels in an agent diff (ADR-0013).")
             print(f"[orchestrator] registry_sync applied entries from {applying} -> PR branch {branch}")
-        else:
+        elif not ok:
             print("[orchestrator] registry_sync push failed — entries stay pending on their issues")
     finally:
         try:
