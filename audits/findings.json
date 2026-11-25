@@ -585,6 +585,19 @@
       "canaries": "eporner-healthy plain-curl 200 match (316847 B real homepage); pandamovies-redirect-origin plain-curl 302 -> pandamovies.org (plain-tier match); film1k-challenge-pair plain-curl 200 vs expected 403 = expectation-stale (#1435 open, live pair recorded, no environment-degraded branch); TLS tier not provisioned in this container (curl_cffi missing) -> escalation_tier unavailable, 0 Blocked",
       "findings_filed": 0,
       "false_positives": []
+    },
+    {
+      "id": "run1461",
+      "issue": 1461,
+      "date": "2026-11-25",
+      "kind": "video-source audit (S23 of #1354)",
+      "verdict": "ok",
+      "tier": "plain-curl",
+      "escalation_tier": "unavailable",
+      "canaries": "eporner-healthy plain-curl 200 match; pandamovies-redirect-origin plain-curl 302 -> pandamovies.org (plain-tier match); film1k-challenge-pair plain-curl 200 vs expected 403 = expectation-stale (#1435, live pair recorded, no environment-degraded branch); TLS-impersonated tier not provisionable (curl_cffi missing) and playwright absent -> escalation_tier unavailable, 0 Blocked",
+      "findings_filed": 0,
+      "standing_issue": 1512,
+      "false_positives": []
     }
   ],
   "providers": {
@@ -611,22 +624,28 @@
     },
     "Mangoporn": {
       "site": "mangoporn.net",
-      "verdict": "ok-drift",
-      "reason": "DRIFT-CONFIRMED+FIXED 2026-10-17 (deep pass, #657, approved #631 spec): three confirmed conditions, all fixed in-run TDD-first (fixture-refreshed, version 7\u21928). (1) Parser: `getMainPage` parsed ALL `article.card` \u2014 the front-page rotating `section.sec` featured widget (11 cards, `div.grid--blk`) rotated 4 of its cards into p2's main list \u2192 cross-page duplicates (p1\u2229p2 = 4 at probe time). Fixed with a structural grammar \u2014 `div.grid:not(.grid--blk) article.card` \u2014 one home for home pN + search (multi-result grids render `class=\"grid grid--mc\"`, 1-result searches bare `class=\"grid\"`, widget row `class=\"grid grid--blk\"`; the 1-result page additionally carries ONE site-native promoted card inside the same grid \u2014 site shape, pinned in test). verify.sh pass proves p1\u2229p2 clean live. (2) shared/: site default embed host migrated to vidara.so (`section.hlm video-1 > div[data-servers] data-default=0`) \u2014 the shared `Vidara` adapter registered only vidara.to, so the default host's links were silently dropped \u2014 true multi-host fallback violation. Fixed: `open class Vidara` + `VidaraSo` mirror row (vidara.so) in shared HostRegistry (registry allowlist \"Vidara\" to 2); vidara chain verified end-to-end live 4/4 (POST /api/stream {filecode, device:web} \u2192 streaming_url master.m3u8 \u2192 200 vnd.apple.mpegurl on 97bf1.com edges). (3) load page: `div.dp__panel[data-panel=details]` and `div.vid__txt` wrappers no longer render \u2192 plot null + actors empty despite content existing; fixed via new Parse bindings \u2014 actors `div.row--stars a.chip--star` (12/12 on fixture), plot `div.desc p`; year/tags document-wide taxonomy fallbacks retained; JSON-LD VideoObject carries duration (PT2H48M=168min tested) + array-form thumbnailUrl. luluvido chain re-walked: TLS-impersonated embed 200 \u2192 packed Dean-Edwards JW unpacks \u2192 rotating tnmr.org edges (s3vzcp6anxcc/7db6af2i1kzb.tnmr.org 403, cdn1016.cdn-tnmr.org 400 from runner \u2014 origin edge band, suspected datacenter-reputation class, stays excluded; the provider keeps luluvido factual). Other embeds from runner: playmogo/mixdrop.ag/playmate.to embed pages 200 (adapter-covered), voe.sx 200 interstitial. Canaries 3/3: film1k 403+TLS 200, eporner 200, pandamovies 302\u2192200 TLS @ pandamovies.org \u2014 3/3.",
-      "tier": "plain-curl (embeds TLS; vidara chain runner-resolvable)",
+      "verdict": "ok",
+      "reason": "S23 video-source pass 2026-11-25 (#1461, parent #1354): every D3 listing type the site exposes was sampled at both catalogue ends and resolved end-to-end; no drift found, no code change in this run. Types: new/latest (`/` p1+p2, `/movies/` p1), old = catalogue tail (`/page/4610/`, `/movies/page/4560/`; the Them tabs carry no ascending sort), popular (`/?filter=most-viewed` 4,261 pages, `/?filter=popular` = Top Rated 7 pages), genres (`/movies/genre/anal/` 968 pages), categories (`/genres/porn-movies/` 4,583 pages, `/genres/gay-porn-movies/` 27 pages); tags ABSENT (`/movies/tag/...` and `/tags/` 404, recorded not filed). All pageable surfaces are path-segment paginated with p1-p2 overlap 0 and 404 past the tail. 12 video pages sampled, 10/12 resolved end-to-end: lulustream.com -> lplaygo.com packed jwplayer -> tnmr.org `200 application/vnd.apple.mpegurl`; mixdrop.ag -> mxdrop.click packed MDCore.wurl -> mxcontent `206 video/mp4`; vidara.so POST /api/stream -> 97bf1.com `206 application/vnd.apple.mpegurl`. The 2 unresolved are dood-only tail uploads (`love-drenched-closeness-returns...`, `swedish-erotica-0353-soft-sell`) whose playmogo player serves the Cloudflare-Turnstile shell to this datacenter IP -> Suspected (escalation_tier unavailable, #1434). Load surface intact (#657 grammar): span.bc__c title, JSON-LD VideoObject duration + array thumbnailUrl, div.row--stars a.chip--star actors, div.desc p plot (one sampled page publishes no synopsis = site content gap), a[href*=/genre/] tags, /year/ year, section.sec article.card recommendations 11/page. CONFIRMED data-completeness condition: 3 of 8 `section.hlm[data-servers]` hosts have no shared/ adapter (peeplayer.com 4/10 pages = PeeStream WebCrypto 'being prepared' shell, vinovo.to 4/10 = reCAPTCHA-gated own player, content.st 1/12 = 'Playback is blocked / turn off your VPN'); this is the SAME condition already owned by standing issue #1512 (PandaMovies, S9/#1447) -> evidence commented there, no duplicate filed, and the fleet-wide shared/ fix left to that story (scope discipline). New evidence for #1512: the framework jar already ships com.lagradost.cloudstream3.extractors.VinovoTo (mainUrl (vinovo.to/redacted)) and the live page carries exactly its parse targets (meta token/file_code/recaptcha, video[data-base]), so vinovo.to likely needs a registry row rather than a hand-written adapter. Phase 0: eporner-healthy 200 match, pandamovies-redirect-origin 302 plain-tier match, film1k-challenge-pair plain 200 vs expected 403 = expectation-stale (#1435), no environment-degraded branch.",
+      "tier": "plain-curl (lulu/vidara HLS + mixdrop mp4 runner-resolvable; dood Turnstile + voe JS payload not runner-resolvable)",
       "surfaces": {
         "home": "200 p1+p2; main grids 27+27 disjoint (grammar fix verified live; 4 widget cards rotated into p2 = drift fixed)",
         "search": "200 p1+p2 disjoint 27 cards (czech); 1-result shape parses (boundless encounters: match + 1 site-native promoted card, pinned)",
-        "video": "200 x4 fresh (club-vxn-15, boundless-encounters-france, cougar-seductions-3, big-white-tits-large-black-dicks-14)",
-        "stream": "vidara.so POST /api/stream \u2192 97bf1.com m3u8 200 vnd.apple.mpegurl 4/4 fresh; luluvido TLS\u2192packed\u2192tnmr edges 403/400 (suspected, excluded)",
-        "quick_search": "turbosearch 200 (post JSON; unit-tested)"
+        "video": "12 pages 200 (new 3, old 2, popular 2, genres 2, categories 3); title/poster/plot/actors/tags/year/related all present per page except one page with no synopsis",
+        "stream": "lulustream -> tnmr.org HLS 200 (packed jwplayer); mixdrop.ag -> mxdrop.click -> mxcontent mp4 206; vidara.so -> 97bf1.com HLS 206; playmogo dood Turnstile shell -> Suspected",
+        "quick_search": "turbosearch wp-json suggest 200 (JSON surface, unit-tested)",
+        "new_latest": "`/` 27 cards p1, p2 27, disjoint; `/movies/` 27 cards, tail page 4,560 (announced) serves 11, first 404 at 5,000",
+        "old": "catalogue tail: `/page/4610/` 9 cards (404 at 4611), `/movies/page/4560/` 11 cards; site has no ascending sort",
+        "popular": "`/?filter=most-viewed` 27 cards p1/p2 disjoint, tail 4261, 404 at 4262; `/?filter=popular` (Top Rated) 27 cards p1, tail page 7, 404 at 8",
+        "genres": "`/movies/genre/anal/` 27 cards p1, p500 27, p1-p500 disjoint, tail 968, 404 at 969; mango-genres lists 315 genre slugs",
+        "categories": "`/genres/porn-movies/` 27 cards p1/p2 disjoint (4,583 pages); `/genres/gay-porn-movies/` 27 p1/p2 disjoint, tail 27, 404 at 28",
+        "tags": "absent (`/movies/tag/anal/` 404, `/tags/` 404, `/movies/category/...` 404)"
       },
       "issue": 657,
-      "standing_issue": null,
+      "standing_issue": 1512,
       "drift_confirmed": 3,
       "chronic": false,
-      "last_deep": "2026-10-17",
-      "last_runs-entry": "run24 see last_runs"
+      "last_deep": "2026-11-25",
+      "last_runs-entry": "run1461 see last_runs"
     },
     "ixiporn": {
       "site": "ixiporn.org",
