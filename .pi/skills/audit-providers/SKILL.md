@@ -89,8 +89,8 @@ Before filing a new finding issue for a provider:
   `audits/findings.json` in the diff; the orchestrator's `registry_sync` unions the comment on main.
 - Write `docs/archive/findings/FINDINGS-<issue>.md` (run reports live in the archive,
   never at the repo root — #922); cross-check it against findings.json on `main`.
-- `scripts/check-findings.sh` lints the registry **in the tree** and is the `pipeline.verify` gate;
-  a run that posts a comment (no registry diff) still passes it, so validate your block with
-  `jq empty` before posting rather than relying on the gate to see it.
+- `scripts/check-findings.sh --block <comment-body-file>` runs the same verdict/tier/
+  `standing_issue`/`false_positives` checks against the fenced block before you post it — the tree
+  lint can no longer see the payload, and `registry_sync` unions it without re-validating.
 - PR body: per-provider verdict table, findings created/updated, canary
   outcome, false-positive-rate note (false positives this run / findings filed).

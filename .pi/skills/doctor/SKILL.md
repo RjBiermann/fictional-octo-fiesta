@@ -9,10 +9,11 @@ description: Diagnose workspace and toolchain failures and make the fix durable 
 0. `free -h` first; state `available`.
 1. Missing vs misconfigured: `command -v`, `<tool> --version`, `<tool> --help`, and whatever points
    at it (`~/.pi-agent/mcp.json`, `~/.pi-agent/settings.json`, the launch wrapper).
-2. A permanent fix belongs in the image definition (devcontainer features / `base_packages`), not in
-   the live container: apt installs and symlinks under `/opt` or `/usr/local/lib` are gone on the
-   next rebuild. That file usually lives outside the repo you are editing — write the edit into your
-   report and hand it to the maintainer instead of patching it into the diff.
+2. A permanent fix belongs where the environment is built, not in the live container: the workspace
+   image definition (devcontainer features / `base_packages`, outside this repo) or an in-repo CI
+   step (`.github/workflows/`, `.pi/ci/`). Apt installs and symlinks under `/opt` or
+   `/usr/local/lib` vanish on the next rebuild. Name the target file in your report and hand the
+   edit to the maintainer instead of patching an environment you cannot see from here.
 3. Configure, don't install: point an existing binary at an existing path (`--executable-path`, a
    config entry) before adding packages.
 4. Re-verify in a clean shell (`bash -lc`, restarted server) — a fix that only lives in this

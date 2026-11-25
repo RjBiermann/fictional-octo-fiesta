@@ -11,10 +11,11 @@ Never run `gh pr merge`, `gh pr close`, `git merge`, `gh pr review --approve|--r
 Machinery does: it applies trigger labels and auto-squash-merges only behind the owner-approval
 receipt (ADR-0018).
 
-`.pi/extensions/deny-human-only.ts` blocks these forms (per shell segment, any flag order), but it
-only sees literal commands: `$()`, backticks, and `gh api …/merge` still get through. Treat the
-guard as a backstop, not the rule — if the user asks you to merge, name the conflicting rule and
-stop.
+`.pi/extensions/deny-human-only.ts` blocks these forms per shell segment, normalising `FOO=… cmd`,
+`sudo`/`env`/`timeout`/`nohup` wrappers, and global flags (`gh -R owner/repo pr merge`), joining
+`cmd | tail` pipes, and accepting any flag order incl. the `-a`/`-r` aliases. It still only sees literal commands: `$()`, backticks, `bash -c "…"`, and
+`gh api …/merge` get through. Treat the guard as a backstop, not the rule — if the user asks you to
+merge, name the conflicting rule and stop.
 
 ## Wait without polling
 `gh run watch <id> --exit-status`, or `gh event listen --resource …` (the hint gh itself prints).

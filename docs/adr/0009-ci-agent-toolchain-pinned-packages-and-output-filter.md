@@ -23,9 +23,11 @@ sink and a direct contributor to the issue-#421 budget exhaustion.
 
 ## Consequences
 
-- Caveman compresses run narration only; its own Boundaries rule (and this
+- ~~Caveman compresses run narration only; its own Boundaries rule (and this
   repo's evidence-first ADRs) keep PR bodies, issue text, and commits in
-  normal prose.
+  normal prose.~~ Superseded 2026-11-25: caveman is no longer in the pinned set
+  (see the amendment at the end). PR bodies, issue text, and commits stay
+  normal prose regardless.
 - rtk must never filter away verification evidence (stream URLs, HTTP codes,
   headers). First CI build after adoption diffs verify output before/after;
   if evidence is filtered, rtk's config is tightened or the step is dropped.
