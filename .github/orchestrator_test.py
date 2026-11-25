@@ -2536,3 +2536,30 @@ class TestRegistrySingletonPR(unittest.TestCase):
         pulls = [self._pr(1600, "orch-registry/1795548223")]
         with mock.patch.object(orchestrator, "open_pulls", return_value=pulls):
             self.assertIsNone(orchestrator._open_registry_pr())
+
+class TestMidSweepRepairBlocksReadiness(unittest.TestCase):
+    """#1585 carried `status/fixing` and `status/ready-to-merge` at once: 07
+    added the repair label at 01:42:23 and the sweep, whose `open_pulls()`
+    snapshot predated it, stamped readiness at 01:51:38."""
+
+    def test_a_repair_label_in_the_fresh_set_blocks(self):
+        for label in ("status/fixing", "status/fixing-stuck"):
+            with self.subTest(label=label):
+                self.assertTrue(orchestrator._repair_label_present(
+                    ["status/in-review", label]))
+
+    def test_a_clean_fresh_set_does_not_block(self):
+        self.assertFalse(orchestrator._repair_label_present(
+            ["status/in-review", "status/ready-to-merge"]))
+        self.assertFalse(orchestrator._repair_label_present([]))
+        self.assertFalse(orchestrator._repair_label_present(None))
+
+    def test_the_labels_are_read_fresh_from_the_api(self):
+        with mock.patch.object(orchestrator, "api",
+                               return_value=[{"name": "status/fixing"}]) as a:
+            self.assertEqual(orchestrator._pr_labels_now(1585), ["status/fixing"])
+        a.assert_called_once_with("issues/1585/labels")
+
+    def test_an_unreadable_label_set_never_wedges_readiness(self):
+        with mock.patch.object(orchestrator, "api", side_effect=RuntimeError):
+            self.assertEqual(orchestrator._pr_labels_now(1585), [])
