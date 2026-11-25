@@ -88,8 +88,9 @@ is present on every non-final page, 404 past the end.
 
 Pagination was **not** re-audited beyond enumeration: the provider's card grammar
 (`div.grid:not(.grid--blk) article.card`, #657) parsed every sampled page with the exact
-card count (27/27/27/27/27/27, tail pages 9/11/13/4/15), and `verify.sh` reports p1⊥p2 on
-home + search. Card-field correctness stays out of scope (issues #632–#659).
+card count (27 on each of the seven p1 surfaces, 27 on each measured p2, tails
+9/11/9/15/13/4), and `verify.sh` reports p1⊥p2 on home + search. Card-field correctness stays
+out of scope (issues #632–#659).
 
 ---
 
@@ -115,7 +116,7 @@ CloudStream where the site exposes it" holds.
 i.e. 10, so this run is **two over the minimum on two types** (new/latest 3, categories 3); the
 other three types carry exactly the minimum of 2. **10/12 resolved end-to-end from the runner**,
 the other 2 are dood-only tail uploads that serve the datacenter-IP challenge class (their
-per-row transcripts are missing — declared in *Stream transcripts*, below).
+per-row transcripts are in *Stream transcripts*, below).
 
 ### Host coverage across the 12 samples (`data-servers` payload)
 
@@ -168,36 +169,49 @@ $ GET https://playmogo.com/e/g73dyikrihl2          → 200 (5,317 bytes),
     no /pass_md5/<expiry>/<token> anywhere in the body
 ```
 
-### Row scope of that capture (repair round 1 correction)
+### Per-row transcripts for the two `Suspected` rows (repair round 2)
 
 The block above is the dood/playmogo shell this runner IP gets, and its `<title>` names
 *BDSM Hookup* — the `bdsm-hookup` page, a **`pass`** row of the `old` slot that carries a dood
-value alongside its lulu + mixdrop ones. It is a **host-class** capture, not the per-row
-transcript the D4 rule asks of a non-`pass` row: the run did not retain the embed codes of
-the two `Suspected` rows (`love-drenched-closeness-returns-…`,
-`swedish-erotica-0353-soft-sell`). Stated instead of implied — **the per-row transcripts for
-the two `Suspected` rows are missing from this report.**
-
-Repair round 1 tried to close the gap and could not. `mangoporn.net` now answers 403 to
-every HTML *and* JSON surface from this runner IP (the implement run got 200 with a
-`Referer`; only search needed it then), so neither video page can be re-fetched for its
-`data-servers` payload and the embed codes are not derivable from any other surface:
+value alongside its lulu + mixdrop ones. It stands as a **host-class** capture. The D4 rule's
+per-row transcripts for the two non-`pass` rows follow; both were captured from this runner
+during repair round 2 (2026-11-25), each with its video page's `data-servers` payload and its
+own playmogo embed response:
 
 ```
-$ GET https://mangoporn.net/movies/swedish-erotica-0353-soft-sell/     → 403 (3,291 bytes, br)
-$ GET https://mangoporn.net/movies/genre/anal/                         → 403 (the listing it came from)
-$ GET https://mangoporn.net/                                           → 403
-$ GET 'https://mangoporn.net/wp-json/turbosearch/v1/suggest?q=swedish' → 403 (the D2 JSON surface)
-$ GET https://playmogo.com/e/g73dyikrihl2                              → 200 (embed host still reachable;
-                                                                          the shell above reproduces)
+$ GET https://mangoporn.net/movies/love-drenched-closeness-returns-shivers-repeat-counting-fades/
+  → 200 (125,243 bytes)
+  data-servers="[{\"u\":\"https://playmogo.com/e/j8kufio167e1\",\"t\":\"iframe\",
+                  \"l\":\"DoodStream\",\"h\":\"47ea12bbc1\",\"g\":\"top\",\"x\":\"doodstream\"}]"
+$ GET https://playmogo.com/e/j8kufio167e1
+  → 200 (5,617 bytes),
+    <title>Love-Drenched Closeness Returns Shivers Repeat Counting Fades - DoodStream.com</title>,
+    <script src="//challenges.cloudflare.com/turnstile/v0/api.js">, .captcha-player CSS,
+    no /pass_md5/<expiry>/<token> anywhere in the body
+
+$ GET https://mangoporn.net/movies/swedish-erotica-0353-soft-sell/
+  → 200 (123,105 bytes)
+  data-servers="[{\"u\":\"https://playmogo.com/e/6x7dgkhrs50s\",\"t\":\"iframe\",
+                  \"l\":\"DoodStream\",\"h\":\"6fa9010c32\",\"g\":\"top\",\"x\":\"doodstream\"}]"
+$ GET https://playmogo.com/e/6x7dgkhrs50s
+  → 200 (5,443 bytes),
+    <title>Swedish Erotica 0353 - Soft Sell - DoodStream.com</title>,
+    <script src="//challenges.cloudflare.com/turnstile/v0/api.js">, .captcha-player CSS,
+    no /pass_md5/<expiry>/<token> anywhere in the body
 ```
+
+The implement run did not retain the two embed codes, and repair round 1 saw `mangoporn.net`
+answer 403 to every HTML *and* JSON surface from its runner IP, so it declared the gap instead
+of closing it. That 403 was runner-IP/time-specific: during this round plain `curl` with the
+shared `FIREFOX_UA` and no `Referer` answered 200 on both video pages, so the two captures
+above are live re-derivations, not restatements. Both rows are dood-only (`data-servers`
+carries a single DoodStream value) and each embed serves the Turnstile shell with no
+`pass_md5`.
 
 Verdict scope: both rows stay **`Suspected`** — the escalation ladder permits nothing stronger
 (challenge from the datacenter probe IP, `escalation_tier: unavailable`) and nothing weaker is
 warranted, since the host *is* a registered Dood adapter and the observation is the same shell
-reproduced above. What is missing is evidence strength, not the verdict's direction. The next
-run that can reach the site should capture each row's `data-servers` payload and playmogo embed
-before re-asserting the row verdict.
+now evidenced per row.
 
 ## Load-surface spot checks (same pages, no drift)
 
@@ -265,7 +279,7 @@ need a **registry row**, not a hand-written adapter (the recaptcha hop goes thro
 
 ## Delivery gate
 
-Repair round 1 touched this document only (no provider, `shared/` or registry change), so the
+Repair rounds 1–2 touched this document only (no provider, `shared/` or registry change), so the
 build gates below stand as the implement run recorded them; `check-findings.sh` was re-run on
 the corrected text.
 
