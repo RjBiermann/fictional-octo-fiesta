@@ -146,6 +146,18 @@ jobs:
       - name: "Replay #797 label-event fixtures through orchestrator.py"
         run: python3 -m unittest discover -s .github/tests -p 'orchestrator_replay_test.py' -v
 
+  # 90-sweeper's heal loop is an inline python heredoc, so nothing executed it: every
+  # regression class it accumulated (#880 re-fire by dispatch, #913 silent-empty ledger
+  # caps, #1609 PR-hold) was validated by hand. #1611 extracts the step verbatim and
+  # drives it against a stub `gh` — stdlib only, no network, no runner state.
+  sweeper-heal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: "90-sweeper heal loop: PR-hold gate and fallbacks (#1609, #1611)"
+        run: python3 -m unittest discover -s .github/tests -p 'sweeper_heal_test.py' -v
+
   # The stream-scheme gate is the check that catches the whole `data:`/`blob:` class (#1353):
   # a non-http source can never open on the app's HTTP-only datasource. Its self-check exists
   # but ran in no workflow, so the gate could regress unnoticed — assert it here, every PR.
