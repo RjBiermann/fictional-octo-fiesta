@@ -8,6 +8,7 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.utils.*
+import com.lagradost.cloudstream3.utils.loadExtractor
 import org.jsoup.nodes.Element
 
 /** Pure field-parsing helpers for load(); unit-tested against live-page fixtures. */
@@ -50,6 +51,16 @@ object Parse {
         doc.selectFirst("meta[property=og:image]")?.attr("content")
             ?.takeIf { it.isNotBlank() }
             ?: doc.selectFirst("div#s-desc a.highslide[href]")?.attr("href")
+
+    // issue #1459: part of the catalogue's filmcdm.top/e/<id> embeds now 302 to the
+    // vsembed.com SPA player. That page carries no packed JW config, so the packed-JS
+    // branch below has nothing to read; its per-tier signed mp4s come from the shared
+    // vsembed registry row, so addSource hands the redirect target to loadExtractor.
+    // Exact host on purpose — a lookalike host is never ours to dispatch.
+    fun vsembedRedirect(finalUrl: String?): String? =
+        finalUrl?.trim()?.takeIf {
+            Regex("^https?://(?:www\\.)?vsembed\\.com/", RegexOption.IGNORE_CASE).containsMatchIn(it)
+        }
 
     // issue #521 (#493 recurrence): posters are third-party hosted on sex-empire.org
     // (Cloudflare zone) and serve fine in curl; the suspect is the app's default
@@ -135,9 +146,21 @@ class Sexfilm : MainAPI() {
     // without one keep the raw html (filmcdn.top signed-m3u8 path is checked first).
     private fun unpackPacked(html: String): String = PackedJs.unpack(html) ?: html
 
-    private suspend fun addSource(embedUrl: String, callback: (ExtractorLink) -> Unit) {
+    private suspend fun addSource(
+        embedUrl: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ) {
         runCatching {
-            val html = app.get(embedUrl, referer = "$mainUrl/").text
+            val res = app.get(embedUrl, referer = "$mainUrl/")
+            // #1459: filmcdm.top/e/<id> 302s part of the catalogue to the vsembed.com
+            // SPA player — dispatch that destination through the shared registry row
+            // instead of trying to unpack a JW config the page no longer carries.
+            Parse.vsembedRedirect(res.url)?.let {
+                loadExtractor(it, "$mainUrl/", subtitleCallback, callback)
+                return
+            }
+            val html = res.text
             // filmcdn.top variant: signed m3u8 sits directly in the page source
             Regex("""https://[a-z0-9.\-]*cfglobalcdn\.com[^'"\s]{20,}?\.m3u8""").find(html)?.let {
                 callback(
@@ -170,7 +193,7 @@ class Sexfilm : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val html = app.get(data).text
-        Parse.embeds(html).forEach { addSource(it, callback) }
+        Parse.embeds(html).forEach { addSource(it, subtitleCallback, callback) }
         return true
     }
 }

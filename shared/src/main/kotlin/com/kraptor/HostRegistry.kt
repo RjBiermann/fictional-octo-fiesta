@@ -248,6 +248,11 @@ internal fun sharedHostRegistry(): List<ExtractorApi> = listOf(
         // unregistered host these pages embed — same page-side JSON API family.
         HlsFast(),
         TurboEmbed(),
+        // #1459 (Sexfilm video-source audit): filmcdm.top/e/<id> 302s part of that
+        // catalogue to vsembed.com — the same download-tier player platform as
+        // turboembed.com (`/api/download/tiers?s=`, `/api/download/get?s=&t=` → 302
+        // signed mp4). One row, no provider-side host branch.
+        turboEmbed("https://vsembed.com", "VsEmbed"),
         LoadVid(),
     )
 

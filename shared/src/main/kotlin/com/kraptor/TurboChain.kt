@@ -102,10 +102,12 @@ open class HlsFast : ExtractorApi() {
 
 /** Pure turboembed.com helpers (the hlsfast destination host). */
 object TurboEmbedParse {
-    /** Player code from `https://turboembed.com/<code>` (a leading/trailing space is a real
-     *  cat3movie markup quirk — `src=" https://…"`). */
-    fun code(url: String?): String? =
-        url?.trim()?.substringAfter("://turboembed.com/", "")?.substringBefore('?')?.substringBefore('/')
+    /** Player code from `https://<host>/<code>` (a leading/trailing space is a real
+     *  cat3movie markup quirk — `src=" https://…"`). `host` is a parameter because the
+     *  platform runs on more than one domain: turboembed.com for Cat3Movie (#1448) and
+     *  vsembed.com for Sexfilm (#1459) — same download-tier API, same grammar. */
+    fun code(url: String?, host: String = "turboembed.com"): String? =
+        url?.trim()?.substringAfter("://$host/", "")?.substringBefore('?')?.substringBefore('/')
             ?.trim()?.takeIf { it.matches(Regex("[A-Za-z0-9]+")) }
 
     data class Tier(val file: String, val label: String)
@@ -129,8 +131,8 @@ object TurboEmbedParse {
 /** turboembed.com (issue #1448): the download API exposes a signed mp4 per tier; the
  *  `/api/download/get` hop is a 302, so the emitted link is the resolved CDN URL. */
 open class TurboEmbed : ExtractorApi() {
-    override val name = "TurboEmbed"
-    override val mainUrl = "https://turboembed.com"
+    override var name = "TurboEmbed"
+    override var mainUrl = "https://turboembed.com"
     override val requiresReferer = true
 
     override suspend fun getUrl(
@@ -139,7 +141,9 @@ open class TurboEmbed : ExtractorApi() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ) {
-        val code = TurboEmbedParse.code(url) ?: return
+        // the row's mainUrl is the embed host base ("https://vsembed.com"); the parse seam
+        // takes the bare host, so a mirror row needs no code of its own.
+        val code = TurboEmbedParse.code(url, mainUrl.substringAfter("://").trimEnd('/')) ?: return
         val tiers = try {
             TurboEmbedParse.tiers(app.get("$mainUrl/api/download/tiers?s=$code", referer = url).text)
         } catch (e: IOException) {
@@ -181,6 +185,10 @@ open class TurboEmbed : ExtractorApi() {
         }
     }
 }
+
+/** Mirror row for the same player platform on another domain (see [TurboEmbed]). */
+fun turboEmbed(url: String, nm: String = "TurboEmbed"): TurboEmbed =
+    object : TurboEmbed() { override var mainUrl = url; override var name = nm }
 
 /** Pure loadvid helpers (Cat3Movie sv2 on recent uploads). */
 object LoadVidParse {

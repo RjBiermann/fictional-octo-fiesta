@@ -35,6 +35,23 @@ class ParseTest {
     private fun embedsHtml() =
         javaClass.getResourceAsStream("/classy-embeds.html")!!.reader().readText()
 
+    // #1459: part of the catalogue's filmcdm.top/e/<id> embeds now 302 to the
+    // vsembed.com SPA player, whose JW config the packed-JS branch cannot parse —
+    // the shared vsembed registry row resolves its per-tier signed mp4s instead,
+    // so addSource dispatches that redirect target through loadExtractor.
+    @Test fun `vsembed redirect target is dispatched to the shared row`() {
+        assertEquals("https://vsembed.com/r0hg", Parse.vsembedRedirect("https://vsembed.com/r0hg"))
+        assertEquals("https://vsembed.com/6ulj9", Parse.vsembedRedirect(" https://vsembed.com/6ulj9 "))
+        assertEquals("https://vsembed.com/uk6g?foo=1", Parse.vsembedRedirect("https://vsembed.com/uk6g?foo=1"))
+        // the embed host itself stays on the packed-JS path
+        assertEquals(null, Parse.vsembedRedirect("https://filmcdm.top/e/yztkcwckgqn1"))
+        // no lookalike host, no non-http scheme
+        assertEquals(null, Parse.vsembedRedirect("https://vsembed.com.evil.example/r0hg"))
+        assertEquals(null, Parse.vsembedRedirect("https://notvsembed.com/r0hg"))
+        assertEquals(null, Parse.vsembedRedirect("javascript:alert(1)"))
+        assertEquals(null, Parse.vsembedRedirect(null))
+    }
+
     @Test fun `embeds collects filmcdm and morencius, not cloudflare-blocked playmogo`() {
         assertEquals(
             listOf("https://filmcdm.top/e/9kvptxttubh8", "https://morencius.com/embed/tg373qlpcs6v"),
