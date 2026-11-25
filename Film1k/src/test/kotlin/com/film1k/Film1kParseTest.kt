@@ -216,6 +216,38 @@ class Film1kParseTest {
         assertTrue(!second.poster.startsWith("data:"))
     }
 
+    @Test fun `listing cards stop at the page-not-found wrap`() {
+        // review #1621 blocker: the restored card parser also parses the WP 404 wrap
+        // (8 seeded article.loop-post cards), so a has-articles hasNext would paginate
+        // the tail forever. The gate — not the card parser — is what ends a listing.
+        val notFound = Film1kParse.doc(searchNotFoundP4Doc)
+        assertTrue(Film1kParse.isNotFoundTemplate(notFound))
+        assertEquals(
+            8,
+            notFound.select("article.loop-post").mapNotNull { Film1kParse.cardOf(it) }.size
+        )
+        assertEquals(0, Film1kParse.listingCards(notFound).size)
+        // …and it never suppresses a real listing surface
+        assertEquals(24, Film1kParse.listingCards(Film1kParse.doc(home20261125Doc)).size)
+        assertEquals(24, Film1kParse.listingCards(Film1kParse.doc(searchTabooP2Doc)).size)
+    }
+
+    @Test fun `card link falls back to the post html link when the h2 has no anchor`() {
+        // third fallback branch: title text is not wrapped in a link, the post link
+        // lives on the figure — still one card, not a dropped listing row
+        val card = Film1kParse.cardOf(
+            Jsoup.parse(
+                """<article class="loop-post">
+                   |  <figure><a href="/some-film-1971.html"><img src="https://i.imgur.com/x.jpg"></a></figure>
+                   |  <h2>Some Film (1971)</h2>
+                   |</article>""".trimMargin()
+            ).selectFirst("article.loop-post")!!
+        )!!
+        assertEquals("/some-film-1971.html", card.url)
+        assertEquals("Some Film (1971)", card.title)
+        assertEquals("https://i.imgur.com/x.jpg", card.poster)
+    }
+
     @Test fun `legacy card skeleton still parses`() {
         val legacy = Film1kParse.relatedOf(relatedDoc).first()
         val card = Film1kParse.cardOf(legacy)!!

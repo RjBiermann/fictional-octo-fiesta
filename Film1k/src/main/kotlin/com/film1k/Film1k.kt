@@ -49,11 +49,17 @@ class Film1k : MainAPI() {
     }
 
     private fun parseList(doc: org.jsoup.nodes.Document): List<SearchResponse> =
-        doc.select("article.loop-post").mapNotNull {
+        // review #1621: listingCards gates the WP 404 wrap (8 seeded cards) out, so the
+        // default hasNext = items.isNotEmpty() cannot paginate an exhausted row forever.
+        Film1kParse.listingCards(doc).mapNotNull {
             try { it.toResult() } catch (e: Exception) { null }
         }.distinctBy { it.url }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        // review #1621: past a row's tail (home p361, /category/action p39) the site answers
+        // with the WordPress 404 wrap and 8 seeded cards. parseList applies the
+        // listingCards isNotFoundTemplate gate, so the row ends (empty + hasNext = false)
+        // instead of paginating those 8 unrelated cards forever.
         val doc = app.get(pageUrl(request.data, page)).document
         val items = parseList(doc)
         return newHomePageResponse(request.name, items)

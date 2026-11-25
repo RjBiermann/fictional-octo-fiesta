@@ -53,6 +53,13 @@ object Film1kParse {
     fun isNotFoundTemplate(doc: Document): Boolean =
         doc.title().contains("Page not found", ignoreCase = true)
 
+    /** Listing cards of a page, or none at all for the WordPress 404 wrap — review #1621:
+     *  the restored structural [cardOf] happily parses the 8 seeded cards of the 404 tail,
+     *  so every listing surface (home, category, tag, search) gates here and a has-cards
+     *  `hasNext` can no longer paginate the tail forever. Gate, not parser, ends a row. */
+    fun listingCards(doc: Document): List<Element> =
+        if (isNotFoundTemplate(doc)) emptyList() else doc.select("article.loop-post").toList()
+
     /** Related-videos block: scoped to <main>, the section after the `Related Videos` header.
      *  Card markup is identical to listings (`article.loop-post`), so the caller reuses the
      *  same card parser as parseList. Sidebar sections live outside <main> and are skipped. */

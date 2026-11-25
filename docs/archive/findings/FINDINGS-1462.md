@@ -77,8 +77,11 @@ $ GET /?order=asc → 200 24 cards; first: maladolescenza-1977.html
 ### Pagination (listing correctness only as far as enumeration needed, D5)
 
 Every surface is path-segment paginated; p1 ∩ p2 = 0; the tail page is short and the next
-page is the WordPress 404-wrap (HTTP 404, `<title>Page not found`, **8 seeded cards** — the
-`isNotFoundTemplate` gate still stops it).
+page is the WordPress 404-wrap (HTTP 404, `<title>Page not found`, **8 seeded cards**).
+That wrap is why the gate matters: the structural card parser parses all 8 seeded cards,
+so every listing surface stops at `Film1kParse.listingCards` (`isNotFoundTemplate` → empty,
+review #1621 — the earlier `getMainPage` had no gate and would have paginated the 404 tail),
+and `search()` keeps its own early return on the same check.
 
 | surface | p1 | p2 | overlap | tail | past tail |
 |---|---|---|---|---|---|
