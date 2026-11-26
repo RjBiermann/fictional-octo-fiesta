@@ -311,8 +311,9 @@ def dispatch_ok(cmd, env=None):
     the gate resolves the machinery actor to permission 'none' and fails closed
     (#797 round-3 strand; verified against check_membership.cjs). Every caller
     is a fire site (_fire_workflow, conflict_watch's 14-rebase, fix_surrogate's
-    07-fix-loop), so the override lives here, not at the call sites. Labels
-    and comments keep the App identity."""
+    07-fix-loop), so the override lives here, not at the call sites. Comments
+    and every other label keep the App identity (the `status/planned` display
+    stamp is the exception — see `_actions_token_env`)."""
     if env is None:
         env = _actions_token_env()
     r = subprocess.run(cmd, capture_output=True, text=True, env=env)
