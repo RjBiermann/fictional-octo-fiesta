@@ -75,6 +75,7 @@ class ReplayCase(unittest.TestCase):
         self.comments = []   # (num, body)
         self.closes = []     # (num, reason, body)
         self.labels = []     # (num, name)
+        self.label_kwargs = []   # kwargs of each label_issue call
         self.fires = []      # (lock, item_type, item_number)
 
         # the closing-record cache lives for one orchestrator pass; a test is a new
@@ -94,8 +95,9 @@ class ReplayCase(unittest.TestCase):
                               lambda num, reason, body, *a, **kw:
                                   self.closes.append((num, reason, body))),
             mock.patch.object(orchestrator, "label_issue",
-                              lambda num, name, *a, **kw:
-                                  self.labels.append((num, name))),
+                              lambda num, name, *a, **kw: (
+                                  self.labels.append((num, name)),
+                                  self.label_kwargs.append(kw))),
             mock.patch.object(orchestrator, "_fire_workflow",
                               lambda lock, item_type, item_number, *a, **kw:
                                   self.fires.append((lock, item_type, item_number))),
@@ -231,6 +233,24 @@ class TestFireImplementMergedDeliveredGuard(ReplayCase):
         orchestrator._fire_implement(775)
         self.assertEqual(self.fires, [(IMPLEMENT_LOCK, "issue", 775)])
         self.assertEqual(self.labels, [(775, "status/planned")])
+
+
+class TestSingleFireStamp(ReplayCase):
+    """#1589: the status/planned stamp must not itself create a workflow run.
+
+    `_fire_implement` stamps the label AND dispatches Implement. Under the App
+    identity the stamp's `issues: labeled` event started a second run in the
+    same concurrency group (cancelled at queue, or hollow with `activation`
+    skipped), so every machinery fire produced two run objects. GITHUB_TOKEN
+    label events start no run, which leaves the dispatch as the only fire.
+    """
+
+    def test_planned_stamp_goes_out_as_actions_token(self):
+        orchestrator._fire_implement(775)
+        self.assertEqual(self.fires, [(IMPLEMENT_LOCK, "issue", 775)])
+        self.assertEqual(self.labels, [(775, "status/planned")])
+        self.assertEqual(self.label_kwargs, [{"as_actions": True}],
+                         "the stamp must ride GITHUB_TOKEN, not the App identity")
 
 
 class TestBugClassRegression(ReplayCase):

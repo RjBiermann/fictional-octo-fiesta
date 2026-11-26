@@ -355,8 +355,20 @@ def post_comment(num, body):
     run(["gh", "api", "-X", "POST", f"repos/{REPO}/issues/{num}/comments", "-f", f"body={body}"])
 
 
-def label_issue(num, name):
-    run(["gh", "issue", "edit", str(num), "--add-label", name])
+def label_issue(num, name, as_actions=False):
+    """Add a label. `as_actions` stamps under GITHUB_TOKEN (github-actions[bot]):
+    GitHub starts no workflow run for events that token creates, so a label that
+    is display state must use it when a dispatch beside it already carries the
+    fire (#1589 — the App identity woke a second, hollow Implement run).
+    Everything else keeps the App identity: those label events ARE the wake."""
+    env = None
+    if as_actions:
+        # GITHUB_TOKEN is always present in Actions; a local run keeps the
+        # ambient token rather than stamping without credentials.
+        gh_token = os.environ.get("GITHUB_TOKEN", "")
+        if gh_token:
+            env = dict(os.environ, GH_TOKEN=gh_token)
+    run(["gh", "issue", "edit", str(num), "--add-label", name], env=env)
 
 
 def close_issue(num, reason, body):
@@ -1679,7 +1691,11 @@ def _fire_implement(num):
             # IS the delivery record; only a human re-arm overrides it.
             print(f"[orchestrator] {num}: already delivered via fallback review issue #{fb_num} — not re-fired")
             return
-    label_issue(num, "status/planned")
+    # Display state + in-flight marker, stamped under GITHUB_TOKEN: that
+    # identity's label events start no run, so the dispatch beside it is the
+    # only fire. Under the App identity this stamp woke a second, hollow
+    # Implement run in the same concurrency group on every fire (#1589).
+    label_issue(num, "status/planned", as_actions=True)
     _fire_workflow("05-implement.lock.yml", "issue", num)
 
 
