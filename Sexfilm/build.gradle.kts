@@ -1,4 +1,4 @@
-version = 27 // #1459: vsembed.com player rows (filmcdm 302 target) resolve to signed mp4s
+version = 28 // #1658: version bump (v28)
 
 cloudstream {
     authors     = listOf("ai-builder")

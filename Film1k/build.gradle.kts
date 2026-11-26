@@ -1,4 +1,4 @@
-version = 29 // #1462: card-markup drift - structural cardOf + h2 Related header (v29)
+version = 30 // #1658: version bump (v30)
 // fetches guarded (uncaught DNS exception), turbovid-only pages fall through cleanly
 
 cloudstream {
