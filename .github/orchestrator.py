@@ -305,17 +305,17 @@ def dispatch_ok(cmd, env=None):
     dedupe marker would then block the retry permanently.
 
     Dispatches go out under GITHUB_TOKEN (github-actions[bot]) regardless of
-    the ambient GH_TOKEN: gh-aw's activation gate authorizes dispatches only
-    via the trusted-bot path — github-actions[bot] has implicit repo write,
-    while an installed App is never a collaborator, so the gate resolves the
-    machinery actor to permission 'none' and fails closed (#797 round-3
-    strand; verified against check_membership.cjs). Every caller is a fire
-    site (_fire_workflow, conflict_watch's 14-rebase, fix_surrogate's
-    07-fix-loop), so the override lives here, not at the call sites. Labels
-    and comments keep the App identity."""
-    gh_token = os.environ.get("GITHUB_TOKEN", "")
-    if gh_token and env is None:
-        env = dict(os.environ, GH_TOKEN=gh_token)
+    the ambient GH_TOKEN (see `_actions_token_env`). gh-aw's activation gate
+    authorizes dispatches only via the trusted-bot path — github-actions[bot]
+    has implicit repo write, while an installed App is never a collaborator, so
+    the gate resolves the machinery actor to permission 'none' and fails closed
+    (#797 round-3 strand; verified against check_membership.cjs). Every caller
+    is a fire site (_fire_workflow, conflict_watch's 14-rebase, fix_surrogate's
+    07-fix-loop), so the override lives here, not at the call sites. Comments
+    and every other label keep the App identity (the `status/planned` display
+    stamp is the exception — see `_actions_token_env`)."""
+    if env is None:
+        env = _actions_token_env()
     r = subprocess.run(cmd, capture_output=True, text=True, env=env)
     if r.returncode != 0:
         sys.stderr.write(f"[orchestrator] dispatch rc={r.returncode}: {r.stderr.strip()[:300]}\n")
@@ -355,8 +355,27 @@ def post_comment(num, body):
     run(["gh", "api", "-X", "POST", f"repos/{REPO}/issues/{num}/comments", "-f", f"body={body}"])
 
 
-def label_issue(num, name):
-    run(["gh", "issue", "edit", str(num), "--add-label", name])
+def _actions_token_env():
+    """Env pinning GH_TOKEN to GITHUB_TOKEN (github-actions[bot]), or None when
+    no token is set.
+
+    Two call sites need this identity and they need it for the same reason:
+    GitHub starts no workflow run for events a GITHUB_TOKEN-created action
+    emits (the `status/planned` stamp must not be a second fire, #1589), and
+    gh-aw's activation gate authorizes dispatches only via the trusted-bot
+    path (`dispatch_ok`). `__main__` overwrites the ambient GH_TOKEN with the
+    machinery App token, so passing `env=None` would silently restore it."""
+    gh_token = os.environ.get("GITHUB_TOKEN", "")
+    return dict(os.environ, GH_TOKEN=gh_token) if gh_token else None
+
+
+def label_issue(num, name, as_actions=False):
+    """Add a label. `as_actions` stamps under GITHUB_TOKEN (see
+    `_actions_token_env`): a label that is display state must use it when a
+    dispatch beside it already carries the fire (#1589). Everything else keeps
+    the App identity: those label events ARE the wake for their lanes."""
+    run(["gh", "issue", "edit", str(num), "--add-label", name],
+        env=_actions_token_env() if as_actions else None)
 
 
 def close_issue(num, reason, body):
@@ -1122,11 +1141,14 @@ def _implement_fires():
 
 
 def _claim_planned_fires(stories):
-    """Map open status/planned issues to the Implement run their label event
-    fired. gh-aw run payloads carry no issue attribution, so claim by
-    proximity: a run within 150s after the stamp claims at most one issue
-    (greedy nearest match). Returns {issue_number: run-row or None}; the
-    row carries id/status/createdAt for the #860 transition relay.
+    """Map open status/planned issues to the Implement run fired after their
+    stamp. The fire is the DISPATCH, not the label event: since #1589 the stamp
+    rides GITHUB_TOKEN and creates no run, so `_implement_fires()` matching on
+    `workflow_dispatch` is what pairs a story with its run. gh-aw run payloads
+    carry no issue attribution, so claim by proximity: a run within 150s after
+    the stamp claims at most one issue (greedy nearest match). Returns
+    {issue_number: run-row or None}; the row carries id/status/createdAt for
+    the #860 transition relay.
     (This replaces the old reconcile check against the workflow's global
     latest run, which any sibling issue's run suppressed.)
     Hollow runs (activation-gated-out: gh-aw marks them overall success
@@ -1679,7 +1701,11 @@ def _fire_implement(num):
             # IS the delivery record; only a human re-arm overrides it.
             print(f"[orchestrator] {num}: already delivered via fallback review issue #{fb_num} — not re-fired")
             return
-    label_issue(num, "status/planned")
+    # Display state + in-flight marker, stamped under GITHUB_TOKEN: that
+    # identity's label events start no run, so the dispatch beside it is the
+    # only fire. Under the App identity this stamp woke a second, hollow
+    # Implement run in the same concurrency group on every fire (#1589).
+    label_issue(num, "status/planned", as_actions=True)
     _fire_workflow("05-implement.lock.yml", "issue", num)
 
 
@@ -2688,8 +2714,10 @@ def _demote_out_of_order(stories):
         n = s["number"]
         ts = _label_applied_at(n, "status/planned")
         if ts:
-            # cancel the run this label fired (proximity claim, same rule
-            # as _claim_planned_fires) while it is still cancellable
+            # cancel the dispatched run this stamp precedes (proximity claim,
+            # same rule as _claim_planned_fires) while it is still cancellable.
+            # The stamp no longer creates a run itself (#1589), so `fires` here
+            # is the dispatch, not a label event.
             for rt in fires:
                 if rt.get("status") not in ("queued", "in_progress"):
                     continue
