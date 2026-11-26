@@ -49,9 +49,13 @@ decision is genuinely needed — and no PAT secrets anywhere in the pipeline.
    `create-github-app-token` consumes the Client ID, not the App ID) and
    `MACHINERY_APP_KEY` (secret). `scripts/setup-machinery-app.sh` walks the
    whole registration and writes both.
-2. Add the App login (`<app>[bot]`) to the `on.bots` allowlist of relay
-   targets that react to App-actor label events (`04-plan`, `05-implement`,
-   `07-fix-loop`, `14-rebase`) and recompile (`gh aw compile`).
+2. Add the App login (`<app>[bot]`, lower-case — GitHub lower-cases the slug
+   and gh-aw's `isAllowedBot()` compares it exactly) to the `on.bots` allowlist
+   of a relay target **only where an App-authored event is a real wake**. That
+   is `07-fix-loop` alone today (its trigger actor is the review author).
+   `04-plan`, `05-implement` and `14-rebase` are dispatch-only and carry
+   `github-actions[bot]` only: a capitalised App entry there was dead surface,
+   never a working wake (#1637). Recompile (`gh aw compile`) either way.
 3. When an agent spec names `.github/workflows/`, adopt gh-aw's
    `github-app:` block in the lane's frontmatter so the patch can apply.
 

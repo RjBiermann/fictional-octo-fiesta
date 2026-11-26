@@ -206,7 +206,9 @@ ask MACHINERY_APP_LOGIN "Paste the app login as <name>[bot] (e.g. rjbiermann-mac
 # gh-aw's isAllowedBot() compares exactly (only the [bot] suffix is stripped),
 # and GitHub's canonical App-bot login is lower-case — normalise the paste so a
 # wizard run cannot teach an allow-list entry that never matches (#1637).
-MACHINERY_APP_LOGIN="${MACHINERY_APP_LOGIN,,}"
+# `tr`, not ${VAR,,}: this script runs on the maintainer's machine too, and
+# stock macOS bash is 3.2 (no case-modification expansion).
+MACHINERY_APP_LOGIN=$(printf '%s' "$MACHINERY_APP_LOGIN" | tr '[:upper:]' '[:lower:]')
 write_env MACHINERY_APP_LOGIN "$MACHINERY_APP_LOGIN"
 
 stage "Generate and store the private key"
