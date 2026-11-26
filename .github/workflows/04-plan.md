@@ -10,7 +10,14 @@ on:
     name: plan
     events: [issues, issue_comment]
   workflow_dispatch:          # ADR-0019: machine relay fires rounds via dispatch (aw_context)
-  bots: ["github-actions[bot]", "RjBiermann-machinery[bot]"] # the conveyor (95) dispatches this workflow
+  # github-actions[bot] only: it is the dispatch actor (ADR-0019 trusted-bot
+  # path, #95). The machinery App entry was dead — its canonical login is
+  # lower-case, so the capitalised form can never match gh-aw's exact
+  # isAllowedBot() compare. The App does post here (`_fire_plan()`'s `/plan`
+  # marker comment), but that marker is audit/dedupe only: it was always
+  # denied at activation, and the dispatch is the fire — do not drop the
+  # dispatch on the assumption the marker starts a round (#1637).
+  bots: ["github-actions[bot]"]
   roles: [admin, maintainer, write]
 imports:
   - .github/workflows/shared/engine-lane.md

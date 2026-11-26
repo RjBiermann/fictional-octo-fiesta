@@ -180,8 +180,9 @@ banner "Machinery App registration (ADR-0020, #857)"
 
 stage "Create the GitHub App"
 open_url "https://github.com/settings/apps/new"
-step "GitHub App name: e.g. your username + '-machinery' (e.g. RjBiermann-machinery)."
-say "  This becomes the bot login '<name>[bot]' — remember it for the last stage."
+step "GitHub App name: e.g. your username + '-machinery' (e.g. rjbiermann-machinery)."
+say "  GitHub lower-cases the slug, so the bot login is '<name>[bot]' in lower case"
+say "  (e.g. rjbiermann-machinery[bot]) — gh-aw compares it exactly (#1637)."
 step "Homepage URL: $REPO_URL"
 step "Uncheck 'Webhook → Active' (the pipeline needs no webhooks)."
 step "Under 'Repository permissions' set ALL of these to Read and write:"
@@ -201,7 +202,13 @@ set_var MACHINERY_APP_CLIENT_ID "$MACHINERY_APP_CLIENT_ID"
 
 stage "Capture the bot login"
 say "The App login is what relay workflows' 'on.bots' allowlists must accept:"
-ask MACHINERY_APP_LOGIN "Paste the app login as <name>[bot] (e.g. RjBiermann-machinery[bot]):"
+ask MACHINERY_APP_LOGIN "Paste the app login as <name>[bot] (e.g. rjbiermann-machinery[bot]):"
+# gh-aw's isAllowedBot() compares exactly (only the [bot] suffix is stripped),
+# and GitHub's canonical App-bot login is lower-case — normalise the paste so a
+# wizard run cannot teach an allow-list entry that never matches (#1637).
+# `tr`, not ${VAR,,}: this script runs on the maintainer's machine too, and
+# stock macOS bash is 3.2 (no case-modification expansion).
+MACHINERY_APP_LOGIN=$(printf '%s' "$MACHINERY_APP_LOGIN" | tr '[:upper:]' '[:lower:]')
 write_env MACHINERY_APP_LOGIN "$MACHINERY_APP_LOGIN"
 
 stage "Generate and store the private key"

@@ -21,7 +21,11 @@ on:
         required: true
         type: string
   roles: [admin, maintainer, write]
-  bots: ["github-actions[bot]", "RjBiermann-machinery[bot]"] # conflict_watch (95) fires this via dispatch (aw_context)
+  # github-actions[bot] only: conflict_watch (95) fires this via dispatch
+  # (aw_context). The App entry was dead — capitalised login vs gh-aw's exact
+  # isAllowedBot() compare; it could never match — and the status/conflict
+  # stamp path already dispatches instead of relying on the label event (#1637).
+  bots: ["github-actions[bot]"]
   cooldown: 20m
 imports:
   - .github/workflows/shared/engine-lane.md
