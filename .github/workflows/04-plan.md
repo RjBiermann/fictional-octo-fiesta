@@ -13,8 +13,10 @@ on:
   # github-actions[bot] only: it is the dispatch actor (ADR-0019 trusted-bot
   # path, #95). The machinery App entry was dead — its canonical login is
   # lower-case, so the capitalised form can never match gh-aw's exact
-  # isAllowedBot() compare — and this lane has no App-authored trigger to
-  # allow anyway: /plan comes from humans, rounds from the conveyor (#1637).
+  # isAllowedBot() compare. The App does post here (`_fire_plan()`'s `/plan`
+  # marker comment), but that marker is audit/dedupe only: it was always
+  # denied at activation, and the dispatch is the fire — do not drop the
+  # dispatch on the assumption the marker starts a round (#1637).
   bots: ["github-actions[bot]"]
   roles: [admin, maintainer, write]
 imports:
