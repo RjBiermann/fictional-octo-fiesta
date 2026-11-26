@@ -12,7 +12,11 @@ on:
   workflow_dispatch:          # ADR-0019: machine relay fires via dispatch (aw_context) —
                               # bot-applied label events are loop-dead, so the
                               # conveyor dispatches instead of stamping into the void
-  bots: ["github-actions[bot]", "RjBiermann-machinery[bot]"]
+  # github-actions[bot] only: it is the dispatch actor (ADR-0019 trusted-bot
+  # path). The machinery App entry was dead — capitalised login vs gh-aw's
+  # exact isAllowedBot() compare — and the status/planned stamp rides
+  # GITHUB_TOKEN since #1589, so no App label event reaches this lane (#1637).
+  bots: ["github-actions[bot]"]
   roles: [admin, maintainer, write]
 imports:
   - .github/workflows/shared/engine-lane.md
