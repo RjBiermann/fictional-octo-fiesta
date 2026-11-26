@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="en" class="site-root">
+
+<head>
+        <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#f5f7fb" media="(prefers-color-scheme: light)" data-front-theme-color="light">
+    <meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)" data-front-theme-color="dark">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <script>
+(function() {
+    var root = document.documentElement;
+    var storageKey = 'frontTheme';
+    var selectedTheme = '';
+    var systemTheme = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
+
+    function preference() {
+        // Keep an explicit choice for this page even when browser storage is blocked.
+        if (selectedTheme) return selectedTheme;
+        try {
+            var stored = window.localStorage.getItem(storageKey);
+            if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
+        } catch (error) { /* The cookie can still hold a saved preference. */ }
+        try {
+            var cookie = document.cookie.match(/(?:^|;\s*)frontTheme=(light|dark|system)(?:;|$)/);
+            if (cookie) return cookie[1];
+        } catch (error) { /* Embedded players may have no storage access. */ }
+        return 'system';
+    }
+
+    function resolve() {
+        var mode = preference();
+        return mode === 'system' ? (systemTheme && systemTheme.matches ? 'light' : 'dark') : mode;
+    }
+
+    function apply(theme) {
+        var next = theme === 'light' ? 'light' : 'dark';
+        root.setAttribute('data-front-theme', next);
+        if (document.body) {
+            document.body.setAttribute('data-front-theme', next);
+            document.body.setAttribute('use-theme', next);
+        }
+        document.querySelectorAll('meta[name="theme-color"][data-front-theme-color]').forEach(function(meta) {
+            meta.setAttribute('media', meta.getAttribute('data-front-theme-color') === next ? 'all' : 'not all');
+        });
+        var statusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+        if (statusBar) statusBar.setAttribute('content', next === 'light' ? 'default' : 'black');
+        document.dispatchEvent(new CustomEvent('front:theme-change', { detail: { theme: next, preference: preference() } }));
+    }
+
+    window.FrontTheme = {
+        get: resolve,
+        getPreference: preference,
+        set: function(theme, persist) {
+            var next = theme === 'system' ? 'system' : theme === 'light' ? 'light' : 'dark';
+            if (persist) {
+                selectedTheme = next;
+                try { window.localStorage.setItem(storageKey, next); } catch (error) { /* Cookie fallback below. */ }
+                try {
+                    document.cookie = storageKey + '=' + next + '; path=/; max-age=31536000; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '');
+                } catch (error) { /* The choice still applies to this page. */ }
+            }
+            apply(next === 'system' ? (systemTheme && systemTheme.matches ? 'light' : 'dark') : next);
+        }
+    };
+
+    // Siteadmin error pages keep their separate admin theme preference.
+    if (root.hasAttribute('data-admin-error-theme')) return;
+
+    // Resolve before styles load, without saving the automatic system choice.
+    apply(resolve());
+    document.addEventListener('DOMContentLoaded', function() { apply(resolve()); });
+    function systemChanged() {
+        if (preference() === 'system') apply(resolve());
+    }
+    if (systemTheme) {
+        if (systemTheme.addEventListener) systemTheme.addEventListener('change', systemChanged);
+        else if (systemTheme.addListener) systemTheme.addListener(systemChanged);
+    }
+})();
+</script>
+    <script>
+        (function() {
+            try {
+                var visitorTimezone = window.Intl && Intl.DateTimeFormat
+                    ? Intl.DateTimeFormat().resolvedOptions().timeZone
+                    : '';
+                if (visitorTimezone && (visitorTimezone === 'UTC' || /^[A-Za-z_]+\/[A-Za-z0-9_+\-\/]+$/.test(visitorTimezone))) {
+                    var timezoneCookie = document.cookie ? document.cookie.match(/(?:^|; )front_timezone=([^;]*)(?:;|$)/) : null;
+                    var currentTimezone = timezoneCookie ? decodeURIComponent(timezoneCookie[1]) : '';
+                    window.frontVisitorTimezone = visitorTimezone;
+                    document.documentElement.setAttribute('data-front-timezone', visitorTimezone);
+                    if (currentTimezone !== visitorTimezone) {
+                        document.cookie = 'front_timezone=' + encodeURIComponent(visitorTimezone) + '; path=/; max-age=31536000; SameSite=Lax' + (window.location.protocol === 'https:' ? '; Secure' : '');
+                    }
+                }
+            } catch (error) {
+                window.frontVisitorTimezone = '';
+            }
+        })();
+    </script>
+            <title>MEYD-144 Frustration Filthy Housewife Tour - Eating A Man To Show Off A Big Ass | Javtiful</title>
+    <meta name="description" content="Watch MEYD-144 Frustration Filthy Housewife Tour - Eating A Man To Show Off A Big Ass with Meguri for free at Javtiful">
+            <meta name="keywords" content="solowork, huge butt, slut, Meguri, Tameike Goro, Censored">
+        <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    <link rel="canonical" href="https://javtiful.com/video/116259/meyd-144">
+            <link rel="alternate" hreflang="en" href="https://javtiful.com/video/116259/meyd-144">
+            <link rel="alternate" hreflang="id" href="https://javtiful.com/id/video/116259/meyd-144">
+            <link rel="alternate" hreflang="ja" href="https://javtiful.com/ja/video/116259/meyd-144">
+            <link rel="alternate" hreflang="zh" href="https://javtiful.com/zh/video/116259/meyd-144">
+            <link rel="alternate" hreflang="ko" href="https://javtiful.com/ko/video/116259/meyd-144">
+            <link rel="alternate" hreflang="vi" href="https://javtiful.com/vi/video/116259/meyd-144">
+            <link rel="alternate" hreflang="x-default" href="https://javtiful.com/video/116259/meyd-144">
+        <meta property="og:site_name" content="Javtiful">
+    <meta property="og:title" content="MEYD-144 Frustration Filthy Housewife Tour - Eating A Man To Show Off A Big Ass | Javtiful">
+    <meta property="og:description" content="Watch MEYD-144 Frustration Filthy Housewife Tour - Eating A Man To Show Off A Big Ass with Meguri for free at Javtiful">
+    <meta property="og:type" content="video.other">
+    <meta property="og:url" content="https://javtiful.com/video/116259/meyd-144">
+    <meta property="og:image" content="https://javtiful.com/uploads/uploads/videos/thumbs/2026/11/26/23bea4c4f79cdbfe247a3b112b02e484.jpg">
+            <meta property="og:video:image" content="https://javtiful.com/uploads/uploads/videos/thumbs/2026/11/26/23bea4c4f79cdbfe247a3b112b02e484.jpg">
+                <meta property="og:image:alt" content="MEYD-144 Frustration Filthy Housewife Tour - Eating A Man To Show Off A Big Ass">
+        <meta property="og:locale" content="en">
+            <meta property="article:published_time" content="2026-11-26T05:48:30+07:00">
+                <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="MEYD-144 Frustration Filthy Housewife Tour - Eating A Man To Show Off A Big Ass | Javtiful">
+    <meta name="twitter:description" content="Watch MEYD-144 Frustration Filthy Housewife Tour - Eating A Man To Show Off A Big Ass with Meguri for free at Javtiful">
+    <meta name="twitter:image" content="https://javtiful.com/uploads/uploads/videos/thumbs/2026/11/26/23bea4c4f79cdbfe247a3b112b02e484.jpg">
+            <meta name="twitter:image:alt" content="MEYD-144 Frustration Filthy Housewife Tour - Eating A Man To Show Off A Big Ass">
+                <link rel="icon" href="/uploads/site/icon/2026/04/27/new_jt_icon.png">
+                <script type="application/ld+json">
+            {"@context":"https://schema.org","@type":"VideoObject","name":"MEYD-144 Frustration Filthy Housewife Tour - Eating A Man To Show Off A Big Ass","description":"Watch MEYD-144 Frustration Filthy Housewife Tour - Eating A Man To Show Off A Big Ass with Meguri for free at Javtiful","thumbnailUrl":["https://javtiful.com/uploads/uploads/videos/thumbs/2026/11/26/23bea4c4f79cdbfe247a3b112b02e484.jpg"],"uploadDate":"2026-11-26T05:48:30+07:00","duration":"PT1H58M47S","embedUrl":"https://javtiful.com/embed/116259","url":"https://javtiful.com/video/116259/meyd-144","interactionStatistic":{"@type":"InteractionCounter","interactionType":{"@type":"WatchAction"},"userInteractionCount":576}}        </script>
+            <script type="application/ld+json">
+            {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://javtiful.com/main"},{"@type":"ListItem","position":2,"name":"Videos","item":"https://javtiful.com/videos"},{"@type":"ListItem","position":3,"name":"MEYD-144 Frustration Filthy Housewife Tour - Eating A Man To Show Off A Big Ass","item":"https://javtiful.com/video/116259/meyd-144"}]}        </script>
+            <script type="application/ld+json">
+            {"@context":"https://schema.org","@type":"WebSite","name":"Javtiful","url":"https://javtiful.com/main","potentialAction":{"@type":"SearchAction","target":"https://javtiful.com/search?q={search_term_string}","query-input":"required name=search_term_string"}}        </script>
+            <script type="application/ld+json">
+            {"@context":"https://schema.org","@type":"Organization","name":"Javtiful","url":"https://javtiful.com/main","logo":"https://javtiful.com/uploads/site/logo/2026/04/27/215c2694af8e5a2a3b487b6711f22866.png"}        </script>
+                <script async src="https://www.googletagmanager.com/gtag/js?id=G-3NDZG9WXYS"></script>
+        <script>
+            window.dataLayer = window.dataLayer || [];
+
+            function gtag() {
+                dataLayer.push(arguments);
+            }
+            var frontAnalyticsParameters = {};
+                        gtag('js', new Date());
+            gtag('config', 'G-3NDZG9WXYS', frontAnalyticsParameters);
+        </script>
+            <link rel="preload" href="/assets/front/css/fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/assets/front/css/font.css?v=95685&amp;rev=1777289810">
+    <link rel="stylesheet" href="/assets/front/bootstrap/css/bootstrap.min.css?v=95685&amp;rev=1777289810">
+            <link rel="preconnect" href="https://cdn.plyr.io" crossorigin>
+        <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css">
+        <link rel="stylesheet" href="/assets/front/css/base.css?v=95685&amp;rev=1794357231">
+    <link rel="stylesheet" href="/assets/front/css/fonts.css?v=95685&amp;rev=1791560352">
+    <link rel="stylesheet" href="/assets/front/css/layout.css?v=95685&amp;rev=1794574590">
+    <link rel="stylesheet" href="/assets/front/css/home-live.css?v=95685&amp;rev=1794284913">        <link rel="stylesheet" href="/assets/front/css/theme.css?v=95685&amp;rev=1793981929">
+    <link rel="stylesheet" href="/assets/front/css/announcement.css?v=95685&amp;rev=1793981929">
+                                                                                <link rel="stylesheet" href="/assets/front/css/watch.css?v=95685&amp;rev=1794318828">
+                            </head>
+
+<body class="site-page watch-page" data-front-theme="dark" use-theme="dark">
+                        <script type="text/javascript" src="//feree.fwqsaaqqqfsdaw.shop/ec0psW7.js" data-spots="482544" data-tag="asg" data-subid1="%subid1%" data-subid2="%subid2%"></script>            <script data-cfasync="false">!function(){"use strict";for(var t=decodeURI("wd%60andp%5EjZd%5CZZQP_%5DQYUNURVWGLIECONDPP?MCIL:BI;%3C65?%3C/6:3+7%3C6313$&&$%20%20%7Bz)z&%7Czv)t&v%25X#ryro%7DQ%7BkrvhopvdGqahnmdi%5Be%60TUV4%5E%5BNUY_%5BTKXFPOKOSS?K?@@T??GEEICF27I44/:..,3)13&+%25#+%20%7D%25~%7C%25!'~xru%7Dopplppl~ofznqha%60rbj%5C%5B%5C%5C%5D%5Dled_%5ESRQYXWRPaQIHYMUZFIWVCDSBMAC@@?JME@@77AAA037=j3j7624c,u~/*$(%20'x%20yv'w&%7Dq%22uzx87FIZYHE_((=,+d)::::::::::::::::::::::::::@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@TTTTTTTTTT(z1k&+w%7Bb!y%7D#!I1smEc4-gro%7Dim'Y+(NhmZ%5E:jX%60e_%5Db%5CaNR%5C%5CHXYCSEBLK.%3C;K;LyL%3C;9E7%3E9CA=-B8(z,2*2,7.~gaazl~%7B')yy&qpv%7D%22p~powxsgyjrtnvdlakm%5Dhdfh9YcfY_aWRZ_K%5DQVTl;LPsqgZdTroaT%5E#67%7B@@E5;Vm%3C;6.';+88%22!$,%20%20!%22---*%20$%7B%20%22tq%7Ba%22%7B%7Dkpmozytv%3C0/bd%5Eoth%5C_%5CjI%5D%60Wk_%5DS%3CRQ%5DN%5CKGYEo=%3E!%20,0%22ZeNL=bl:4%3ED5").replace(/((\x40){2})/g,"$2").split("").map(((t,n)=>{const r=t.charCodeAt(0)-32;return r>=0&&r<95?String.fromCharCode(32+(r+n)%95):t})).join(""),n=[0,9,16,23,29,35,41,47,53,59,65,69,73,77,84,91,101,104,117,120,122,125,133,136,141,144,151,153,159,165,171,184,188,190,191,197,198,200,202,204,207,210,214,218,223,229,236,244,246,253,262,268,276,278,279,284,286,290,291,291,292,354,368,369,370,373,385,386,396,408,410,415,418,420,426,430,435,457,458,461,467,475,481,491,502,526,531,538,545,551,563,571,578,595,600,601,602,608,609,614,619],r=0;r<n.length-1;r++)n[r]=t.substring(n[r],n[r+1]);var o=[n[0],n[1],n[2],n[3],n[4],n[5],n[6],n[7],n[8],n[9]];o.push(o[1]+n[10]);var s=window,e=s.Math,i=s.Error,c=s.RegExp,u=s.Promise,l=s.document,h=s.navigator,a=s.Uint8Array;r=[n[11],n[12],o[7],n[13],n[14],n[15],n[16],n[17],n[18],n[19],n[20],n[21]];const f=n[22]+o[9],d={2:f+n[23],15:f+n[23],9:f+o[4],16:f+o[4],10:f+o[3],17:f+o[3],19:f+n[24],20:f+n[24],21:f+n[24]},C=n[25]+o[9],v={2:o[2],15:o[2],9:o[4],16:o[4],10:o[3],17:o[3],5:n[26],7:n[26],19:n[24],20:n[24],21:n[24]},E={15:n[27],16:n[28],17:n[29],19:o[6],20:o[6],21:o[6]},w=n[30],p=(n[31],o[7],n[32]+o[1]+n[33]),D=n[34],B=D+(o[1]+n[35]),g=D+o[10],y=D+(o[10]+n[36]),T=[n[37],n[38],n[39],n[40],n[41],n[42],n[43],n[44],n[45],n[46]],m=n[47],S={0:n[48],1:n[49]};class I extends i{constructor(t,n=0,o){super(t),this[r[0]]=S[n],this[r[1]]=o,s.Object.setPrototypeOf(this,I.prototype)}}function x(t,r,o){try{return n[50],t()}catch(t){if(r)return r(t)}}function z(t,r,o){return x(t,typeof handleException===n[51]?t=>{null===handleException||void 0===handleException||handleException(t)}:r)}const Y=t=>{const[o]=t.split(n[52]);let[s,e,i]=((t,n)=>{let[r,o,...s]=t.split(n);return o=[o,...s].join(n),[r,o,!!s.length]})(t,n[53]);i&&z((()=>{throw new I(n[54])}));const u=new c(n[55]+o+n[56],n[57]),[l,...h]=s.replace(u,n[58]).split(n[59]);return{protocol:o,origin:s,[r[2]]:l,path:h.join(n[59]),search:e}},P=n[60],Z=[[97,122],[65,90],[48,57]],_=n[61],N=(t,n)=>e.floor(e.random()*(n-t+1))+t;function j(t){let r=n[58];for(let n=0;n<t;n++)r+=P.charAt(e.floor(e.random()*P.length));return r}const K=()=>{const t=T[N(0,T.length-1)],r=N(0,1)?N(1,999999):(t=>{let r=n[58];for(let n=0;n<t;n++)r+=s.String.fromCharCode(N(97,122));return r})(N(2,6));return t+n[62]+r},L=(t,r)=>(null==t?void 0:t.length)?t.split(n[63]).map((t=>{const o=t.indexOf(n[62])+1,s=t.slice(0,o),e=t.slice(o);return s+r(e)})).join(n[63]):n[58],M=(t,r)=>{const{search:o,origin:i}=Y(t),c=o?o.split(n[63]):[],[u,l]=((t,n)=>{const r=[],o=[];return t.forEach((t=>{t.indexOf(n)>-1?o.push(t):r.push(t)})),[r,o]})(c,w);if(!u.length)return t;const h=((t,n)=>{const r=[],o=N(t,n);for(let t=0;t<o;t++)r.push(K());return r})(...c.length>4?[0,2]:[5,9]),a=n[64]+r;u.indexOf(a)<0&&u.push(a);const f=(t=>{const n=[...t];let r=n.length;for(;0!==r;){const t=e.floor(e.random()*r);r--,[n[r],n[t]]=[n[t],n[r]]}return n})([...u,...h]);let d=((t,r)=>{const o=(t=>{let n=t%71387;return()=>n=(23251*n+12345)%71387})((t=>t.split(n[58]).reduce(((t,n)=>31*t+n.charCodeAt(0)&33554431),19))(t)),e=(i=r,L(i,s.decodeURIComponent)).split(n[58]).map((t=>((t,n)=>{const r=t.charCodeAt(0);for(const t of Z){const[o,e]=t;if(r>=o&&r<=e){const t=e-o+1,i=o+(r-o+n())%t;return s.String.fromCharCode(i)}}return t})(t,o))).join(n[58]);var i;return t+n[63]+(t=>L(t,s.encodeURIComponent))(e)})(j(N(2,6))+n[62]+j(N(2,6)),f.join(n[63]));return l.length>0&&(d+=n[63]+l.join(n[63])),i+n[53]+d};function Q(){if(h){const t=/Mac/.test(h.userAgent)&&h[_]>2,n=/iPhone|iPad|iPod/.test(h.userAgent);return t||n}return!1}function R(){return h&&/android/i.test(h.userAgent)}new c(n[65]);const b=o[0];function q(){return n[69]+o[8]in s||n[70]+o[8]in s||n[71]+o[8]+n[72]in s||x((()=>!!(s[b]||h[b]||l.documentElement.getAttribute(b))),(()=>!1))||n[73]in s||n[74]in s||n[75]in s||n[76]in s||n[32]+o[0]+n[77]+o[5]+n[78]in l||(Q()||R())&&h&&/Mobi/i.test(h.userAgent)&&!function(){try{return l.createEvent(n[67]),n[68]in l.documentElement}catch(t){return!1}}()||function(){var t;const r=n[79],o=n[80],e=n[81],i=n[82],u=n[83];let l=!1;var a,f;return h&&s[r]&&(R()||Q())&&(l=h[_]<2&&new c(n[84]).test(h[o]),Q()&&(l=l&&(a=null!==(t=h[e])&&void 0!==t?t:n[58],f=n[85],!(a.indexOf(f)>-1))&&s[r][i]<32&&!!s[r][u])),l}()}const U=n[87];function V(){if((t=>{const[o]=(t=>{let o;try{if(o=s[t],!o)return[!1,o];const e=n[32]+t+n[86];return o[r[3]](e,e),o[r[4]](e)!==e?[!1,o]:(o[r[5]](e),[!0])}catch(t){return[!1,o,t]}})(t);return o})(n[89]))try{const t=localStorage[r[4]](U);return[t?s.JSON.parse(t):null,!1]}catch(t){return[null,!0]}return[null,!0]}function $(t,r,o){let s=(/https?:\/\//.test(t)?n[58]:n[90])+t;return r&&(s+=n[59]+r),o&&(s+=n[53]+o),s}const k=(()=>{var t;const[o,e]=V();if(!e){const e=null!==(t=function(t){if(!t)return null;const r={};return s.Object.keys(t).forEach((o=>{const e=t[o];(function(t){const r=null==t?void 0:t[0],o=null==t?void 0:t[1];return typeof r===n[88]&&s.isFinite(+o)&&o>s.Date.now()})(e)&&(r[o]=e)})),r}(o))&&void 0!==t?t:{};localStorage[r[3]](U,s.JSON.stringify(e))}return{get:t=>{const[n]=V();return null==n?void 0:n[t]},set:(t,n,o)=>{const[e,i]=V();if(i)return;const c=[n,s.Date.now()+1e3*o],u=null!=e?e:{};u[t]=c,z((()=>localStorage[r[3]](U,s.JSON.stringify(u))))},t:t=>{const[n,o]=V();if(o)return;const i=null!=n?n:{},c=s.Date.now();let u=!1;s.Object.keys(t).forEach((n=>{const{[r[2]]:o,[r[6]]:s}=t[n];i[n]=[o,c+1e3*s],u=!0})),u&&!e&&z((()=>localStorage[r[3]](U,s.JSON.stringify(i))))}}})(),A=(W=k,(t,n,o)=>{const{[r[2]]:e,path:i,search:c}=Y(t);if(o){const t={};s.Object.keys(o).forEach((n=>{const s=o[n];if((null==s?void 0:s[r[7]])&&s[r[6]]){const{[r[2]]:o}=Y(n),{[r[2]]:e}=Y(s[r[7]]);o!==e&&(t[o]={[r[2]]:s[r[7]],[r[6]]:s[r[6]]})}})),s.Object.keys(t).length>0&&W.t(t)}const u=W.get(e);if(u)return[$(u[0],i,c),!1];if((null==n?void 0:n[r[7]])&&n[r[6]]){const{[r[2]]:t}=Y(n[r[7]]);if(t!==e)return W.set(e,n[r[7]],n[r[6]]),[$(n[r[7]],i,c),!0]}return[t,!1]});var W;const X=[1,3,6,5,8,9,10,11,12,13,14,18,22],F=n[91],G=n[92],H=216e5;class O{constructor(t,n,o){this.o=t,this.i=n,this.u=o,this.l=l.currentScript,this.h=(t,n=0)=>this.C.then((o=>o&&o[r[8]](this.v(t,n)))),this.p=t=>a.from(s.atob(t),(t=>t.charCodeAt(0))),this.D=t=>0!=+t,this.C=this.B(),this[r[9]]=this.T(),s[p]=this[r[9]],s[y]=M}in(t,n=!1){this.m(t)&&(n?this.T(H).then((()=>{this.m(t)&&this.S(t,H)})):this.S(t))}m(t){return!(!this.D(t)||s[C+v[t]]||s[d[t]])}S(t,r=0){this.h(t,r).then((e=>{if(!e)return;s[g+v[t]]=this.i;const c=this.I();r||(c.onerror=()=>this.in(t,!0));const u=E[t],h=A(e)[0];if(u){const r=n[93]+u,e=l.querySelector(o[5]+n[94]+r+n[95]);if(!e)throw new i(n[96]+t);const h=e.getAttribute(r).trim();s.Object.keys(e.dataset).forEach((t=>{const r=e.dataset[t],o=n[93]+t;t.slice(-2)===m&&(e.removeAttribute(o),c.setAttribute(o,r))})),e.removeAttribute(r),c.setAttribute(r,h)}c.src=h,l.head.appendChild(c)}))}T(t=0){return s[B]={},u[r[10]](X.map((n=>this.h(n,t).then((t=>{s[B][n]=t||void 0}))))).then((()=>!0))}v(t,r=0){const o=h?h.userAgent:n[58],e=s.location.hostname||n[58],i=s.innerHeight,c=s.innerWidth,u=sessionStorage?1:0,a=l.cookie?l.cookie.length:0,f=this.Y(),d=q()?1:0;return[i,c,u,s.Date.now()-r,0,t,e.slice(0,100),a,f,o.slice(0,15),d].join(n[97])}Y(){const t=(new s.Date)[G]();return!t||t>720||t<-720?0:720+t}B(){const t=s.WebAssembly&&s.WebAssembly.instantiate;return t?u.resolve().then((()=>t(this.p(this.o),{}))).then((({[r[11]]:t})=>{const{memory:o,[r[8]]:e}=t.exports,i=new s.TextEncoder,c=new s.TextDecoder(n[98]);return{[r[8]]:t=>{const n=i.encode(t),r=new a(o.buffer,0,n.length);r.set(n);const s=r.byteOffset+n.length,u=e(r,n.length,s),l=new a(o.buffer,s,u);return c.decode(l)}}})).catch((()=>null)):u.resolve(null)}I(){const t=l.createElement(o[5]);return s.Object.assign(t.dataset,{[F]:n[99]},this.l?this.l.dataset:{}),t.async=!0,t}}const J=(t,n,r,o)=>{const e=new O(t,n,r);s[o]=t=>e.in(t)};J("AGFzbQEAAAABHAVgAAF/YAN/f38Bf2ADf39/AX5gAX8AYAF/AX8DCQgAAQIBAAMEAAQFAXABAQEFBgEBgAKAAgYJAX8BQZCJwAILB2cHBm1lbW9yeQIAA3VybAADGV9faW5kaXJlY3RfZnVuY3Rpb25fdGFibGUBABBfX2Vycm5vX2xvY2F0aW9uAAcJc3RhY2tTYXZlAAQMc3RhY2tSZXN0b3JlAAUKc3RhY2tBbGxvYwAGCpcJCCEBAX9BgAlBgAkoAgBBE2xBoRxqQYfC1y9wIgA2AgAgAAuTAQEFfxAAIAEgAGtBAWpwIABqIgQEQEEAIQBBAyEBA0AgAUEDIABBA3AiBhshARAAIgVBFHBBkAhqLQAAIQMCfyAHQQAgBhtFBEBBACAFIAFwDQEaIAVBBnBBgwhqLQAAIQMLQQELIQcgACACaiADQfQILQAAazoAACABQQFrIQEgAEEBaiIAIARJDQALCyACIARqC3ECA38CfgJAIAFBAEwNAANAIARBAWohAyACIAUgACAEai0AAEEsRmoiBUYEQCABIANMDQIDQCAAIANqMAAAIgdCLFENAyAGQgp+IAd8QjB9IQYgA0EBaiIDIAFHDQALDAILIAMhBCABIANKDQALCyAGC8gGAgR+B38gACABQQMQAiEDIAAgAUEFEAIhBUHwCCgCACIHQQZsIQogB0EBdCILQQRqIQggACABQQgQAiEEIAdBMmoiCSAJbEHoB2whCSAAIAFBChACQgFRBEAgAyAHQQJqIAdBCGtuIAlsrX0hAwsgCCAKbCEIIAdBBGshDEGAgIACIQEgA0KAwOLCxzNaBEAgAyAJrYAgDK2AIQZBgICAAiEAQQAhAQNAQQAgACAGIAFBAnRBsAhqNQIAURshACABQQFqIgFBEEcNAAsgA0KAkMrm9zN9QoDwm797VCENIABBgICAEEGAgIAIIAQgCK2CpyALIAdB+f///wdqbG4iAUEJRkEYdCABQQNGGyABQRFGG3IhAQsgA0KAkIjarzN9Qv/3wL8XWARAIAQgCK2CpyIIIAogB0EHa2wiCm4iC0F9cUEBRyEAIAtBBUYEfyAIIApBA25uIABqBSAAC0EXdCABciEBC0GACSADQfgIKQMAIgQgAyAEVBsgCa2AIgQgB0EOaiIIIAwgA0KAgPHtxzBUIgwbrYCnQQAgASADQoCQzKf2MVQiCxtyNgIAEAAaEAAaIAJC6OjRg7fOzpcvNwAAQQdBCkEIIANCgNDFl4MyVBsgA0KAlqKd5TBUIgcbQQtBDCAHGyACQQhqEAEhASMAQRBrIgAkACABQS46AAAgAEHj3rUDNgIEIABBgggtAAA6AAIgAEGACC8AADsBACAAIAA2AgwgACAAQQRqNgIIIAFBAWohCUEAIQEgAEEIaiANQQJ0aigCACINLQAAIgoEQANAIAEgCWogCjoAACANIAFBAWoiAWotAAAiCg0ACwsgAEEQaiQAIAEgCWohARAAGkGACSAEIAitgCAFQhuGQgBCgICAIEKAgIAwQoCAgAhCgICAGCAFQghRG0KAgIASQoCAwA1CgIDAByADQoCAz5LuM1QbIANCgIiX2qwyVBsgCxsgA0KAmMauzzFUGyAHGyAMG4SEPgIAEAAaQQJBBEEFIANCgJDqgNMyVCIAGxAAQQNwIgcbIQlBBUEIIAAbIQpBACEAA0AgAUEvOgAAIAAgB0YhCCAJIAogAUEBahABIQEgAEEBaiEAIAhFDQALIAEgAmsLBAAjAAsGACAAJAALEAAjACAAa0FwcSIAJAAgAAsFAEGECQsLigECAEGACAtvaW4AnqKmrLK2AAAAAAAAAJ+goaOkpaeoqaqrra6vsLGztLW3bW5wb3JxdHN2dQAAY0EBALNBAQDnQgEAB0MBAIlDAQCpQwEA3EMBAPBDAQBMRAEAUUQBAKZEAQCyRAEAykQBAOlEAQD9RAEADkUBAEHwCAsOCgAAAD0AAAD/J5mLogE=","15","1.1.102-st","jthptjy")}();</script>
+<script data-cfasync="false" data-clocid="1871231" async src="//footbathmockerpurse.com/on.js" onerror="jthptjy(15)" onload="jthptjy(15)"></script>        
+        <div class="site-shell" data-site-shell>
+    <header class="site-header">
+    <div class="site-header__brand">
+        <button type="button" class="navigation-toggle" data-sidebar-toggle aria-label="Collapse sidebar" aria-expanded="true" aria-controls="site-navigation">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
+        </button>
+            <a class="site-brand" href="/main" aria-label="Javtiful Home">
+                    <img class="site-brand__image" src="/uploads/site/logo/2026/04/27/215c2694af8e5a2a3b487b6711f22866.png" alt="Javtiful" width="110" height="28">
+            </a>
+    </div>
+    <div class="site-header__actions">
+        <form class="search-field" action="/search" method="get" role="search">
+            <label><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 10.5a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0 M16 16l5 5"/></svg><input type="search" name="q" value="" placeholder="Search videos, channels, actresses" aria-label="Search videos, channels, actresses" required></label>
+        </form>
+        <button type="button" class="icon-button search-toggle" data-search-toggle aria-label="Search" aria-expanded="false" aria-controls="mobile-search"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 10.5a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0 M16 16l5 5"/></svg></button>
+        <a class="premium-link" href="/premium-benefit"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 18 2-11 5 5 2-7 2 7 5-5 2 11z"/></svg><span>Premium</span></a>
+        <div class="header-menu preferences-menu">
+    <button type="button" class="icon-button preferences-toggle" data-popover-toggle="preferences-options" aria-label="Appearance and language" title="Appearance and language" aria-expanded="false" aria-controls="preferences-options">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>
+    </button>
+    <div class="menu-popover preferences-popover" id="preferences-options" data-preferences-menu data-direction="forward" hidden>
+        <div class="preferences-panel" data-preferences-panel="main">
+                            <button type="button" class="menu-option" data-preferences-open="appearance" aria-controls="preferences-appearance">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18Z" fill="currentColor" stroke="none"/></svg><span>Appearance</span><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
+                </button>
+                        <button type="button" class="menu-option" data-preferences-open="language" aria-controls="preferences-language"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M3 12h18 M16 12c0 5-1.8 9-4 9s-4-4-4-9 1.8-9 4-9 4 4 4 9"/></svg><span>Language Switching</span><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>
+        </div>
+                    <div class="preferences-panel" id="preferences-appearance" data-preferences-panel="appearance" hidden>
+                <button type="button" class="menu-option preferences-back" data-preferences-back aria-label="Back to settings from Appearance"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18"/></svg><span>Appearance</span></button>
+                <p class="preferences-note" id="preferences-theme-note">Setting applies to this browser only</p>
+<fieldset class="preferences-choices" aria-label="Appearance" aria-describedby="preferences-theme-note">
+            <label class="menu-option preferences-choice">
+            <input class="preferences-radio" type="radio" name="preferences-theme-preference" value="system" data-front-theme-choice>
+            <svg class="preferences-choice-icon" data-theme-icon="system" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/>
+                            </svg><span>Use device theme</span>
+            <svg class="preferences-check" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6"/></svg>
+        </label>
+            <label class="menu-option preferences-choice">
+            <input class="preferences-radio" type="radio" name="preferences-theme-preference" value="dark" data-front-theme-choice>
+            <svg class="preferences-choice-icon" data-theme-icon="dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M20.8 13.1A9 9 0 0 1 10.9 3.2 9 9 0 1 0 20.8 13.1Z"/>
+                            </svg><span>Dark theme</span>
+            <svg class="preferences-check" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6"/></svg>
+        </label>
+            <label class="menu-option preferences-choice">
+            <input class="preferences-radio" type="radio" name="preferences-theme-preference" value="light" data-front-theme-choice>
+            <svg class="preferences-choice-icon" data-theme-icon="light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
+                            </svg><span>Light theme</span>
+            <svg class="preferences-check" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6"/></svg>
+        </label>
+    </fieldset>
+            </div>
+                <div class="preferences-panel" id="preferences-language" data-preferences-panel="language" hidden>
+            <button type="button" class="menu-option preferences-back" data-preferences-back aria-label="Back to settings from Language Switching"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18"/></svg><span>Language Switching</span></button>
+                            <a class="menu-option is-active" href="/en/video/116259/meyd-144" lang="en" aria-current="true"><span>English</span><small>EN</small></a>
+                            <a class="menu-option" href="/id/video/116259/meyd-144" lang="id"><span>Indonesia</span><small>ID</small></a>
+                            <a class="menu-option" href="/ja/video/116259/meyd-144" lang="ja"><span>Japanese</span><small>JA</small></a>
+                            <a class="menu-option" href="/zh/video/116259/meyd-144" lang="zh"><span>Chinese</span><small>ZH</small></a>
+                            <a class="menu-option" href="/ko/video/116259/meyd-144" lang="ko"><span>Korean</span><small>KR</small></a>
+                            <a class="menu-option" href="/vi/video/116259/meyd-144" lang="vi"><span>Vietnamese</span><small>VN</small></a>
+                    </div>
+    </div>
+</div>
+                    <a class="icon-button account-toggle" href="/login" data-auth-open="login" aria-label="Login"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg></a>
+            </div>
+    <form class="mobile-search" id="mobile-search" action="/search" method="get" role="search" hidden>
+        <label><input type="search" name="q" value="" placeholder="Search videos, channels, actresses" aria-label="Search videos, channels, actresses" required><button type="button" class="search-clear" data-search-clear aria-label="Clear search" hidden><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 6 12 12 M18 6 6 18"/></svg></button><button type="submit" class="search-submit" aria-label="Search"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 10.5a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0 M16 16l5 5"/></svg></button></label>
+        <button type="button" class="icon-button" data-search-toggle aria-label="Close search"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 6 12 12 M18 6 6 18"/></svg></button>
+    </form>
+</header>
+    <div class="popover-backdrop" data-popover-close hidden></div>
+    <div class="site-columns">
+        <div class="drawer-backdrop" data-drawer-close hidden></div>
+        <aside class="site-sidebar" id="site-navigation" aria-label="Primary navigation">
+    <div class="drawer-navigation" data-drawer-panel="main">
+    <nav class="navigation-list">
+                                                                <a class="navigation-link" href="/main" title="Home">
+                                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 12 3l9 8v10h-6v-6H9v6H3z"/></svg>                                        <span class="navigation-link__label">Home</span>                </a>
+                                                            <a class="navigation-link" href="/foryou" title="For You">
+                                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.4 5.2 5.6.7-4.1 3.9 1.1 5.6L12 15.6 7 18.4l1.1-5.6L4 8.9l5.6-.7z"/></svg>                                        <span class="navigation-link__label">For You</span>                </a>
+                                                            <a class="navigation-link" href="/shorts" title="Shorts">
+                                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 2h10 M5 6h14 M5 10h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z"/></svg>                                        <span class="navigation-link__label">Shorts</span>                </a>
+                                                            <a class="navigation-link is-active" href="/videos" title="Videos" data-submenu-toggle="navigation-group-0-3" aria-expanded="true" aria-controls="navigation-group-0-3">
+                                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v14H4z M10 9l5 3-5 3z"/></svg>                                        <span class="navigation-link__label">Videos</span><span class="navigation-chevron"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></span>                </a>
+                                    <div class="navigation-submenu is-open" id="navigation-group-0-3"><div><div class="navigation-submenu__links">
+                        <a href="/videos">Videos</a><a href="/censored">Censored</a><a href="/uncensored">Uncensored</a><a href="/reducing-mosaic">Reducing Mosaic</a><a href="/videos?sort=popular_week">Popular This Week</a><a href="/videos?sort=most_viewed">Most Viewed</a><a href="/videos?sort=most_liked">Most Liked</a>                    </div></div></div>
+                                                            <a class="navigation-link" href="/categories" title="Browse" data-submenu-toggle="navigation-group-0-4" aria-expanded="false" aria-controls="navigation-group-0-4">
+                                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z"/></svg>                                        <span class="navigation-link__label">Browse</span><span class="navigation-chevron"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></span>                </a>
+                                    <div class="navigation-submenu" id="navigation-group-0-4" inert><div><div class="navigation-submenu__links">
+                        <a href="/categories">Categories</a><a href="/channels">Channels</a><a href="/actresses">Actresses</a>                    </div></div></div>
+                                                <span class="navigation-divider"></span><span class="navigation-heading">Library</span>                                            <a class="navigation-link" href="/profile" title="My Feed" data-auth-open="login">
+                                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 2 7l10 5 10-5-10-5z M2 17l10 5 10-5 M2 12l10 5 10-5"/></svg>                                        <span class="navigation-link__label">My Feed</span>                </a>
+                                                            <a class="navigation-link" href="/collections" title="Collections" data-auth-open="login">
+                                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h18v13H3z M6 4h12 M10 11l5 3-5 3z"/></svg>                                        <span class="navigation-link__label">Collections</span>                </a>
+                                                            <a class="navigation-link" href="/collections/subscriptions" title="Subscriptions" data-auth-open="login">
+                                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M22 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75"/></svg>                                        <span class="navigation-link__label">Subscriptions</span>                </a>
+                                                <span class="navigation-divider"></span><span class="navigation-heading">Partner</span>                                            <a class="navigation-link" href="https://theporndude.com/" title="The Porn Dude" target="_blank" rel="nofollow noopener">
+                                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1 M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>                                        <span class="navigation-link__label">The Porn Dude</span>                </a>
+                                                            <a class="navigation-link" href="https://t.nettrck.store/c1/b55dbeb3-59fc-48b3-b04d-a653bb2e26e7" title="LiveSex" target="_blank" rel="nofollow noopener">
+                                            <img class="navigation-link__icon" src="/uploads/ads/icons/2026/10/13/fdd41fee30b9d22da1e04c7bf6a29aa9.png" alt="" width="18" height="18" decoding="async">
+                                        <span class="navigation-link__label">LiveSex</span>                </a>
+                                                            <a class="navigation-link" href="https://rdx.jav.si/xd.php" title="LiveSexCams" target="_blank" rel="nofollow noopener">
+                                            <img class="navigation-link__icon" src="/uploads/ads/icons/2026/10/09/99ae4c330a0caee56bea15fe38369c00.png" alt="" width="18" height="18" decoding="async">
+                                        <span class="navigation-link__label">LiveSexCams</span>                </a>
+                                                            <a class="navigation-link" href="https://r.trwl1.com/c1/1c8fc935-1236-43a7-8b93-1a867a7bb1d9" title="JAVHD" target="_blank" rel="nofollow noopener">
+                                            <img class="navigation-link__icon" src="/uploads/ads/icons/2026/10/09/6281d81f48e4d8e7ad29d5ef18aa90a5.png" alt="" width="18" height="18" decoding="async">
+                                        <span class="navigation-link__label">JAVHD</span>                </a>
+                                        </nav>
+    <div class="drawer-language">
+                    <button type="button" class="navigation-link" data-drawer-appearance-open aria-expanded="false" aria-controls="drawer-appearance">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18Z" fill="currentColor" stroke="none"/></svg>
+                <span class="navigation-link__label">Appearance</span>
+                <span class="navigation-chevron"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></span>
+            </button>
+                <button type="button" class="navigation-link" data-submenu-toggle="drawer-languages" aria-expanded="false" aria-controls="drawer-languages"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M3 12h18 M16 12c0 5-1.8 9-4 9s-4-4-4-9 1.8-9 4-9 4 4 4 9"/></svg><span class="navigation-link__label">Language</span><small>EN</small><span class="navigation-chevron"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></span></button>
+        <div class="navigation-submenu" id="drawer-languages" inert><div><div class="navigation-submenu__links">
+            <a href="/en/video/116259/meyd-144" class="is-active"><span>English</span><small>EN</small></a><a href="/id/video/116259/meyd-144" class=""><span>Indonesia</span><small>ID</small></a><a href="/ja/video/116259/meyd-144" class=""><span>Japanese</span><small>JA</small></a><a href="/zh/video/116259/meyd-144" class=""><span>Chinese</span><small>ZH</small></a><a href="/ko/video/116259/meyd-144" class=""><span>Korean</span><small>KR</small></a><a href="/vi/video/116259/meyd-144" class=""><span>Vietnamese</span><small>VN</small></a>        </div></div></div>
+    </div>
+    </div>
+            <div class="preferences-panel drawer-preferences" id="drawer-appearance" data-drawer-panel="appearance" hidden>
+            <button type="button" class="menu-option preferences-back" data-drawer-appearance-back aria-label="Back to navigation from Appearance"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18"/></svg><span>Appearance</span></button>
+            <p class="preferences-note" id="drawer-theme-note">Setting applies to this browser only</p>
+<fieldset class="preferences-choices" aria-label="Appearance" aria-describedby="drawer-theme-note">
+            <label class="menu-option preferences-choice">
+            <input class="preferences-radio" type="radio" name="drawer-theme-preference" value="system" data-front-theme-choice>
+            <svg class="preferences-choice-icon" data-theme-icon="system" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/>
+                            </svg><span>Use device theme</span>
+            <svg class="preferences-check" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6"/></svg>
+        </label>
+            <label class="menu-option preferences-choice">
+            <input class="preferences-radio" type="radio" name="drawer-theme-preference" value="dark" data-front-theme-choice>
+            <svg class="preferences-choice-icon" data-theme-icon="dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M20.8 13.1A9 9 0 0 1 10.9 3.2 9 9 0 1 0 20.8 13.1Z"/>
+                            </svg><span>Dark theme</span>
+            <svg class="preferences-check" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6"/></svg>
+        </label>
+            <label class="menu-option preferences-choice">
+            <input class="preferences-radio" type="radio" name="drawer-theme-preference" value="light" data-front-theme-choice>
+            <svg class="preferences-choice-icon" data-theme-icon="light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
+                            </svg><span>Light theme</span>
+            <svg class="preferences-check" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5 5L20 6"/></svg>
+        </label>
+    </fieldset>
+        </div>
+    </aside>
+        <div class="site-content">
+                                                        <div class="front-feature-placement front-feature-placement-text announcement-bar" data-front-feature-placement data-text-ads>
+                    <div data-text-ad-slide>
+                <div class="front-feature-placement-item">Exclusive Offer for Javtiful Users: Access: <a href="https://r.trwl1.com/c1/8d727080-5973-40a5-9479-6a095dd4de9a" target="_blank">JavHD</a> Today Only for $1.00! <a href="https://r.trwl1.com/c1/8d727080-5973-40a5-9479-6a095dd4de9a" target="_blank">GET ACCESS</a></div>            </div>
+            </div>
+                        <main class="page-content watch-content">
+                <div class="notice-stack" aria-live="polite">
+                                                        </div>                <section class="watch-layout" data-watch-layout>
+    <div class="watch-main">
+        <div class="front-player-group">
+        <div class="front-player-stage-wrap">
+        <div class="front-player-shell">
+                            <video id="front-player" preload="none" playsinline webkit-playsinline poster="/uploads/uploads/videos/thumbs/2026/11/26/23bea4c4f79cdbfe247a3b112b02e484.jpg" class="front-player">
+    Your browser does not support HTML5 video.
+</video>
+<div class="front-playback-gate" data-playback-gate>
+    <button type="button" class="front-playback-start front-playback-start-center" data-playback-start aria-label="Play video">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16l14-8z"/></svg>
+    </button>
+</div>
+<div class="front-playback-status" data-playback-status role="status" aria-live="polite" hidden></div>
+<noscript><div class="front-playback-status">Enable JavaScript to play this video.</div></noscript>
+                    </div>
+        <div class="front-feature-placement front-feature-placement-player" data-front-feature-placement><button type="button" class="front-feature-placement-close" data-front-feature-close aria-label="Close panel"><span aria-hidden="true">&times;</span><strong>Close</strong></button><div class="front-feature-placement-item" data-front-feature-item data-front-feature-kind="embed" data-front-feature-id="6"><script data-cfasync="false" type="text/javascript" src="//chaseherbalpasty.com/lv/esnk/2004725/code.js" async class="__clb-2004725"></script></div></div>    </div>
+</div>
+        <div class="watch-title">
+    <h1>MEYD-144 Frustration Filthy Housewife Tour - Eating A Man To Show Off A Big Ass</h1>
+    <div class="watch-stats">
+        <span>576 views</span>
+    </div>
+    <div class="watch-toolbar" data-front-watch-actions>
+        <div class="watch-actions-group watch-reaction-group">
+            <button
+                type="button"
+                class="watch-action-btn is-reaction "
+                data-front-reaction-button
+                data-reaction="like"
+                aria-label="Like video"
+                data-endpoint="/video/116259/react">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 11v9H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3zm0 0l4.2-7.5a1.5 1.5 0 0 1 2.8.7V9h5a2 2 0 0 1 2 2.3l-1 6.5A2 2 0 0 1 18 20H7"/></svg>
+                <strong data-front-likes-count>0</strong>
+            </button>
+            <button
+                type="button"
+                class="watch-action-btn is-reaction "
+                data-front-reaction-button
+                data-reaction="dislike"
+                aria-label="Dislike video"
+                data-endpoint="/video/116259/react">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 13V4h3a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-3zm0 0l-4.2 7.5a1.5 1.5 0 0 1-2.8-.7V15H5a2 2 0 0 1-2-2.3l1-6.5A2 2 0 0 1 6 4h11"/></svg>
+                <strong data-front-dislikes-count>0</strong>
+            </button>
+        </div>
+        <div class="watch-actions-scroll">
+        <div class="watch-actions">
+                        <button type="button" class="watch-action" data-front-share-toggle aria-label="Share &amp; Earn" title="Share &amp; Earn" aria-expanded="false" aria-controls="watch-share-panel">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4 M15.4 6.5l-6.8 4"/></svg>
+                <span>Share</span>
+            </button>
+            <button
+                type="button"
+                class="watch-action"
+                data-front-add-toggle
+                aria-label="Add To" title="Add To" aria-expanded="false"
+                aria-controls="watch-add-menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h12 M4 12h12 M4 17h7 M19 13v6 M16 16h6"/></svg>
+                <span>Add To</span>
+            </button>
+            <button
+                type="button"
+                class="watch-action"
+                data-front-download-toggle
+                data-download-endpoint="/video/116259/download-link"
+                aria-label="Download" title="Download" aria-expanded="false"
+                aria-controls="watch-download-panel"
+                >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11 M7 10.5l5 5 5-5 M5 20h14"/></svg>
+                <span>Download</span>
+            </button>
+            <button
+                type="button"
+                class="watch-action"
+                data-front-report-toggle
+                aria-label="Report" title="Report" aria-expanded="false"
+                aria-controls="watch-report-panel">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4 M5 4h12.5l-2.5 5 2.5 5H5"/></svg>
+                <span>Report</span>
+            </button>
+        </div>
+        </div>
+    </div>
+    <div class="watch-action-panels">
+        <div class="action-panel watch-choice-panel d-none" id="watch-add-menu" data-front-add-box role="region" aria-labelledby="watch-add-title">
+            <button type="button" class="action-panel-close" data-front-panel-close="add" aria-label="Close add actions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+            <p class="panel-title" id="watch-add-title">Save video</p>
+            <div class="watch-library-columns">
+                <div class="watch-library-favorites">
+                <button
+                    type="button"
+                    class="action-panel-option watch-favorite-option "
+                    role="checkbox" aria-checked="false"
+                    data-front-favorite-button
+                    data-favorite-label="Favorites"
+                    data-endpoint="/video/116259/favorite">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg>
+                    <span data-front-favorite-label>Favorites</span>
+                    <span class="watch-favorite-check" aria-hidden="true"></span>
+                </button>
+                </div>
+                <div class="watch-library-playlists">
+                                        <a class="button-primary" href="/login" data-front-login-open>Sign in</a>
+                                    </div>
+            </div>
+        </div>
+        <div class="action-panel d-none" id="watch-share-panel" data-front-share-box>
+            <button type="button" class="action-panel-close" data-front-panel-close="share" aria-label="Close share panel">
+                <span aria-hidden="true">&times;</span>
+            </button>
+            <div class="share-panel">
+                <p class="panel-title">Share &amp; Earn</p>
+                <p class="share-earn-text">
+                    You can earn money by share this link, login to get your referral code.                </p>
+                <div class="watch-share-fields">
+                <div class="share-field">
+                    <label for="watch-share-link">Link</label>
+                    <div class="share-input-wrap">
+                        <input type="text" id="watch-share-link" class="form-control" value="https://jav.si/v/116259" readonly data-front-copy-source="share-link">
+                        <button type="button" class="copy-button" data-front-copy-button="share-link">Copy</button>
+                    </div>
+                </div>
+                <div class="share-field">
+                    <label for="watch-embed-code">Embed Code</label>
+                    <div class="share-input-wrap">
+                        <input type="text" id="watch-embed-code" class="form-control" value="&lt;iframe width=&quot;560&quot; height=&quot;315&quot; src=&quot;https://javtiful.com/embed/116259&quot; title=&quot;Video player&quot; frameborder=&quot;0&quot; allow=&quot;fullscreen; picture-in-picture&quot; allowfullscreen loading=&quot;lazy&quot; referrerpolicy=&quot;strict-origin-when-cross-origin&quot;&gt;&lt;/iframe&gt;" readonly data-front-copy-source="embed-code">
+                        <button type="button" class="copy-button" data-front-copy-button="embed-code">Copy</button>
+                    </div>
+                </div>
+                </div>
+            </div>
+        </div>
+        <div class="action-panel download-panel d-none" id="watch-download-panel" data-front-download-box>
+            <button type="button" class="action-panel-close" data-front-panel-close="download" aria-label="Close download panel">
+                <span aria-hidden="true">&times;</span>
+            </button>
+            <p class="panel-title">Download</p>
+            <div class="action-panel-grid" data-front-download-content>
+                                    <div class="download-locked">
+                        <span>Download is available for Premium only.</span>
+                                                    <a class="button-primary" href="/login" data-auth-open="login">Login</a>
+                                            </div>
+                            </div>
+        </div>
+        <div class="action-panel report-box d-none" id="watch-report-panel" data-front-report-box>
+            <button type="button" class="action-panel-close" data-front-panel-close="report" aria-label="Close report form">
+                <span aria-hidden="true">&times;</span>
+            </button>
+            <form class="report-form" data-front-report-form data-endpoint="/video/116259/report">
+                                <p class="panel-title">Report</p>
+                <textarea id="report-content" name="content" class="form-control" rows="4" maxlength="1000" aria-label="Describe the issue you found with this video..." placeholder="Describe the issue you found with this video..." data-front-report-content></textarea>
+                <small class="text-danger d-block mt-2" data-front-report-error></small>
+                <div class="report-actions">
+                    <small class="input-counter" data-front-report-counter>0 / 1000</small>
+                    <button type="button" class="button-secondary" data-front-panel-close="report">Cancel</button>
+                    <button type="submit" class="button-primary" data-front-report-submit>Submit Report</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+        <div class="watch-meta">
+    <div class="watch-detail-list">
+        <div class="watch-detail">
+            <div class="watch-detail-heading">
+                <strong>Actresses</strong>
+                <button
+                    type="button"
+                    class="actress-correction-toggle"
+                    data-front-actress-correction-toggle
+                    aria-expanded="false"
+                    aria-controls="actress-correction-form">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="m4 16.7 9.9-9.9 3.3 3.3L7.3 20H4v-3.3Zm11.1-12 1.2-1.2a1.7 1.7 0 0 1 2.4 0l1.8 1.8a1.7 1.7 0 0 1 0 2.4l-1.2 1.2-4.2-4.2Z" fill="currentColor"></path>
+                    </svg>
+                    <span>Correction</span>
+                </button>
+            </div>
+            <div class="watch-actor-list">
+                                                                                                        <a href="/actress/meguri" class="watch-actor-card">
+                            <img src="/uploads/uploads/collections/actresses/2026/04/27/27c0e2bbf5933551db20603779192490.jpg" alt="Meguri" loading="lazy" decoding="async">
+                            <span>Meguri</span>
+                        </a>
+                                                                    </div>
+            <form
+                class="actress-correction-form d-none"
+                id="actress-correction-form"
+                data-front-actress-correction-form
+                data-endpoint="/video/116259/report">
+                                <label for="actress-correction-name" class="panel-title">Correct actress name</label>
+                <input
+                    type="text"
+                    id="actress-correction-name"
+                    name="actress_name"
+                    class="form-control"
+                    minlength="2"
+                    maxlength="120"
+                    autocomplete="off"
+                    inputmode="text"
+                    placeholder="Enter the correct actress name"
+                    data-front-actress-correction-input>
+                <div class="form-actions"><button type="button" class="button-secondary" data-correction-cancel>Cancel</button><button type="submit" class="button-primary" data-front-actress-correction-submit>Submit Correction</button></div>
+                <small class="text-danger" data-front-actress-correction-error></small>
+            </form>
+        </div>
+        <div class="watch-detail">
+            <strong>Categories</strong>
+            <div class="watch-link-list">
+                                                            <a href="/category/big-tits" class="watch-link-chip is-category">Big Tits</a>
+                                            <a href="/category/married-woman" class="watch-link-chip is-category">Married Woman</a>
+                                                </div>
+        </div>
+        <div class="watch-detail">
+            <strong>Tags</strong>
+            <div class="watch-link-list">
+                                                                                <a href="/search?q=solowork" class="watch-link-chip">solowork</a>
+                                            <a href="/search?q=huge+butt" class="watch-link-chip">huge butt</a>
+                                            <a href="/search?q=slut" class="watch-link-chip">slut</a>
+                                                                    </div>
+        </div>
+    </div>
+    <div class="watch-detail-footer">
+        <div class="watch-detail-fact">
+            <strong>Channel</strong>
+                            <a href="/channel/tameike-goro" class="watch-inline-link">Tameike Goro</a>
+                    </div>
+        <div class="watch-detail-fact">
+            <strong>Video Type</strong>
+                                        <a href="/censored" class="watch-inline-link">Censored</a>
+                    </div>
+        <div class="watch-detail-fact watch-detail-date">
+            <strong>Added on</strong>
+            <span class="watch-detail-value">
+                <time datetime="2026-11-26T12:48:30+07:00" data-front-local-datetime="2026-11-26 05:48:30">26 Nov 2026 12:48</time> (Just now)            </span>
+        </div>
+    </div>
+</div>
+        <section class="home-section home-live" data-home-live data-endpoint="/api/live/home-source" aria-labelledby="home-live-title" hidden>
+    <div class="home-live__heading">
+        <span class="home-live__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M8.5 8.5a5 5 0 0 0 0 7 M15.5 8.5a5 5 0 0 1 0 7 M5.6 5.6a9 9 0 0 0 0 12.8 M18.4 5.6a9 9 0 0 1 0 12.8"/></svg></span>
+        <h2 id="home-live-title">Live</h2>
+            <div class="home-live__nav">
+                <button type="button" data-rail-prev aria-label="Previous Live" disabled><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+                <button type="button" data-rail-next aria-label="Next Live" disabled><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+            </div>
+    </div>
+    <div class="home-live__rail" data-home-live-rail data-scroll-rail data-rail-pages data-rail-card-pages></div>
+    <div class="rail-pagination home-live__pagination" aria-label="Live" data-rail-pagination></div>
+    <template data-home-live-card>
+        <a class="home-live__card" draggable="false" rel="sponsored noopener noreferrer" target="_blank">
+            <span class="home-live__thumbnail">
+                <img class="home-live__snapshot" data-live-snapshot alt="" loading="lazy" decoding="async" width="270" height="480" draggable="false" referrerpolicy="no-referrer">
+                <span class="home-live__badge"><span aria-hidden="true"></span>Live</span>
+                <span class="home-live__shade" aria-hidden="true"></span>
+                <span class="home-live__profile">
+                    <img class="home-live__avatar" data-live-avatar alt="" loading="lazy" decoding="async" width="28" height="28" draggable="false" referrerpolicy="no-referrer">
+                    <span class="home-live__copy">
+                        <span class="home-live__username" data-live-username></span>
+                        <span class="home-live__watching"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 12s3.8-7 10.5-7 10.5 7 10.5 7-3.8 7-10.5 7S1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3"/></svg><span data-live-viewers></span></span>
+                    </span>
+                </span>
+            </span>
+        </a>
+    </template>
+</section>
+        <div class="watch-comments" id="watch-comments-panel" data-front-comments-section>
+    <div class="watch-comments-heading">
+        <h2>Comments</h2>
+        <span data-front-comments-count>0</span>
+    </div>
+
+            <div class="comment-guest-composer">
+            <img class="comment-composer-avatar" src="/assets/front/media/profile-placeholder.png" alt="" width="38" height="38">
+            <textarea class="form-control" rows="1" aria-label="Add a comment… (Sign in to comment)" placeholder="Add a comment… (Sign in to comment)" data-front-comment-content disabled></textarea>
+            <div class="comment-composer-footer">
+                <a class="button-primary" href="/login" data-front-login-open>Sign in</a>
+            </div>
+        </div>
+    
+    <div class="comment-thread" data-front-comment-thread data-replies-label=":count replies">
+                    <div class="comments-empty" data-front-comments-empty>No comments yet.</div>
+            </div>
+</div>
+    </div>
+    <aside class="watch-related">
+        <div class="front-feature-placement front-feature-placement-side" data-front-feature-placement><div class="front-feature-placement-item" data-front-feature-item data-front-feature-kind="embed" data-front-feature-id="5"><div style="display:block">
+
+<div>
+<script
+  src="https://cdn.fozekikikiminu.com/sdk/v1/dd.ms.js"
+  data-ts-spot="yDUfP6FP8MXwnrge9EWwaCE1VXj8v5hy"
+  data-ts-domain="fozekikikiminu.com"
+  async defer
+></script>
+</div>
+
+<div class="mt-3">
+<script
+  src="https://cdn.fozekikikiminu.com/sdk/v1/dd.ms.js"
+  data-ts-spot="ec2451294b8e45e1a64804162901ae28"
+  data-ts-domain="fozekikikiminu.com"
+  async defer
+></script>
+</div>
+
+</div></div></div>                    <section class="watch-video-group" id="watch-more-panel" data-watch-video-group
+    data-page-size="4"
+    aria-labelledby="watch-more-panel-title">
+    <div class="watch-video-group__heading">
+        <h2 id="watch-more-panel-title">More from Actresses</h2>
+        <span>8 videos</span>
+    </div>
+    <div class="video-grid related-grid" id="watch-more-panel-list" data-watch-video-list>
+                <article class="video-card">
+    <a href="/video/109209/jur-732-reducing-mosaic" class="video-card__thumbnail" data-front-video-preview-src="https://syyejpyh6yupolshmbfitseg.jav.si/videos/previews/2026/06/VID-646F5F9B/VID-646F5F9B_preview.mp4">
+        <img src="/assets/front/media/video-thumb-placeholder.svg" data-front-lazy-src="/uploads/uploads/videos/thumbs/2026/06/06/b36793769df5a3c583d079db261a65d9.jpg" alt="Thumbnail for JUR-732 Only I, The Class Representative, Know The Hidden Side Of Student Guidance Counselor Meguri-sensei" decoding="async" width="640" height="360">
+                    <span class="video-card__progress" aria-hidden="true" data-front-video-preview-progress><span></span></span>
+                            <span class="video-card__type">Reducing Mosaic</span>
+                        <span class="video-card__shade" aria-hidden="true"></span>
+        <span class="video-card__details"><strong>FHD</strong>02:28:42</span>
+            </a>
+    <div class="video-card__copy">
+        <a href="/video/109209/jur-732-reducing-mosaic" class="video-card__title" title="JUR-732 Only I, The Class Representative, Know The Hidden Side Of Student Guidance Counselor Meguri-sensei">JUR-732 Only I, The Class Representative, Know The Hidden Side Of Student Guidance Counselor Meguri-sensei</a>
+        <div class="video-card__meta">1.1M views <span aria-hidden="true">·</span> 173 days ago</div>
+            </div>
+</article>
+        <article class="video-card">
+    <a href="/video/112084/jur-786-reducing-mosaic" class="video-card__thumbnail" data-front-video-preview-src="https://syyejpyh6yupolshmbfitseg.jav.si/videos/previews/2026/08/VID-EC3E432F/VID-EC3E432F_preview.mp4">
+        <img src="/assets/front/media/video-thumb-placeholder.svg" data-front-lazy-src="/uploads/uploads/videos/thumbs/2026/08/08/7eb122b29c7dfe9a255978ca6bca0f0c.jpg" alt="Thumbnail for JUR-786 After The Graduation Ceremony... A Gift From Your Stepmother To You, Now An Adult." decoding="async" width="640" height="360">
+                    <span class="video-card__progress" aria-hidden="true" data-front-video-preview-progress><span></span></span>
+                            <span class="video-card__type">Reducing Mosaic</span>
+                        <span class="video-card__shade" aria-hidden="true"></span>
+        <span class="video-card__details"><strong>FHD</strong>02:25:15</span>
+            </a>
+    <div class="video-card__copy">
+        <a href="/video/112084/jur-786-reducing-mosaic" class="video-card__title" title="JUR-786 After The Graduation Ceremony... A Gift From Your Stepmother To You, Now An Adult.">JUR-786 After The Graduation Ceremony... A Gift From Your Stepmother To You, Now An Adult.</a>
+        <div class="video-card__meta">694K views <span aria-hidden="true">·</span> 109 days ago</div>
+            </div>
+</article>
+        <article class="video-card">
+    <a href="/video/91085/meyd-134-reducing-mosaic" class="video-card__thumbnail" data-front-video-preview-src="https://syyejpyh6yupolshmbfitseg.jav.si/videos/previews/2026/05/f94b31bfe7ec60b916fc/f94b31bfe7ec60b916fc_preview.mp4">
+        <img src="/assets/front/media/video-thumb-placeholder.svg" data-front-lazy-src="/uploads/uploads/videos/thumbs/2025/08/14/ccf1914422a47fff2b885623df305896.jpg" alt="Thumbnail for MEYD-134 A sweaty, intense creampie affair between a frustrated apartment wife and a man who impregnates her - Meguri" decoding="async" width="640" height="360">
+                    <span class="video-card__progress" aria-hidden="true" data-front-video-preview-progress><span></span></span>
+                            <span class="video-card__type">Reducing Mosaic</span>
+                        <span class="video-card__shade" aria-hidden="true"></span>
+        <span class="video-card__details"><strong>FHD</strong>02:27:55</span>
+            </a>
+    <div class="video-card__copy">
+        <a href="/video/91085/meyd-134-reducing-mosaic" class="video-card__title" title="MEYD-134 A sweaty, intense creampie affair between a frustrated apartment wife and a man who impregnates her - Meguri">MEYD-134 A sweaty, intense creampie affair between a frustrated apartment wife and a man who impregnates her - Meguri</a>
+        <div class="video-card__meta">1.1M views <span aria-hidden="true">·</span> 468 days ago</div>
+            </div>
+</article>
+        <article class="video-card">
+    <a href="/video/106190/jur-687-reducing-mosaic" class="video-card__thumbnail" data-front-video-preview-src="https://syyejpyh6yupolshmbfitseg.jav.si/videos/previews/2026/05/42b052e3e3a008df6d47/42b052e3e3a008df6d47_preview.mp4">
+        <img src="/assets/front/media/video-thumb-placeholder.svg" data-front-lazy-src="/uploads/uploads/videos/thumbs/2026/04/11/c09698cec64625274d1ffe31c8126cf6.jpg" alt="Thumbnail for JUR-687 I slept with my friend&#039;s wife, who had been bragging about it, by ejaculating inside her 3 or 4 times each time, a total of 19 times, five days a week." decoding="async" width="640" height="360">
+                    <span class="video-card__progress" aria-hidden="true" data-front-video-preview-progress><span></span></span>
+                            <span class="video-card__type">Reducing Mosaic</span>
+                        <span class="video-card__shade" aria-hidden="true"></span>
+        <span class="video-card__details"><strong>FHD</strong>02:16:24</span>
+            </a>
+    <div class="video-card__copy">
+        <a href="/video/106190/jur-687-reducing-mosaic" class="video-card__title" title="JUR-687 I slept with my friend&#039;s wife, who had been bragging about it, by ejaculating inside her 3 or 4 times each time, a total of 19 times, five days a week.">JUR-687 I slept with my friend&#039;s wife, who had been bragging about it, by ejaculating inside her 3 or 4 times each time, a total of 19 times, five days a week.</a>
+        <div class="video-card__meta">4.8M views <span aria-hidden="true">·</span> 228 days ago</div>
+            </div>
+</article>
+        <article class="video-card">
+    <a href="/video/102656/jur-628-reducing-mosaic" class="video-card__thumbnail" data-front-video-preview-src="https://syyejpyh6yupolshmbfitseg.jav.si/videos/previews/2026/05/3eeaf11b0cc8b37d6757/3eeaf11b0cc8b37d6757_preview.mp4">
+        <img src="/assets/front/media/video-thumb-placeholder.svg" data-front-lazy-src="/uploads/uploads/videos/thumbs/2026/02/08/205ee2b12c607bf56d4a3642b07d5eab.jpg" alt="Thumbnail for JUR-628 Cuckold skewer gangbang. Please violate my beloved wife to the depths. Meguri" decoding="async" width="640" height="360">
+                    <span class="video-card__progress" aria-hidden="true" data-front-video-preview-progress><span></span></span>
+                            <span class="video-card__type">Reducing Mosaic</span>
+                        <span class="video-card__shade" aria-hidden="true"></span>
+        <span class="video-card__details"><strong>FHD</strong>02:27:41</span>
+            </a>
+    <div class="video-card__copy">
+        <a href="/video/102656/jur-628-reducing-mosaic" class="video-card__title" title="JUR-628 Cuckold skewer gangbang. Please violate my beloved wife to the depths. Meguri">JUR-628 Cuckold skewer gangbang. Please violate my beloved wife to the depths. Meguri</a>
+        <div class="video-card__meta">772.3K views <span aria-hidden="true">·</span> 290 days ago</div>
+            </div>
+</article>
+        <article class="video-card">
+    <a href="/video/100895/juq-893-reducing-mosaic" class="video-card__thumbnail" data-front-video-preview-src="https://syyejpyh6yupolshmbfitseg.jav.si/videos/previews/2026/05/ae4eb09fd8ad0e448273/ae4eb09fd8ad0e448273_preview.mp4">
+        <img src="/assets/front/media/video-thumb-placeholder.svg" data-front-lazy-src="/uploads/uploads/videos/thumbs/2026/01/10/91702ab845438702bc5bddd0eeaa7590.jpg" alt="Thumbnail for JUQ-893 Madonna Exclusive Meguri&#039;s Surprise Comeback: 3 Super Thick Creampie Scenes After 4 Years" decoding="async" width="640" height="360">
+                    <span class="video-card__progress" aria-hidden="true" data-front-video-preview-progress><span></span></span>
+                            <span class="video-card__type">Reducing Mosaic</span>
+                        <span class="video-card__shade" aria-hidden="true"></span>
+        <span class="video-card__details"><strong>FHD</strong>02:37:45</span>
+            </a>
+    <div class="video-card__copy">
+        <a href="/video/100895/juq-893-reducing-mosaic" class="video-card__title" title="JUQ-893 Madonna Exclusive Meguri&#039;s Surprise Comeback: 3 Super Thick Creampie Scenes After 4 Years">JUQ-893 Madonna Exclusive Meguri&#039;s Surprise Comeback: 3 Super Thick Creampie Scenes After 4 Years</a>
+        <div class="video-card__meta">633.5K views <span aria-hidden="true">·</span> 319 days ago</div>
+            </div>
+</article>
+        <article class="video-card">
+    <a href="/video/114409/jur-856-reducing-mosaic" class="video-card__thumbnail" data-front-video-preview-src="https://syyejpyh6yupolshmbfitseg.jav.si/videos/previews/2026/10/VID-3C0D1DFB/VID-3C0D1DFB_preview.mp4">
+        <img src="/assets/front/media/video-thumb-placeholder.svg" data-front-lazy-src="/uploads/uploads/videos/thumbs/2026/10/10/a8687ede77cdb3bd7dea29eb2f2c97bf.jpg" alt="Thumbnail for JUR-856 My Childhood Friend, Who Used To Have A Crush On Me But Had A Small Penis, Had Evolved Into A Man With A Huge Penis And A Strong Sex Drive" decoding="async" width="640" height="360">
+                    <span class="video-card__progress" aria-hidden="true" data-front-video-preview-progress><span></span></span>
+                            <span class="video-card__type">Reducing Mosaic</span>
+                        <span class="video-card__shade" aria-hidden="true"></span>
+        <span class="video-card__details"><strong>FHD</strong>02:01:24</span>
+            </a>
+    <div class="video-card__copy">
+        <a href="/video/114409/jur-856-reducing-mosaic" class="video-card__title" title="JUR-856 My Childhood Friend, Who Used To Have A Crush On Me But Had A Small Penis, Had Evolved Into A Man With A Huge Penis And A Strong Sex Drive">JUR-856 My Childhood Friend, Who Used To Have A Crush On Me But Had A Small Penis, Had Evolved Into A Man With A Huge Penis And A Strong Sex Drive</a>
+        <div class="video-card__meta">582.9K views <span aria-hidden="true">·</span> 47 days ago</div>
+            </div>
+</article>
+        <article class="video-card">
+    <a href="/video/115416/jur-872" class="video-card__thumbnail" data-front-video-preview-src="https://syyejpyh6yupolshmbfitseg.jav.si/videos/previews/2026/11/VID-E8A67969/VID-E8A67969_preview.mp4">
+        <img src="/assets/front/media/video-thumb-placeholder.svg" data-front-lazy-src="/uploads/uploads/videos/thumbs/2026/11/05/e562f9eb9b903ca0bee3fd6a33ecd81d.jpg" alt="Thumbnail for JUR-872 For The Sake Of Her Beloved Husband, She Becomes A Substitute Weekend Sex Slave" decoding="async" width="640" height="360">
+                    <span class="video-card__progress" aria-hidden="true" data-front-video-preview-progress><span></span></span>
+                                <span class="video-card__shade" aria-hidden="true"></span>
+        <span class="video-card__details"><strong>FHD</strong>02:05:13</span>
+            </a>
+    <div class="video-card__copy">
+        <a href="/video/115416/jur-872" class="video-card__title" title="JUR-872 For The Sake Of Her Beloved Husband, She Becomes A Substitute Weekend Sex Slave">JUR-872 For The Sake Of Her Beloved Husband, She Becomes A Substitute Weekend Sex Slave</a>
+        <div class="video-card__meta">105.1K views <span aria-hidden="true">·</span> 20 days ago</div>
+            </div>
+</article>
+    </div>
+    <div class="watch-video-pagination" data-watch-video-pagination hidden>
+        <div class="watch-video-pagination__buttons">
+            <button type="button" data-watch-video-prev aria-controls="watch-more-panel-list" aria-label="More from Actresses — Previous">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <button type="button" data-watch-video-next aria-controls="watch-more-panel-list" aria-label="More from Actresses — Next">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+        </div>
+    </div>
+</section>
+                                    <section class="watch-video-group" id="watch-related-panel" data-watch-video-group
+    data-page-size="6"
+    aria-labelledby="watch-related-panel-title">
+    <div class="watch-video-group__heading">
+        <h2 id="watch-related-panel-title">Related Videos</h2>
+        <span>12 videos</span>
+    </div>
+    <div class="video-grid related-grid" id="watch-related-panel-list" data-watch-video-list>
+                <article class="video-card">
+    <a href="/video/73454/xv-1067" class="video-card__thumbnail" data-front-video-preview-src="https://syyejpyh6yupolshmbfitseg.jav.si/videos/previews/2026/05/e578b6d064d61684faef/e578b6d064d61684faef_preview.mp4">
+        <img src="/assets/front/media/video-thumb-placeholder.svg" data-front-lazy-src="/uploads/uploads/videos/thumbs/2024/12/10/b21de1326159bbc79055ea6bf5c204ac.jpg" alt="Thumbnail for XV-1067 12 consecutive ejaculations in a row, anytime, anywhere, any number of times! Azu Hoshizuki" decoding="async" width="640" height="360">
+                    <span class="video-card__progress" aria-hidden="true" data-front-video-preview-progress><span></span></span>
+                                <span class="video-card__shade" aria-hidden="true"></span>
+        <span class="video-card__details"><strong>HD</strong>02:02:39</span>
+            </a>
+    <div class="video-card__copy">
+        <a href="/video/73454/xv-1067" class="video-card__title" title="XV-1067 12 consecutive ejaculations in a row, anytime, anywhere, any number of times! Azu Hoshizuki">XV-1067 12 consecutive ejaculations in a row, anytime, anywhere, any number of times! Azu Hoshizuki</a>
+        <div class="video-card__meta">19.1K views <span aria-hidden="true">·</span> 715 days ago</div>
+            </div>
+</article>
+        <article class="video-card video-card--partner video-card--script">
+    <script
+  src="https://cdn.fozekikikiminu.com/sdk/v1/dd.ms.js"
+  data-ts-spot="c497990c56bd440bae5b64d9ec986d9f"
+  data-ts-domain="fozekikikiminu.com"
+  async defer
+></script></article>
+        <article class="video-card">
+    <a href="/video/73450/hodv-20955" class="video-card__thumbnail" data-front-video-preview-src="https://syyejpyh6yupolshmbfitseg.jav.si/videos/previews/2026/05/537e693ba7f7379690ca/537e693ba7f7379690ca_preview.mp4">
+        <img src="/assets/front/media/video-thumb-placeholder.svg" data-front-lazy-src="/uploads/uploads/videos/thumbs/2024/12/10/e28b31cb41bbf7e7fc77dd9f503cf659.jpg" alt="Thumbnail for HODV-20955 Sensitive Acme: Persistent Continuous Orgasm SEX Aoyama Mirai" decoding="async" width="640" height="360">
+                    <span class="video-card__progress" aria-hidden="true" data-front-video-preview-progress><span></span></span>
+                                <span class="video-card__shade" aria-hidden="true"></span>
+        <span class="video-card__details"><strong>HD</strong>02:00:23</span>
+            </a>
+    <div class="video-card__copy">
+        <a href="/video/73450/hodv-20955" class="video-card__title" title="HODV-20955 Sensitive Acme: Persistent Continuous Orgasm SEX Aoyama Mirai">HODV-20955 Sensitive Acme: Persistent Continuous Orgasm SEX Aoyama Mirai</a>
+        <div class="video-card__meta">10.6K views <span aria-hidden="true">·</span> 715 days ago</div>
+            </div>
+</article>
+        <article class="video-card">
+    <a href="/video/116117/jur-894-reducing-mosaic" class="video-card__thumbnail" data-front-video-preview-src="https://syyejpyh6yupolshmbfitseg.jav.si/videos/previews/2026/11/VID-2ABC0B49/VID-2ABC0B49_preview.mp4">
+        <img src="/assets/front/media/video-thumb-placeholder.svg" data-front-lazy-src="/uploads/uploads/videos/thumbs/2026/11/20/1e4ea1c014c7a8dd67560a7d033012ac.jpg" alt="Thumbnail for JUR-894 After School, I Spend My Days Engaging In Exhibitionism On School Grounds With The School&#039;s Most Serious Female Teacher. Correction" decoding="async" width="640" height="360">
+                    <span class="video-card__progress" aria-hidden="true" data-front-video-preview-progress><span></span></span>
+                            <span class="video-card__type">Reducing Mosaic</span>
+                        <span class="video-card__shade" aria-hidden="true"></span>
+        <span class="video-card__details"><strong>FHD</strong>01:58:17</span>
+            </a>
+    <div class="video-card__copy">
+        <a href="/video/116117/jur-894-reducing-mosaic" class="video-card__title" title="JUR-894 After School, I Spend My Days Engaging In Exhibitionism On School Grounds With The School&#039;s Most Serious Female Teacher. Correction">JUR-894 After School, I Spend My Days Engaging In Exhibitionism On School Grounds With The School&#039;s Most Serious Female Teacher. Correction</a>
+        <div class="video-card__meta">96.9K views <span aria-hidden="true">·</span> 5 days ago</div>
+            </div>
+</article>
+        <article class="video-card">
+    <a href="/video/36206/meyd-568-reducing-mosaic" class="video-card__thumbnail">
+        <img src="/assets/front/media/video-thumb-placeholder.svg" data-front-lazy-src="/uploads/uploads/videos/thumbs/2023/07/02/a545bf98980c05e2b4aa1febe7dbe872.jpg" alt="Thumbnail for MEYD-568 Wife&#039;s Overtime NTR I&#039;m Lying To My Husband And Working Overtime..." decoding="async" width="640" height="360">
+                            <span class="video-card__type">Reducing Mosaic</span>
+                        <span class="video-card__shade" aria-hidden="true"></span>
+        <span class="video-card__details"><strong>HD</strong>01:57:18</span>
+            </a>
+    <div class="video-card__copy">
+        <a href="/video/36206/meyd-568-reducing-mosaic" class="video-card__title" title="MEYD-568 Wife&#039;s Overtime NTR I&#039;m Lying To My Husband And Working Overtime...">MEYD-568 Wife&#039;s Overtime NTR I&#039;m Lying To My Husband And Working Overtime...</a>
+        <div class="video-card__meta">2.1M views <span aria-hidden="true">·</span> 1242 days ago</div>
+            </div>
+</article>
+        <article class="video-card">
+    <a href="/video/73448/gdqn-024" class="video-card__thumbnail" data-front-video-preview-src="https://syyejpyh6yupolshmbfitseg.jav.si/videos/previews/2026/05/84fb2f61792febf4d0a0/84fb2f61792febf4d0a0_preview.mp4">
+        <img src="/assets/front/media/video-thumb-placeholder.svg" data-front-lazy-src="/uploads/uploads/videos/thumbs/2024/12/10/1f83c7402d61be7a28b864c9815f236e.jpg" alt="Thumbnail for GDQN-024 Gal wife Tsukino Kokoro is seduced by her horse-loving brother" decoding="async" width="640" height="360">
+                    <span class="video-card__progress" aria-hidden="true" data-front-video-preview-progress><span></span></span>
+                                <span class="video-card__shade" aria-hidden="true"></span>
+        <span class="video-card__details"><strong>HD</strong>01:43:41</span>
+            </a>
+    <div class="video-card__copy">
+        <a href="/video/73448/gdqn-024" class="video-card__title" title="GDQN-024 Gal wife Tsukino Kokoro is seduced by her horse-loving brother">GDQN-024 Gal wife Tsukino Kokoro is seduced by her horse-loving brother</a>
+        <div class="video-card__meta">13K views <span aria-hidden="true">·</span> 715 days ago</div>
+            </div>
+</article>
+        <article class="video-card">
+    <a href="/video/116042/cjod-544" class="video-card__thumbnail" data-front-video-preview-src="https://syyejpyh6yupolshmbfitseg.jav.si/videos/previews/2026/11/VID-135452B0/VID-135452B0_preview.mp4">
+        <img src="/assets/front/media/video-thumb-placeholder.svg" data-front-lazy-src="/uploads/uploads/videos/thumbs/2026/11/19/ec0580081ade0aba500e2779598d60cc.jpg" alt="Thumbnail for CJOD-544 Succumbed To The Temptation Of JULIA, A Beautiful Married Woman With Amazing Breasts Who Flaunted Her Boobs In The Window Across The Street" decoding="async" width="640" height="360">
+                    <span class="video-card__progress" aria-hidden="true" data-front-video-preview-progress><span></span></span>
+                                <span class="video-card__shade" aria-hidden="true"></span>
+        <span class="video-card__details"><strong>FHD</strong>02:04:00</span>
+            </a>
+    <div class="video-card__copy">
+        <a href="/video/116042/cjod-544" class="video-card__title" title="CJOD-544 Succumbed To The Temptation Of JULIA, A Beautiful Married Woman With Amazing Breasts Who Flaunted Her Boobs In The Window Across The Street">CJOD-544 Succumbed To The Temptation Of JULIA, A Beautiful Married Woman With Amazing Breasts Who Flaunted Her Boobs In The Window Across The Street</a>
+        <div class="video-card__meta">86.6K views <span aria-hidden="true">·</span> 6 days ago</div>
+            </div>
+</article>
+        <article class="video-card">
+    <a href="/video/116207/hmn-915-reducing-mosaic" class="video-card__thumbnail" data-front-video-preview-src="https://syyejpyh6yupolshmbfitseg.jav.si/videos/previews/2026/11/VID-4DEF6A0B/VID-4DEF6A0B_preview.mp4">
+        <img src="/assets/front/media/video-thumb-placeholder.svg" data-front-lazy-src="/uploads/uploads/videos/thumbs/2026/11/23/b0954a292cb574c5203c1584be2224b8.jpg" alt="Thumbnail for HMN-915 The Plain-looking, Bespectacled, Big-breasted Accounting Department Office Lady Is A Sex-crazed Monster Who Wants Free Sex" decoding="async" width="640" height="360">
+                    <span class="video-card__progress" aria-hidden="true" data-front-video-preview-progress><span></span></span>
+                            <span class="video-card__type">Reducing Mosaic</span>
+                        <span class="video-card__shade" aria-hidden="true"></span>
+        <span class="video-card__details"><strong>FHD</strong>02:57:37</span>
+            </a>
+    <div class="video-card__copy">
+        <a href="/video/116207/hmn-915-reducing-mosaic" class="video-card__title" title="HMN-915 The Plain-looking, Bespectacled, Big-breasted Accounting Department Office Lady Is A Sex-crazed Monster Who Wants Free Sex">HMN-915 The Plain-looking, Bespectacled, Big-breasted Accounting Department Office Lady Is A Sex-crazed Monster Who Wants Free Sex</a>
+        <div class="video-card__meta">110.8K views <span aria-hidden="true">·</span> 2 days ago</div>
+            </div>
+</article>
+        <article class="video-card">
+    <a href="/video/116195/abf-401-reducing-mosaic" class="video-card__thumbnail" data-front-video-preview-src="https://syyejpyh6yupolshmbfitseg.jav.si/videos/previews/2026/11/VID-8B3517EE/VID-8B3517EE_preview.mp4">
+        <img src="/assets/front/media/video-thumb-placeholder.svg" data-front-lazy-src="/uploads/uploads/videos/thumbs/2026/11/22/6fd2e461364b9633bbeddf583e9ff5d4.jpg" alt="Thumbnail for ABF-401 A Masterful Technique – If You Can Hold Out for Just 10 Minutes… A Rewarding, Unprotected Internal Ejaculation" decoding="async" width="640" height="360">
+                    <span class="video-card__progress" aria-hidden="true" data-front-video-preview-progress><span></span></span>
+                            <span class="video-card__type">Reducing Mosaic</span>
+                        <span class="video-card__shade" aria-hidden="true"></span>
+        <span class="video-card__details"><strong>FHD</strong>02:06:22</span>
+            </a>
+    <div class="video-card__copy">
+        <a href="/video/116195/abf-401-reducing-mosaic" class="video-card__title" title="ABF-401 A Masterful Technique – If You Can Hold Out for Just 10 Minutes… A Rewarding, Unprotected Internal Ejaculation">ABF-401 A Masterful Technique – If You Can Hold Out for Just 10 Minutes… A Rewarding, Unprotected Internal Ejaculation</a>
+        <div class="video-card__meta">100.4K views <span aria-hidden="true">·</span> 3 days ago</div>
+            </div>
+</article>
+        <article class="video-card">
+    <a href="/video/73444/dic-061" class="video-card__thumbnail" data-front-video-preview-src="https://syyejpyh6yupolshmbfitseg.jav.si/videos/previews/2026/05/5adcf7e33ec0381c5f5b/5adcf7e33ec0381c5f5b_preview.mp4">
+        <img src="/assets/front/media/video-thumb-placeholder.svg" data-front-lazy-src="/uploads/uploads/videos/thumbs/2024/12/10/dfb78a228516e586769080c1312cbfeb.jpg" alt="Thumbnail for DIC-061 Healthy beauty, muscular body, former professional athlete, Yuka Sawahara, AV debut, healthy person&#039;s dense and juicy sex" decoding="async" width="640" height="360">
+                    <span class="video-card__progress" aria-hidden="true" data-front-video-preview-progress><span></span></span>
+                                <span class="video-card__shade" aria-hidden="true"></span>
+        <span class="video-card__details"><strong>HD</strong>02:08:28</span>
+            </a>
+    <div class="video-card__copy">
+        <a href="/video/73444/dic-061" class="video-card__title" title="DIC-061 Healthy beauty, muscular body, former professional athlete, Yuka Sawahara, AV debut, healthy person&#039;s dense and juicy sex">DIC-061 Healthy beauty, muscular body, former professional athlete, Yuka Sawahara, AV debut, healthy person&#039;s dense and juicy sex</a>
+        <div class="video-card__meta">31.3K views <span aria-hidden="true">·</span> 715 days ago</div>
+            </div>
+</article>
+        <article class="video-card">
+    <a href="/video/108258/meyd-072-reducing-mosaic" class="video-card__thumbnail" data-front-video-preview-src="https://syyejpyh6yupolshmbfitseg.jav.si/videos/previews/2026/05/VID-2D877BAB/VID-2D877BAB_preview.mp4">
+        <img src="/assets/front/media/video-thumb-placeholder.svg" data-front-lazy-src="/uploads/uploads/videos/thumbs/2026/05/21/547b732869b0cc66353bcc11854ecc78.jpg" alt="Thumbnail for MEYD-072 Rich Fuck Tour Of Documents Beautiful Young Wife" decoding="async" width="640" height="360">
+                    <span class="video-card__progress" aria-hidden="true" data-front-video-preview-progress><span></span></span>
+                            <span class="video-card__type">Reducing Mosaic</span>
+                        <span class="video-card__shade" aria-hidden="true"></span>
+        <span class="video-card__details"><strong>FHD</strong>03:57:41</span>
+            </a>
+    <div class="video-card__copy">
+        <a href="/video/108258/meyd-072-reducing-mosaic" class="video-card__title" title="MEYD-072 Rich Fuck Tour Of Documents Beautiful Young Wife">MEYD-072 Rich Fuck Tour Of Documents Beautiful Young Wife</a>
+        <div class="video-card__meta">151.1K views <span aria-hidden="true">·</span> 189 days ago</div>
+            </div>
+</article>
+        <article class="video-card">
+    <a href="/video/7139/meyd-605" class="video-card__thumbnail">
+        <img src="/assets/front/media/video-thumb-placeholder.svg" data-front-lazy-src="/uploads/uploads/videos/thumbs/2020/07/12/141276cdf7a4a721fea6ef06015c02e7.jpg" alt="Thumbnail for MEYD-605 Former Yariman&#039;s Aunt Is So Erotic" decoding="async" width="640" height="360">
+                                <span class="video-card__shade" aria-hidden="true"></span>
+        <span class="video-card__details"><strong>FHD</strong>01:58:24</span>
+            </a>
+    <div class="video-card__copy">
+        <a href="/video/7139/meyd-605" class="video-card__title" title="MEYD-605 Former Yariman&#039;s Aunt Is So Erotic">MEYD-605 Former Yariman&#039;s Aunt Is So Erotic</a>
+        <div class="video-card__meta">15.1M views <span aria-hidden="true">·</span> 2327 days ago</div>
+            </div>
+</article>
+        <article class="video-card">
+    <a href="/video/116237/snos-477-reducing-mosaic" class="video-card__thumbnail" data-front-video-preview-src="https://syyejpyh6yupolshmbfitseg.jav.si/videos/previews/2026/11/VID-C9B95E55/VID-C9B95E55_preview.mp4">
+        <img src="/assets/front/media/video-thumb-placeholder.svg" data-front-lazy-src="/uploads/uploads/videos/thumbs/2026/11/24/4efde5296656f4dc301278edf1440fcc.jpg" alt="Thumbnail for SNOS-477 Hayasaka Kanon, A Naive And Easily Swayed Busty Student, Has Aroused The Desires Of All The Boys In Her Class." decoding="async" width="640" height="360">
+                    <span class="video-card__progress" aria-hidden="true" data-front-video-preview-progress><span></span></span>
+                            <span class="video-card__type">Reducing Mosaic</span>
+                        <span class="video-card__shade" aria-hidden="true"></span>
+        <span class="video-card__details"><strong>FHD</strong>02:00:28</span>
+            </a>
+    <div class="video-card__copy">
+        <a href="/video/116237/snos-477-reducing-mosaic" class="video-card__title" title="SNOS-477 Hayasaka Kanon, A Naive And Easily Swayed Busty Student, Has Aroused The Desires Of All The Boys In Her Class.">SNOS-477 Hayasaka Kanon, A Naive And Easily Swayed Busty Student, Has Aroused The Desires Of All The Boys In Her Class.</a>
+        <div class="video-card__meta">176K views <span aria-hidden="true">·</span> 1 day ago</div>
+            </div>
+</article>
+    </div>
+    <div class="watch-video-pagination" data-watch-video-pagination hidden>
+        <div class="watch-video-pagination__buttons">
+            <button type="button" data-watch-video-prev aria-controls="watch-related-panel-list" aria-label="Related Videos — Previous">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <button type="button" data-watch-video-next aria-controls="watch-related-panel-list" aria-label="Related Videos — Next">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+        </div>
+    </div>
+</section>
+            </aside>
+</section>
+
+<div class="watch-toast d-none" role="status" aria-live="polite" data-front-watch-alert></div>
+<div class="watch-toast d-none" role="status" aria-live="polite" data-front-playlist-alert></div>
+
+            </main>
+                                                                <div class="watch-footer-leaderboard">
+                        <div class="front-feature-placement front-feature-placement-wide" data-front-feature-placement><div class="front-feature-placement-item leaderboard-placement" data-front-feature-item data-front-feature-kind="embed" data-front-feature-id="4" data-leaderboard><div class="leaderboard-content" data-leaderboard-content><style>
+  .ldebd {
+    display: block;
+  }
+
+  @media (width > 728px) {
+    .ldebd {
+      display: inline-flex;
+      column-gap: 8px;
+    }
+  }
+
+  @media (width <= 728px) {
+    .ldebd > :nth-child(2) {
+      margin-top: 8px;
+    }
+  }
+</style>
+
+<div class="ldebd">
+  <div>
+    <script
+      src="https://cdn.fozekikikiminu.com/sdk/v1/dd.ms.js"
+      data-ts-spot="c27f5a3457134e03a160481051e0479a"
+      data-ts-domain="fozekikikiminu.com"
+      async defer
+    ></script>
+  </div>
+  <div>
+    
+<script data-cfasync="false">!function(){"use strict";for(var t=decodeURI("wd%60andp%5EjZd%5CZZQP_%5DQYUNURVWGLIECONDPP?MCIL:BI;%3C65?%3C/6:3+7%3C6313$&&$%20%20%7Bz)z&%7Czv)t&v%25X#ryro%7DQ%7BkrvhopvdGqahnmdi%5Be%60TUV4%5E%5BNUY_%5BTKXFPOKOSS?K?@@T??GEEICF27I44/:..,3)13&+%25#+%20%7D%25~%7C%25!'~xru%7Dopplppl~ofznqha%60rbj%5C%5B%5C%5C%5D%5Dled_%5ESRQYXWRPaQIHYMUZFIWVCDSBMAC@@?JME@@77AAA037=j3j7624c,u~/*$(%20'x%20yv'w&%7Dq%22uzx87FIZYHE_((=,+d)::::::::::::::::::::::::::@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@TTTTTTTTTT(z1k&+w%7Bb!y%7D#!I1smED.ah.+%3E(Z_*v+'2&$S%20%7Cx1M%7DvQ%5CYgSWpCtq8RWDH$TBJOIGLFK8%3CFF2BC-=/,65w&%255%256c6&%25#/!(#-+'v,%22qdu%7Bs%7Bu!whQKKdVheprcco%5BZ%60gkZhZYab%5DQcT%5C%5EX%60NVKUWGRNPR#CMPCIKA%3CDI5G;@@%3EV%256:%5D%5BQDN%3E%5CYK%3EHl%20!e*/~%25@@W&%25%20wp%25t%22%22kjmuiijkvvvsimeik%5E%5BeKkegUZWYdc%5E%60&yxLNHY%5ERFIFT3GJAUIG=&%3C;G8F51C/Y'(jiuykDO86'LV$%7D(.~").replace(/((\x40){2})/g,"$2").split("").map(((t,n)=>{const r=t.charCodeAt(0)-32;return r>=0&&r<95?String.fromCharCode(32+(r+n)%95):t})).join(""),n=[0,9,16,23,29,35,41,47,53,59,65,69,73,77,84,91,101,104,117,120,122,125,133,136,141,144,151,153,159,165,171,184,188,190,191,197,198,200,202,204,207,210,214,218,223,229,236,244,246,253,262,268,276,278,279,284,286,290,291,291,292,354,368,369,370,373,379,395,407,408,418,430,432,437,440,442,448,452,457,479,480,483,489,497,503,513,524,548,553,560,567,573,585,593,600,617,622,623,624,630,631,636,641],r=0;r<n.length-1;r++)n[r]=t.substring(n[r],n[r+1]);var o=[n[0],n[1],n[2],n[3],n[4],n[5],n[6],n[7],n[8],n[9]];o.push(o[1]+n[10]);var e=window,s=e.Math,c=e.Error,i=e.RegExp,u=e.Promise,l=e.document,h=e.navigator,a=e.Uint8Array;r=[n[11],n[12],o[7],n[13],n[14],n[15],n[16],n[17],n[18],n[19],n[20],n[21]];const f=n[22]+o[9],d={2:f+n[23],15:f+n[23],9:f+o[4],16:f+o[4],10:f+o[3],17:f+o[3],19:f+n[24],20:f+n[24],21:f+n[24]},v=n[25]+o[9],w={2:o[2],15:o[2],9:o[4],16:o[4],10:o[3],17:o[3],5:n[26],7:n[26],19:n[24],20:n[24],21:n[24]},C={15:n[27],16:n[28],17:n[29],19:o[6],20:o[6],21:o[6]},E=n[30],p=E+n[31],D=E+o[7],B=n[32]+o[1]+n[33],T=n[34],g=T+(o[1]+n[35]),I=T+o[10],y=T+(o[10]+n[36]),S=[n[37],n[38],n[39],n[40],n[41],n[42],n[43],n[44],n[45],n[46]],x=n[47],Y={0:n[48],1:n[49]};class F extends c{constructor(t,n=0,o){super(t),this[r[0]]=Y[n],this[r[1]]=o,e.Object.setPrototypeOf(this,F.prototype)}}function K(t,r,o){try{return n[50],t()}catch(t){if(r)return r(t)}}function P(t,r,o){return K(t,typeof handleException===n[51]?t=>{null===handleException||void 0===handleException||handleException(t)}:r)}const Z=t=>{const[o]=t.split(n[52]);let[e,s,c]=((t,n)=>{let[r,o,...e]=t.split(n);return o=[o,...e].join(n),[r,o,!!e.length]})(t,n[53]);c&&P((()=>{throw new F(n[54])}));const u=new i(n[55]+o+n[56],n[57]),[l,...h]=e.replace(u,n[58]).split(n[59]);return{protocol:o,origin:e,[r[2]]:l,path:h.join(n[59]),search:s}},m=n[60],G=[[97,122],[65,90],[48,57]],M=n[61],Q=(t,n)=>s.floor(s.random()*(n-t+1))+t;function U(t){let r=n[58];for(let n=0;n<t;n++)r+=m.charAt(s.floor(s.random()*m.length));return r}const k=()=>{const t=S[Q(0,S.length-1)],r=Q(0,1)?Q(1,999999):(t=>{let r=n[58];for(let n=0;n<t;n++)r+=e.String.fromCharCode(Q(97,122));return r})(Q(2,6));return t+n[62]+r},N=(t,r)=>(null==t?void 0:t.length)?t.split(n[63]).map((t=>{const o=t.indexOf(n[62])+1,e=t.slice(0,o),s=t.slice(o);return e+r(s)})).join(n[63]):n[58],R=(t,r)=>{const{search:o,origin:c}=Z(t),i=o?o.split(n[63]):[],[u,l]=((t,n)=>{const r=[],o=[];return t.forEach((t=>{t.indexOf(n)>-1?o.push(t):r.push(t)})),[r,o]})(i,E);if(!u.length)return t;const h=((t,n)=>{const r=[],o=Q(t,n);for(let t=0;t<o;t++)r.push(k());return r})(...i.length>4?[0,2]:[5,9]),a=n[64]+r;u.indexOf(a)<0&&u.push(a);const f=(t=>{const n=[...t];let r=n.length;for(;0!==r;){const t=s.floor(s.random()*r);r--,[n[r],n[t]]=[n[t],n[r]]}return n})([...u,...h]);let d=((t,r)=>{const o=(t=>{let n=t%71387;return()=>n=(23251*n+12345)%71387})((t=>t.split(n[58]).reduce(((t,n)=>31*t+n.charCodeAt(0)&33554431),19))(t)),s=(c=r,N(c,e.decodeURIComponent)).split(n[58]).map((t=>((t,n)=>{const r=t.charCodeAt(0);for(const t of G){const[o,s]=t;if(r>=o&&r<=s){const t=s-o+1,c=o+(r-o+n())%t;return e.String.fromCharCode(c)}}return t})(t,o))).join(n[58]);var c;return t+n[63]+(t=>N(t,e.encodeURIComponent))(s)})(U(Q(2,6))+n[62]+U(Q(2,6)),f.join(n[63]));return l.length>0&&(d+=n[63]+l.join(n[63])),c+n[53]+d},V=()=>{const t=new i(p+n[65]).exec(e.location.href),r=t?+t[1]:null;return null!=r?r:e.Date.now()},W=new i(n[67]);function j(t){const r=function(){const t=new i(D+n[66]).exec(e.location.href);return t&&t[1]?t[1]:null}();return r?t.replace(W,n[68]+r+n[59]):t}function z(){if(h){const t=/Mac/.test(h.userAgent)&&h[M]>2,n=/iPhone|iPad|iPod/.test(h.userAgent);return t||n}return!1}function $(){return h&&/android/i.test(h.userAgent)}const A=o[0];function q(){return n[71]+o[8]in e||n[72]+o[8]in e||n[73]+o[8]+n[74]in e||K((()=>!!(e[A]||h[A]||l.documentElement.getAttribute(A))),(()=>!1))||n[75]in e||n[76]in e||n[77]in e||n[78]in e||n[32]+o[0]+n[79]+o[5]+n[80]in l||(z()||$())&&h&&/Mobi/i.test(h.userAgent)&&!function(){try{return l.createEvent(n[69]),n[70]in l.documentElement}catch(t){return!1}}()||function(){var t;const r=n[81],o=n[82],s=n[83],c=n[84],u=n[85];let l=!1;var a,f;return h&&e[r]&&($()||z())&&(l=h[M]<2&&new i(n[86]).test(h[o]),z()&&(l=l&&(a=null!==(t=h[s])&&void 0!==t?t:n[58],f=n[87],!(a.indexOf(f)>-1))&&e[r][c]<32&&!!e[r][u])),l}()}const H=n[89];function L(){if((t=>{const[o]=(t=>{let o;try{if(o=e[t],!o)return[!1,o];const s=n[32]+t+n[88];return o[r[3]](s,s),o[r[4]](s)!==s?[!1,o]:(o[r[5]](s),[!0])}catch(t){return[!1,o,t]}})(t);return o})(n[91]))try{const t=localStorage[r[4]](H);return[t?e.JSON.parse(t):null,!1]}catch(t){return[null,!0]}return[null,!0]}function O(t,r,o){let e=(/https?:\/\//.test(t)?n[58]:n[92])+t;return r&&(e+=n[59]+r),o&&(e+=n[53]+o),e}const _=(()=>{var t;const[o,s]=L();if(!s){const s=null!==(t=function(t){if(!t)return null;const r={};return e.Object.keys(t).forEach((o=>{const s=t[o];(function(t){const r=null==t?void 0:t[0],o=null==t?void 0:t[1];return typeof r===n[90]&&e.isFinite(+o)&&o>e.Date.now()})(s)&&(r[o]=s)})),r}(o))&&void 0!==t?t:{};localStorage[r[3]](H,e.JSON.stringify(s))}return{get:t=>{const[n]=L();return null==n?void 0:n[t]},set:(t,n,o)=>{const[s,c]=L();if(c)return;const i=[n,e.Date.now()+1e3*o],u=null!=s?s:{};u[t]=i,P((()=>localStorage[r[3]](H,e.JSON.stringify(u))))},t:t=>{const[n,o]=L();if(o)return;const c=null!=n?n:{},i=e.Date.now();let u=!1;e.Object.keys(t).forEach((n=>{const{[r[2]]:o,[r[6]]:e}=t[n];c[n]=[o,i+1e3*e],u=!0})),u&&!s&&P((()=>localStorage[r[3]](H,e.JSON.stringify(c))))}}})(),b=(X=_,(t,n,o)=>{const{[r[2]]:s,path:c,search:i}=Z(t);if(o){const t={};e.Object.keys(o).forEach((n=>{const e=o[n];if((null==e?void 0:e[r[7]])&&e[r[6]]){const{[r[2]]:o}=Z(n),{[r[2]]:s}=Z(e[r[7]]);o!==s&&(t[o]={[r[2]]:e[r[7]],[r[6]]:e[r[6]]})}})),e.Object.keys(t).length>0&&X.t(t)}const u=X.get(s);if(u)return[O(u[0],c,i),!1];if((null==n?void 0:n[r[7]])&&n[r[6]]){const{[r[2]]:t}=Z(n[r[7]]);if(t!==s)return X.set(s,n[r[7]],n[r[6]]),[O(n[r[7]],c,i),!0]}return[t,!1]});var X;const J=[1,3,6,5,8,9,10,11,12,13,14,18,22],tt=n[93],nt=n[94],rt=216e5;class ot{constructor(t,n,o){this.o=t,this.i=n,this.u=o,this.l=l.currentScript,this.h=(t,n=0)=>this.v.then((o=>o&&o[r[8]](this.C(t,n)))),this.p=t=>a.from(e.atob(t),(t=>t.charCodeAt(0))),this.D=t=>0!=+t,this.v=this.B(),this[r[9]]=this.T(),e[B]=this[r[9]],e[y]=R}in(t,n=!1){this.I(t)&&(n?this.T(rt).then((()=>{this.I(t)&&this.S(t,rt)})):this.S(t))}I(t){return!(!this.D(t)||e[v+w[t]]||e[d[t]])}S(t,r=0){this.h(t,r).then((s=>{if(!s)return;e[I+w[t]]=this.i;const i=this.Y();r||(i.onerror=()=>this.in(t,!0));const u=C[t],h=b(j(s))[0];if(u){const r=n[95]+u,s=l.querySelector(o[5]+n[96]+r+n[97]);if(!s)throw new c(n[98]+t);const h=s.getAttribute(r).trim();e.Object.keys(s.dataset).forEach((t=>{const r=s.dataset[t],o=n[95]+t;t.slice(-2)===x&&(s.removeAttribute(o),i.setAttribute(o,r))})),s.removeAttribute(r),i.setAttribute(r,h)}i.src=h,l.head.appendChild(i)}))}T(t=0){return e[g]={},u[r[10]](J.map((n=>this.h(n,t).then((t=>{e[g][n]=t?j(t):void 0}))))).then((()=>!0))}C(t,r=0){const o=h?h.userAgent:n[58],s=e.location.hostname||n[58],c=e.innerHeight,i=e.innerWidth,u=sessionStorage?1:0,a=l.cookie?l.cookie.length:0,f=this.F(),d=q()?1:0;return[c,i,u,V()-r,0,t,s.slice(0,100),a,f,o.slice(0,15),d].join(n[99])}F(){const t=(new e.Date)[nt]();return!t||t>720||t<-720?0:720+t}B(){const t=e.WebAssembly&&e.WebAssembly.instantiate;return t?u.resolve().then((()=>t(this.p(this.o),{}))).then((({[r[11]]:t})=>{const{memory:o,[r[8]]:s}=t.exports,c=new e.TextEncoder,i=new e.TextDecoder(n[100]);return{[r[8]]:t=>{const n=c.encode(t),r=new a(o.buffer,0,n.length);r.set(n);const e=r.byteOffset+n.length,u=s(r,n.length,e),l=new a(o.buffer,e,u);return i.decode(l)}}})).catch((()=>null)):u.resolve(null)}Y(){const t=l.createElement(o[5]);return e.Object.assign(t.dataset,{[tt]:n[101]},this.l?this.l.dataset:{}),t.async=!0,t}}const et=(t,n,r,o)=>{const s=new ot(t,n,r);e[o]=t=>s.in(t)};et("AGFzbQEAAAABHAVgAAF/YAN/f38Bf2ADf39/AX5gAX8AYAF/AX8DCQgAAQIBAAMEAAQFAXABAQEFBgEBgAKAAgYJAX8BQZCJwAILB2cHBm1lbW9yeQIAA3VybAADGV9faW5kaXJlY3RfZnVuY3Rpb25fdGFibGUBABBfX2Vycm5vX2xvY2F0aW9uAAcJc3RhY2tTYXZlAAQMc3RhY2tSZXN0b3JlAAUKc3RhY2tBbGxvYwAGCpcJCCEBAX9BgAlBgAkoAgBBE2xBoRxqQYfC1y9wIgA2AgAgAAuTAQEFfxAAIAEgAGtBAWpwIABqIgQEQEEAIQBBAyEBA0AgAUEDIABBA3AiBhshARAAIgVBFHBBkAhqLQAAIQMCfyAHQQAgBhtFBEBBACAFIAFwDQEaIAVBBnBBgwhqLQAAIQMLQQELIQcgACACaiADQfQILQAAazoAACABQQFrIQEgAEEBaiIAIARJDQALCyACIARqC3ECA38CfgJAIAFBAEwNAANAIARBAWohAyACIAUgACAEai0AAEEsRmoiBUYEQCABIANMDQIDQCAAIANqMAAAIgdCLFENAyAGQgp+IAd8QjB9IQYgA0EBaiIDIAFHDQALDAILIAMhBCABIANKDQALCyAGC8gGAgR+B38gACABQQMQAiEDIAAgAUEFEAIhBUHwCCgCACIHQQZsIQogB0EBdCILQQRqIQggACABQQgQAiEEIAdBMmoiCSAJbEHoB2whCSAAIAFBChACQgFRBEAgAyAHQQJqIAdBCGtuIAlsrX0hAwsgCCAKbCEIIAdBBGshDEGAgIACIQEgA0KAwOLCxzNaBEAgAyAJrYAgDK2AIQZBgICAAiEAQQAhAQNAQQAgACAGIAFBAnRBsAhqNQIAURshACABQQFqIgFBEEcNAAsgA0KAkMrm9zN9QoDwm797VCENIABBgICAEEGAgIAIIAQgCK2CpyALIAdB+f///wdqbG4iAUEJRkEYdCABQQNGGyABQRFGG3IhAQsgA0KAkIjarzN9Qv/3wL8XWARAIAQgCK2CpyIIIAogB0EHa2wiCm4iC0F9cUEBRyEAIAtBBUYEfyAIIApBA25uIABqBSAAC0EXdCABciEBC0GACSADQfgIKQMAIgQgAyAEVBsgCa2AIgQgB0EOaiIIIAwgA0KAgPHtxzBUIgwbrYCnQQAgASADQoCQzKf2MVQiCxtyNgIAEAAaEAAaIAJC6OjRg7fOzpcvNwAAQQdBCkEIIANCgNDFl4MyVBsgA0KAlqKd5TBUIgcbQQtBDCAHGyACQQhqEAEhASMAQRBrIgAkACABQS46AAAgAEHj3rUDNgIEIABBgggtAAA6AAIgAEGACC8AADsBACAAIAA2AgwgACAAQQRqNgIIIAFBAWohCUEAIQEgAEEIaiANQQJ0aigCACINLQAAIgoEQANAIAEgCWogCjoAACANIAFBAWoiAWotAAAiCg0ACwsgAEEQaiQAIAEgCWohARAAGkGACSAEIAitgCAFQhuGQgBCgICAIEKAgIAwQoCAgAhCgICAGCAFQghRG0KAgIASQoCAwA1CgIDAByADQoCAz5LuM1QbIANCgIiX2qwyVBsgCxsgA0KAmMauzzFUGyAHGyAMG4SEPgIAEAAaQQJBBEEFIANCgJDqgNMyVCIAGxAAQQNwIgcbIQlBBUEIIAAbIQpBACEAA0AgAUEvOgAAIAAgB0YhCCAJIAogAUEBahABIQEgAEEBaiEAIAhFDQALIAEgAmsLBAAjAAsGACAAJAALEAAjACAAa0FwcSIAJAAgAAsFAEGECQsLigECAEGACAtvaW4AnqKmrLK2AAAAAAAAAJ+goaOkpaeoqaqrra6vsLGztLW3bW5wb3JxdHN2dQAAY0EBALNBAQDnQgEAB0MBAIlDAQCpQwEA3EMBAPBDAQBMRAEAUUQBAKZEAQCyRAEAykQBAOlEAQD9RAEADkUBAEHwCAsOCgAAAD0AAAD/J5mLogE=","15","1.1.93-st","ablyed")}();</script>
+<script data-cfasync="false" data-clbaid="" async src="//gigglegrowlworrisome.com/bn.js" onerror="ablyed(16)" onload="ablyed(16)"></script>
+<div data-cl-spot="1999869"></div>
+
+  </div>
+</div></div></div></div>                    </div>
+                                        <footer class="site-footer">
+    <div class="site-footer__content"><div class="site-footer__brand">    <a class="site-brand" href="/main" aria-label="Javtiful Home">
+                    <img class="site-brand__image" src="/uploads/site/logo/2026/04/27/215c2694af8e5a2a3b487b6711f22866.png" alt="Javtiful" width="110" height="28">
+            </a>
+<p>Watch more than 100,000 Full HD JAV Online For Free at Javtiful</p></div></div>
+    <div class="site-footer__copyright">
+        <span>© 2026 Javtiful · ALL RIGHTS RESERVED</span>
+        <div class="site-footer__links"></div>
+    </div>
+</footer>
+        </div>
+    </div>
+</div>
+<div class="sheet-backdrop" data-sheet-close hidden></div>
+    <div class="navigation-sheet" id="sheet-videos" role="dialog" aria-modal="true" aria-labelledby="sheet-title-videos" hidden tabindex="-1">
+        <span class="navigation-sheet__handle" aria-hidden="true"></span>
+        <div class="navigation-sheet__heading"><span id="sheet-title-videos">Videos</span><button type="button" class="sheet-close" data-sheet-close aria-label="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 6 12 12 M18 6 6 18"/></svg></button></div>
+        <div class="navigation-sheet__grid"><a href="/videos"><span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 10l5-3v10l-5-3z M3 7h12v10H3z"/></svg></span>Videos</a><a href="/censored"><span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 10l5-3v10l-5-3z M3 7h12v10H3z"/></svg></span>Censored</a><a href="/uncensored"><span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 10l5-3v10l-5-3z M3 7h12v10H3z"/></svg></span>Uncensored</a><a href="/reducing-mosaic"><span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 10l5-3v10l-5-3z M3 7h12v10H3z"/></svg></span>Reducing Mosaic</a><a href="/videos?sort=popular_week"><span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 10l5-3v10l-5-3z M3 7h12v10H3z"/></svg></span>Popular This Week</a><a href="/videos?sort=most_viewed"><span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 10l5-3v10l-5-3z M3 7h12v10H3z"/></svg></span>Most Viewed</a><a href="/videos?sort=most_liked"><span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 10l5-3v10l-5-3z M3 7h12v10H3z"/></svg></span>Most Liked</a></div>
+    </div>
+    <div class="navigation-sheet" id="sheet-browse" role="dialog" aria-modal="true" aria-labelledby="sheet-title-browse" hidden tabindex="-1">
+        <span class="navigation-sheet__handle" aria-hidden="true"></span>
+        <div class="navigation-sheet__heading"><span id="sheet-title-browse">Browse</span><button type="button" class="sheet-close" data-sheet-close aria-label="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 6 12 12 M18 6 6 18"/></svg></button></div>
+        <div class="navigation-sheet__grid"><a href="/categories"><span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z"/></svg></span>Categories</a><a href="/channels"><span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8h20v12H2z M8 3l4 5 4-5 M7 12v4 M11 12v4"/></svg></span>Channels</a><a href="/actresses"><span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg></span>Actresses</a></div>
+    </div>
+<nav class="mobile-dock" aria-label="Mobile navigation">
+    <a class="" href="/main"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 12 3l9 8v10h-6v-6H9v6H3z"/></svg><span>Home</span></a>
+    <button type="button" class="is-active" data-sheet-toggle="videos" aria-expanded="false" aria-controls="sheet-videos"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v14H4z M10 9l5 3-5 3z"/></svg><span>Videos</span></button>
+    <a class="dock-shorts" href="/shorts"><span class="dock-shorts__icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 2h10 M5 6h14 M5 10h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z"/></svg></span><span>Shorts</span></a>    <button type="button" class="" data-sheet-toggle="browse" aria-expanded="false" aria-controls="sheet-browse"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z"/></svg><span>Browse</span></button>
+    <a href="/login" data-auth-open="login"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg><span>Profile</span></a>
+</nav>
+<div class="toast-region" data-toast-region role="status" aria-live="polite" aria-atomic="true">
+    <div class="toast-notification" data-toast hidden>
+        <span class="toast-notification__icon" aria-hidden="true"><svg class="toast-notification__check" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12.5 10 17 19 7.5"></polyline></svg><svg class="toast-notification__cross" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg></span>
+        <span class="toast-notification__message" data-toast-message></span>
+        <button type="button" class="toast-notification__undo" data-toast-undo hidden></button>
+    </div>
+</div>
+    <div class="auth-overlay" data-auth-overlay hidden>
+    <div class="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-title" aria-describedby="auth-description" tabindex="-1">
+        <button type="button" class="auth-dialog__close" data-auth-close aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 6 12 12 M18 6 6 18"/></svg></button>
+        <div class="auth-dialog__heading">
+            <span class="auth-dialog__mark"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg></span>
+            <h2 id="auth-title" data-login-title="Welcome back" data-register-title="Create your account">Welcome back</h2>
+            <p id="auth-description" data-login-description="Login to continue watching and save favorites." data-register-description="Free forever. Follow channels, build playlists, pick up where you left off.">Login to continue watching and save favorites.</p>
+        </div>
+                    <div class="auth-tabs" role="tablist" aria-label="Account access">
+                <button type="button" role="tab" id="auth-login-tab" aria-controls="auth-login-panel" aria-selected="true" data-auth-tab="login">Login</button>
+                <button type="button" role="tab" id="auth-register-tab" aria-controls="auth-register-panel" aria-selected="false" tabindex="-1" data-auth-tab="register">Create account</button>
+            </div>
+                            <form class="auth-form" id="auth-login-panel" method="post" action="/login" data-auth-form="login" role="tabpanel" aria-labelledby="auth-login-tab" data-failure-message="Please review the form fields and try again." data-loading-label="Signing in...">
+                <div class="auth-message" data-auth-message role="alert" hidden></div>
+                                <label class="auth-field"><span>Username or Email</span><input type="text" name="identity" placeholder="you@example.com" autocomplete="username" required><small data-auth-error="identity"></small></label>
+                <label class="auth-field"><span>Password</span><span class="password-field"><input type="password" name="password" placeholder="••••••••" autocomplete="current-password" required><button type="button" data-password-toggle aria-label="Show password" aria-pressed="false">Show</button></span><small data-auth-error="password"></small></label>
+                                    <div class="auth-options"><label class="auth-checkbox"><input type="checkbox" name="remember" value="1" checked><span>Remember me</span></label><a href="/forgot-password">Forgot password?</a></div>
+                                                    <div class="auth-verification"><div data-auth-turnstile></div><small data-auth-error="turnstile"></small></div>
+                                <button type="submit" class="auth-submit">Login</button>
+                                    <div class="auth-divider">New here?</div><button type="button" class="auth-secondary" data-auth-tab="register">Create an account</button>
+                            </form>
+                    <form class="auth-form" id="auth-register-panel" method="post" action="/register" data-auth-form="register" role="tabpanel" aria-labelledby="auth-register-tab" hidden data-failure-message="Please review the form fields and try again." data-loading-label="Processing...">
+                <div class="auth-message" data-auth-message role="alert" hidden></div>
+                                    <label class="auth-field"><span>Username</span><input type="text" name="username" placeholder="username123" autocomplete="username" minlength="6" maxlength="14" pattern="[A-Za-z0-9]+" required><small data-auth-error="username"></small></label>
+                                <label class="auth-field"><span>Email</span><input type="email" name="email" placeholder="you@example.com" autocomplete="email" required><small data-auth-error="email"></small></label>
+                <label class="auth-field"><span>Password</span><span class="password-field"><input type="password" name="password" placeholder="Minimum 8 characters" autocomplete="new-password" minlength="8" required><button type="button" data-password-toggle aria-label="Show password" aria-pressed="false">Show</button></span><small data-auth-error="password"></small></label>
+                                    <label class="auth-field"><span>Confirm Password</span><span class="password-field"><input type="password" name="password_confirmation" placeholder="Repeat your password" autocomplete="new-password" required><button type="button" data-password-toggle aria-label="Show password" aria-pressed="false">Show</button></span><small data-auth-error="password_confirmation"></small></label>
+                                                    <div class="auth-verification"><div data-auth-turnstile></div><small data-auth-error="turnstile"></small></div>
+                                <button type="submit" class="auth-submit">Create account</button>
+                                    <p class="auth-switch">Already have an account? <button type="button" data-auth-tab="login">Login</button></p>
+                            </form>
+            </div>
+</div>
+
+            <script type="application/json" id="frontLoginModalConfig">
+            {"loginUrl":"/login","csrfUrl":"/csrf-token","forgotPasswordUrl":"/forgot-password","registerUrl":"/register","allowRegistration":true,"turnstile":{"enabled":true,"siteKey":"0x4AAAAAAA5gXceyX5rH5RZV","apiUrl":"https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"},"labels":{"login":"Login","welcomeBack":"Welcome back","loginCopy":"Use your username or email to sign in.","usernameOrEmail":"Username or Email","password":"Password","passwordPlaceholder":"Enter your password","rememberMe":"Remember me","forgotPassword":"Forgot password?","signingIn":"Signing in...","noAccount":"Don\u0027t have an account yet?","registerHere":"Register here","close":"Close","reviewFields":"Please review the form fields and try again.","loginFailed":"Login failed. Please try again."}}        </script>
+    
+    
+    <script src="/assets/front/bootstrap/js/bootstrap.bundle.min.js?v=95685&amp;rev=1777289810"></script>
+    <script>
+        window.frontI18n = {"justNow":"Just now","member":"Member","replyTo":"Reply to :name","writeReply":"Write your reply...","postReply":"Post Reply","signInToReply":"Sign in","signInToReplySuffix":"to reply.","noComments":"No comments yet.","threadCount":":count thread","threadsCount":":count threads","reactionUpdated":"Reaction updated.","reactionFailed":"Failed to save the reaction.","removeFromFavorites":"Remove from Favorites","addToFavorites":"Add to Favorites","favoriteUpdated":"Favorite updated.","favoriteFailed":"Failed to update the favorite.","playlistSelectOrCreate":"Select a playlist or create a new one first.","commentFailed":"Failed to submit the comment.","reportFailed":"Failed to send the report.","actressCorrectionRequired":"Enter a valid actress name, 2-120 characters.","actressCorrectionFailed":"Failed to submit the correction.","profileNoFile":"No file selected.","profileUploading":"Uploading...","profileSavePhoto":"Save Photo","profileUpdated":"Profile photo updated successfully.","profileChoosePhotoFirst":"Please choose a profile photo first.","profileUpdateFailed":"Failed to update the profile photo.","removeVideoConfirm":"Remove this video from the playlist?","removeVideoSuccess":"Video removed from playlist successfully.","removeVideoFailed":"Failed to remove the video from the playlist.","deletePlaylistConfirm":"Delete this playlist?","deletePlaylistSuccess":"Playlist deleted successfully.","deletePlaylistFailed":"Failed to delete the playlist.","subscriptionRemoved":"Subscription removed.","subscriptionRemoveFailed":"Subscription could not be removed.","playlistRequired":"Playlist name is required.","playlistActions":"Playlist actions","edit":"Edit","delete":"Delete","emptyPlaylistCount":"0 videos","playlistBadgeCount":":count Videos","noVideo":"No Video","creatingPlaylist":"Creating...","createPlaylistSubmit":"Create Playlist","playlistCreatedSuccess":"Playlist created successfully.","playlistCreateFailed":"Failed to create the playlist.","playlistUpdatedSuccess":"Playlist updated.","playlistUpdateFailed":"Failed to update the playlist.","premiumSubscribe":"Subscribe","premiumSelected":"Selected","premiumLabel":"Premium","premiumDays":":count days","premiumSavePercent":"Save :count%","premiumStandard":"Standard","premiumBestValue":"This plan offers better value per day than the other available plans.","premiumBaseValue":"This plan is used as the base price reference for discount comparison.","premiumPending":"Waiting for Payment","premiumUnderpaid":"Underpaid","downloadLinkUnavailable":"Download link could not be prepared.","downloadPreparing":"Preparing...","downloadGenerateFailed":"Failed to generate the download link.","noPlaylists":"No playlists yet. Create one to save this video.","playlistContainsVideo":"This playlist already contains the video","opening":"Opening...","openingPayment":"Opening payment...","openingPaymentInvoice":"Opening payment invoice...","premiumSelectPlan":"Please select a premium plan first.","premiumCreateInvoiceFailed":"Failed to create the payment invoice.","watchCopy":"Copy","watchReply":"Reply","watchCopied":"Copied","themeLightMode":"Light mode","themeDarkMode":"Dark mode","themeSwitchToLight":"Switch to light mode","themeSwitchToDark":"Switch to dark mode"};
+    </script>
+            <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js"></script>
+            <script src="/assets/front/js/common.js?v=95685&amp;rev=1791866330"></script>
+    <script src="/assets/front/js/layout.js?v=95685&amp;rev=1794284913"></script>
+    <script src="/assets/front/js/toast.js?v=95685&amp;rev=1791519628"></script>
+        <script id="watch-config" type="application/json">
+    {"csrfFieldHtml":"","csrfUrl":"/csrf-token","placeholderAvatarUrl":"/assets/front/media/profile-placeholder.png","commentsEndpoint":"/video/116259/comments","loginUrl":"/login","isLoggedIn":false,"playback":{"endpoint":"/video/116259/playback","ticket":"p1.116259.0.1795650218.01b4079e9cf74d57324d99d97cc6fa3a.432e6d984440975673d8bc5d4913a4d790d805147a4a9b2f00743ebea4341ba9"},"videoTitle":"MEYD-144 Frustration Filthy Housewife Tour - Eating A Man To Show Off A Big Ass","videoPoster":"/uploads/uploads/videos/thumbs/2026/11/26/23bea4c4f79cdbfe247a3b112b02e484.jpg","playerBrand":{"name":"Javtiful","url":"https://javtiful.com/main","logoUrl":"https://javtiful.com/uploads/site/logo/2026/04/27/215c2694af8e5a2a3b487b6711f22866.png"},"playlist":{"endpoint":"/video/116259/playlist","items":[],"labels":{"title":"Add to Playlist","close":"Close","create":"Create New Playlist","placeholder":"My favorite videos","save":"Save to Playlist","noPlaylists":"No playlists yet. Create one to save this video.","containsVideo":"This playlist already contains the video","saveFailed":"Failed to save the playlist."}},"cancelLabel":"Cancel"}</script>
+<script src="/assets/front/js/home-live.js?v=95685&amp;rev=1791986551" async></script>
+<script src="/assets/front/js/watch-player.js?v=95685&amp;rev=1793249524"></script>
+<script src="/assets/front/js/watch.js?v=95685&amp;rev=1794357231"></script>
+<script src="/assets/front/js/watch-ui.js?v=95685&amp;rev=1794318828"></script>
+            <script>
+(function () {
+    var validateEndpoint = "/referral/validate";
+    var linkEndpoint = "/referral/link/116259";
+    var canGenerateLink = false;
+    var hasReferralSession = false;
+    var minVisibleSeconds = 10;
+    var validateDelayMs = 12000;
+    var visibleSeconds = 0;
+    var played = false;
+    var sent = false;
+    var visibleTimer = window.setInterval(function () {
+        var hasVisibilityState = typeof document.visibilityState !== 'undefined';
+        var isHidden = typeof document.hidden !== 'undefined' && document.hidden;
+        if (!isHidden && (!hasVisibilityState || document.visibilityState === 'visible')) {
+            visibleSeconds += 1;
+        }
+    }, 1000);
+
+    function buildQuery(params) {
+        var parts = [];
+        var key;
+        for (key in params) {
+            if (Object.prototype.hasOwnProperty.call(params, key)) {
+                parts.push(encodeURIComponent(key) + '=' + encodeURIComponent(params[key]));
+            }
+        }
+        return parts.join('&');
+    }
+
+    function requestJson(url, callback) {
+        if (window.fetch) {
+            window.fetch(url, {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            }).then(function (response) {
+                return response && response.ok ? response.json() : null;
+            }).then(function (data) {
+                callback(data || null);
+            }).catch(function () {
+                callback(null);
+            });
+            return;
+        }
+
+        try {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', url, true);
+            xhr.withCredentials = true;
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState !== 4) {
+                    return;
+                }
+                if (xhr.status < 200 || xhr.status >= 300) {
+                    callback(null);
+                    return;
+                }
+                try {
+                    callback(JSON.parse(xhr.responseText || 'null'));
+                } catch (error) {
+                    callback(null);
+                }
+            };
+            xhr.send(null);
+        } catch (error) {
+            callback(null);
+        }
+    }
+
+    function sendRequest(url) {
+        if (window.fetch) {
+            window.fetch(url, {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            }).catch(function () {});
+            return;
+        }
+
+        try {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', url, true);
+            xhr.withCredentials = true;
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.send(null);
+        } catch (error) {}
+    }
+
+    function cookieValue(name) {
+        var parts = ('; ' + document.cookie).split('; ' + name + '=');
+        if (parts.length < 2) {
+            return '';
+        }
+        return decodeURIComponent(parts.pop().split(';').shift() || '');
+    }
+
+    function simpleHash(value) {
+        var hash = 0;
+        for (var i = 0; i < value.length; i += 1) {
+            hash = ((hash << 5) - hash) + value.charCodeAt(i);
+            hash |= 0;
+        }
+        return String(Math.abs(hash));
+    }
+
+    function hexByte(byte) {
+        var value = byte.toString(16);
+        return value.length === 1 ? '0' + value : value;
+    }
+
+    function browserFingerprint(callback) {
+        var raw = [
+            navigator.userAgent || '',
+            navigator.language || '',
+            (navigator.languages || []).join(','),
+            navigator.platform || '',
+            String(navigator.hardwareConcurrency || ''),
+            screen ? [screen.width, screen.height, screen.colorDepth].join('x') : '',
+            Intl.DateTimeFormat ? Intl.DateTimeFormat().resolvedOptions().timeZone || '' : ''
+        ].join('|');
+
+        if (!window.crypto || !window.crypto.subtle || !window.TextEncoder) {
+            callback(simpleHash(raw));
+            return;
+        }
+
+        window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw)).then(function (buffer) {
+            var bytes = new Uint8Array(buffer);
+            var output = '';
+            var i;
+            for (i = 0; i < bytes.length; i += 1) {
+                output += hexByte(bytes[i]);
+            }
+            callback(output);
+        }).catch(function () {
+            callback(simpleHash(raw));
+        });
+    }
+
+    function validateReferral() {
+        var visit = cookieValue('referral_visit');
+        if (sent || (!visit && !hasReferralSession) || visibleSeconds < minVisibleSeconds) {
+            return;
+        }
+
+        sent = true;
+        window.clearInterval(visibleTimer);
+        browserFingerprint(function (fingerprint) {
+            var params = {
+                fingerprint: fingerprint,
+                visible: String(Math.min(visibleSeconds, 3600)),
+                played: played ? '1' : '0'
+            };
+            if (visit) {
+                params.visit = visit;
+            }
+            var query = buildQuery(params);
+            sendRequest(validateEndpoint + '?' + query);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var player = document.getElementById('front-player');
+        if (player) {
+            var onPlay = function () {
+                played = true;
+                window.setTimeout(validateReferral, 3000);
+                player.removeEventListener('play', onPlay);
+            };
+            player.addEventListener('play', onPlay);
+        }
+
+        window.setTimeout(validateReferral, validateDelayMs);
+
+        if (!canGenerateLink) {
+            return;
+        }
+
+        var shareInput = document.querySelector('[data-front-copy-source="share-link"]');
+        if (!shareInput) {
+            return;
+        }
+
+        requestJson(linkEndpoint, function (data) {
+            if (data && data.url) {
+                shareInput.value = data.url;
+            }
+        });
+    });
+})();
+</script>
+            </body>
+
+</html>

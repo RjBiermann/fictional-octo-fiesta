@@ -1,5 +1,5 @@
 // ! Bu araç @ByAyzen tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 28 // #1613: version bump (v28)
+version = 29 // #1463: playback-handshake drift — inline playerSources → POST ticket (v29)
 
 cloudstream {
     authors     = listOf("ByAyzen")

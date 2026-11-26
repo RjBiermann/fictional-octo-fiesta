@@ -2,14 +2,12 @@
 
 package com.byayzen
 
+import com.kraptor.JavtifulEmbedParse
 import com.kraptor.JsonLdParse
 import com.kraptor.registerHostExtractors
-import com.fasterxml.jackson.annotation.JsonProperty
-import com.fasterxml.jackson.module.kotlin.readValue
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
-import okhttp3.Request
 import org.jsoup.nodes.Element
 import org.jsoup.select.Elements
 
@@ -22,6 +20,30 @@ fun pagedUrl(url: String, page: Int): String =
 fun isHls(src: String, mimeType: String?): Boolean =
     mimeType?.contains("mpegurl", ignoreCase = true) == true ||
         src.substringBefore('?').endsWith(".m3u8")
+
+private const val STREAM_ORIGIN = "https://javtiful.com"
+
+/** Absolute stream URL for the handshake's page-relative `/media/video/…` paths
+ *  (`/media/video/<id>/720p?expires=…&signature=…` is same-origin, not a CDN URL). */
+fun absoluteStream(src: String?, origin: String = STREAM_ORIGIN): String? = when {
+    src.isNullOrBlank() -> null
+    src.startsWith("http") -> src
+    else -> origin.trimEnd('/') + "/" + src.trimStart('/')
+}
+
+/** loadLinks' pure seam (issue #1463): the 2026-11 page shape dropped the inline
+ *  `playerSources` list — `script#watch-config` now carries a one-shot
+ *  `playback{endpoint,ticket}` handshake and the sources only arrive from
+ *  `POST <endpoint>` with the form body `ticket=…`. Empty when the page has no handshake
+ *  (pre-drift save, deleted video) or the POST body is junk, so a broken link is never
+ *  emitted. Parsing itself lives in shared/ (`JavtifulEmbedParse`), where the same
+ *  handshake already backs the javtiful embed host (#1444). */
+fun playbackSources(html: String?, playbackBody: String?): List<JavtifulEmbedParse.Source> {
+    if (JavtifulEmbedParse.playback(html) == null) return emptyList()
+    return JavtifulEmbedParse.sources(playbackBody).mapNotNull { source ->
+        absoluteStream(source.src)?.let { source.copy(src = it) }
+    }
+}
 
 // Pure redesign selectors (issue #534): the site dropped the whole `front-*` vocabulary.
 // Top-level so the unit tests run without the cloudstream stubs on the test classpath.
@@ -48,10 +70,16 @@ fun videoCard(card: Element): Triple<String, String, String>? {
 fun hasNextPage(res: Element): Boolean =
     res.select("a.pagination__link").any { it.text() == "Next" && !it.hasClass("is-disabled") }
 
-/** Year from the watch page's "Added on" datetime attribute. */
-fun addedOnYear(res: Element): Int? =
-    res.selectFirst("div.watch-detail:contains(Added on) time[datetime]")
-        ?.attr("datetime")?.split("-")?.firstOrNull()?.toIntOrNull()
+/** Year from the watch page's "Added on" timestamp. The 2026-11-25 drift (issue #1463)
+ *  moved the meta rows out of `div.watch-detail` into `div.watch-detail-fact`, which broke
+ *  a container-class anchor — so anchor on the structural parts instead: the "Added on"
+ *  label's own row, then the `<time datetime>` inside it (a watch page carries exactly one
+ *  timestamp; the first one is the fallback if the label ever moves). */
+fun addedOnYear(res: Element): Int? {
+    val labelledRow = res.select(":containsOwn(Added on)").firstOrNull()?.parent()
+    val time = labelledRow?.selectFirst("time[datetime]") ?: res.selectFirst("time[datetime]")
+    return time?.attr("datetime")?.split("-")?.firstOrNull()?.toIntOrNull()
+}
 
 /** Categories watch-detail carries is-category chips, Tags carries plain ones. */
 fun watchTags(res: Element): List<String> =
@@ -166,21 +194,33 @@ class Javtiful : MainAPI() {
         }
     }
 
+    /** Two-step player bootstrap (issue #1463): the page hands out
+     *  `playback{endpoint,ticket}`, the POST trades the ticket for signed sources. */
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val res = app.get(data).document
-        val configraw = res.selectFirst("script#watch-config")?.data()
-        val configdata = try {
-            configraw?.let { raw -> mapper.readValue<WatchConfig>(raw) }
+        val html = app.get(data).text
+        val playback = JavtifulEmbedParse.playback(html) ?: return false
+        val endpoint = absoluteStream(playback.endpoint) ?: return false
+        val playbackBody = try {
+            app.post(
+                endpoint,
+                data = mapOf("ticket" to playback.ticket),
+                referer = data,
+                headers = mapOf(
+                    "Origin" to STREAM_ORIGIN,
+                    "X-Requested-With" to "XMLHttpRequest"
+                )
+            ).text
         } catch (e: Exception) {
             null
         }
 
-        configdata?.playerSources?.forEach { source ->
+        val sources = playbackSources(html, playbackBody)
+        sources.forEach { source ->
             callback.invoke(
                 newExtractorLink(
                     this.name,
@@ -189,26 +229,17 @@ class Javtiful : MainAPI() {
                 ) {
                     this.quality = source.size ?: Qualities.Unknown.value
                     this.referer = "$mainUrl/"
-                    // config carries the MIME ("video/mp4"); extensionless stream URLs
-                    // broke extension sniffing (issue #240, ExoPlayer 3002)
+                    // the source carries the MIME ("video/mp4"); the `/media/video/<id>/720p`
+                    // path is extensionless, so extension sniffing would say M3U8
+                    // (issue #240, ExoPlayer 3002)
                     this.type =
                         if (isHls(source.src, source.type)) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
                 }
             )
         }
 
-        return !configdata?.playerSources.isNullOrEmpty()
+        return sources.isNotEmpty()
     }
-
-    data class WatchConfig(
-        @param:JsonProperty("playerSources") val playerSources: List<PlayerSource>? = null
-    )
-
-    data class PlayerSource(
-        @param:JsonProperty("src") val src: String,
-        @param:JsonProperty("type") val type: String? = null,
-        @param:JsonProperty("size") val size: Int? = null
-    )
 }
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 class JavtifulPlugin : com.lagradost.cloudstream3.plugins.BasePlugin() {
