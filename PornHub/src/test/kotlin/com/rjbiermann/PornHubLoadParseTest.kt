@@ -26,6 +26,14 @@ import org.junit.Test
  *    `og:*` metas and the premium lock marker, but **no** flashvars blob (the paywall wall).
  *  - `get-media-response.json` — the verbatim body of that video's `/video/get_media?s=…`
  *    fallback (4 progressive mp4 legs), captured with the watch page's session cookies.
+ *  - `flashvars-width-convention.json` — the `mediaDefinitions` array of
+ *    `...?viewkey=6b0264f58ef77` (S27 of #1354, 2026-11-26), the **swapped** page shape:
+ *    `height` carries the pixel *width* (`1920/426/852/1280`) and `width` carries the ladder
+ *    height, exactly as the S3/S4 pages did (FINDINGS §Stream sources). Its own `quality`
+ *    labels (`1080/240/480/720`) and the URLs' `1080P_4000K` tokens agree with each other, so
+ *    they — not `height` — are what `Parse.ladderHeight` reads.
+ *  - `get-media-widths.json` — that video's `/video/get_media` body, same swapped shape
+ *    (`height: 426, width: 240, quality: "240"`, …).
  */
 class PornHubLoadParseTest {
 
@@ -165,6 +173,39 @@ class PornHubLoadParseTest {
         assertEquals(emptyList<Parse.Stream>(), Parse.hlsStreams(""))
         assertEquals(emptyList<Parse.Stream>(), Parse.hlsStreams("{}"))
         assertNull(Parse.getMediaUrl("{}"))
+    }
+
+    @Test fun `a swapped width-in-height page resolves to the real ladder heights`() {
+        val streams = Parse.hlsStreams(fixture("flashvars-width-convention.json"))
+        assertEquals(
+            "the entry's own quality label wins over the swapped height field",
+            listOf(240, 480, 720, 1080),
+            streams.map { it.height },
+        )
+        assertEquals(
+            "the emitted qualities are ladder heights, so the player labels are 240p…1080p",
+            listOf("PornHub 240p", "PornHub 480p", "PornHub 720p", "PornHub 1080p"),
+            streams.map { Parse.linkName("PornHub", Parse.qualityOf(it.height)) },
+        )
+    }
+
+    @Test fun `a quality label outranks the url token and the height field`() {
+        assertEquals(1080, Parse.ladderHeight(1920, "1080", "https://ev-h.phncdn.com/hls/x/720P_4000K_x.mp4/master.m3u8"))
+    }
+
+    @Test fun `the url rendition token backstops a missing quality label`() {
+        assertEquals(1080, Parse.ladderHeight(1920, "", "https://ev-h.phncdn.com/hls/c1/videos/1/1080P_4000K_1.mp4/master.m3u8"))
+        assertEquals(240, Parse.ladderHeight(426, null, "https://ev.phncdn.com/videos/1/240P_400K_1.mp4"))
+    }
+
+    @Test fun `a leg with no label and no token keeps its height`() {
+        assertEquals(720, Parse.ladderHeight(720, "", "https://ev.phncdn.com/x/master.m3u8"))
+        assertEquals("an absent height stays absent", 0, Parse.ladderHeight(0, null, ""))
+    }
+
+    @Test fun `a swapped get_media body resolves to the real ladder heights`() {
+        val streams = Parse.getMediaStreams(fixture("get-media-widths.json"))
+        assertEquals(listOf(240, 480, 720, 1080), streams.map { it.height })
     }
 
     @Test fun `entry heights map to cloudstream qualities`() {

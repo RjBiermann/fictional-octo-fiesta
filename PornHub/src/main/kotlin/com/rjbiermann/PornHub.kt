@@ -73,6 +73,12 @@ object Parse {
 
     private const val SEARCH_PATH = "/video/search"
 
+    /** `/1080P_4000K_69506775.mp4/…` — the rendition token the CDN path carries per ladder rung. */
+    private val RENDITION = Regex("""/(\d{3,4})P_\d+K_""")
+
+    /** Plausible ladder heights, same window as [qualityOf] (`Qualities` values are heights). */
+    private val LADDER = 144..4320
+
     /** `var flashvars_<id> = {...};` — the player config blob (one line on a watch page).
      *  DOT_MATCHES_ALL keeps a multi-line refresh of the blob working. */
     private val FLASHVARS =
@@ -313,7 +319,14 @@ object Parse {
     )
 
     /** One media leg from `flashvars.mediaDefinitions` ([height] is 0 when absent). */
-    data class Media(val format: String, val url: String, val height: Int, val remote: Boolean)
+    data class Media(
+        val format: String,
+        val url: String,
+        val height: Int,
+        val remote: Boolean,
+        /** The entry's own `quality` label (`"1080"`) — the ladder value when [height] is not. */
+        val quality: String = "",
+    )
 
     /** One playable source: [url] plus the height that carries the quality. */
     data class Stream(val url: String, val height: Int)
@@ -384,6 +397,7 @@ object Parse {
                 url = url,
                 height = entry.path("height").asInt(0),
                 remote = entry.path("remote").asBoolean(false),
+                quality = entry.path("quality").asText(""),
             )
         }
     } catch (e: Exception) {
@@ -394,7 +408,7 @@ object Parse {
     fun hlsStreams(flashvarsJson: String): List<Stream> =
         mediaDefinitions(flashvarsJson)
             .filter { it.format == "hls" }
-            .map { Stream(it.url, it.height) }
+            .map { Stream(it.url, ladderHeight(it.height, it.quality, it.url)) }
             .sortedBy { it.height }
 
     /** The `remote` mp4 leg — `/video/get_media`, the documented fallback (FINDINGS §Stream sources). */
@@ -409,7 +423,18 @@ object Parse {
         else (0 until root.size()).mapNotNull { i ->
             val entry = root.get(i) ?: return@mapNotNull null
             val url = entry.path("videoUrl").asText("").trim()
-            if (url.startsWith("http")) Stream(url, entry.path("height").asInt(0)) else null
+            if (url.startsWith("http")) {
+                Stream(
+                    url,
+                    ladderHeight(
+                        entry.path("height").asInt(0),
+                        entry.path("quality").asText(""),
+                        url,
+                    ),
+                )
+            } else {
+                null
+            }
         }.sortedBy { it.height }
     } catch (e: Exception) {
         emptyList()
@@ -418,6 +443,31 @@ object Parse {
     /** Entry height → CloudStream quality: `Qualities` values ARE the pixel heights. */
     fun qualityOf(height: Int): Int =
         if (height in 144..4320) height else Qualities.Unknown.value
+
+    /**
+     * Ladder height a leg really is — the value the player must label and sort by.
+     *
+     * `flashvars.mediaDefinitions` and `/video/get_media` both report a `height` **field** that is
+     * not the ladder height on every page: measured on 2 of 14 sampled watch pages (S27 of #1354,
+     * 2026-11-26 — and on 2 of 5 S3 pages and 1 of 5 S4 pages before it), the page answers
+     * `height: 1920, width: 1080` for the `1080P_4000K` rendition, i.e. the two fields are
+     * **swapped** (`height: 426, width: 240` for `240P`). Emitting `height` verbatim there makes
+     * the player label a 1080p stream "1920p" and a 240p leg "426p".
+     *
+     * Two independent ladder markers survive the swap, so they are read in this order:
+     * 1. the entry's own `quality` label (`"1080"`) — present in both shapes and always the
+     *    ladder value (`height: 1920, quality: "1080"` ↔ `height: 1080, quality: "1080"`);
+     * 2. the CDN URL's rendition token — `/1080P_4000K_69506775.mp4/master.m3u8` → 1080.
+     * [height] is the fallback only when neither marker exists (no evidence, no guess), so an
+     * absent height stays absent and `qualityOf` still reports `Unknown` for it.
+     */
+    fun ladderHeight(height: Int, quality: String?, url: String?): Int {
+        val label = quality?.trim()?.toIntOrNull()
+        if (label != null && label in LADDER) return label
+        val token = url?.let { RENDITION.find(it)?.groupValues?.get(1)?.toIntOrNull() }
+        if (token != null && token in LADDER) return token
+        return height
+    }
 
     /** Player label for a leg: `PornHub 720p`, or the bare source name when no height is known. */
     fun linkName(source: String, height: Int): String =

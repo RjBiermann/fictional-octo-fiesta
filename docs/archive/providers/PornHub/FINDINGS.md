@@ -1417,9 +1417,11 @@ The player config is a single-line `var flashvars_<videoId> = { … };` blob on 
 
 - **HLS, not progressive mp4.** Every `hls` entry's `videoUrl` is a master playlist
   (`master.m3u8`, `Content-Type: application/vnd.apple.mpegurl`) — the provider emits one
-  `ExtractorLink` per HLS entry with `type = ExtractorLinkType.M3U8` and the entry's own
-  `height` as quality (`Parse.qualityOf`; `Qualities` values are pixel heights). The entry
-  `quality` field is a string (`"720"`); `height` is the int actually used.
+  `ExtractorLink` per HLS entry with `type = ExtractorLinkType.M3U8` and the leg's ladder
+  height as quality (`Parse.ladderHeight` → `Parse.qualityOf`; `Qualities` values are pixel
+  heights). The entry `quality` field is a string (`"720"`) and is the primary marker — the
+  `height` int is only the fallback when neither it nor the URL's `/720P_4000K_` token exists
+  (§Stream sources, resolved swap below).
 - **Fresh every call.** URLs are signed and short-lived (`validfrom`/`validto`, ~2 h);
   `loadLinks` re-fetches the watch page and re-parses `flashvars` on every invocation — no
   cached URL is ever reused. `mediaPriority: "hls"` on every sampled page.
@@ -1471,6 +1473,30 @@ instead of 1080/720/480/240 on such pages. Every probed leg served real video ei
 recorded as an observation for the quality-priority surface, not as a playback defect.
 `/video/get_media` on the same pages shows the same split (`240/480/720/1080` on four,
 `426/852/1280/1920` on `6acf5129bd5a5`), so the fallback path inherits it.
+
+**Resolved (S27 of #1354, 2026-11-26): the fields are swapped on such pages, and the ladder
+marker every entry already carries is authoritative.** Re-probing the same split on 2 of 14
+sampled watch pages (`6b0264f58ef77`, `691ffed8dfcaa`) showed the whole entry, not just the
+one field:
+
+```
+6b0264f58ef77  1080P_4000K_70100685.mp4/master.m3u8   height=1920  width=1080  quality="1080"
+               240P_1000K_70100685.mp4/master.m3u8   height=426   width=240   quality="240"
+               480P_2000K_70100685.mp4/master.m3u8   height=852   width=480   quality="480"
+               720P_4000K_70100685.mp4/master.m3u8   height=1280  width=720   quality="720"
+691ffed8dfcaa  1080P_4000K_30412285.mp4/master.m3u8   height=1920  width=1080  quality="1080"
+               480P_2000K_30412285.mp4/master.m3u8   height=854    width=480   quality="480"
+               (height ⇄ width are exchanged against the height-convention pages, where
+                height=240/480/720/1080 and width=426/854/1280)
+```
+
+So on these pages `height` holds the pixel **width** and `width` holds the ladder height. Two
+markers survive the swap on **both** shapes and agree on all 51 HLS legs sampled this run: the
+entry's own `quality` label (`"1080"`) and the URL's rendition token (`/1080P_4000K_`).
+`Parse.ladderHeight` reads them in that order (label → token → `height` fallback), so
+`hlsStreams`/`getMediaStreams` hand `Parse.qualityOf` a real ladder height and the player labels
+`1080P` as `1080p` instead of `1920p`. Red → green in `PornHubLoadParseTest` against
+`flashvars-width-convention.json` / `get-media-widths.json`.
 
 `/video/get_media` fallback re-probed with S4's cookie jar (watch page's own `Set-Cookie`
 replayed):
@@ -1641,15 +1667,15 @@ Newest, `search=starbucks`), the search page-1/page-2 pair, the home page-1/page
   the parser still honours both flags, but there is no recorded geo-walled sample. Removed
   (404) and premium (200, no flashvars) walls are recorded in §Video pages and both drop the
   card (`load()` → `null`). This is a **different** flag from the listing gate above.
-- **Quality ints inherit the page's `height` field, which is not consistent per page.** Most
-  probed pages report ladder heights (`1080/240/480/720` on three of the five S4 style-A reads
-  and `240/480/720` on a fourth; `240/480/720/1080` on four of the S3 reads), but
-  `6acf5129bd5a5` reports pixel widths (`1920/426/852/1280`) for the same `1080P_4000K_…` path.
-  The signing shape does not explain the split — every one of those reads is style A — and no
-  A/B transcript exists; the cause is unestablished. `Parse.qualityOf` passes the value through
-  as `ExtractorLink.quality`, so the quality-ordering surface can see 1920/1280/852/426 instead
-  of 1080/720/480/240. Every leg still served video; recorded so a "quality sort looks odd"
-  report is diagnosed from §Stream sources.
+- **Quality ints come from the leg's own ladder marker, not from the `height` field (resolved in
+  S27 of #1354, 2026-11-26).** The `height` field is not consistent per page: most pages report
+  ladder heights (`1080/240/480/720`), but `6acf5129bd5a5` (S4), `691ffed8dfcaa` and
+  `6b0264f58ef77` (S27) report pixel **widths** (`1920/1280/852/426`) for the same
+  `1080P_4000K_…` paths — the entry has `height` and `width` exchanged. The signing shape does
+  not explain the split (every one of those reads is style A), and the cause is still
+  unestablished; the `quality` label and the URL's `/720P_4000K_` token are what
+  `Parse.ladderHeight` reads instead, with `height` only as the no-marker fallback. Recorded so
+  a "quality sort looks odd" report is diagnosed from §Stream sources.
 - Chrome desktop UA used for every request (`Mozilla/5.0 … Chrome/124.0 Safari/537.36`); no
   Referer or cookie was required for any S1/S2 surface.
 - **Mobile UA gets a different, thinner page.** A mobile Chrome UA still gets `var flashvars`
@@ -1725,6 +1751,7 @@ carries its transcript:
 | `JsonLdParse.minutes` / `.year`, `DurationParse.fromSeconds`, `Parse.clockMinutes` | duration parsing | §Video pages + fixtures (`PornHubLoadParseTest`) |
 | `/video/get_media` (`remote` leg) | mp4 fallback | §Stream sources (cookie vs cookie-less transcript) |
 | `Parse.qualityOf` | `height` → quality | §Stream sources (height convention) + §Risks |
+| `Parse.ladderHeight` | `quality` label → `/1080P_4000K_` URL token → `height` | §Stream sources (resolved swap, S27 of #1354) |
 | `Parse.playableHls` + `PornHub.isPlayable` | per-leg 2xx probe | §Stream sources (CDN host lottery) |
 | `hasQuickSearch = false` | — | §Quick search (3 endpoints → 404, probed twice) |
 | `vpnStatus = VPNStatus.MightBeNeeded` | — | §Risks (listing gate) |
