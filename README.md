@@ -31,6 +31,7 @@ A [CloudStream3](https://github.com/recloudstream/cloudstream) extension repo of
 | [WatchPorn](WatchPorn/) | watchporn.to |
 | [XMoviesForYou](XMoviesForYou/) | xmoviesforyou.com |
 | [Xhamster](Xhamster/) | xhamster.com |
+| [YesPornVip](YesPornVip/) | yesporn.vip |
 | [ixiporn](ixiporn/) | ixiporn.org |
 
 Per-provider audit verdicts and history live in [`audits/findings.json`](audits/findings.json); architecture decisions and agent docs live under [`docs/`](docs/).
