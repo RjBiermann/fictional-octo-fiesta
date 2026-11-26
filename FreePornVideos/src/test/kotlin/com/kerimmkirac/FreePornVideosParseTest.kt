@@ -92,6 +92,45 @@ class FreePornVideosParseTest {
         assertNull(FreePornVideosParse.year(d, ""))
     }
 
+    /** Issue #1464 (video-source leg): the video-js player carries one `<source>` per tier;
+     *  get_file 302s to a signed fpvcdn.com CDN URL, so the tier list stays a pure parse seam.
+     *  Fixture: /videos/93820265/ source markup (2160p / 720p / 480p). */
+    @Test fun `stream sources parse from video-js source markup with quality labels`() {
+        assertEquals(
+            listOf(
+                FreePornVideosParse.StreamSource(
+                    "2160p",
+                    "https://www.freepornvideos.xxx/get_file/8512/1ca965b4623ec97aaccc3ab54cb1f6e4684dad3afd/93820000/93820265/93820265_2160m.mp4/"
+                ),
+                FreePornVideosParse.StreamSource(
+                    "720p",
+                    "https://www.freepornvideos.xxx/get_file/8512/3bcec2afbbc5e2264d54412cf54b33e18211f91b33/93820000/93820265/93820265_720m.mp4/"
+                ),
+                FreePornVideosParse.StreamSource(
+                    "480p",
+                    "https://www.freepornvideos.xxx/get_file/8512/994cddd6e2900b7241bc0647f2ec0bd0a1f75e8f7b/93820000/93820265/93820265_480m.mp4/"
+                )
+            ),
+            FreePornVideosParse.sources(doc)
+        )
+    }
+
+    @Test fun `sources drop src-less mirrors and keep label-less tiers honest`() {
+        val d = bareDoc().apply {
+            select("video source").forEach { it.attr("label", "") }
+            selectFirst("video source")?.attr("src", "")
+        }
+        val sources = FreePornVideosParse.sources(d)
+        assertEquals(2, sources.size) // the empty-src mirror is skipped
+        assertNull(sources.first().label) // never fabricate a quality
+        assertEquals(3, FreePornVideosParse.sources(doc).size)
+    }
+
+    @Test fun `a removed-video page with no source elements yields no tiers`() {
+        val d = bareDoc().apply { select("video source").remove() }
+        assertTrue(FreePornVideosParse.sources(d).isEmpty())
+    }
+
     @Test fun `bare title tail too short to be a year yields null`() {
         val d = bareDoc().apply { select("script[type=application/ld+json]").remove() }
         assertNull(FreePornVideosParse.year(d, "abc"))

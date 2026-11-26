@@ -118,36 +118,30 @@ class FreePornVideos : MainAPI() {
     }
 
     override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
-    val document = app.get(data).document
-    
-    document.select("video source").forEach { res ->
-        val redirectUrl = res.attr("src")
-        val quality = res.attr("label")
-        
-        try {
-            
-            val response = app.get(redirectUrl, allowRedirects = true)
-            val finalUrl = response.url
-            
+        val document = app.get(data).document
+
+        // #1464: get_file now 302s to a signed fpvcdn.com CDN URL (IP-bound, ~1h expiry). Emit
+        // the get_file URL itself — the player follows the 302 (Chrome USER_AGENT, OkHttp/Cronet
+        // redirect-following), so the token is minted per play and stays valid for it. Resolving
+        // the Location here instead would spend one extra get_file request per tier against the
+        // origin's per-IP anti-leech cap (410 kvs-errno 4 after ~25 resolutions) and hand the
+        // player a token that expires mid-playback.
+        FreePornVideosParse.sources(document).forEach { source ->
             callback.invoke(
                 newExtractorLink(
                     source = "FPV",
                     name = "FPV",
-                    url = finalUrl,
-                    
-                    type = if (finalUrl.endsWith(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                    url = source.url,
+                    type = if (source.url.endsWith(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
                 ){
                     this.referer = data
-                    this.quality = getQualityFromName(quality)
+                    this.quality = getQualityFromName(source.label)
                 }
             )
-        } catch (e: Exception) {
-            Log.d("FPV", "Error getting final URL for $quality: ${e.message}")
         }
-    }
 
-    return true
-}}
+        return true
+    }}
 @com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 class FreePornVideosPlugin: com.lagradost.cloudstream3.plugins.BasePlugin() {
     override fun load() {
