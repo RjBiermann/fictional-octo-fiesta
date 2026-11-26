@@ -48,4 +48,63 @@ class PaginationTest {
         assertEquals("https://yesporn.vip/video/76391/sweet-as-sugar-episode-3-ebk44f/", home.href)
         assertEquals("https://yesporn.vip/video/76391/sweet-as-sugar-episode-3-2av635/", listing.href)
     }
+
+    // --- cross-page seen filter (the behaviour that makes the disjoint-page proof matter) ---
+
+    private fun card(id: String?, slug: String = "slug") = YesPornVipParse.Card(
+        videoId = id,
+        title = "Entry $id",
+        href = "https://yesporn.vip/video/$id/$slug/",
+        poster = null,
+    )
+
+    private fun taxonomyCard(id: String, slug: String = "slug") = YesPornVipParse.Card(
+        videoId = null,
+        title = "Entry $id",
+        href = "https://yesporn.vip/channels/$id/$slug/",
+        poster = null,
+    )
+
+    @Test
+    fun seenFilterDropsTheRankedBoundaryCardOnTheNextPage() {
+        // The observed `most-popular` case: video 67389 is the last card of page 1 and the
+        // first of page 2. Page 2 must not re-serve it.
+        val seen = HashSet<String>()
+        assertEquals(listOf("67389", "67390"), YesPornVipParse.fresh(listOf(card("67389"), card("67390")), seen).map { it.videoId })
+        assertEquals(listOf("67391"), YesPornVipParse.fresh(listOf(card("67389"), card("67391")), seen).map { it.videoId })
+    }
+
+    @Test
+    fun seenFilterKeysOnTheVideoIdNotTheSlug() {
+        // Same video, two surface slugs (`-ebk44f` / `-2av635`): one card, not two.
+        val seen = HashSet<String>()
+        assertEquals(1, YesPornVipParse.fresh(listOf(card("76391", "ebk44f")), seen).size)
+        assertTrue(YesPornVipParse.fresh(listOf(card("76391", "2av635")), seen).isEmpty())
+    }
+
+    @Test
+    fun seenFilterFallsBackToHrefForTaxonomyEntries() {
+        // A channel/model/category card has no video id; its href is the identity.
+        val seen = HashSet<String>()
+        assertEquals(1, YesPornVipParse.fresh(listOf(taxonomyCard("public")), seen).size)
+        assertTrue(YesPornVipParse.fresh(listOf(taxonomyCard("public")), seen).isEmpty())
+        assertEquals(1, YesPornVipParse.fresh(listOf(taxonomyCard("public", "other")), seen).size)
+    }
+
+    @Test
+    fun reSeedingPageOneServesItAgain() {
+        val seen = HashSet<String>()
+        val page1 = listOf(card("67389"), card("67390"))
+        YesPornVipParse.fresh(page1, seen)
+        // The adapter clears the set before page 1, so a refresh re-serves the row.
+        seen.clear()
+        assertEquals(2, YesPornVipParse.fresh(page1, seen).size)
+    }
+
+    @Test
+    fun anAllSeenPageYieldsNothingSoTheRowEnds() {
+        val seen = HashSet<String>()
+        YesPornVipParse.fresh(listOf(card("67389")), seen)
+        assertTrue(YesPornVipParse.fresh(listOf(card("67389")), seen).isEmpty())
+    }
 }

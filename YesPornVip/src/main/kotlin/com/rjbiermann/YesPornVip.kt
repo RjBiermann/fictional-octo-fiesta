@@ -6,6 +6,7 @@ import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Pure Parse functions for yesporn.vip (glossary: Parse function, ADR-0005).
@@ -102,6 +103,18 @@ object YesPornVipParse {
             .distinctBy { it.href }
     }
 
+    /**
+     * Pure Parse function: the cards of one page that have not been served before, seeding
+     * [seen] with what this page contributes. Keyed by [Card.videoId] where there is one
+     * (slug-canonicalisation safe), else [Card.href] (taxonomy entries have no id).
+     *
+     * The caller clears [seen] on page 1, so a refresh re-serves the row; an empty result
+     * means the row is exhausted (`hasNext = false`). Pulled out of the HTTP adapter so the
+     * cross-page filter is fixture-testable without a request (ADR-0005).
+     */
+    fun fresh(cards: List<Card>, seen: MutableSet<String>): List<Card> =
+        cards.filter { seen.add(it.videoId ?: it.href) }
+
     /** A video thumb → its [Card]; null for taxonomy/ad thumbs and broken cards. */
     private fun videoCard(card: Element): Card? {
         val anchor = card.select("a[href]").firstOrNull { videoId(it.attr("href")) != null }
@@ -156,7 +169,7 @@ class YesPornVip : MainAPI() {
      * the first of page 2; the `channels` index pages shared 4 entries). Per-page dedupe
      * alone re-serves them; page 1 re-seeds the set, exactly like Cat3Movie #645.
      */
-    private val seen = HashMap<String, MutableSet<String>>()
+    private val seen = ConcurrentHashMap<String, MutableSet<String>>()
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         // Path pagination on every surface here: `/latest-updates/2/`, `/categories/2/`.
@@ -171,7 +184,7 @@ class YesPornVip : MainAPI() {
         val seenKeys = seen.getOrPut(request.data) { HashSet() }
         if (page <= 1) seenKeys.clear()
         // Keyed by the video id where there is one (slug-canonicalisation safe), else href.
-        val fresh = cards.filter { seenKeys.add(it.videoId ?: it.href) }
+        val fresh = YesPornVipParse.fresh(cards, seenKeys)
         return newHomePageResponse(
             list = HomePageList(
                 name = request.name,
