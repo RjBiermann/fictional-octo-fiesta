@@ -55,10 +55,13 @@ concurrency:
   # skipped its own activation, leaving nothing running. Denied actors now get
   # a per-run slot they can only cancel themselves. The predicate mirrors the
   # activation gate (`bots:` + `roles:`): keep the two in sync. It is an
-  # approximation on purpose — `author_association` stands in for the gate's
-  # admin/maintainer/write permission lookup, so an org MEMBER without repo
-  # write would still take the live slot; the failure mode of every mismatch
-  # here is a missed cancellation, never a wrong activation.
+  # approximation on purpose: `author_association` is wider than the gate's
+  # admin/maintainer/write lookup (`COLLABORATOR` includes read-only and triage
+  # collaborators, `MEMBER` includes org members with read access) and a
+  # concurrency expression cannot query the permission endpoint. Such a denied
+  # review can still take the live slot, cancel, then be skipped — #1638 is
+  # narrowed, not closed. No such actor exists in this repo today (single
+  # owner); revisit if a read-only collaborator is added.
   group: >-
     repair-${{
     github.event.pull_request.number
