@@ -12,6 +12,7 @@
 // the parse function is supposed to read, so the tests document the selector contract.
 package com.rjbiermann
 
+import com.kraptor.DistinctBar
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.junit.Assert.assertEquals
@@ -37,6 +38,23 @@ class PornSlashParseTest {
         val document = doc("/home-p1.html")
         assertEquals(50, document.select(PornSlashParse.CARD).size)
         assertEquals(50, document.select(PornSlashParse.CARD).mapNotNull { PornSlashParse.card(it) }.size)
+    }
+
+    @Test
+    fun `card identities are distinct (Distinct bar, fixture level)`() {
+        // The bar exists to catch the placeholder/misparse class: a listing that parses to N
+        // cards but only M identities. Fixtures already satisfy it, so this is a guard.
+        for ((label, res) in listOf(
+            "home" to "/home-p1.html",
+            "search" to "/search-milf-p1.html"
+        )) {
+            val cards = doc(res).select(PornSlashParse.CARD).mapNotNull { PornSlashParse.card(it) }
+            DistinctBar.assertDistinctVideos(
+                cards.map { DistinctBar.VideoIdentity(it.title, it.poster, it.id) }
+            )
+            assertTrue("$label: blank title", cards.all { it.title.isNotBlank() })
+            assertTrue("$label: missing poster", cards.all { it.poster != null })
+        }
     }
 
     @Test
@@ -125,6 +143,21 @@ class PornSlashParseTest {
         assertEquals(
             "https://www.pornslash.com/get/shorts",
             PornSlashParse.pageUrl("https://www.pornslash.com/get/shorts?p=7", 1)
+        )
+    }
+
+    @Test
+    fun `page url keeps a sibling query param and only rewrites p`() {
+        // S5's browse filters put `p` next to other params: the `?` belongs to the query,
+        // not to the `p` pair, so removing only that pair must not eat it.
+        val filtered = "https://www.pornslash.com/get/shorts?p=1&sort=new"
+        assertEquals(
+            "https://www.pornslash.com/get/shorts?sort=new",
+            PornSlashParse.pageUrl(filtered, 1)
+        )
+        assertEquals(
+            "https://www.pornslash.com/get/shorts?sort=new&p=2",
+            PornSlashParse.pageUrl(filtered, 2)
         )
     }
 

@@ -44,8 +44,6 @@ object PornSlashParse {
 
     private val DIGITS = Regex("""(\d{3,4})""")
 
-    private val P_PARAM = Regex("""[?&]p=\d+""")
-
     /** A base64 run long enough to be a token, not a JS identifier. */
     private val B64_RUN = Regex("""[A-Za-z0-9+/]{24,}={0,2}""")
 
@@ -89,11 +87,19 @@ object PornSlashParse {
      * Path paging is dead on this site (`/search/<q>/2/` and `/page/2/` answer 404), and the
      * pager is JS-built, so the query param is the entire contract. Page 1 is the bare
      * surface — a stale `p=` is dropped rather than forwarded.
+     *
+     * The query is rebuilt pair by pair rather than regex-replaced: a surface that carries
+     * another param (`...?p=1&sort=new`, S5's filters) keeps both its `?` and that param.
      */
     fun pageUrl(surface: String, page: Int): String {
-        val bare = surface.replace(P_PARAM, "").trimEnd('?', '&')
-        if (page <= 1) return bare
-        return bare + (if ('?' in bare) "&" else "?") + "p=$page"
+        val q = surface.indexOf('?')
+        val path = if (q >= 0) surface.substring(0, q) else surface
+        val params = (if (q >= 0) surface.substring(q + 1) else "")
+            .split('&')
+            .filter { it.isNotBlank() && !it.startsWith("p=") }
+            .toMutableList()
+        if (page > 1) params.add("p=$page")
+        return if (params.isEmpty()) path else path + "?" + params.joinToString("&")
     }
 
     /**
