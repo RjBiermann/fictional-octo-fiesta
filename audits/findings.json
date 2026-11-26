@@ -635,6 +635,19 @@
       "findings_filed": 0,
       "standing_issue": null,
       "false_positives": []
+    },
+    {
+      "id": "run1465",
+      "issue": 1465,
+      "date": "2026-11-26",
+      "kind": "video-source audit (S27 of #1354)",
+      "verdict": "ok-drift",
+      "tier": "plain-curl",
+      "escalation_tier": "available",
+      "canaries": "film1k-challenge-pair plain-curl 403 = recorded expectation, TLS 200 (curl_cffi 0.17.0 installed mid-run; #1435 live pair recorded, no environment-degraded branch); eporner-healthy plain-curl 200 match (315518 B); pandamovies-redirect-origin plain 302 -> pandamovies.org match, TLS 403 at the .org target (expectation-stale on that half, update proposed in the PR, canaries.json untouched); 0 Blocked",
+      "findings_filed": 0,
+      "standing_issue": null,
+      "false_positives": []
     }
   ],
   "providers": {
@@ -1147,6 +1160,24 @@
       "drift_confirmed": 0,
       "chronic": false,
       "last_deep": "2026-11-25"
+    },
+    "PornHub": {
+      "site": "www.pornhub.com",
+      "verdict": "ok-drift",
+      "reason": "S27 video-source pass 2026-11-26 (first audit of this provider): one confirmed condition, fixed in this run (v17 -> v18). Some watch pages exchange the entry's height/width fields (height: 1920, width: 1080 for the 1080P_4000K rendition; 2 of 14 sampled pages, also on 2 of 5 S3 and 1 of 5 S4 pages), so Parse.qualityOf labelled a 1080p stream 1920p and its 240p leg 426p on those pages. Fixed structurally: Parse.ladderHeight resolves the ladder from the entry's own quality label ('1080') then the CDN URL's /1080P_4000K_ token then the height field, so hlsStreams/getMediaStreams hand the player real ladder heights; red -> green in PornHubLoadParseTest against flashvars-width-convention.json / get-media-widths.json. Listing types: new /video?o=cm, old absent (/video?o=da and ?o=old 404 - the sort menu has no ascending order), popular /video?o=mv + ?o=tr (+ ?o=ht, ?o=lg), genres /categories/<slug>, categories /video?c=<id>, tags /video/search?search=<tag> (watch-page tags are search links). 14 sampled video pages (2+ per type, both catalogue ends) all 200 with flashvars, 51/51 HLS legs 200 application/vnd.apple.mpegurl, style-B 410 lottery still live (6 of 14 pages started dead -> per-leg probe + /video/get_media fallback 206 video/mp4 x4), no embed host so HostRegistry is correctly uninvolved. verify.sh FAIL is the url_path?viewkey plateau plus one no-credit actor page; stream/home/search surfaces pass and were substituted viewkey-keyed. Geo/SFW listing gate did not fire on this egress (Oregon US AS16509). No standing issue, no finding filed.",
+      "tier": "plain-curl",
+      "surfaces": {
+        "home": "200 /video + /video?page=2 + o=mv|tr|ht|lg (31/43 cards, rel=next, 0 shared across pages)",
+        "search": "200 /video/search?search=teen p1/p2/p10 (31/43 cards, 0 shared); no quick-search endpoint (hasQuickSearch=false)",
+        "video": "200 14/14 with flashvars + h1 + og:* + JSON-LD; tags 14/14, actors wrapper 7/14 (rest credit nobody), related 35/35 distinct",
+        "stream": "51/51 HLS legs 200 application/vnd.apple.mpegurl on ev-h.phncdn.com; style-B hv-h 410 -> /video/get_media 206 video/mp4 x4"
+      },
+      "issue": null,
+      "standing_issue": null,
+      "drift_confirmed": 1,
+      "suspected_excluded": [],
+      "chronic": false,
+      "last_deep": "2026-11-26"
     }
   }
 }
