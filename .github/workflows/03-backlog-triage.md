@@ -20,11 +20,15 @@ max-ai-credits: 800
 safe-outputs:
   threat-detection: false   # engine:pi detection runs on Copilot CLI — not available (no Copilot); structural guardrails + human merge carry the boundary
   add-labels:
-    allowed: [status/queued, status/in-review, status/fixing, status/fixing-stuck, status/ready-to-merge, triage/from-agent]
+    # `ready-for-human` is the vocabulary's label for a human decision, and this
+    # sweep is its only applier (#1630) — no other lane's allow-list carries it.
+    allowed: [status/queued, status/in-review, status/fixing, status/fixing-stuck, status/ready-to-merge, triage/from-agent, ready-for-human]
     max: 20
     target: "*"            # scheduled runs have no triggering issue — every call targets an explicit number
   remove-labels:
-    allowed: [status/queued, status/in-review, status/fixing, status/fixing-stuck, status/ready-to-merge]
+    # `ready-for-human` is removable because this sweep is also the healer: an
+    # issue that becomes agent work must not keep the human state beside it.
+    allowed: [status/queued, status/in-review, status/fixing, status/fixing-stuck, status/ready-to-merge, ready-for-human]
     max: 20
     target: "*"
   close-issue:
@@ -63,6 +67,16 @@ what the sweeper can do deterministically):
 - Flag chronic flappers (issues cycling fix/work states repeatedly, per
   budget-stamp history in comments) with a short comment naming the
   stamp evidence.
+- **Render the maintainer's queue** (#1630): an open issue whose
+  disposition is a decision no Implement run can execute — a project
+  setting, an "accept the gap" verdict, a design pick between options in
+  the body — gets `ready-for-human`, the one documented state label with
+  no other applier. It is a state like any other: never beside a
+  `status/*` label this sweep can remove (the five in `remove-labels` —
+  `status/conflict` is a PR delivery state this lane never touches), and
+  the same pass drops them when it applies this one, because the issue
+  carries exactly one state. The same pass removes `ready-for-human` from
+  an issue that has become agent work, so the label means what it says.
 - **Close stale machinery records (ADR-0018 surface reduction)**:
   superseded weekly/duplicate `[status-report]`/`[backlog-report]` issues,
   `[aw]` diagnostics a later successful run already outranked, and exact
