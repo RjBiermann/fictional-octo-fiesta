@@ -47,7 +47,30 @@ concurrency:
   # for PR B killed PR A's in-flight repair. Keyed per PR now, same shape
   # 06-review already uses. Serialization across PRs stays where it is
   # deliberate: 95's `_repair_in_flight()` guard (spend), not a cancelled run.
-  group: repair-${{ github.event.pull_request.number || (github.event.inputs.aw_context && fromJSON(github.event.inputs.aw_context).item_number) || github.run_id }}
+  #
+  # The `-live` / throwaway split is #1638: GitHub applies `concurrency` at
+  # run CREATION, before `pre_activation`, so a review by a denied actor
+  # (e.g. `codacy-production[bot]`) still took the PR's slot and
+  # `cancel-in-progress` killed the repair that could activate — which then
+  # skipped its own activation, leaving nothing running. Denied actors now get
+  # a per-run slot they can only cancel themselves. The predicate mirrors the
+  # activation gate (`bots:` + `roles:`): keep the two in sync. It is an
+  # approximation on purpose: `author_association` is wider than the gate's
+  # admin/maintainer/write lookup (`COLLABORATOR` includes read-only and triage
+  # collaborators, `MEMBER` includes org members with read access) and a
+  # concurrency expression cannot query the permission endpoint. Such a denied
+  # review can still take the live slot, cancel, then be skipped — #1638 is
+  # narrowed, not closed. No such actor exists in this repo today (single
+  # owner); revisit if a read-only collaborator is added.
+  group: >-
+    repair-${{
+    github.event.pull_request.number
+    || (github.event.inputs.aw_context && fromJSON(github.event.inputs.aw_context).item_number)
+    || github.run_id }}-${{
+    (github.event_name == 'pull_request_review'
+    && !contains(fromJSON('["github-actions[bot]","rjbiermann-machinery[bot]"]'), github.event.review.user.login)
+    && !contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.review.author_association))
+    && github.run_id || 'live' }}
   cancel-in-progress: true
 timeout-minutes: 30
 max-turns: 30
