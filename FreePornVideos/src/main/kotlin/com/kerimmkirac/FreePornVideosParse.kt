@@ -43,4 +43,18 @@ object FreePornVideosParse {
 
     fun year(doc: Document, fullTitle: String): Int? =
         JsonLdParse.year(jsonLd(doc)) ?: fullTitle.takeLast(4).toIntOrNull()
+
+    /** One video-js `<source>` tier: [label] is the site's quality string ("2160p"). */
+    data class StreamSource(val label: String?, val url: String)
+
+    /** Direct mp4 tiers from the video-js player (#1464). `<source>` markup is the complete
+     *  source set — the video pages carry no player iframe (only ad slots). A src-less mirror
+     *  is dropped rather than emitting an unplayable link; an absent label stays null so the
+     *  caller can pass `getQualityFromName(null)` instead of inventing a tier. */
+    fun sources(doc: Document): List<StreamSource> =
+        doc.select("video source").mapNotNull { el ->
+            val url = el.attr("src").trim()
+            if (url.isEmpty()) null
+            else StreamSource(el.attr("label").trim().ifEmpty { null }, url)
+        }
 }

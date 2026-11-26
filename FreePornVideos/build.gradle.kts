@@ -1,4 +1,4 @@
-version = 28 // #1613: version bump (v28)
+version = 29 // #1464: video-source drift (get_file 302 -> signed fpvcdn CDN, emit get_file URL)
 
 cloudstream {
     authors     = listOf("kerimmkirac")
