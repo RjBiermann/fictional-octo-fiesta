@@ -1,14 +1,9 @@
 package com.byayzen
 
-import com.fasterxml.jackson.annotation.JsonProperty
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.registerKotlinModule
-import com.fasterxml.jackson.module.kotlin.readValue
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -26,6 +21,7 @@ class JavtifulParseTest {
     private val homePage2 by lazy { fixture("javtiful-home-page2.html") }
     private val search by lazy { fixture("javtiful-search.html") }
     private val watch by lazy { fixture("javtiful-watch.html") }
+    private val liveWatch by lazy { fixture("javtiful-watch-20261125.html") }
 
     @Test fun `listing cards are article video-card excluding partner ads`() {
         val cards = videoCards(home)
@@ -86,6 +82,25 @@ class JavtifulParseTest {
         assertNull(addedOnYear(home))
     }
 
+    /** Second 2026-11-25 drift (#1463): the meta rows moved out of `div.watch-detail` into
+     *  `div.watch-detail-fact`, so a container-class anchor lost the year. The timestamp
+     *  itself is the stable anchor — `<time datetime>` + its "Added on" label. */
+    @Test fun `year survives on the live page where the meta row class changed`() {
+        assertEquals(2026, addedOnYear(liveWatch))
+    }
+
+    @Test fun `year anchors on the labelled timestamp not the container class`() {
+        val page = Jsoup.parse(
+            """<div class="meta">
+                 <div class="meta-row"><span>Views</span>
+                   <time datetime="2020-01-02T03:04:05+07:00">2 h ago</time></div>
+                 <div class="some-other-row"><strong>Added on</strong>
+                   <time datetime="2023-05-06T07:08:09+07:00">6 May 2023 07:08</time></div>
+               </div>"""
+        )
+        assertEquals(2023, addedOnYear(page))
+    }
+
     @Test fun `tags chips pick categories and plain tags`() {
         val tags = watchTags(watch)
         assertTrue("creampie" in tags)
@@ -102,25 +117,18 @@ class JavtifulParseTest {
         assertTrue(href.startsWith("/video/"))
     }
 
-    /** The redesign also moved the player config id (#frontWatchConfig → #watch-config);
-     *  schema (playerSources src/type/size) is unchanged. */
-    @Test fun `watch-config script carries playerSources`() {
-        val raw = watch.selectFirst("script#watch-config")!!.data()
-        val cfg = ObjectMapper().registerKotlinModule()
-            .configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-            .readValue<WatchConfigTest>(raw)
-        val src = cfg.playerSources!!.first().src
-        assertTrue(src.contains("fast-stream.jav.si/p/"))
-        assertEquals("video/mp4", cfg.playerSources!!.first().type)
-        assertNotEquals(0, cfg.playerSources!!.first().size)
+    /** 2026-11-25 drift (issue #1463): the redesign's `script#watch-config` dropped inline
+     *  `playerSources` for a one-shot `playback{endpoint,ticket}` handshake — the sources now
+     *  come from `POST <endpoint>`. Covered fixture-by-fixture in JavtifulPlaybackTest; this
+     *  pins the live save's page shape. */
+    @Test fun `live watch page carries the playback handshake not inline sources`() {
+        val live = fixture("javtiful-watch-20261125.html")
+        val raw = live.selectFirst("script#watch-config")!!.data()
+        assertFalse(raw.contains("playerSources"))
+        val playback = com.kraptor.JavtifulEmbedParse.playback(live.html())!!
+        assertEquals("/video/116259/playback", playback.endpoint)
+        assertTrue(playback.ticket.startsWith("p1.116259."))
+        // the pre-drift save stays the negative case: inline list, no handshake
+        assertTrue(watch.selectFirst("script#watch-config")!!.data().contains("playerSources"))
     }
-
-    private data class WatchConfigTest(
-        @param:JsonProperty("playerSources") val playerSources: List<Src>? = null
-    )
-    private data class Src(
-        @param:JsonProperty("src") val src: String,
-        @param:JsonProperty("type") val type: String? = null,
-        @param:JsonProperty("size") val size: Int? = null
-    )
 }
