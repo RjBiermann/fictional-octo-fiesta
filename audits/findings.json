@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "note": "Machine source of truth for the provider fleet audit. drift_confirmed counts only closed issues CONFIRMED as drift/broken (Suspected findings closed as false positives are exclusions, never occurrences). Audits update this file; the lint (scripts/check-findings.sh) must pass before delivery.",
-  "updated": "2026-11-25",
+  "updated": "2026-11-26",
   "last_runs": [
     {
       "id": "run1",
@@ -610,6 +610,18 @@
       "canaries": "eporner-healthy plain-curl 200 match; pandamovies-redirect-origin plain-curl 302 -> pandamovies.org (plain-tier match); film1k-challenge-pair plain-curl 403 = recorded expectation, browser UA 200 (UA-conditional datacenter challenge; live pair recorded, #1435 stays open, no environment-degraded branch); curl_cffi and playwright absent -> escalation_tier unavailable, 0 Blocked",
       "findings_filed": 0,
       "false_positives": []
+    },
+    {
+      "id": "run1463",
+      "issue": 1463,
+      "date": "2026-11-25",
+      "kind": "video-source audit (S25 of #1354)",
+      "verdict": "ok-drift",
+      "tier": "plain-curl",
+      "escalation_tier": "unavailable",
+      "canaries": "eporner-healthy plain-curl 200 match (316722 B); pandamovies-redirect-origin plain-curl 302 -> pandamovies.org (plain-tier match); film1k-challenge-pair plain-curl 403 = recorded expectation, browser UA 200 (UA-conditional datacenter challenge; live pair recorded, #1435 stays open, no environment-degraded branch); curl_cffi and playwright absent -> escalation_tier unavailable, 0 Blocked",
+      "findings_filed": 0,
+      "false_positives": []
     }
   ],
   "providers": {
@@ -965,21 +977,21 @@
     },
     "Javtiful": {
       "site": "javtiful.com",
-      "verdict": "ok",
-      "reason": "RE-CLEARED 2026-10-17 (deep pass, #658 sub-issue of #631): #534 fix (#548, v13) still holding on every face, tier plain-curl throughout (browser step never reached). Canaries 3/3 (film1k plain 403 / TLS 200 expected, eporner 200, pandamovies 302->200@.org). All 5 main-page rows (videos, sort=most_viewed, sort=top_rated, /uncensored, /category/milf) 200 x23 non-partner cards p1+p2, 0 href overlap p1-p2 on every row, live a.pagination__link Next anchors (Previous carries is-disabled on p1). Search ?q=kana p1/p2 23+23 disjoint. quickSearch absent (search/suggest, /suggest, /quick-search, /api/search all 404; search input autocomplete empty) - recorded, not drift. 9 video pages 200 (newest/most_viewed/related/search/category faces) with full load fields: div.watch-title h1, og:image (path-identical to card lazy thumbs), og:description, JSON-LD VideoObject duration, watch-detail Added-on year, chips, actor cards (some releases are actor-less - site reality, optional-actor handling correct); related-grid 12-21 cards/page. Stream chain end-to-end re-verified: script#watch-config playerSources fast-stream.jav.si/p/<token> 3/3 fresh tokens 206 video/mp4, no referer/cookies needed, bare okhttp UA also 206. Search<->load agreement exact (IESP-763). Site-shape notes: (1) sort key top_rated RENAMED most_liked site-wide - the old key now serves the most_liked listing as a live alias (23/23 overlap, pagination anchors canonicalize to most_liked); row fully functional via alias, recorded as resilience watch, not drift; (2) same-page same-title variant rows (censored + reducing-mosaic of one code, different hrefs) - pre-documented quirk, provider dedupes by title (distinctBy, test-covered); (3) commented-out top_favorites/being_watched keys now serve the default newest listing (alias); (4) root / now 301s to /main SPA - SPA-root distinction stands (not a provider row). Historical drift record #534 closed; no new confirmed condition.",
+      "verdict": "ok-drift",
+      "reason": "S25 video-source pass 2026-11-25 (issue #1463): two confirmed conditions, both fixed in this run (v28 -> v29), drift_confirmed 1 -> 3 so both fixes are structural. (1) STREAMS: script#watch-config dropped the inline playerSources list the provider shipped in v13 - loadLinks returned false on every video. The page now carries a one-shot playback{endpoint,ticket} handshake and the sources arrive from POST <endpoint> (form body ticket=...) as page-relative /media/video/<id>/720p?expires=&signature= -> 302 -> R2 presigned -> 206 video/mp4. Fixed by reusing the already-tested shared parser (JavtifulEmbedParse, #1444) instead of duplicating it: Javtiful.loadLinks now GETs the page, trades the ticket, absolutises the path and passes size (720) as the CloudStream quality; isHls() still decides VIDEO-vs-M3U8 from the MIME because /media/video/<id>/720p is extensionless (#240). (2) YEAR: the watch-page meta rows moved out of div.watch-detail into div.watch-detail-fact/.watch-detail-date, so addedOnYear()'s container-class selector matched nothing and LoadResponse.year went null on every video; the anchor is now structural (the 'Added on' label's own row via :containsOwn -> its time[datetime], first timestamp as fallback). TDD red -> green with live fixtures javtiful-watch-20261125.html + javtiful-playback-116259.json and a synthetic renamed-class meta row (JavtifulPlaybackTest, JavtifulParseTest). Listing types: new /videos (4498 pages, tail 22 cards, 4499 empty), old ABSENT as a sort (?sort=oldest|old|order=asc|added_old|ascending all alias newest 23/23; ascending end only via deep pagination), popular ?sort=most_viewed + ?sort=most_liked (top_rated remains a live alias of most_liked), categories /category/<slug> (21 slugs, all 21 provider category rows live), genres ABSENT (/genres, /genre/<x> 404), tags ABSENT as a route (/tags, /tag/<x> 404; watch chips link to /search?q=). All 25 provider mainPage rows 200 x23 non-partner cards. Search ?q=kana p1/p2 23+23 disjoint; quickSearch absent (4 suggest endpoints 404, input has no autocomplete). 10 sampled video pages across both catalogue ends, 9 resolved end-to-end: 16/16 shape samples uniform (exactly one source, video/mp4, size 720, fallbackSrc null), 9/9 streams 206 video/mp4 with no cookies/referer (bare okhttp UA fine). No unregistered embed host, no standing condition, no new issue filed.",
       "tier": "plain-curl",
       "surfaces": {
-        "home": "5 rows 200 x23 cards p1/p2 disjoint, live Next anchors",
-        "search": "200 p1/p2 23+23 disjoint",
+        "home": "200, 23 non-partner cards/page (+1 script-only ad), p1/p2 disjoint, tails 4498/4498/436/50/2056 then empty-or-clamped",
+        "search": "200, ?q= p1/p2 23+23 disjoint; no distinct quick-search endpoint (4 probes 404)",
         "quickSearch": "absent (4 suggest probes 404, autocomplete empty) - recorded, not drift",
-        "video": "200 x9, full load fields, related 12-21/page",
-        "stream": "watch-config playerSources 3/3 fresh 206 mp4 (no referer, okhttp UA ok)"
+        "video": "200, watch-title h1 + og:image + og:description + chips + time[datetime] on 10/10; actors optional (FC2 releases actor-less); duration JSON-LD only",
+        "stream": "handshake POST /video/<id>/playback -> /media/video/<id>/720p 302 -> R2 206 video/mp4, 9/9 end-to-end, quality 720 passed"
       },
-      "issue": 534,
+      "issue": 1463,
       "standing_issue": null,
-      "drift_confirmed": 1,
+      "drift_confirmed": 3,
       "chronic": false,
-      "last_deep": "2026-10-17"
+      "last_deep": "2026-11-25"
     },
     "MissAV": {
       "site": "missav.live",
