@@ -33,10 +33,13 @@ decision is genuinely needed — and no PAT secrets anywhere in the pipeline.
   GITHUB_TOKEN alone cannot do:
   - `approve_companion_runs` — approving `action_required` gh-aw runs;
   - sweeper label re-fires — the App's label events are what the sweeper
-    re-stamps; they do **not** buy a wake. gh-aw's activation gate denies a
-    bot actor on the role check, and only `07-fix-loop` carries the App login
-    at all (`04-plan`/`05-implement`/`14-rebase` are dispatch-only, #1637). The
-    re-fire is bookkeeping; a sweep (or the lane's own dispatch) is the fire.
+    re-stamps; they do **not** buy a wake. None of the lanes it re-stamps lists
+    the App in `on.bots`, so the event falls through to the role check and is
+    denied there (the App's repository permission is `none`). `07-fix-loop` is
+    the only lane that does list it, where a review-authored event is a real
+    wake; `04-plan`/`05-implement`/`14-rebase` deliberately do not (each is
+    dispatch-only, #1637). The re-fire is bookkeeping; a sweep — or the lane's
+    own dispatch — is the fire.
   Unset (App unregistered), both degrade exactly as ADR-0019's
   GITHUB_TOKEN-only path: approvals stay manual, re-fires are
   bookkeeping-only and the schedule sweeps heal instead.
