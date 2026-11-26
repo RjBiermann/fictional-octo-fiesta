@@ -298,14 +298,28 @@ jobs:
           fi
           unattributable=()
           if [[ ! -s loadcheck-evidence/failing-plugins.txt ]]; then
-            # Boot/SDK/install failed, so nothing was attributed (#1357's unattributable class).
-            echo "load step reported ${LOAD:-unknown} with no plugin named" \
+            # No *attributable* plugin: boot/SDK/install failed, or (below) a stall whose names
+            # live in `stalled-plugins.txt` — both #1357's unattributable class.
+            echo "load step reported ${LOAD:-unknown} with no attributable plugin named" \
               >> loadcheck-evidence/unattributable.txt
           fi
           if [[ -s loadcheck-evidence/unattributable.txt ]]; then
             # Report it, but never as `ai-fix`: that label dispatches 05-implement, and an
             # implementation run cannot repair a runner. The writer labels it for a human.
-            echo "unattributable" > loadcheck-evidence/failing-plugins.txt
+            # A stall names the plugins that never reported (`stalled-plugins.txt`); keep them,
+            # because the names are the only actionable part of the record (#1608). Only a
+            # *partial* stall is named: with nothing loaded the app never reported at all
+            # (#1500's shape), and listing every expected plugin would read as a failing set.
+            # Both evidence files are written unconditionally, so a blank one is a newline —
+            # `-s` alone would hand the writer an empty set and file nothing at all.
+            # A boot/SDK/install failure names none and keeps the class placeholder; the writer
+            # keys the issue on the class token either way.
+            if grep -q . loadcheck-evidence/stalled-plugins.txt 2>/dev/null \
+              && grep -q . loadcheck-evidence/loaded-plugins.txt 2>/dev/null; then
+              cp loadcheck-evidence/stalled-plugins.txt loadcheck-evidence/failing-plugins.txt
+            else
+              echo "unattributable" > loadcheck-evidence/failing-plugins.txt
+            fi
             unattributable=(--unattributable)
           fi
           # Separate assignment from export: exporting in the same statement

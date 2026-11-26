@@ -149,4 +149,52 @@ MissAV
 grep -qx 'created=true' "$STUB/out" || fail "a null-author issue without lane labels must not suppress Fire"
 grep -q 'issue comment 4242' "$STUB_CALLS" && fail "never comment on an unowned issue"
 
+# 11. A stall names its plugins. The classification stays human-owned (a plugin with no
+#     verdict is not a provider verdict, #1357/#1545) and the dedup title stays the class
+#     token, but the names must reach the record: `FreePornVideos` stalled on two consecutive
+#     runs while 26/27 loaded, and the filed issue said only "unattributable" — the one
+#     actionable fact was thrown away (#1608).
+run_writer 'FreePornVideos
+' '' --unattributable
+grep -qF -- '--title Load check (load): [unattributable]' "$STUB_CALLS" \
+  || fail "a stalled set must keep the class dedup title"
+grep -q -- '--label triage/from-agent' "$STUB_CALLS" || fail "a stall must be triage/from-agent"
+grep -qx 'created=false' "$STUB/out" || fail "a stall must not fire (created=false)"
+grep -q 'FreePornVideos' "$STUB_CALLS" || fail "the stalled plugin names must reach the filed issue"
+
+# 12. …and the recurring-stall evidence comment names them too, or a repeat is invisible.
+run_writer 'FreePornVideos
+' "[$(issue 4243 'Load check (load): [unattributable]' app/github-actions triage/from-agent)]" --unattributable
+grep -q 'issue comment 4243' "$STUB_CALLS" || fail "a recurring stall must append evidence to the human issue"
+grep -q 'FreePornVideos` (no verdict)' "$STUB_CALLS" \
+  || fail "recurring-stall evidence must name the stalled plugins, qualified as no-verdict"
+
+# 13. Blank set → nothing to file (the workflow must never pass one: the evidence files are
+#     written unconditionally, so "no stall" is a bare newline, not an empty file).
+: > "$STUB_CALLS"
+printf '\n' > "$STUB/plugins.txt"
+printf '[]' > "$STUB_ISSUES_JSON"
+printf 'log line\n' > "$STUB/log.txt"
+GITHUB_OUTPUT="$STUB/out" "$DIR/failure-issue.sh" --unattributable \
+  --plugins "$STUB/plugins.txt" --log "$STUB/log.txt" >/dev/null \
+  || fail "a blank plugin set must exit 0, not fail the step"
+grep -q 'issue create' "$STUB_CALLS" && fail "a blank plugin set must not create an issue"
+grep -q 'issue comment' "$STUB_CALLS" && fail "a blank plugin set must not comment"
+
+# 14. The created body must not let the closing sentence become a lazy continuation of the last
+#     stalled bullet — GFM then renders "- FreePornVideos Daily runs append …" (06-review round 3).
+run_writer 'FreePornVideos
+' '' --unattributable
+bullet=$(grep -n '^- `FreePornVideos`' "$STUB_CALLS" | head -1 | cut -d: -f1)
+[[ -n $bullet ]] || fail "the created body must list the stalled plugin"
+[[ -z $(sed -n "$((bullet + 1))p" "$STUB_CALLS") ]] \
+  || fail "the stalled bullet must be followed by a blank line"
+
+# 15. The bare-placeholder path (boot/SDK/install abort) must not point at a no-verdict list it
+#     does not print.
+run_writer 'unattributable
+' '' --unattributable
+grep -q 'see the no-verdict list' "$STUB_CALLS" && fail "the placeholder body must not reference an absent list"
+grep -q 'Plugins with no verdict' "$STUB_CALLS" && fail "the placeholder body must not invent a no-verdict block"
+
 echo "failure-issue.sh tests PASSED (dedup + attribution + ownership contracts)"

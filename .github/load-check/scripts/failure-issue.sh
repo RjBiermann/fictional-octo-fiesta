@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # ADR-0012 failure-issue writer. ONE issue per failing plugin set; the dedup
-# key is the issue title = SORTED failing-plugin list. Identical set → append
-# daily evidence. Set change → new issue; stale-set issues get closed with a
-# pointer comment. Applies `ai-fix` mechanically (ADR-0006) as display state
-# under GITHUB_TOKEN (ADR-0019: label events from GITHUB_TOKEN fire nothing —
-# the caller relays 05-implement via workflow_dispatch; ADR-0020).
+# key is the issue title = SORTED failing-plugin list — or, for the
+# unattributable class, the class token `unattributable`, which may still name
+# the plugins that never reported (see `--unattributable`). Identical
+# set → append daily evidence. Set change → new issue; stale-set issues get
+# closed with a pointer comment. Applies `ai-fix` mechanically (ADR-0006) as
+# display state under GITHUB_TOKEN (ADR-0019: label events from GITHUB_TOKEN
+# fire nothing — the caller relays 05-implement via workflow_dispatch; ADR-0020).
 # Fixes ride the gh-aw budget ledger (sweeper-enforced caps) — no new knobs.
 #
 # Usage: failure-issue.sh --plugins <file|FIFO, one failing plugin per line> \
@@ -23,9 +25,10 @@ while [[ $# -gt 0 ]]; do
     --plugins) PLUGINS_FILE=$2; shift 2 ;;
     --log)     LOG=$2; shift 2 ;;
     --version) VERSION_FILE=$2; shift 2 ;;
-    # No plugin was ever exercised (boot/SDK/install failed): report it, but as a human
-    # decision, never as `ai-fix` — that label is what dispatches an implementation run,
-    # and an implementation run cannot fix an emulator (#1357).
+    # Unattributable: either no plugin was exercised at all (boot/SDK/install failed) or the
+    # plugins in --plugins never reported a verdict (a stall, #1545). Report it, but as a human
+    # decision, never as `ai-fix` — that label dispatches an implementation run, and an
+    # implementation run can repair neither an emulator nor a stall (#1357).
     --unattributable) UNATTRIBUTABLE=1; shift ;;
     *)         echo "unknown arg $1" >&2; exit 2 ;;
   esac
@@ -41,6 +44,20 @@ done < <(cat "$PLUGINS_FILE")
 mapfile -t sorted < <(printf '%s\n' "${failures[@]}" | sort -u)
 # empty plugin set → nothing a fix run could act on
 [[ ${#failures[@]} -gt 0 ]] || { echo "no failing plugins — nothing to report"; exit 0; }
+
+# The unattributable class keeps ONE dedup title — the class token — so a human issue is never
+# re-filed per stall, but it must not drop the names it was handed: a stall's names are its only
+# actionable part (`FreePornVideos` stalled on two consecutive runs while 26/27 loaded, and the
+# filed record said only "unattributable", #1608). A boot/SDK/install failure names nothing; the
+# caller passes the placeholder in that case.
+stalled=()
+if [[ -n $UNATTRIBUTABLE && ${sorted[0]} != unattributable ]]; then
+  stalled=("${sorted[@]}")
+  sorted=(unattributable)
+fi
+# What the evidence comment lists: the stalled set when there is one, else the set itself.
+listed=("${sorted[@]}")
+if [[ ${#stalled[@]} -gt 0 ]]; then listed=("${stalled[@]}"); fi
 
 TITLE="Load check (${KIND}): [${sorted[*]}]"
 LABEL=ai-fix
@@ -87,12 +104,34 @@ if [[ -n ${open_since[$TITLE]:-} ]]; then
   TARGET=${open_since[$TITLE]}
   echo "existing issue for this plugin set: #$TARGET"
 else
+  STALL_BLOCK=
+  # A bare class token under "Failing plugin set:" would read as a provider, so name what it is.
+  SET_LABEL='Failing plugin set:'
+  if [[ ${#stalled[@]} -gt 0 ]]; then
+    # Literal, not `$(printf …)`: the command substitution would strip the trailing newlines
+    # that keep the closing sentence off the last bullet (GFM would render it as a lazy
+    # continuation of that bullet).
+    STALL_BLOCK="
+Plugins with no verdict — the app printed neither \`Loaded plugin … successfully\` nor
+\`Failed to load …\`, so this names where to look, not what failed (#1545):
+$(for s in "${stalled[@]}"; do echo "- \`$s\`"; done)
+"
+  fi
+  if [[ -n $UNATTRIBUTABLE ]]; then
+    # Only promise the list when there is one: the bare-placeholder path (boot/SDK/install
+    # abort) has no stalled set to point at.
+    SET_LABEL='Plugin set (class token, not a provider verdict):'
+    if [[ ${#stalled[@]} -gt 0 ]]; then
+      SET_LABEL='Plugin set (class token, not a provider verdict — see the no-verdict list):'
+    fi
+  fi
   BODY="## $TITLE — first failure
 $([[ -n $UNATTRIBUTABLE ]] && echo '
-**Classification: unattributable (infrastructure).** No plugin was exercised, so this is
-not a provider verdict and it is deliberately *not* `ai-fix`: no implementation run is
-dispatched for an emulator/SDK fault (#1357). A human decides — close this when the lane
-is green again.
+**Classification: unattributable (infrastructure).** Nothing here is a provider verdict —
+either no plugin was exercised at all (boot/SDK/install) or the plugin(s) named below printed
+no verdict — so this is deliberately *not* `ai-fix`: no implementation run is dispatched for an
+emulator/SDK fault or a stall (#1357/#1545). A human decides — close this when the lane is green
+again.
 ')
 **Classification: Correctness.** Never Drift, never Chronic-counted — this check is
 an instrument, not the provider's fault pattern (ADR-0012). Emulator evidence is
@@ -100,9 +139,9 @@ never **Geo-gated** evidence: the runner and app share one IP.
 Origin: scheduled load check — $RUN_URL
 Upstream jar SHA: \`${JAR_SHA:-unknown}\` (live, **unpinned** \`pre-release\`).
 
-Failing plugin set:
+$SET_LABEL
 $(for s in "${sorted[@]}"; do echo "- \`$s\`"; done)
-
+$STALL_BLOCK
 Daily runs append evidence below under \`### Run\` headings."
   URL=$(gh issue create --title "$TITLE" --label "$LABEL" --body "$BODY")
   TARGET=${URL##*/}
@@ -139,8 +178,12 @@ for s in "${!open_since[@]}"; do
 done
 
 n=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+# A stalled bullet is shape-identical to a failing one otherwise, and this record is read on its
+# own: keep the qualifier so "no verdict" is never mistaken for "failed".
+QUAL=
+if [[ ${#stalled[@]} -gt 0 ]]; then QUAL=' (no verdict)'; fi
 body="### Run — $n
-$(for s in "${sorted[@]}"; do echo "- \`$s\`"; done)
+$(for s in "${listed[@]}"; do echo "- \`$s\`$QUAL"; done)
 - Kind: \`${KIND}\`
 - Run: $RUN_URL
 - App version: $APP_VERSION

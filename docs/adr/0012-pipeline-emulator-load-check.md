@@ -1,5 +1,14 @@
 # Pipeline-run emulator load check; ADR-0001's in-app clause superseded
 
+> Amended 2026-11-26 (#1608): the stall stays unattributable — no `ai-fix`, no implementation
+> dispatch — but its names now reach the filed record. The issue keeps the class token as its
+> title, so the lane keeps one human issue for the class, while its body and every daily evidence
+> comment list the plugins with no verdict. A stall that names *every* expected plugin is the
+> whole-round silence of the 11-22 amendment (the app never reported), so it keeps the class
+> placeholder instead — listing all 27 would read as a failing set. A stall recorded without names
+> cannot show a repeat: `FreePornVideos` stalled on 2026-11-25 and 11-26 (26/27 loaded) and the
+> record said only `unattributable`.
+
 > Amended 2026-11-23 (#1545): the reload intent stays off, but it was not the only way a plugin
 > loses its verdict — run 45202927338 reported three plugins (`Javbangers`, `MissAV`, `ixiporn`)
 > while 24/27 reported, with no exception, no crash and no reload intent in the run. Their
