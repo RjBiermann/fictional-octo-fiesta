@@ -622,6 +622,19 @@
       "canaries": "eporner-healthy plain-curl 200 match (316722 B); pandamovies-redirect-origin plain-curl 302 -> pandamovies.org (plain-tier match); film1k-challenge-pair plain-curl 403 = recorded expectation, browser UA 200 (UA-conditional datacenter challenge; live pair recorded, #1435 stays open, no environment-degraded branch); curl_cffi and playwright absent -> escalation_tier unavailable, 0 Blocked",
       "findings_filed": 0,
       "false_positives": []
+    },
+    {
+      "id": "run1464",
+      "issue": 1464,
+      "date": "2026-11-26",
+      "kind": "video-source audit (S26 of #1354)",
+      "verdict": "ok-drift",
+      "tier": "plain-curl",
+      "escalation_tier": "unavailable",
+      "canaries": "eporner-healthy plain-curl 200 match (7394 B); pandamovies-redirect-origin plain-curl 302 -> pandamovies.org (match); film1k-challenge-pair plain-curl 403 = recorded expectation, browser UA 200 (UA-conditional datacenter challenge; live pair recorded, #1435 stays open, no environment-degraded branch); curl_cffi and playwright absent -> escalation_tier unavailable, 0 Blocked",
+      "findings_filed": 0,
+      "standing_issue": null,
+      "false_positives": []
     }
   ],
   "providers": {
@@ -736,13 +749,14 @@
     },
     "FreePornVideos": {
       "site": "www.freepornvideos.xxx",
-      "verdict": "ok",
-      "reason": "TLS 200 home/search/video 2026-10-17; get_file direct <source> markup now serves plain mp4 (no kt_player hop on current markup); #536 details-block grammar live (Channel/Network/Categories/Pornstars) and fixed on master (FreePornVideosParse seam, v13) \u2014 confirmed and NOT re-fixed this run | deep 2026-10-17 (#643): home latest-updates p1/p2 disjoint 24x24 overlap 0; search p1/p2 disjoint 24x24; quickSearch absent (recorded); 4 video pages varied listings, meta/JSON-LD duration cross-agree; 10 distinct get_file paths, video/mp4 200, referer-independent; categories JS-toggle gap on some sponsor videos (population quirk, honest empty tags).",
-      "tier": "tls-impersonated",
+      "verdict": "ok-drift",
+      "reason": "video-source pass 2026-11-26 (#1464): stream delivery moved to a signed redirect \u2014 get_file 302s to d*.fpvcdn.com with an IP-bound key and a ~20-60 min end= stamp instead of serving bytes. The provider resolved that Location per tier at load time (3 extra get_file requests per video, an open 500 MB body per tier, and a token minted at load), which the origin's per-IP burst cap punishes (410 kvs-errno 4 after ~30 resolutions, cleared ~8 min). Fixed v28->v29: emit the get_file URL unchanged and let the player follow the 302 (Chrome USER_AGENT + redirect-following in OkHttp/Cronet), with the tiers behind the new tested FreePornVideosParse.sources seam. 25/25 sampled sources over 10 videos / 5 listing types returned 206 video/mp4 before the cap; verify.sh PASS (11/11 streams 206 via the get_file chain). 3 canaries matched (film1k plain 403 = recorded expectation, UA-conditional pair recorded, #1435 stays open); TLS tier unavailable (#1434) and irrelevant here.",
+      "tier": "plain-curl",
       "surfaces": {
-        "home": "200 TLS",
-        "search": "200 TLS (plain 403 CF)",
-        "video": "200 TLS"
+        "home": "200 (browser UA; bare curl 403 CF challenge)",
+        "search": "200 (browser UA)",
+        "video": "200 (browser UA)",
+        "stream": "get_file 302 -> fpvcdn.com signed CDN -> 206 video/mp4 (UA/referer-independent at the CDN)"
       },
       "issue": 536,
       "standing_issue": null,
@@ -752,7 +766,7 @@
         466
       ],
       "chronic": false,
-      "last_deep": "2026-10-17"
+      "last_deep": "2026-11-26"
     },
     "FullPorner": {
       "site": "fullporner.com",
