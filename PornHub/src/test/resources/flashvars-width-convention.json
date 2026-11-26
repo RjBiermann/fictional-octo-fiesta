@@ -1,0 +1,50 @@
+{
+  "mediaDefinitions": [
+    {
+      "group": 1,
+      "height": 1920,
+      "width": 1080,
+      "defaultQuality": false,
+      "format": "hls",
+      "videoUrl": "https://ev-h.phncdn.com/hls/c6541/videos/202611/22/70100685/1080P_4000K_70100685.mp4/master.m3u8?validfrom=1795693474&validto=1795700674&ipa=1&hdl=-1&hash=8iXaS5QPY%2FpuCVwTFsXX2c2cyN8%3D",
+      "quality": "1080"
+    },
+    {
+      "group": 1,
+      "height": 426,
+      "width": 240,
+      "defaultQuality": false,
+      "format": "hls",
+      "videoUrl": "https://ev-h.phncdn.com/hls/c6541/videos/202611/22/70100685/240P_1000K_70100685.mp4/master.m3u8?validfrom=1795693474&validto=1795700674&ipa=1&hdl=-1&hash=Yq%2Bi81cVbIiuGhoxK8jw%2B9ezB2Q%3D",
+      "quality": "240"
+    },
+    {
+      "group": 1,
+      "height": 852,
+      "width": 480,
+      "defaultQuality": false,
+      "format": "hls",
+      "videoUrl": "https://ev-h.phncdn.com/hls/c6541/videos/202611/22/70100685/480P_2000K_70100685.mp4/master.m3u8?validfrom=1795693474&validto=1795700674&ipa=1&hdl=-1&hash=H9qKLMxyriHv9pnmc8yLTBH%2FPik%3D",
+      "quality": "480"
+    },
+    {
+      "group": 1,
+      "height": 1280,
+      "width": 720,
+      "defaultQuality": true,
+      "format": "hls",
+      "videoUrl": "https://ev-h.phncdn.com/hls/c6541/videos/202611/22/70100685/720P_4000K_70100685.mp4/master.m3u8?validfrom=1795693474&validto=1795700674&ipa=1&hdl=-1&hash=e3Nj3hGKRJiok2uSubbzH7Wv4IM%3D",
+      "quality": "720"
+    },
+    {
+      "group": 1,
+      "height": 2560,
+      "width": 1440,
+      "defaultQuality": false,
+      "format": "mp4",
+      "videoUrl": "https://www.pornhub.com/video/get_media?s=eyJrIjoiM2U1N2I1Yjg0M2EwZjE3YWJlZmQ3ZWY0NTI1MTg2MjU0OGZlNWVjNDE1Mzc3MmMwZTA2OTIyODNhNzAwZjY5YSIsInQiOjE3OTU2OTcwNzR9&v=6b0264f58ef77&e=0&t=p",
+      "quality": [],
+      "remote": true
+    }
+  ]
+}

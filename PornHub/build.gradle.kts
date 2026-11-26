@@ -1,4 +1,4 @@
-version = 17 // #1613: version bump (v17)
+version = 18 // #1465: quality from the leg's own ladder label/token (v18)
 
 cloudstream {
     authors     = listOf("RjBiermann")
