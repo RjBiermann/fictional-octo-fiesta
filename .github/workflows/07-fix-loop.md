@@ -17,15 +17,20 @@ on:
   # roles:all gh-aw compiles no membership check at all, so the `bots:`
   # allow-list below was inert and a third-party bot review
   # (`codacy-production[bot]`, PR #1631) opened a full 1200-credit repair
-  # session. github-actions[bot] (the lane's own verdict) and the machinery
-  # App pass through the bot allow-list; a collaborator's review through the
-  # role list. 06-review/08-security keep roles:all on purpose: their actor is
-  # the PR AUTHOR (github-actions[bot], permission none), where this gate would
-  # skip every agent PR. Repairs stay bounded: push-to-pull-request max 3,
-  # cycle cap + status/fixing-stuck escalation to the human.
+  # session. A collaborator's review passes the role list; the lane's own
+  # reviewers (`github-actions[bot]` verdicts and the machinery App) pass the
+  # bot allow-list. 06-review/08-security keep roles:all on purpose: their
+  # actor is the PR AUTHOR (github-actions[bot], permission none), where this
+  # gate would skip every agent PR. Repairs stay bounded: push-to-pull-request
+  # max 3, cycle cap + status/fixing-stuck escalation to the human.
   roles: [admin, maintainer, write]
   workflow_dispatch:          # ADR-0019: fix surrogate fires via dispatch (aw_context)
-  bots: ["github-actions[bot]", "RjBiermann-machinery[bot]"]
+  # Lower-case App slug on purpose: gh-aw's isAllowedBot() compares the actor
+  # and the entry exactly (it only strips the `[bot]` suffix), and GitHub's
+  # canonical App-bot login is lower-cased — `RjBiermann-machinery[bot]` never
+  # matches, which is what silently re-denied the App in the first draft of
+  # this gate (review round 2).
+  bots: ["github-actions[bot]", "rjbiermann-machinery[bot]"]
   cooldown: 10m
 imports:
   - .github/workflows/shared/engine-lane.md
