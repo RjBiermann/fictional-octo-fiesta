@@ -1,5 +1,5 @@
-// TDD parse tests for the PornSlash seam (ADR-0005, S1 #1643 + S2 #1644). No HTTP: every
-// fixture is a live capture from 2026-11-26/27 —
+// TDD parse tests for the PornSlash seam (ADR-0005, S1 #1643 + S2 #1644 + S3 #1645 + S4 #1646).
+// No HTTP: every fixture is a live capture from 2026-11-26/27 —
 //   home-p1.html            = /videos/ page 1, 50 cards (S2's `Latest` surface; the bare `/`
 //                             serves the same 50-card grid)
 //   search-milf-p1.html     = /search/milf/ page 1, 25 cards
@@ -8,8 +8,11 @@
 //                             pagination stop-rule evidence
 //   categories.html         = /categories/, the 92-tile listing the curated rows are pinned from
 //   watch-*.html            = /watch/<id> detail pages, long-form + shorts item
-//   shorts-p*.json          = /get/shorts?p=N feeds (staged for S4; their ephemeral tunnel
-//                             `url` field is dropped — S4 forbids that literal in-provider)
+//   shorts-p1.json          = /get/shorts?p=1, 10 items — S4's shorts-row fixture
+//   shorts-p2.json          = /get/shorts?p=2, 10 different items — the pagination evidence
+//                             (0 shared item_id with page 1)
+// The shorts feeds are captured with the `url` field (the ephemeral playback base) dropped: S4's
+// play path is the mp4 each `/watch/<item_id>` page derives, so no tunnel host is read at all.
 // Titles are never asserted as literals: the expected value is always the fixture attribute
 // the parse function is supposed to read, so the tests document the selector contract.
 package com.rjbiermann
@@ -32,6 +35,8 @@ class PornSlashParseTest {
     }
 
     private fun text(res: String): String = javaClass.getResourceAsStream(res)!!.reader().readText()
+
+    private fun json(res: String): List<SlashCard> = PornSlashParse.shortsCards(text(res))
 
     // ---- card() -------------------------------------------------------------------
 
@@ -126,6 +131,92 @@ class PornSlashParseTest {
                 "<div class=\"video-info\" data-id=\"abc\" data-title=\"t\"></div></div>"
         ).selectFirst("div.video-item")!!
         assertEquals(3672, PornSlashParse.card(el)!!.duration)
+    }
+
+    // ---- shorts feed (/get/shorts) ------------------------------------------------
+
+    @Test
+    fun `shorts feed page 1 yields ten cards with title poster duration and quality`() {
+        val raw = text("/shorts-p1.json")
+        val cards = json("/shorts-p1.json")
+
+        assertEquals(10, cards.size)
+        assertEquals(PornSlashParse.PAGE_SIZE_SHORTS, cards.size)
+        // cards follow the feed's own item order
+        assertEquals(
+            Regex("\"item_id\":\"([^\"]+)\"").findAll(raw).map { it.groupValues[1] }.toList(),
+            cards.map { it.id }
+        )
+        // every field is the feed's own value under the key the parse is supposed to read
+        for (card in cards) {
+            assertTrue("title not from the feed: ${card.title}", raw.contains("\"title\":\"${card.title}\""))
+            assertTrue("poster not from the feed: ${card.poster}", raw.contains("\"poster\":\"${card.poster}\""))
+            assertTrue("quality not from the feed: ${card.quality}", raw.contains("\"quality\":${card.quality!!.removeSuffix("p")}"))
+            assertTrue("duration not from the feed: ${card.duration}", raw.contains("\"duration\":${card.duration}"))
+        }
+    }
+
+    @Test
+    fun `shorts feed page 2 is a full page with no id shared with page 1`() {
+        val page1 = json("/shorts-p1.json")
+        val page2 = json("/shorts-p2.json")
+        assertEquals(10, page1.size)
+        assertEquals(10, page2.size)
+        assertEquals(0, page1.map { it.id }.intersect(page2.map { it.id }.toSet()).size)
+        assertEquals(20, (page1 + page2).map { it.id }.distinct().size)
+    }
+
+    @Test
+    fun `a full shorts page means another page may exist`() {
+        assertEquals(10, PornSlashParse.PAGE_SIZE_SHORTS)
+        assertTrue(PornSlashParse.hasNext(json("/shorts-p1.json").size, PornSlashParse.PAGE_SIZE_SHORTS))
+        assertFalse(PornSlashParse.hasNext(9, PornSlashParse.PAGE_SIZE_SHORTS))
+    }
+
+    @Test
+    fun `shorts cards link the watch route the detail surface parses`() {
+        val card = json("/shorts-p1.json").first()
+        assertEquals("https://www.pornslash.com/watch/${card.id}", PornSlashParse.watchUrl(card.id))
+        // the row pages with the same `?p=`-only contract as every other surface
+        assertEquals(PornSlashParse.SHORTS, PornSlashParse.pageUrl(PornSlashParse.SHORTS, 1))
+        assertEquals("https://www.pornslash.com/get/shorts?p=2", PornSlashParse.pageUrl(PornSlashParse.SHORTS, 2))
+    }
+
+    @Test
+    fun `the feed's playback url is never read, the poster falls back to the image`() {
+        // S4's play path is the mp4 derived from /watch/<item_id>: an item's own playback url
+        // must not influence the card at all, so the parse is identical with and without it.
+        val withoutUrl = """{"videos":[{"item_id":"abc","title":"t","poster":"https://cdn/t/a.jpeg",""" +
+            """"duration":30,"quality":720}]}"""
+        val withUrl = """{"videos":[{"item_id":"abc","title":"t","poster":"https://cdn/t/a.jpeg",""" +
+            """"duration":30,"quality":720,"url":"https://example.invalid/master/x"}]}"""
+        assertEquals(PornSlashParse.shortsCards(withoutUrl), PornSlashParse.shortsCards(withUrl))
+
+        // feed without a poster: the item's own `image` is the grid poster
+        val imageOnly = """{"videos":[{"item_id":"abc","title":"t","image":"https://cdn/t/a.jpeg"}]}"""
+        assertEquals("https://cdn/t/a.jpeg", PornSlashParse.shortsCards(imageOnly).first().poster)
+    }
+
+    @Test
+    fun `shorts items without an id or a title are dropped and junk yields no cards`() {
+        assertEquals(0, PornSlashParse.shortsCards(null).size)
+        assertEquals(0, PornSlashParse.shortsCards("").size)
+        assertEquals(0, PornSlashParse.shortsCards("<html>not json</html>").size)
+        assertEquals(0, PornSlashParse.shortsCards("{}").size)
+        assertEquals(0, PornSlashParse.shortsCards("""{"videos":[]}""").size)
+        assertEquals(
+            0,
+            PornSlashParse.shortsCards(
+                """{"videos":[{"title":"no id"},{"item_id":"abc"},{"item_id":"","title":"blank id"}]}"""
+            ).size
+        )
+        // one broken item never kills the page
+        assertEquals(
+            1,
+            PornSlashParse.shortsCards(
+                """{"videos":[{"title":"no id"},{"item_id":"abc","title":"kept"}]}"""
+            ).size
+        )
     }
 
     // ---- pageUrl() ----------------------------------------------------------------
@@ -231,8 +322,9 @@ class PornSlashParseTest {
 
     @Test
     fun `home rows stay under the ten-row cap`() {
-        // Latest + the eight curated categories; the spec caps the home page at ten rows.
-        assertTrue(1 + PornSlashParse.CURATED_CATEGORIES.size <= 10)
+        // Latest + the shorts feed + the eight curated categories; the spec caps home at ten rows.
+        assertEquals(10, 2 + PornSlashParse.CURATED_CATEGORIES.size)
+        assertTrue(2 + PornSlashParse.CURATED_CATEGORIES.size <= 10)
     }
 
     // ---- mp4FromThumb() -----------------------------------------------------------
@@ -268,35 +360,12 @@ class PornSlashParseTest {
         assertNull(PornSlashParse.mp4FromThumb("https://cdn.pages.dev/1/t/enc"))
     }
 
-    // ---- hlsBase() ----------------------------------------------------------------
-
-    @Test
-    fun `hls base decodes to the trycloudflare tunnel, not the page's ad token`() {
-        for (fixture in listOf("/watch-1ZxeqYAL0xy.html", "/watch-shorts-Vpg8p8DYegA.html")) {
-            val base = PornSlashParse.hlsBase(text(fixture))
-            assertNotNull("no HLS base in $fixture", base)
-            assertTrue(base!!.startsWith("https://"))
-            assertTrue(base.endsWith(".trycloudflare.com"))
-            // the page also carries an unrelated base64 ad redirect — never picked
-            assertFalse(base.contains("wideeyedchance"))
-            assertFalse(base.contains("pages.dev"))
-            assertFalse(base.contains("trycloudflare.com."))
-        }
-    }
-
-    @Test
-    fun `hls base is null when the page carries no tunnel token`() {
-        assertNull(PornSlashParse.hlsBase(null))
-        assertNull(PornSlashParse.hlsBase(""))
-        assertNull(PornSlashParse.hlsBase("<html><body><p>no player here</p></body></html>"))
-    }
-
     // ---- detail() -----------------------------------------------------------------
 
     @Test
     fun `detail page carries title poster tags description and quality`() {
         val document = doc("/watch-1ZxeqYAL0xy.html")
-        val detail = PornSlashParse.detail(document, text("/watch-1ZxeqYAL0xy.html"))!!
+        val detail = PornSlashParse.detail(document)!!
         val share = document.selectFirst("div.share-video")!!
 
         assertEquals(document.selectFirst("h1.video-page-title")!!.text().trim(), detail.title)
@@ -306,7 +375,6 @@ class PornSlashParseTest {
             detail.description
         )
         assertEquals(share.attr("data-quality") + "p", detail.quality)
-        assertEquals(share.attr("data-encid"), detail.encid)
         assertEquals(
             document.select("meta[property=og:video:tag]").map { it.attr("content") },
             detail.tags
@@ -327,27 +395,22 @@ class PornSlashParseTest {
     }
 
     @Test
-    fun `detail derives the mp4 primary and the HLS fallback from the page itself`() {
+    fun `detail derives the mp4 primary from the page's own thumbnail`() {
         for (fixture in listOf("/watch-1ZxeqYAL0xy.html", "/watch-shorts-Vpg8p8DYegA.html")) {
-            val html = text(fixture)
-            val detail = PornSlashParse.detail(doc(fixture), html)!!
+            val detail = PornSlashParse.detail(doc(fixture))!!
 
             assertNotNull("no mp4 from $fixture", detail.mp4)
             assertTrue(detail.mp4!!.endsWith(".mp4"))
             assertTrue(detail.mp4!!.contains("/p/"))
             // host and <ptid> segment come from the page's own og:image, never templated
             assertEquals(detail.poster!!.substringBefore("/t/"), detail.mp4!!.substringBefore("/p/"))
-
-            assertNotNull("no HLS fallback from $fixture", detail.hls)
-            assertTrue(detail.hls!!.startsWith("https://"))
-            assertTrue(detail.hls!!.endsWith("/master/" + detail.encid))
         }
     }
 
     @Test
     fun `related cards are the watch page's recommendation surface`() {
         val document = doc("/watch-1ZxeqYAL0xy.html")
-        val detail = PornSlashParse.detail(document, text("/watch-1ZxeqYAL0xy.html"))!!
+        val detail = PornSlashParse.detail(document)!!
         val selfId = document.selectFirst("div.share-video")!!.attr("data-id")
 
         assertEquals(50, document.select("div.related div.video-item").size)
@@ -365,7 +428,7 @@ class PornSlashParseTest {
     @Test
     fun `watch fixtures satisfy the distinct bar`() {
         val details = listOf("/watch-1ZxeqYAL0xy.html", "/watch-shorts-Vpg8p8DYegA.html")
-            .map { PornSlashParse.detail(doc(it), text(it))!! }
+            .map { PornSlashParse.detail(doc(it))!! }
         DistinctBar.assertDistinctVideos(
             details.map { DistinctBar.VideoIdentity(it.title, it.poster, it.mp4) }
         )

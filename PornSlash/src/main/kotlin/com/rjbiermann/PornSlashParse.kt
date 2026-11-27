@@ -4,21 +4,24 @@
 //
 // Why a provider-local seam and not the shared KVS modules: this site is not flashvars KVS.
 // The served HTML carries no `video_url` and no `kt_player`, so KvsFlashvars/KvsVideofile
-// have nothing to read. What it does serve is the mp4 path on every card
-// (`div.thumbnail[data-p=".../p/<encid>.mp4"]`) and, on the watch page, a base64-encoded
-// HLS tunnel base.
+// have nothing to read. What it does serve is the mp4 path every watch page's `og:image`
+// mirrors (`/t/<encid>.jpeg` → `/p/<encid>.mp4`), and a JSON shorts feed whose items are
+// plain `/watch/<item_id>` links (S4 #1646).
 //
-// Two structural rules the drift history demands (findings 2026-11-26):
-//  - the CDN host is a per-video `*.pages.dev` project (wolfcipher56-1343.pages.dev/13426,
-//    ba0ze4asqz-1338.pages.dev/13375, ...): read from the page on every load, never templated;
-//  - the HLS base is a rotating `*.trycloudflare.com` tunnel: decoded from the page on every
-//    load, never cached across loads.
+// The structural rule the drift history demands (findings 2026-11-26): the CDN host is a
+// per-video `*.pages.dev` project (wolfcipher56-1343.pages.dev/13426,
+// ba0ze4asqz-1338.pages.dev/13375, ...), so it is read from the page on every load and
+// never templated.
+//
+// The play path is the derived mp4 and nothing else: the watch page's other stream
+// candidate is a rotating ephemeral tunnel whose host changes between loads, and the
+// shorts spec (S4) keeps it out of the play path (and out of this source).
 package com.rjbiermann
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.node.ArrayNode
 import com.kraptor.DurationParse
 import com.kraptor.JsonLdParse
-import kotlin.io.encoding.Base64
-import kotlin.io.encoding.ExperimentalEncodingApi
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
@@ -33,7 +36,7 @@ data class SlashCard(
 )
 
 /**
- * One `/watch/<id>` page: the metadata the detail surface renders, plus both stream candidates.
+ * One `/watch/<id>` page: the metadata the detail surface renders, plus the stream candidate.
  * Long-form and shorts items share the route and this grammar.
  */
 data class SlashDetail(
@@ -44,10 +47,7 @@ data class SlashDetail(
     /** CloudStream convention: minutes, never seconds. */
     val duration: Int?,
     val quality: String?,
-    /** The CDN encode id — the HLS master's path segment. */
-    val encid: String?,
     val mp4: String?,
-    val hls: String?,
     val recommendations: List<SlashCard>,
 )
 
@@ -79,12 +79,26 @@ object PornSlashParse {
     const val SEARCH = "$MAIN/search/"
 
     /**
+     * The shorts feed — JSON, not HTML, and 10 items per page (S4 #1646). Its items are
+     * ordinary catalogue entries: each `item_id` resolves through the same `/watch/<id>`
+     * detail route as a long-form movie, paged with the same `?p=N` contract (page 1 is the
+     * bare feed).
+     */
+    const val SHORTS = "$MAIN/get/shorts"
+
+    /**
      * Cards per page, live 2026-11-26/27: `/videos/` serves 50, `/search/<q>/` and `/cat/<slug>/`
-     * serve 25. The sizes feed [hasNext]'s stop rule, so a site-side change surfaces as a short
-     * row rather than a 500 on `?p=last+1`.
+     * serve 25, the shorts feed serves 10. The sizes feed [hasNext]'s stop rule, so a site-side
+     * change surfaces as a short row rather than a 500 on `?p=last+1`.
      */
     const val PAGE_SIZE_VIDEOS = 50
     const val PAGE_SIZE_SEARCH = 25
+    const val PAGE_SIZE_SHORTS = 10
+
+    /** The detail route both surfaces share: `/watch/<id>` serves movies and shorts items. */
+    fun watchUrl(id: String): String = "$MAIN/watch/$id"
+
+    private val jsonMapper = ObjectMapper()
 
     /**
      * The eight curated home rows, pinned from the 92 tiles on `/categories/`.
@@ -116,11 +130,6 @@ object PornSlashParse {
     private val CLOCK = Regex("""^(?:(\d+):)?(\d+):(\d+)$""")
 
     private val DIGITS = Regex("""(\d{3,4})""")
-
-    /** A base64 run long enough to be a token, not a JS identifier. */
-    private val B64_RUN = Regex("""[A-Za-z0-9+/]{24,}={0,2}""")
-
-    private val HLS_TUNNEL = Regex("""https?://[a-z0-9-]+\.trycloudflare\.com""", RegexOption.IGNORE_CASE)
 
     /** A listing page → its cards; one broken card is dropped, never the whole page. */
     fun cards(document: Document): List<SlashCard> = document.select(CARD).mapNotNull { card(it) }
@@ -168,12 +177,10 @@ object PornSlashParse {
     /**
      * One `/watch/<id>` page → [SlashDetail], or null when the page carries no title at all.
      *
-     * [html] is the raw response body: the HLS base is a base64 run in the page's inline script.
-     * Callers already hold the text; omitted, the document's own serialization is used. Nothing
-     * here is cached or templated — the per-video `*.pages.dev` CDN host comes from the page's
-     * own `og:image` and the `*.trycloudflare.com` tunnel is decoded on every call.
+     * Nothing here is cached or templated — the per-video `*.pages.dev` CDN host comes from the
+     * page's own `og:image`, so the mp4 is derived per load.
      */
-    fun detail(document: Document, html: String? = null): SlashDetail? {
+    fun detail(document: Document): SlashDetail? {
         val share = document.selectFirst(SHARE)
         val title = document.selectFirst(DETAIL_TITLE)?.text()?.trim()?.takeIf { it.isNotEmpty() }
             ?: document.selectFirst("meta[property=og:title]")?.attr("content")
@@ -183,8 +190,6 @@ object PornSlashParse {
         val poster = document.selectFirst("meta[property=og:image]")?.attr("content")
             ?.trim()?.takeIf { it.isNotEmpty() }
         val id = share?.attr("data-id")?.trim()?.takeIf { it.isNotEmpty() }
-        val encid = share?.attr("data-encid")?.trim()?.takeIf { it.isNotEmpty() }
-        val base = hlsBase(html ?: document.html())
         return SlashDetail(
             title = title,
             poster = poster,
@@ -195,12 +200,47 @@ object PornSlashParse {
                 document.selectFirst("script[type=application/ld+json]")?.data(),
             ),
             quality = quality(share?.attr("data-quality")),
-            encid = encid,
             mp4 = mp4FromThumb(poster),
-            hls = if (base != null && encid != null) "$base/master/$encid" else null,
             recommendations = recommendations(document, id),
         )
     }
+
+    /**
+     * `/get/shorts?p=N` → its cards, read from the feed's own `videos[]` JSON.
+     *
+     * Each item carries everything the card needs: `item_id` (the `/watch/<item_id>` route),
+     * `title`, `poster` (the grid image; `image` backs it up when the feed ships none),
+     * `duration` in seconds and `quality` as a bare number. The feed also carries an `url`
+     * field — the ephemeral playback base — which is deliberately unread: the item plays from
+     * the mp4 its `/watch/<id>` page derives, so no tunnel host enters the play path and no
+     * extra round-trip is needed at playback time. A malformed payload yields no cards, never
+     * a throw, and an item without an id or a title is dropped rather than half-filled.
+     */
+    fun shortsCards(json: String?): List<SlashCard> {
+        val root = json?.takeIf { it.isNotBlank() }
+            ?.let { runCatching { jsonMapper.readTree(it) }.getOrNull() }
+            ?: return emptyList()
+        val videos = root.get("videos") as? ArrayNode ?: return emptyList()
+        val cards = ArrayList<SlashCard>(videos.size())
+        for (i in 0 until videos.size()) {
+            val node = videos.get(i)
+            val id = node.get("item_id")?.asText()?.trim()?.takeIf { it.isNotEmpty() } ?: continue
+            val title = node.get("title")?.asText()?.trim()?.takeIf { it.isNotEmpty() } ?: continue
+            cards.add(
+                SlashCard(
+                    id = id,
+                    title = title,
+                    poster = image(node.get("poster")?.asText()) ?: image(node.get("image")?.asText()),
+                    quality = quality(node.get("quality")?.asText()),
+                    duration = node.get("duration")?.asText()?.trim()?.toIntOrNull(),
+                )
+            )
+        }
+        return cards
+    }
+
+    private fun image(raw: String?): String? =
+        raw?.trim()?.takeIf { it.isNotEmpty() && !it.startsWith("data:") }
 
     /**
      * The plot: `og:description` when the site ships it, else the plain meta description. The
@@ -283,22 +323,6 @@ object PornSlashParse {
     }
 
     /**
-     * The watch page's HLS base: the base64 token that decodes to the rotating
-     * `*.trycloudflare.com` tunnel. Decoded per load from the page — never cached across
-     * loads (the tunnel rotates) and never templated. The page also carries an unrelated
-     * base64 redirect (`wideeyedchance.com`) and a `media-server-NN` token, hence the
-     * decode-then-match instead of "the first base64 on the page".
-     */
-    fun hlsBase(detailHtml: String?): String? {
-        if (detailHtml.isNullOrBlank()) return null
-        for (run in B64_RUN.findAll(detailHtml)) {
-            val decoded = decodeBase64(run.value) ?: continue
-            if (HLS_TUNNEL.matches(decoded)) return decoded
-        }
-        return null
-    }
-
-    /**
      * `data-quality` is the truth: `"480"` → `"480p"`, `"1080p"` → `"1080p"`. No ladder is
      * invented when the source has no number (absent, blank or `"HD"` → null): a fabricated
      * quality label misleads the player.
@@ -321,11 +345,4 @@ object PornSlashParse {
         val (h, min, s) = m.destructured
         return (h.toIntOrNull() ?: 0) * 3600 + min.toInt() * 60 + s.toInt()
     }
-
-    @OptIn(ExperimentalEncodingApi::class)
-    private fun decodeBase64(token: String): String? = runCatching {
-        val padded = token + "=".repeat((4 - token.length % 4) % 4)
-        val decoded = String(Base64.decode(padded), Charsets.UTF_8)
-        decoded.takeIf { text -> text.all { it.code in 0x20..0x7e } }
-    }.getOrNull()
 }

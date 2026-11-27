@@ -1,7 +1,8 @@
 // PornSlash (pornslash.com) — a KVS-engine tube serving full-length movies and a shorts
 // feed. S1 (#1643) landed the scaffold + parse seam (PornSlashParse.kt); S2 (#1644) the
-// home rows and search; S3 (#1645) the detail page and both streams below — one `/watch/<id>`
-// route covers long-form and shorts items. Shorts browse lands in S4 (#1646), filters in S5
+// home rows and search; S3 (#1645) the detail page and its streams; S4 (#1646) the shorts
+// surface — one `/watch/<id>` route covers long-form and shorts items, and the play path is
+// the single derived mp4 (no tunnel base, no per-playback round-trip). Filters land in S5
 // (#1647), so search() carries no filter/sort argument and a result URL is the plain
 // `/watch/<id>` route.
 package com.rjbiermann
@@ -26,22 +27,25 @@ class PornSlash : MainAPI() {
     override val hasQuickSearch = false
 
     /**
-     * `Latest` (50 cards/page) plus the eight curated category rows (25 cards/page), pinned from
-     * `/categories/` — see [PornSlashParse.CURATED_CATEGORIES]. Nine rows, under the spec's
-     * hard cap of ten.
+     * `Latest` (50 cards/page), the shorts feed (10 cards/page) and the eight curated category
+     * rows (25 cards/page), pinned from `/categories/` — see
+     * [PornSlashParse.CURATED_CATEGORIES]. Ten rows, the spec's hard cap.
      */
     override val mainPage = mainPageOf(
         PornSlashParse.VIDEOS to "Latest",
+        PornSlashParse.SHORTS to "Shorts",
         *PornSlashParse.CURATED_CATEGORIES
             .map { (slug, label) -> PornSlashParse.categoryUrl(slug) to label }
             .toTypedArray(),
     )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val pageSize =
-            if (request.data == PornSlashParse.VIDEOS) PornSlashParse.PAGE_SIZE_VIDEOS
-            else PornSlashParse.PAGE_SIZE_SEARCH
-        val cards = row(PornSlashParse.pageUrl(request.data, page))
+        val url = PornSlashParse.pageUrl(request.data, page)
+        val (cards, pageSize) = when (request.data) {
+            PornSlashParse.SHORTS -> shortsRow(url) to PornSlashParse.PAGE_SIZE_SHORTS
+            PornSlashParse.VIDEOS -> row(url) to PornSlashParse.PAGE_SIZE_VIDEOS
+            else -> row(url) to PornSlashParse.PAGE_SIZE_SEARCH
+        }
         return newHomePageResponse(
             request,
             cards.map { it.toSearchResponse() },
@@ -60,11 +64,23 @@ class PornSlash : MainAPI() {
         emptyList()
     }
 
+    /**
+     * The shorts row is the same contract over a JSON body: cards from the feed's own fields,
+     * each linking to the `/watch/<item_id>` route the long-form row uses. A feed that stops
+     * answering is one empty row, not a dead home page.
+     */
+    private suspend fun shortsRow(url: String): List<SlashCard> = try {
+        PornSlashParse.shortsCards(app.get(url, referer = "$mainUrl/").text)
+    } catch (e: Exception) {
+        Log.d(name, "shorts $url: ${e.message}")
+        emptyList()
+    }
+
     // Card quality and duration stay out of the search response: this API's SearchResponse
     // quality is a coarse SearchQuality badge, and the exact `1080`/`720` label plus the
     // second-exact duration are what S3's load()/loadLinks() need. Only the poster is shown here.
     private fun SlashCard.toSearchResponse(): SearchResponse =
-        newMovieSearchResponse(title, "$mainUrl/watch/$id", TvType.NSFW) {
+        newMovieSearchResponse(title, PornSlashParse.watchUrl(id), TvType.NSFW) {
             posterUrl = poster
         }
 
@@ -80,7 +96,7 @@ class PornSlash : MainAPI() {
 
     override suspend fun load(url: String): LoadResponse? {
         val response = app.get(url, referer = "$mainUrl/")
-        val detail = PornSlashParse.detail(response.document, response.text) ?: return null
+        val detail = PornSlashParse.detail(response.document) ?: return null
         return newMovieLoadResponse(detail.title, url, TvType.NSFW, url) {
             this.posterUrl = detail.poster
             this.plot = detail.description
@@ -97,31 +113,20 @@ class PornSlash : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val response = app.get(data, referer = "$mainUrl/")
-        val detail = PornSlashParse.detail(response.document, response.text) ?: return false
-        var sources = 0
-        // Stream 1 — primary: the mp4 the thumbnail's `/t/<encid>.jpeg` path mirrors. The
+        val detail = PornSlashParse.detail(response.document) ?: return false
+        // The one play path: the mp4 the thumbnail's `/t/<encid>.jpeg` path mirrors. The
         // per-video *.pages.dev CDN currently serves `access-control-allow-origin: *` and plays
-        // with no Referer, so the referer is cheap insurance rather than a requirement.
-        detail.mp4?.let { url ->
-            sources++
-            callback(
-                newExtractorLink(name, name, url, type = ExtractorLinkType.VIDEO) {
-                    this.quality = getQualityFromName(detail.quality)
-                    this.referer = mainUrl
-                }
-            )
-        }
-        // Stream 2 — fallback: the ladder on the page's rotating tunnel. `.m3u8` sent as VIDEO
-        // never plays (#1526), so it ships as M3U8.
-        detail.hls?.let { url ->
-            sources++
-            callback(
-                newExtractorLink(name, "$name HLS", url, type = ExtractorLinkType.M3U8) {
-                    this.referer = mainUrl
-                }
-            )
-        }
-        return sources > 0
+        // with no Referer, so the referer is cheap insurance rather than a requirement. Long-form
+        // and shorts items resolve through this same route, so a shorts item is no special case
+        // and playback needs no `/get/shorts` round-trip.
+        val mp4 = detail.mp4 ?: return false
+        callback(
+            newExtractorLink(name, name, mp4, type = ExtractorLinkType.VIDEO) {
+                this.quality = getQualityFromName(detail.quality)
+                this.referer = mainUrl
+            }
+        )
+        return true
     }
 }
 
