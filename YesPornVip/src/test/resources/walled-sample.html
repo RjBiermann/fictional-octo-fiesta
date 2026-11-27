@@ -1,0 +1,55 @@
+<div class="modal-inner">
+  <div class="modal-title">
+    Login
+  </div>
+
+  <a href="#" class="close-btn">
+    <svg class="svg-icon icon-cross"><use xlink:href="#icon-cross"></use></svg>
+  </a>
+  
+  <div class="modal-holder">
+    <form action="https://yesporn.vip/login/" data-form="ajax" method="post">
+      <div class="generic-error ">
+                  This action is available for members only, please log in or create your account.
+              </div>
+
+      <div class="row">
+        <label for="login_username" class="field-label required">Username</label>
+        <input type="text" name="username" id="login_username" class="textfield" placeholder="please enter login here"/>
+        <div class="field-error down"></div>
+      </div>
+
+      <div class="row">
+        <label for="login_pass" class="field-label required">Password</label>
+        <input type="password" name="pass" id="login_pass" class="textfield"/>
+        <div class="field-error down"></div>
+      </div>
+
+              <div class="row flex">
+          <input type="checkbox" name="remember_me" id="login_remember_me" class="checkbox" value="1"/>
+          <label for="login_remember_me">remember me</label>
+        </div>
+      
+      
+      <div class="row">
+        <div class="links">
+
+          <a data-href="https://yesporn.vip/signup/" data-fancybox="ajax" class="link-item">
+            Not a member yet? Sign up now for free!
+          </a>
+
+          <div class="link-row">
+            <a data-href="https://yesporn.vip/reset-password/" data-fancybox="ajax" class="link-item">Forgot password?</a>
+            <a data-href="https://yesporn.vip/resend-confirmation/" data-fancybox="ajax" class="link-item">Missing confirmation email?</a>
+          </div>
+        </div>
+
+        <div class="bottom">
+          <input type="hidden" name="action" value="login"/>
+          <input type="hidden" name="email_link" value="https://yesporn.vip/email/"/>
+          <input type="submit" class="submit" value="Log in"/>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
