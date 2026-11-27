@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 44 // #1658: version bump (v44)
+version = 45 // #1673: version bump (v45)
 
 cloudstream {
     authors     = listOf("kraptor", "ByAyzen")
