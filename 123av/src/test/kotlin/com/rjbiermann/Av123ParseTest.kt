@@ -9,6 +9,11 @@
 //   new-page-1.html  = https://123av.com/en/new?page=1  row 1, page 1
 //   hot-page-1.html  = https://123av.com/en/hot?page=1  row 2 (Hot), page 1
 //   hot-page-2.html  = https://123av.com/en/hot?page=2  row 2, page 2
+//   search-page-1.html = https://123av.com/en/search?keyword=1pondo          (S3)
+//   search-page-2.html = https://123av.com/en/search?keyword=1pondo&page=2   (S3)
+//   makers-index.html  = https://123av.com/en/makers  60 studios on index page 1 (S3)
+//   maker-1pondo-page-1.html = https://123av.com/en/makers/1pondo           (S3)
+//   maker-1pondo-page-2.html = https://123av.com/en/makers/1pondo?page=2    (S3)
 //
 // Titles are never asserted as literals: the expected value is always the fixture attribute the
 // parse function is contracted to read, so the tests document the selector chain. Page-1 ∩ page-2
@@ -105,29 +110,42 @@ class Av123ParseTest {
 
     @Test
     fun `fresh drops a boundary card re-served on the next page`() {
-        val seen = HashSet<String>()
         val page1 = Av123Parse.parseCards(html("/new-page-1.html"))
-        assertEquals(Av123Parse.PAGE_SIZE, Av123Parse.fresh(page1, seen).size)
+        assertEquals(Av123Parse.PAGE_SIZE, Av123Parse.fresh(page1, emptyList()).size)
 
         // Offset paging over a growing list: hero is the last card of page 1 and the first of
-        // page 2. Page 2 must not re-serve it.
+        // page 2. Page 2 filters against page 1, so it must not re-serve it.
         val boundary = page1.last()
         val page2 = Av123Parse.parseCards(html("/home-page-2.html"))
-        val fresh = Av123Parse.fresh(listOf(boundary) + page2, seen)
+        val fresh = Av123Parse.fresh(listOf(boundary) + page2, page1)
         assertEquals(page2.size, fresh.size)
         assertFalse("boundary card re-served", fresh.any { it.id == boundary.id })
     }
 
     @Test
-    fun `fresh re-seeds the row when page one is cleared`() {
-        val seen = HashSet<String>()
+    fun `fresh keeps no state between calls`() {
         val page1 = Av123Parse.parseCards(html("/new-page-1.html"))
-        Av123Parse.fresh(page1, seen)
-        assertTrue("page re-served without a clear", Av123Parse.fresh(page1, seen).isEmpty())
+        val page2 = Av123Parse.parseCards(html("/home-page-2.html"))
 
-        // The adapter clears the set before page 1, so a refresh serves the row again.
-        seen.clear()
-        assertEquals(page1.size, Av123Parse.fresh(page1, seen).size)
+        // Blocking regression (Codacy, PR #1667): the provider used to keep a per-query seen-set,
+        // so a second `search(page = 2)` came back empty. Deriving the overlap from page 1 makes
+        // the call a pure function of its arguments, so a repeat is identical.
+        val first = Av123Parse.fresh(page2, page1)
+        assertEquals(Av123Parse.PAGE_SIZE, first.size)
+        assertEquals(first, Av123Parse.fresh(page2, page1))
+
+        // And the same is true under concurrency: no set is shared, so four interleaved calls
+        // cannot consume each other's cards (plain CompletableFuture — JVM test classpath).
+        val concurrent = (1..4)
+            .map { java.util.concurrent.CompletableFuture.supplyAsync { Av123Parse.fresh(page2, page1) } }
+            .map { it.get() }
+        assertTrue("concurrent calls disagree: $concurrent", concurrent.all { it == first })
+    }
+
+    @Test
+    fun `fresh drops a card served twice on one page`() {
+        val card = Av123Parse.parseCards(html("/new-page-1.html")).first()
+        assertEquals(listOf(card), Av123Parse.fresh(listOf(card, card), emptyList()))
     }
 
     // ---- duration -----------------------------------------------------------------
@@ -175,5 +193,151 @@ class Av123ParseTest {
         assertEquals("https://123av.com/en/new", Av123Parse.pageUrl(Av123Parse.NEW, 1))
         assertEquals("https://123av.com/en/new?page=2", Av123Parse.pageUrl(Av123Parse.NEW, 2))
         assertEquals("https://123av.com/en/hot?page=3", Av123Parse.pageUrl(Av123Parse.HOT, 3))
+    }
+
+    // ---- search (S3) ---------------------------------------------------------------
+
+    @Test
+    fun `search page one and page two are disjoint`() {
+        val one = Av123Parse.parseSearch(html("/search-page-1.html"))
+        val two = Av123Parse.parseSearch(html("/search-page-2.html"))
+        assertEquals(Av123Parse.PAGE_SIZE, one.size)
+        assertEquals(Av123Parse.PAGE_SIZE, two.size)
+        // The pipeline duplicate bar: a card served on both pages fails Verification.
+        assertEquals(emptySet<String>(), one.map { it.id }.toSet() intersect two.map { it.id }.toSet())
+        // Search is not a separate grammar: it is the listing card, pins the ura studio code.
+        assertTrue("keyword=1pondo returned a non-1pondo card", one.all { it.id.startsWith("1pondo-") })
+        assertTrue("keyword=1pondo page 2 returned a non-1pondo card", two.all { it.id.startsWith("1pondo-") })
+    }
+
+    @Test
+    fun `search parses through the shared card grammar`() {
+        for (res in listOf("/search-page-1.html", "/search-page-2.html")) {
+            // parseSearch() is a seam over cards(), not a second selector chain: if someone
+            // forks the selectors for search, this equality breaks before the drift ships.
+            assertEquals(res, Av123Parse.cards(doc(res)), Av123Parse.parseSearch(html(res)))
+        }
+    }
+
+    @Test
+    fun `a search row and a maker row produce the same card shape`() {
+        val search = Av123Parse.parseSearch(html("/search-page-1.html")).first()
+        val maker = Av123Parse.parseCards(html("/maker-1pondo-page-1.html")).first()
+        for (card in listOf(search, maker)) {
+            assertTrue("blank id", card.id.isNotBlank())
+            assertTrue("blank title", card.title.isNotBlank())
+            assertEquals("https://123av.com/en/v/${card.id}", card.url)
+            assertTrue("poster ${card.poster}", card.poster!!.startsWith("https://icdn.123av.me/"))
+            assertTrue("missing duration", (card.duration ?: 0) > 0)
+        }
+    }
+
+    @Test
+    fun `search url is the site GET form with page`() {
+        assertEquals("https://123av.com/en/search?keyword=1pondo", Av123Parse.searchUrl("1pondo", 1))
+        assertEquals(
+            "https://123av.com/en/search?keyword=1pondo&page=2",
+            Av123Parse.searchUrl("1pondo", 2),
+        )
+        // The keyword is urlencoded, never interpolated raw (spaces, non-ASCII queries).
+        assertEquals("https://123av.com/en/search?keyword=1+pondo", Av123Parse.searchUrl("1 pondo", 1))
+        assertTrue(Av123Parse.searchUrl("2 人", 1).contains("%E4%BA%BA"))
+        assertEquals("/en/search", doc("/search-page-1.html").selectFirst("form.search__field")!!.attr("action"))
+    }
+
+    @Test
+    fun `the search page exposes no suggest endpoint to quick-search against`() {
+        // hasQuickSearch = false is a decision from evidence, so pin the evidence. S1 grepped the
+        // client bundle for a suggest/autocomplete route (0 matches); the served page adds none.
+        val page = html("/search-page-1.html")
+        assertFalse("a suggest route appeared on the search page", page.contains("suggest", ignoreCase = true))
+        val input = doc("/search-page-1.html").selectFirst("input[name=keyword]")!!
+        assertFalse("keyword field gained an input handler", input.hasAttr("@input") || input.hasAttr("x-on:input"))
+    }
+
+    // ---- makers (S3) ---------------------------------------------------------------
+
+    @Test
+    fun `makers index parses the studio grid`() {
+        val document = doc("/makers-index.html")
+        val makers = Av123Parse.parseMakers(html("/makers-index.html"))
+        assertEquals(60, document.select(Av123Parse.MCARD).size)
+        assertEquals(document.select(Av123Parse.MCARD).size, makers.size)
+        val bySlug = document.select(Av123Parse.MCARD).associateBy { el -> el.attr("href").substringAfterLast('/') }
+        for (maker in makers) {
+            val el = bySlug.getValue(maker.slug)
+            assertEquals(el.selectFirst(".mcard__name")!!.text(), maker.name)
+            assertEquals(Av123Parse.MAIN + "/en/makers/${maker.slug}", maker.url)
+        }
+        assertEquals(makers.size, makers.map { it.slug }.toSet().size)
+    }
+
+    @Test
+    fun `the eleven ura maker rows are the issue's studio set`() {
+        assertEquals(11, Av123Parse.MAKER_ROWS.size)
+        assertEquals(
+            listOf(
+                "1pondo", "caribbeancom", "heyzo", "takara-video", "10musume", "tokyo-hot",
+                "pacopacomama", "h4610", "c0930", "h0930", "xxx-av",
+            ),
+            Av123Parse.MAKER_ROWS.map { it.slug },
+        )
+        for (row in Av123Parse.MAKER_ROWS) {
+            assertEquals("https://123av.com/en/makers/${row.slug}", Av123Parse.makerUrl(row.slug, 1))
+            assertEquals("https://123av.com/en/makers/${row.slug}?page=2", Av123Parse.makerUrl(row.slug, 2))
+        }
+    }
+
+    @Test
+    fun `home rows keep the two S2 rows and append the eleven makers`() {
+        // The review asked for this composition to be pinned: the S2 rows and their order must
+        // survive S3, and the eleven maker rows follow in the issue's own order.
+        val rows = Av123Parse.homeRows()
+        assertEquals(13, rows.size)
+        assertEquals(listOf(Av123Parse.NEW to "New Releases", Av123Parse.HOT to "Hot"), rows.take(2))
+        assertEquals(
+            Av123Parse.MAKER_ROWS.map { Av123Parse.makerUrl(it.slug, 1) to it.label },
+            rows.drop(2),
+        )
+        assertEquals("duplicate row url", rows.size, rows.map { it.first }.toSet().size)
+        assertEquals("duplicate row label", rows.size, rows.map { it.second }.toSet().size)
+    }
+
+    @Test
+    fun `every maker row label is the site's own name`() {
+        val document = doc("/makers-index.html")
+        val names = Av123Parse.parseMakers(html("/makers-index.html")).associate { it.slug to it.name }
+        for (row in Av123Parse.MAKER_ROWS) {
+            // Ten of the eleven sit on index page 1; `xxx-av` is beyond it, so its label comes
+            // from the header nav link the site renders for the same href.
+            val expected = names[row.slug]
+                ?: document.select("a[href]").firstOrNull { it.attr("href") == "/en/makers/${row.slug}" }?.text()
+            assertEquals("${row.slug} label", row.label, expected)
+        }
+    }
+
+    @Test
+    fun `maker page one and page two are disjoint`() {
+        val one = Av123Parse.parseCards(html("/maker-1pondo-page-1.html"))
+        val two = Av123Parse.parseCards(html("/maker-1pondo-page-2.html"))
+        assertEquals(Av123Parse.PAGE_SIZE, one.size)
+        assertEquals(Av123Parse.PAGE_SIZE, two.size)
+        assertEquals(emptySet<String>(), one.map { it.id }.toSet() intersect two.map { it.id }.toSet())
+        assertTrue(Av123Parse.hasNext(doc("/maker-1pondo-page-2.html")))
+    }
+
+    @Test
+    fun `maker rows carry ura studio codes not leaks or decensored titles`() {
+        for (res in listOf("/maker-1pondo-page-1.html", "/maker-1pondo-page-2.html")) {
+            val ids = Av123Parse.parseCards(html(res)).map { it.id }
+            assertTrue("$res: not a 1pondo row", ids.all { it.startsWith("1pondo-") })
+            assertTrue(
+                "$res: leak/decensored card in a ura maker row",
+                ids.none { it.contains("leak") || it.contains("decensored") },
+            )
+        }
+        // The site does serve leaks elsewhere (the home grid) — the ura rows must not inherit them.
+        val home = Av123Parse.parseCards(html("/home-page-1.html")).map { it.id }
+        assertTrue("home grid stopped carrying leak titles", home.any { it.contains("leaked") })
     }
 }
