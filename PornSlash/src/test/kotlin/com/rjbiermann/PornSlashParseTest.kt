@@ -198,6 +198,44 @@ class PornSlashParseTest {
     }
 
     @Test
+    fun `explicit json nulls are absent, never text`() {
+        // Jackson's NullNode.asText() is the string "null": read as a value it would route to
+        // /watch/null and shadow the `image` poster fallback. A null field is simply absent.
+        val cards = PornSlashParse.shortsCards(
+            """{"videos":[{"item_id":null,"title":"t"},{"item_id":"abc","title":null},""" +
+                """{"item_id":"abc","title":"kept","poster":null,"image":"https://cdn/t/a.jpeg",""" +
+                """"quality":null,"duration":null}]}"""
+        )
+        assertEquals(1, cards.size)
+        assertEquals("abc", cards.first().id)
+        assertEquals("kept", cards.first().title)
+        assertEquals("https://cdn/t/a.jpeg", cards.first().poster)
+        assertNull(cards.first().quality)
+        assertNull(cards.first().duration)
+    }
+
+    @Test
+    fun `a malformed item on a full shorts page still allows the next page`() {
+        // Pagination reads the feed's raw item count, not the parsed cards: one item without an
+        // id must not turn a full ten-item page into a false stop and hide the pages after it.
+        val items = (1..9).joinToString(",") { i ->
+            """{"item_id":"v$i","title":"t$i","poster":"https://cdn/t/$i.jpeg"}"""
+        }
+        val page = PornSlashParse.shortsPage("""{"videos":[{"title":"no id"},$items]}""")
+        assertEquals(9, page.cards.size)
+        assertEquals(10, page.rawCount)
+        assertTrue(PornSlashParse.hasNext(page.rawCount, PornSlashParse.PAGE_SIZE_SHORTS))
+        // an actually short feed is still a stop
+        assertEquals(9, PornSlashParse.shortsPage("""{"videos":[$items]}""").rawCount)
+        assertFalse(
+            PornSlashParse.hasNext(
+                PornSlashParse.shortsPage("""{"videos":[$items]}""").rawCount,
+                PornSlashParse.PAGE_SIZE_SHORTS
+            )
+        )
+    }
+
+    @Test
     fun `shorts items without an id or a title are dropped and junk yields no cards`() {
         assertEquals(0, PornSlashParse.shortsCards(null).size)
         assertEquals(0, PornSlashParse.shortsCards("").size)

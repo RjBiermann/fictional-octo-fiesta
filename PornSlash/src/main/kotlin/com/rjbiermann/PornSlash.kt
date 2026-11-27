@@ -41,15 +41,23 @@ class PornSlash : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = PornSlashParse.pageUrl(request.data, page)
-        val (cards, pageSize) = when (request.data) {
-            PornSlashParse.SHORTS -> shortsRow(url) to PornSlashParse.PAGE_SIZE_SHORTS
-            PornSlashParse.VIDEOS -> row(url) to PornSlashParse.PAGE_SIZE_VIDEOS
-            else -> row(url) to PornSlashParse.PAGE_SIZE_SEARCH
+        val (cards, hasNext) = when (request.data) {
+            // The shorts feed pages off its raw item count: a dropped malformed item must not
+            // make a full page look partial and hide the pages after it.
+            PornSlashParse.SHORTS -> shortsRow(url).let {
+                it.cards to PornSlashParse.hasNext(it.rawCount, PornSlashParse.PAGE_SIZE_SHORTS)
+            }
+            PornSlashParse.VIDEOS -> row(url).let {
+                it to PornSlashParse.hasNext(it.size, PornSlashParse.PAGE_SIZE_VIDEOS)
+            }
+            else -> row(url).let {
+                it to PornSlashParse.hasNext(it.size, PornSlashParse.PAGE_SIZE_SEARCH)
+            }
         }
         return newHomePageResponse(
             request,
             cards.map { it.toSearchResponse() },
-            hasNext = PornSlashParse.hasNext(cards.size, pageSize),
+            hasNext = hasNext,
         )
     }
 
@@ -66,14 +74,15 @@ class PornSlash : MainAPI() {
 
     /**
      * The shorts row is the same contract over a JSON body: cards from the feed's own fields,
-     * each linking to the `/watch/<item_id>` route the long-form row uses. A feed that stops
-     * answering is one empty row, not a dead home page.
+     * each linking to the `/watch/<item_id>` route the long-form row uses. Pagination comes
+     * from the feed's raw item count, so one malformed item on a full page still advances. A
+     * feed that stops answering is one empty row, not a dead home page.
      */
-    private suspend fun shortsRow(url: String): List<SlashCard> = try {
-        PornSlashParse.shortsCards(app.get(url, referer = "$mainUrl/").text)
+    private suspend fun shortsRow(url: String): PornSlashParse.ShortsPage = try {
+        PornSlashParse.shortsPage(app.get(url, referer = "$mainUrl/").text)
     } catch (e: Exception) {
         Log.d(name, "shorts $url: ${e.message}")
-        emptyList()
+        PornSlashParse.ShortsPage(emptyList(), 0)
     }
 
     // Card quality and duration stay out of the search response: this API's SearchResponse

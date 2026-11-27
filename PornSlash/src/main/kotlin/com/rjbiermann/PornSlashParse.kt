@@ -18,6 +18,7 @@
 // shorts spec (S4) keeps it out of the play path (and out of this source).
 package com.rjbiermann
 
+import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.kraptor.DurationParse
@@ -206,7 +207,15 @@ object PornSlashParse {
     }
 
     /**
-     * `/get/shorts?p=N` → its cards, read from the feed's own `videos[]` JSON.
+     * One `/get/shorts` page: the cards parsed from its `videos[]` JSON, plus the raw feed item
+     * count. Pagination reads [rawCount], never `cards.size` — a malformed item is dropped from
+     * the row but it still occupied a feed slot, so a full page carrying one broken item must
+     * not look partial and hide the pages after it.
+     */
+    data class ShortsPage(val cards: List<SlashCard>, val rawCount: Int)
+
+    /**
+     * `/get/shorts?p=N` → its feed page, read from the feed's own `videos[]` JSON.
      *
      * Each item carries everything the card needs: `item_id` (the `/watch/<item_id>` route),
      * `title`, `poster` (the grid image; `image` backs it up when the feed ships none),
@@ -214,30 +223,42 @@ object PornSlashParse {
      * field — the ephemeral playback base — which is deliberately unread: the item plays from
      * the mp4 its `/watch/<id>` page derives, so no tunnel host enters the play path and no
      * extra round-trip is needed at playback time. A malformed payload yields no cards, never
-     * a throw, and an item without an id or a title is dropped rather than half-filled.
+     * a throw, and an item without an id or a title is dropped rather than half-filled. An
+     * explicit JSON `null` is treated as absent, never as the text `"null"`.
      */
-    fun shortsCards(json: String?): List<SlashCard> {
+    fun shortsPage(json: String?): ShortsPage {
         val root = json?.takeIf { it.isNotBlank() }
             ?.let { runCatching { jsonMapper.readTree(it) }.getOrNull() }
-            ?: return emptyList()
-        val videos = root.get("videos") as? ArrayNode ?: return emptyList()
+            ?: return ShortsPage(emptyList(), 0)
+        val videos = root.get("videos") as? ArrayNode ?: return ShortsPage(emptyList(), 0)
         val cards = ArrayList<SlashCard>(videos.size())
         for (i in 0 until videos.size()) {
             val node = videos.get(i)
-            val id = node.get("item_id")?.asText()?.trim()?.takeIf { it.isNotEmpty() } ?: continue
-            val title = node.get("title")?.asText()?.trim()?.takeIf { it.isNotEmpty() } ?: continue
+            val id = node.textOrNull("item_id") ?: continue
+            val title = node.textOrNull("title") ?: continue
             cards.add(
                 SlashCard(
                     id = id,
                     title = title,
-                    poster = image(node.get("poster")?.asText()) ?: image(node.get("image")?.asText()),
-                    quality = quality(node.get("quality")?.asText()),
-                    duration = node.get("duration")?.asText()?.trim()?.toIntOrNull(),
+                    poster = image(node.textOrNull("poster")) ?: image(node.textOrNull("image")),
+                    quality = quality(node.textOrNull("quality")),
+                    duration = node.textOrNull("duration")?.toIntOrNull(),
                 )
             )
         }
-        return cards
+        return ShortsPage(cards, videos.size())
     }
+
+    /** The cards of one feed page — [shortsPage] when only the rows are needed. */
+    fun shortsCards(json: String?): List<SlashCard> = shortsPage(json).cards
+
+    /**
+     * A field's text, or null when the key is absent **or an explicit JSON null**. Jackson's
+     * `NullNode.asText()` is the literal `"null"`: read as a value it would route to
+     * `/watch/null` and shadow the `image` poster fallback.
+     */
+    private fun JsonNode?.textOrNull(key: String): String? =
+        this?.get(key)?.takeUnless { it.isNull }?.asText()?.trim()?.takeIf { it.isNotEmpty() }
 
     private fun image(raw: String?): String? =
         raw?.trim()?.takeIf { it.isNotEmpty() && !it.startsWith("data:") }
