@@ -110,8 +110,11 @@ host page**, not a media file. Chain, reversed end-to-end:
      `colton-studio.site`, `softpureheart.site`, all on `<edge-id>.<domain>/oo5/<token>/`.
      Never cache or pin the host; always call `/stream` fresh per `loadLinks`.
 
-Fixture: `episode-api-1pondo.json`, `episode-api-heyzo.json`, `episode-api-tokyo-hot.json`,
-plus `embed-page-1pondo.html` and `embed-player.js` (the reversing source).
+Fixtures: `stream-api-1pondo.json`, `stream-api-heyzo.json`, `stream-api-tokyo-hot.json` —
+each holds **this `/stream` media response** (`{"status":"ok","media":{…}}`), *not* an episode
+list; the episode array lives inline in `video-page-*.html` (step 1 above), so S2 has two
+separate parse seams (`parseEpisodes` over page HTML, `parseStream` over this JSON). Plus
+`embed-page-1pondo.html` and `embed-player.js` (the reversing source).
 
 ---
 
@@ -182,7 +185,7 @@ Conclusion: the media CDN gates on **`Referer` (or `Origin`) whose host is the e
 > cannot silently break playback). Do **not** send `123av.com` as referer to the media host.
 
 Fixtures: `video-page-1.html`, `video-page-2.html`, `video-page-3.html`,
-`episode-api-{1pondo,heyzo,tokyo-hot}.json`.
+`stream-api-{1pondo,heyzo,tokyo-hot}.json`.
 
 ---
 
@@ -257,17 +260,28 @@ matches) and the input has no `@input`/debounce handler. `hasQuickSearch = false
 | # | Section | Cards | "See all" |
 | --- | --- | --- | --- |
 | 0 | featured swiper (`div.featured-swiper`, no `<h2>`) | 20 slides | — |
-| 1 | **New Releases** (`section__title`) | 24 | `/en/new` |
-| 2 | **Recently Added** | 24 | `/en/recent` |
+| 1 | **New Releases** (`section__title`) | 12 | `/en/new` |
+| 2 | **Recently Added** | 12 | `/en/recent` |
 | 3 | `rec section` `x-data="recSections(…)"` | client-fetched | — |
 
+- **Cards, not anchors.** A row is 12 `div.card`; every card emits **two** `/en/v/` anchors
+  (cover + title), so an anchor count reads as 24 and double-counts the row. `home-page-1.html`
+  New Releases cards: `same-713`, `mimk-302`, `idpc-028`, `ipzz-994`, `waaa-710`, `adn-823`,
+  `mida-887`, `mngs-091`, `mida-854`, `same-711`, `adn-821`, `cawb-082`; Recently Added:
+  `same-713`, `mimk-302`, `ienf-158-uncensored-leaked`, … — 12 cards / 24 anchors each.
 - Homepage itself does **not** paginate; each row's "See all" opens the paginated listing
   (`/en/new`, `/en/recent`, `/en/hot`, `/en/all?sort=today|week|month`), which take `?page=N`.
-- `/en` section-1 card #1 vs `/en/new?page=1` card #1 both `same-713` (same data, same shape),
-  so a home row can be built directly from `/en` for page 1 and from the listing for later pages.
-- `home-page-2.html` = `https://123av.com/en/new?page=2` (200, 68,340 B, 12 cards:
-  `cawb-082`, `mida-881`, `adn-796`, …) — **0 overlap** with `/en/new` page 1
-  (`vod-066`, `same-713`, `mimk-302`, …), so the New Releases row paginates cleanly.
+- **A listing page is not disjoint from the home row — the boundary card repeats.**
+  `home-page-2.html` = `https://123av.com/en/new?page=2` (200, 68,340 B, 12 cards: `cawb-082`,
+  `mida-881`, `adn-796`, …) starts with `cawb-082`, which is the **last** card of the home New
+  Releases row: **1/12 overlap**, not 0. Paging is offset-based over a list that keeps growing,
+  so a card can sit on both sides of a boundary. Consequences for S2:
+  - **dedupe by `code`** when merging row → listing or page → page; an offset shift of one
+    re-emits the boundary card;
+  - do **not** build page 1 from `/en` and pages 2..N from `/en/new` on the assumption the two
+    are disjoint (no `/en/new?page=1` capture is committed, so the "home row *is* page 1" claim
+    is withdrawn — only the shape and the 1-card boundary repeat are evidenced here);
+  - re-capture `/en/new?page=1` when S2 starts if it needs page 1's exact ordering.
 
 Fixtures: `home-page-1.html` (`/en`), `home-page-2.html` (`/en/new?page=2`).
 
@@ -334,7 +348,7 @@ the `elcome` typo is the site's own data — do not "fix" it, it is the literal 
 | title | yes | `h1.watch__title` (text includes the code prefix) |
 | poster | yes | `div.player[style="background-image:url('<icdn cover>')"]` — e.g. `https://icdn.123av.me/img2/s500/c4/1pondo-110326_001/cover.jpg?6b083139` |
 | description / plot | yes (2 of 3; empty for ka055) | `p.watch__desc-text` (HTML-escaped text, 2,071 B / 868 B / 0 B) |
-| tags / categories | yes | `dt` = `Genres` → `dd.chips a.chip[href^=/en/genres/]` (10 chips on page 1) |
+| tags / categories | yes | `dt` = `Genres` → `dd.chips a.chip[href^=/en/genres/]` (11 chips on page 1) |
 | duration | yes | `dt` = `Duration` → `dd` `H:MM:SS` |
 | release date | yes | `dt` = `Release date` → `dd` `YYYY-MM-DD` |
 | maker → studio | yes | `dt` = `Maker` → `dd.chips a.chip[href^=/en/makers/]` |
@@ -386,8 +400,8 @@ optional rec2 feature; see below).
 </aside>
 ```
 
-11 related items per sampled page, links `a.vside[href]`, title `span.vside__title`, thumb in
-`span.vside__thumb[style]`.
+12 related items per sampled page (12 `a.vside` in all three video fixtures), links
+`a.vside[href]`, title `span.vside__title`, thumb in `span.vside__thumb[style]`.
 
 ### (Optional) rec2 "You may like" API — reversed but not required
 
@@ -427,11 +441,11 @@ Fixture: `related-api-1pondo.json`.
 | --- | --- | --- | --- |
 | search | `/en/search?keyword=<q>&page=N` | yes | 0/12 |
 | maker rows | `/en/makers/<slug>?page=N` | yes | 0/12 |
-| New Releases row | `/en/new?page=N` | yes | 0/12 |
+| New Releases row | `/en/new?page=N` | yes | **1/12** (boundary card `cawb-082` on both sides) |
 | Recently Added row | `/en/recent?page=N` | yes | not sampled (same template as `/en/new`) |
 | homepage `/en` | does not paginate (rows link to the listings above) | n/a | n/a |
 | makers index | `/en/makers?page=N` | yes (32 pages) | not sampled |
-| related videos | static sidebar, top 11, no pagination | no | n/a |
+| related videos | static sidebar, top 12, no pagination | no | n/a |
 
 Past-the-end behaviour not sampled (no empty-page probe needed — every listing clamps at a
 known last page in its pager, e.g. `makers/1pondo?page=229`).
