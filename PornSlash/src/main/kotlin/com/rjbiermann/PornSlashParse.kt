@@ -1,6 +1,6 @@
 // Pure Parse functions for PornSlash (pornslash.com) — jsoup in, values out; no HTTP, no
 // framework types (ADR-0005: MainAPI/HTTP flows stay with pipeline Verification). Fixtures
-// under src/test/resources/ are live captures from 2026-11-26.
+// under src/test/resources/ are live captures from 2026-11-26/27.
 //
 // Why a provider-local seam and not the shared KVS modules: this site is not flashvars KVS.
 // The served HTML carries no `video_url` and no `kt_player`, so KvsFlashvars/KvsVideofile
@@ -17,6 +17,7 @@ package com.rjbiermann
 
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
 /** One listing card: the fields the surfaces (home, search, category, related) all carry. */
@@ -34,6 +35,45 @@ object PornSlashParse {
     /** The listing card root — one grammar on every surface (home, search, /cat/, related). */
     const val CARD = "div.video-item"
 
+    /** A category tile on `/categories/` — `<a class="cat-item" href="/cat/<slug>">`. */
+    const val CATEGORY_ITEM = "a.cat-item"
+
+    const val MAIN = "https://www.pornslash.com"
+
+    /** The `Latest` surface. The bare `/` serves the same 50-card grid. */
+    const val VIDEOS = "$MAIN/videos/"
+
+    const val SEARCH = "$MAIN/search/"
+
+    /**
+     * Cards per page, live 2026-11-26/27: `/videos/` serves 50, `/search/<q>/` and `/cat/<slug>/`
+     * serve 25. The sizes feed [hasNext]'s stop rule, so a site-side change surfaces as a short
+     * row rather than a 500 on `?p=last+1`.
+     */
+    const val PAGE_SIZE_VIDEOS = 50
+    const val PAGE_SIZE_SEARCH = 25
+
+    /**
+     * The eight curated home rows, pinned from the 92 tiles on `/categories/`.
+     *
+     * The pin is the site's own listing, not a guess: every slug below served a full
+     * 25-card page 1 *and* page 2 on 2026-11-26/27 (the spec's `>= 25 cards` bar). The
+     * `/categories/` fixture test keeps the pairing honest — a retired slug or a relabelled
+     * tile fails there before it reaches the home page.
+     */
+    val CURATED_CATEGORIES = listOf(
+        "milf" to "MILF",
+        "anal" to "Anal",
+        "teen" to "Teen",
+        "asian" to "Asian",
+        "bbw" to "BBW",
+        "amateur" to "Amateur",
+        "ebony" to "Ebony",
+        "lesbian" to "Lesbian",
+    )
+
+    fun categoryUrl(slug: String): String = "$MAIN/cat/$slug/"
+
     private val VIDEO_HREF = Regex("""/watch/([A-Za-z0-9_-]+)""")
 
     /** `/t/<encid>.<ext>` — the trailing thumbnail path segment the mp4 mirrors. */
@@ -48,6 +88,17 @@ object PornSlashParse {
     private val B64_RUN = Regex("""[A-Za-z0-9+/]{24,}={0,2}""")
 
     private val HLS_TUNNEL = Regex("""https?://[a-z0-9-]+\.trycloudflare\.com""", RegexOption.IGNORE_CASE)
+
+    /** A listing page → its cards; one broken card is dropped, never the whole page. */
+    fun cards(document: Document): List<SlashCard> = document.select(CARD).mapNotNull { card(it) }
+
+    /**
+     * `/search/<q>/?p=N`. The query is percent-encoded (`%20` for spaces) and otherwise left
+     * alone: the site resolves both `%20` and `+` for the same query, and the Porntrex-style
+     * `-` normalization is an assumption this site never asked for.
+     */
+    fun searchUrl(query: String, page: Int): String =
+        pageUrl(SEARCH + encodeQuery(query) + "/", page)
 
     /**
      * One `div.video-item` → [SlashCard]; null when the card lacks a real id or title so a
@@ -144,6 +195,9 @@ object PornSlashParse {
      * answer 500 and `/search/<q>/?p=9999` answers 404 on this site.
      */
     fun hasNext(count: Int, pageSize: Int): Boolean = pageSize > 0 && count == pageSize
+
+    private fun encodeQuery(query: String): String =
+        java.net.URLEncoder.encode(query.trim(), "UTF-8").replace("+", "%20")
 
     private fun clockSeconds(text: String?): Int? {
         val m = CLOCK.find(text?.trim().orEmpty()) ?: return null

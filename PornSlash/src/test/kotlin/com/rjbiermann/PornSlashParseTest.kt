@@ -1,10 +1,12 @@
-// TDD parse tests for the PornSlash seam (ADR-0005, S1 #1643). No HTTP: every fixture is a
-// live capture from 2026-11-26 —
+// TDD parse tests for the PornSlash seam (ADR-0005, S1 #1643 + S2 #1644). No HTTP: every
+// fixture is a live capture from 2026-11-26/27 —
 //   home-p1.html            = /videos/ page 1, 50 cards (S2's `Latest` surface; the bare `/`
 //                             serves the same 50-card grid)
 //   search-milf-p1.html     = /search/milf/ page 1, 25 cards
+//   cat-milf-p1.html        = /cat/milf/ page 1, 25 cards (S2's curated category-row shape)
 //   cat-partial.html        = /cat/tired+working+computer/, a 1-card partial page — the
 //                             pagination stop-rule evidence
+//   categories.html         = /categories/, the 92-tile listing the curated rows are pinned from
 //   watch-*.html            = /watch/<id> detail pages, long-form + shorts item
 //   shorts-p*.json          = /get/shorts?p=N feeds (staged for S4; their ephemeral tunnel
 //                             `url` field is dropped — S4 forbids that literal in-provider)
@@ -37,7 +39,8 @@ class PornSlashParseTest {
     fun `home page yields 50 cards, all parseable`() {
         val document = doc("/home-p1.html")
         assertEquals(50, document.select(PornSlashParse.CARD).size)
-        assertEquals(50, document.select(PornSlashParse.CARD).mapNotNull { PornSlashParse.card(it) }.size)
+        assertEquals(50, PornSlashParse.cards(document).size)
+        assertEquals(PornSlashParse.PAGE_SIZE_VIDEOS, PornSlashParse.cards(document).size)
     }
 
     @Test
@@ -78,15 +81,27 @@ class PornSlashParseTest {
     fun `search page yields 25 cards, all parseable`() {
         val document = doc("/search-milf-p1.html")
         assertEquals(25, document.select(PornSlashParse.CARD).size)
-        assertEquals(25, document.select(PornSlashParse.CARD).mapNotNull { PornSlashParse.card(it) }.size)
+        assertEquals(25, PornSlashParse.cards(document).size)
+        assertEquals(PornSlashParse.PAGE_SIZE_SEARCH, PornSlashParse.cards(document).size)
+    }
+
+    @Test
+    fun `curated category page yields a full 25-card page`() {
+        // The shape every one of the eight curated rows requests: /cat/<slug>/ page 1.
+        val document = doc("/cat-milf-p1.html")
+        val cards = PornSlashParse.cards(document)
+        assertEquals(25, cards.size)
+        assertEquals(PornSlashParse.PAGE_SIZE_SEARCH, cards.size)
+        // a full page means another page may exist (the row must stay scrollable)
+        assertTrue(PornSlashParse.hasNext(cards.size, PornSlashParse.PAGE_SIZE_SEARCH))
     }
 
     @Test
     fun `partial category page yields its single card`() {
-        val document = doc("/cat-partial.html")
-        val cards = document.select(PornSlashParse.CARD).mapNotNull { PornSlashParse.card(it) }
+        val cards = PornSlashParse.cards(doc("/cat-partial.html"))
         assertEquals(1, cards.size)
         assertTrue(cards.first().quality == "480p")
+        assertFalse(PornSlashParse.hasNext(cards.size, PornSlashParse.PAGE_SIZE_SEARCH))
     }
 
     @Test
@@ -159,6 +174,65 @@ class PornSlashParseTest {
             "https://www.pornslash.com/get/shorts?sort=new&p=2",
             PornSlashParse.pageUrl(filtered, 2)
         )
+    }
+
+    // ---- searchUrl() --------------------------------------------------------------
+
+    @Test
+    fun `search url is the raw query, percent-encoded, page 1 bare`() {
+        assertEquals(
+            "https://www.pornslash.com/search/milf/",
+            PornSlashParse.searchUrl("milf", 1)
+        )
+        assertEquals(
+            "https://www.pornslash.com/search/milf/?p=2",
+            PornSlashParse.searchUrl("milf", 2)
+        )
+        // `%20`, never the Porntrex `-` normalization and never a bare space
+        assertEquals(
+            "https://www.pornslash.com/search/tired%20working%20computer/",
+            PornSlashParse.searchUrl("tired working computer", 1)
+        )
+        assertEquals(
+            "https://www.pornslash.com/search/tired%20working%20computer/?p=3",
+            PornSlashParse.searchUrl("  tired working computer  ", 3)
+        )
+    }
+
+    // ---- curated home rows --------------------------------------------------------
+
+    @Test
+    fun `every curated category row is still a tile on the live categories page`() {
+        // Drift guard: the pinned slugs+labels are read from `/categories/`, so a slug the site
+        // retires (or a relabelled tile) fails here instead of becoming a dead home row.
+        val tiles = doc("/categories.html").select(PornSlashParse.CATEGORY_ITEM)
+            .mapNotNull { tile ->
+                val slug = tile.attr("href").trim('/').substringAfterLast('/')
+                    .takeIf { it.isNotEmpty() && !it.contains('/') }
+                val label = tile.selectFirst(".cat-name")?.text()?.trim()
+                if (slug == null || label.isNullOrEmpty()) null else slug to label
+            }
+        assertTrue("categories fixture yields no tiles", tiles.isNotEmpty())
+        assertEquals(8, PornSlashParse.CURATED_CATEGORIES.size)
+        for ((slug, label) in PornSlashParse.CURATED_CATEGORIES) {
+            val live = tiles.firstOrNull { it.first == slug }?.second
+            assertNotNull("curated slug /cat/$slug/ is no longer listed", live)
+            assertEquals(
+                "curated row label for /cat/$slug/ drifted",
+                live!!.lowercase(),
+                label.lowercase()
+            )
+            assertEquals(
+                "https://www.pornslash.com/cat/$slug/",
+                PornSlashParse.categoryUrl(slug)
+            )
+        }
+    }
+
+    @Test
+    fun `home rows stay under the ten-row cap`() {
+        // Latest + the eight curated categories; the spec caps the home page at ten rows.
+        assertTrue(1 + PornSlashParse.CURATED_CATEGORIES.size <= 10)
     }
 
     // ---- mp4FromThumb() -----------------------------------------------------------
