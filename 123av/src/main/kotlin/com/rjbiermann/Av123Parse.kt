@@ -62,6 +62,15 @@ object Av123Parse {
     fun cards(document: Document): List<Av123Card> = document.select(CARD).mapNotNull { card(it) }
 
     /**
+     * The cards of one page that have not been served before, seeding [seen] with what this
+     * page contributes. Paging is offset-based over a growing list, so a boundary card can be
+     * re-served on the next page (S1 measured 1/12 on `/en/new`); the caller clears [seen] on
+     * page 1, so a refresh re-serves the row.
+     */
+    fun fresh(cards: List<Av123Card>, seen: MutableSet<String>): List<Av123Card> =
+        cards.filter { seen.add(it.id) }
+
+    /**
      * One `div.card` → [Av123Card]; null when the card has no real `/en/v/` href or no title,
      * which is also what drops the homepage's Alpine `<template>` prototype card.
      *

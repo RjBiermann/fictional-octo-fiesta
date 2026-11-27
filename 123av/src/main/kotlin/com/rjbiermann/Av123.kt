@@ -11,6 +11,7 @@ import com.kraptor.registerHostExtractors
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+import java.util.concurrent.ConcurrentHashMap
 
 class Av123 : MainAPI() {
     override var mainUrl = Av123Parse.MAIN
@@ -18,6 +19,13 @@ class Av123 : MainAPI() {
     override var lang = "en"
     override val supportedTypes = setOf(TvType.NSFW)
     override val hasMainPage = true
+
+    /**
+     * Cross-page seen-set, per row. The listings page by offset over a growing list, so a
+     * boundary card can be served on two pages (S1 measured 1/12 on `/en/new`); page 1
+     * re-seeds the set so a refresh re-serves the row.
+     */
+    private val seen = ConcurrentHashMap<String, MutableSet<String>>()
 
     // S1 evidence: the only search surface is the GET form `/en/search?keyword=`; the client
     // bundle carries no suggest/autocomplete route, so there is nothing to quick-search against.
@@ -39,7 +47,9 @@ class Av123 : MainAPI() {
      */
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val document = app.get(Av123Parse.pageUrl(request.data, page)).document
-        val cards = Av123Parse.cards(document)
+        val seenKeys = seen.getOrPut(request.data) { HashSet() }
+        if (page <= 1) seenKeys.clear()
+        val cards = Av123Parse.fresh(Av123Parse.cards(document), seenKeys)
         return newHomePageResponse(
             request,
             cards.map { it.toSearchResponse() },

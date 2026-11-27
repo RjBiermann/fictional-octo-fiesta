@@ -101,6 +101,35 @@ class Av123ParseTest {
         }
     }
 
+    // ---- cross-page dedupe -------------------------------------------------------
+
+    @Test
+    fun `fresh drops a boundary card re-served on the next page`() {
+        val seen = HashSet<String>()
+        val page1 = Av123Parse.parseCards(html("/new-page-1.html"))
+        assertEquals(Av123Parse.PAGE_SIZE, Av123Parse.fresh(page1, seen).size)
+
+        // Offset paging over a growing list: hero is the last card of page 1 and the first of
+        // page 2. Page 2 must not re-serve it.
+        val boundary = page1.last()
+        val page2 = Av123Parse.parseCards(html("/home-page-2.html"))
+        val fresh = Av123Parse.fresh(listOf(boundary) + page2, seen)
+        assertEquals(page2.size, fresh.size)
+        assertFalse("boundary card re-served", fresh.any { it.id == boundary.id })
+    }
+
+    @Test
+    fun `fresh re-seeds the row when page one is cleared`() {
+        val seen = HashSet<String>()
+        val page1 = Av123Parse.parseCards(html("/new-page-1.html"))
+        Av123Parse.fresh(page1, seen)
+        assertTrue("page re-served without a clear", Av123Parse.fresh(page1, seen).isEmpty())
+
+        // The adapter clears the set before page 1, so a refresh serves the row again.
+        seen.clear()
+        assertEquals(page1.size, Av123Parse.fresh(page1, seen).size)
+    }
+
     // ---- duration -----------------------------------------------------------------
 
     @Test
