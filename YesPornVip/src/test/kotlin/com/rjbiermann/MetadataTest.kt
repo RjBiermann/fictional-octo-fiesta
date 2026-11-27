@@ -72,4 +72,14 @@ class MetadataTest {
         )
         assertEquals(listOf("big tits", "latina", "threesome", "brunette"), metadata.tags)
     }
+
+    @Test
+    fun theTagRowDropsTheCaseTwins() {
+        // genre (title-cased) and keywords (lower-cased) are the same taxonomy on this site,
+        // so the load screen's single tag list holds 4 entries, not 8 — categories lead.
+        assertEquals(
+            listOf("Threesome", "Brunette", "Latina", "Big tits"),
+            metadata!!.distinctTags,
+        )
+    }
 }

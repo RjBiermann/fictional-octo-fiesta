@@ -183,7 +183,7 @@ pages, 3 streams `206 video/mp4`, tags/actors/duration present on all 3, related
 non-empty and self-free, check 6 all seven `LoadResponse` fields assigned. NOTEs: quick
 search absent; no `--video-year-selector`; check 5 (see the poster caveat above).
 
-Unit level: `./gradlew YesPornVip:test` green — 4 new S3 test classes
+Unit level: `./gradlew YesPornVip:test` green — 5 new S3 test classes
 (`MetadataTest`, `DownloadLinkTest`, `FlashvarsTest`, `RelatedTest`, `WalledTest`) over live
 captures `video-76685.html`, `video-76685-download-{480,720,1080}.html`,
 `walled-sample.html`; `./gradlew YesPornVip:make` clean.

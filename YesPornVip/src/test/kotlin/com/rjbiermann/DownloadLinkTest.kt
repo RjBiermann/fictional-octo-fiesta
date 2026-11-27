@@ -62,6 +62,20 @@ class DownloadLinkTest {
     }
 
     @Test
+    fun aLaterButtonOnAMultiButtonPageIsStillFound() {
+        // Every live page carries exactly one button today (11 titles re-probed 2026-11-27), but
+        // the `format=` ladder makes a multi-button dialog a plausible theme change: the format
+        // must be matched across all buttons, not decided by the first anchor on the page.
+        val page = """
+            <a class="btn download" href="https://yesporn.vip/get_file/5/76000/76685/76685.mp4/?download_filename=x.mp4&amp;download=true">480p</a>
+            <a class="btn download" href="https://yesporn.vip/get_file/5/76000/76685/76685_1080p.mp4/?download_filename=x.mp4&amp;download=true">1080p</a>
+        """.trimIndent()
+        assertEquals(480, YesPornVipParse.qualityOf(YesPornVipParse.downloadLink(page, 480)!!))
+        assertEquals(1080, YesPornVipParse.qualityOf(YesPornVipParse.downloadLink(page, 1080)!!))
+        assertNull(YesPornVipParse.downloadLink(page, 720))
+    }
+
+    @Test
     fun theEndpointUrlCarriesTheIdAndFormat() {
         assertEquals(
             "https://yesporn.vip/view_video_download.php?id=76685&format=1080",

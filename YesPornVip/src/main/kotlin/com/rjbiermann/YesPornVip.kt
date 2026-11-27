@@ -72,6 +72,17 @@ object YesPornVipParse {
         val uploadDate: String?,
     ) {
         val year: Int? get() = uploadDate?.take(4)?.toIntOrNull()
+
+        /**
+         * The single tag row a load screen shows: the site's categories first, then its tags.
+         *
+         * Both arrays are the *same* taxonomy with different spelling — JSON-LD `genre` is
+         * title-cased (`Big tits`) and `keywords` is lower-cased (`big tits`) — so a plain
+         * `distinct()` keeps every entry twice (4/4 case twins on the 76685 fixture). The
+         * merge is case-insensitive and keeps the leading, title-cased spelling.
+         */
+        val distinctTags: List<String>
+            get() = (categories + tags).distinctBy { it.lowercase() }
     }
 
     /** One KVS flashvar media candidate: the URL plus its real resolution, when one is stated. */
@@ -301,8 +312,8 @@ object YesPornVipParse {
     }
 
     /**
-     * Pure Parse function: the KVS player's media candidates, best-first, for the fallback
-     * branch of [YesPornVip.loadLinks].
+     * Pure Parse function: the KVS player's media candidates, in KVS key order (qualities as
+     * captioned), for the fallback branch of [YesPornVip.loadLinks].
      *
      * The grammar (legacy `video_url: '…'` / cfg `videoUrl: '…'`, plus the `<key>_text`
      * quality caption) is [KvsFlashvars]' job, not ours. Two site facts are handled here:
@@ -356,8 +367,9 @@ object YesPornVipParse {
     fun downloadLink(html: String, format: Int): String? =
         Jsoup.parse(html).select("a.btn.download[href]")
             .map { it.attr("href").trim() }
-            .firstOrNull { MEDIA_PATH.containsMatchIn(it) }
-            ?.takeIf { qualityOf(it) == format }
+            // Match the format *within* the search, not after it: a page that ever renders
+            // more than one download button must not hide the later rung behind the first.
+            .firstOrNull { MEDIA_PATH.containsMatchIn(it) && qualityOf(it) == format }
 
     /**
      * Resolution of a downloaded media URL: the `_720p` filename token when the site put one
@@ -549,8 +561,9 @@ class YesPornVip : MainAPI() {
         return newMovieLoadResponse(metadata.title, url, TvType.NSFW, url) {
             this.posterUrl = metadata.poster
             this.plot = metadata.plot
-            // `LoadResponse` has one tag list; the site's categories lead, its tags follow.
-            this.tags = (metadata.categories + metadata.tags).distinct()
+            // `LoadResponse` has one tag list; the site's categories lead, its tags follow —
+            // case-insensitively, because both arrays spell the same taxonomy.
+            this.tags = metadata.distinctTags
             this.actors = metadata.actors.map { ActorData(Actor(it)) }
             this.duration = metadata.durationMinutes
             this.year = metadata.year
@@ -583,6 +596,9 @@ class YesPornVip : MainAPI() {
         }
     }
 
+    /** The theme's `*_trim.mp4` preview family — never the full scene, whatever its quality tag. */
+    private val TRIM_PATH = Regex("""_trim\.mp4""", RegexOption.IGNORE_CASE)
+
     /**
      * Streams come from two branches, in the spec's order:
      *
@@ -613,11 +629,17 @@ class YesPornVip : MainAPI() {
             if (!isLive(source.url)) continue
             callback(mediaLink(source.url, source.quality))
             emitted++
-            source.quality?.let { covered.add(it) }
+            // A live trim file is a preview, not the scene: emitting it is fine, but it must
+            // not suppress the download chain's full file for the same rung.
+            source.quality?.takeIf { !TRIM_PATH.containsMatchIn(source.url) }
+                ?.let { covered.add(it) }
         }
         for (format in YesPornVipParse.FORMATS) {
             if (format in covered) continue
-            val page = app.get(YesPornVipParse.downloadPageUrl(videoId, format)).text
+            // One dead hop must not discard the rungs that already resolved.
+            val page = runCatching {
+                app.get(YesPornVipParse.downloadPageUrl(videoId, format)).text
+            }.getOrNull() ?: continue
             val media = YesPornVipParse.downloadLink(page, format) ?: continue
             callback(mediaLink(media, format))
             emitted++
