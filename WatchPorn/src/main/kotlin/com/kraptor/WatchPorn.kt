@@ -138,6 +138,7 @@ class WatchPorn : MainAPI() {
 
         val tags = WatchPornParse.tags(document)
         val actors = WatchPornParse.actors(document).map { Actor(it) }
+        val plot = WatchPornParse.description(document)
 
         // fp-time-duration selector is dead; duration lives in the JSON-LD VideoObject ("PT0H36M40S")
         val ldJson = WatchPornParse.ldJson(document)
@@ -156,9 +157,10 @@ class WatchPorn : MainAPI() {
                 "Cookie" to cookies
             )
             this.tags = tags
-            // issue #649: the theme redesign removed the visible description paragraph
-            // (p.single__content-description); ld+json/og:description now carry tag-glue or the
-            // site-wide boilerplate, not a real synopsis — site does not expose a plot.
+            // issue #1541: the theme re-added a real synopsis at div.wp-desc > p (12 of 14 sampled
+            // pages). og:description/ld+json are not a fallback — without the container they carry
+            // the site boilerplate, so absent means null. See WatchPornParse.description.
+            this.plot = plot
             this.duration = duration
             this.year = year
             this.recommendations = recommendations
@@ -328,6 +330,18 @@ object WatchPornParse {
     /** Video page title: new theme h1.wp-vi__title, old theme h1.single__content-title. */
     fun pageTitle(document: org.jsoup.nodes.Document): String? =
         textOf(document, "h1.wp-vi__title") ?: textOf(document, "h1.single__content-title")
+
+    /**
+     * Video page synopsis: new theme div.wp-desc paragraphs (the wp-dmore "more" button is
+     * chrome, not text). Null when absent/blank — og:description / ld+json.description fall back
+     * to the 151-char site boilerplate (or the title) on pages without a synopsis (issue #1541).
+     */
+    fun description(document: org.jsoup.nodes.Document): String? =
+        document.select("div.wp-desc p")
+            .map { it.text().trim() }
+            .filter { it.isNotEmpty() }
+            .joinToString(" ")
+            .takeIf { it.isNotEmpty() }
 
     /** Video page categories: new theme a.wp-vchip, old theme Categories: info row. */
     fun tags(document: org.jsoup.nodes.Document): List<String> =

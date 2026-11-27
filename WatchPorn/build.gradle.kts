@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 33 // #1658: version bump (v33)
+version = 34 // #1541: plot from div.wp-desc > p
 
 cloudstream {
     authors     = listOf("kraptor")
