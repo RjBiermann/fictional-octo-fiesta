@@ -3,17 +3,23 @@
 Evidence-only run (S1 of #1423, gate story #1653); S2 (#1654) added the scaffold, the
 `Av123Parse` card seam and the two home rows documented in
 [§Listing card + home rows](#listing-card--home-rows-s2); S3 (#1655) added search and the
-eleven ura maker rows, documented in [§Search + maker rows (S3)](#search--maker-rows-s3).
+eleven ura maker rows, documented in [§Search + maker rows (S3)](#search--maker-rows-s3);
+S4 (#1656) added `load()` metadata + `loadLinks()` streams, documented in
+[§S4 exit](#s4-exit--load-metadata--streams); S5 (#1657) closed the run with the live
+verification transcript in [§Verification](#verification-s5--live-closeout).
 All probes were plain `curl` — no browser automation, no captcha solving, no challenge evasion.
 
-**Verdict: gate is GREEN.** Both required studios (`1pondo`, `heyzo`) resolve to a plain-HTTP
-HLS stream that returns video bytes with a documented header set, and a third (`tokyo-hot`)
-does too. No wontfix recommendation.
+**Verdict: gate is GREEN, and the provider is shippable.** Both required studios (`1pondo`,
+`heyzo`) resolve to a plain-HTTP HLS stream that returns video bytes with a documented header
+set, and a third (`tokyo-hot`) does too — re-proved on live masters in S5
+([§Stream ladder](#stream-ladder-per-required-studio-bytes-not-just-status-codes)). No wontfix
+recommendation. In-app playback stays the maintainer's merge-time check (AGENTS.md).
 
 **Network class proven:** GitHub Actions runner, egress Cloudflare colo `MSP` (read from the
-`cf-ray` suffix on every response). The runner WAF deny reported by the plan round-1 probe
-(2026-11-26, `403 Attention Required`) **did not reproduce in this run** — see
-[Risks / blockers](#risks--blockers) for the full status and Ray IDs.
+`cf-ray` suffix on every response; S5 re-read it as `a6123008db344c93-MSP`). The runner WAF deny
+reported by the plan round-1 probe (2026-11-26, `403 Attention Required`) did not reproduce in
+S1, and did not reproduce in S5 either — see [Risks / blockers](#risks--blockers) for the Ray
+IDs and the S3 reproduction that keeps it a watch item.
 
 Fixtures for every probe below are committed under `123av/src/test/resources/`.
 
@@ -923,3 +929,353 @@ the S3 search/rows release.
 
 Not covered by this story: the S5 live Verification closeout and in-app playback
 (maintainer-only at merge time, per AGENTS.md).
+
+---
+
+## Verification (S5 — live closeout)
+
+Run **2026-11-27**, GitHub Actions runner, egress Cloudflare colo **`MSP`**
+(`cf-ray a6123008db344c93-MSP` on a `/en/new?page=1` probe). Every request below is plain
+`curl` — no browser automation, no challenge handling (ADR-0008). The mechanical grader is
+`.pi/skills/verify-provider/scripts/verify.sh`, driven with the selectors and URLs this
+FINDINGS records (never invented), in **three invocations** because the site's row families
+overlap across surfaces (a card can sit in `/en/new` *and* in a maker row — measured 2/334
+this run — while `verify.sh` dedupes a whole `--home-url` set).
+
+### Selectors used
+
+| flag | value | where it comes from |
+| --- | --- | --- |
+| card | `div.card` | §Listing card + home rows (S2) |
+| search card title | `h3.card__title` | §Search |
+| search card poster | `img.card__img` | §Listing card + home rows (S2) |
+| video title | `h1.watch__title` | §Video pages |
+| video plot | `p.watch__desc-text` | §Video pages |
+| video tags | `a.chip[href^=/en/genres/]` | §Video pages (`dt=Genres` → `dd.chips`) |
+| video actors | `a.chip[href^=/en/actresses/]` | §Video pages (`dt=Cast` → `dd.chips`) |
+| video poster | `meta[property=og:image:secure_url]` (no such tag) | **instrument limit**, see §Instrument limits |
+| player container | `div.player` | §Episode API reversal (the page's only stream seam) |
+| related | `aside.watch-side a.vside` | §Related videos |
+| LoadResponse completeness | `recommendations,tags,plot,duration,year,actors,posters` + `--provider-src 123av` | §Video pages / §Streams |
+
+### Invocation A — search, New Releases, one video per required studio
+
+```bash
+.pi/skills/verify-provider/scripts/verify.sh \
+  --search-url 'https://123av.com/en/search?keyword=1pondo' \
+  --search-url 'https://123av.com/en/search?keyword=1pondo&page=2' \
+  --search-selector 'div.card' --search-title-selector 'h3.card__title' \
+  --search-poster-selector 'img.card__img' \
+  --home-url 'https://123av.com/en/new?page=1' \
+  --home-url 'https://123av.com/en/new?page=2' \
+  --home-selector 'div.card' \
+  --video-url 'https://123av.com/en/v/1pondo-122618_001' \
+  --video-url 'https://123av.com/en/v/heyzo-3970' \
+  --video-url 'https://123av.com/en/v/tokyo-hot-n1854' \
+  --video-title-selector 'h1.watch__title' \
+  --video-poster-selector 'meta[property=og:image:secure_url]' \
+  --video-plot-selector 'p.watch__desc-text' \
+  --video-tags-selector 'a.chip[href^=/en/genres/]' \
+  --video-actors-selector 'a.chip[href^=/en/actresses/]' \
+  --stream-selector 'div.player' \
+  --stream-url 'https://jyxp.softquietmind.site/oo5/XEn0ezIAjwPK3U_oUqJFbMH921B3gspOG+GDtBqPgxcFmtVnl8JUFWzuIQ/video.m3u8' \
+  --stream-url 'https://8n3l.landon-blog.site/oo5/XEn0ezQAjwPK3U_oUqJFbdjhiEw_zZwOG7uU_R+f1R1R2dRrxdRW/video.m3u8' \
+  --stream-url 'https://80nl.highpurepath.site/oo5/XEn0ezIAjwPK3U_oUqJFO879gAJ3jcJEF73LthCPgxcDydFwwtlTGG0/video.m3u8' \
+  --related-selector 'aside.watch-side a.vside' \
+  --provider-src 123av \
+  --load-response 'recommendations,tags,plot,duration,year,actors,posters' \
+  --header 'Referer: https://sadie-shop.site/' \
+  --header 'Origin: https://sadie-shop.site'
+```
+
+Output (verbatim shape, one line per request):
+
+```
+── check 1: search pages (2)
+GET https://123av.com/en/search?keyword=1pondo → 200; 'div.card' matches: 12
+GET https://123av.com/en/search?keyword=1pondo&page=2 → 200; 'div.card' matches: 12
+── check 1a: homepage pages (2)
+GET https://123av.com/en/new?page=1 → 200; 'div.card' matches: 12
+GET https://123av.com/en/new?page=2 → 200; 'div.card' matches: 12
+── check 1b: quick search (0)
+NOTE: no --quick-search-url — required when FINDINGS records a distinct quick-search endpoint; its absence must be explicit in FINDINGS
+── check 2: video pages (3 URLs)
+GET https://123av.com/en/v/1pondo-122618_001 → 200; 'div.player' matches: 1
+GET stream (https://jyxp.softquietmind.site/oo5/XEn0ezIAjwPK3U_oUqJFbMH921B3gspOG+GDtBqPgxcF…) → 200 application/vnd.apple.mpegurl
+GET https://123av.com/en/v/1pondo-122618_001 → 'aside.watch-side a.vside' matches: 12
+GET https://123av.com/en/v/heyzo-3970 → 200; 'div.player' matches: 1
+GET stream (https://8n3l.landon-blog.site/oo5/XEn0ezQAjwPK3U_oUqJFbdjhiEw_zZwOG7uU_R+f1R1R2d…) → 200 application/vnd.apple.mpegurl
+GET https://123av.com/en/v/heyzo-3970 → 'aside.watch-side a.vside' matches: 12
+GET https://123av.com/en/v/tokyo-hot-n1854 → 200; 'div.player' matches: 1
+GET stream (https://80nl.highpurepath.site/oo5/XEn0ezIAjwPK3U_oUqJFO879gAJ3jcJEF73LthCPgxcDy…) → 200 application/vnd.apple.mpegurl
+GET https://123av.com/en/v/tokyo-hot-n1854 → 'aside.watch-side a.vside' matches: 12
+NOTE: no poster on any sampled page — site does not expose it; excluded from distinctness
+field 'tags': present on all 3 sampled pages
+field 'actors': present on all 3 sampled pages
+NOTE: no --video-year-selector — exposure not asserted; FINDINGS must state whether the site exposes year
+NOTE: no --video-duration-selector — exposure not asserted; FINDINGS must state whether the site exposes duration
+── check 5: search ↔ load agreement
+── check 6: LoadResponse completeness (code vs FINDINGS)
+field 'recommendations': 2 assignment(s) in 123av
+field 'tags': 2 assignment(s) in 123av
+field 'plot': 2 assignment(s) in 123av
+field 'duration': 3 assignment(s) in 123av
+field 'year': 2 assignment(s) in 123av
+field 'actors': 3 assignment(s) in 123av
+field 'posters': 2 assignment(s) in 123av
+RESULT: PASS
+```
+
+- search p1/p2: **12 + 12 cards, 0 duplicate hrefs across pages** (pipeline duplicate bar).
+- New Releases p1/p2: **12 + 12, 0 duplicates**; pager `rel=next` on both (row paginates).
+- The 1pondo sample (`1pondo-122618_001`) is **on search page 1**, so check 5 ran and agreed on
+  the normalized title (`h1.watch__title` vs `h3.card__title`); poster agreement was skipped
+  because the poster column is excluded (see §Instrument limits).
+- Related: **12 per page × 3**, titles non-empty, no self-link, no duplicate hrefs.
+- Every sampled video page 200; tags and actors present on all three.
+- `RESULT: PASS` (exit 0).
+
+### Invocation B — Hot row
+
+```bash
+.pi/skills/verify-provider/scripts/verify.sh \
+  --search-url 'https://123av.com/en/search?keyword=1pondo' \
+  --search-selector 'div.card' --search-title-selector 'h3.card__title' \
+  --search-poster-selector 'img.card__img' \
+  --home-url 'https://123av.com/en/hot?page=1' \
+  --home-url 'https://123av.com/en/hot?page=2' \
+  --home-selector 'div.card' \
+  --video-url 'https://123av.com/en/v/adn-821' \
+  --video-title-selector 'h1.watch__title' \
+  --video-poster-selector 'meta[property=og:image:secure_url]' \
+  --video-plot-selector 'p.watch__desc-text' \
+  --video-tags-selector 'a.chip[href^=/en/genres/]' \
+  --video-actors-selector 'a.chip[href^=/en/actresses/]' \
+  --stream-selector 'div.player' \
+  --stream-url 'https://jool.deepquietthought.site/oo5/XEn0ezYAjwPK3U_oUqJFL9i4mkwz2ZlHFeaU_R_I0xMUy91lxNY/video.m3u8' \
+  --related-selector 'aside.watch-side a.vside' \
+  --header 'Referer: https://sadie-shop.site/' \
+  --header 'Origin: https://sadie-shop.site'
+```
+
+```
+GET https://123av.com/en/hot?page=1 → 200; 'div.card' matches: 12
+GET https://123av.com/en/hot?page=2 → 200; 'div.card' matches: 12
+GET https://123av.com/en/v/adn-821 → 200; 'div.player' matches: 1
+GET stream (https://jool.deepquietthought.site/oo5/XEn0ezYAjwPK3U_oUqJFL9i4mkwz2ZlHFeaU_R+…) → 200 application/vnd.apple.mpegurl
+GET https://123av.com/en/v/adn-821 → 'aside.watch-side a.vside' matches: 12
+field 'tags': present on all 1 sampled pages
+field 'actors': present on all 1 sampled pages
+NOTE: no sampled video appears in the search page(s) — pick a --search-url whose query matches a sample video to exercise agreement
+RESULT: PASS
+```
+
+Hot p1/p2: **12 + 12, 0 duplicates**. The check-5 NOTE is expected in this invocation — the
+agreement path is exercised by Invocation A; this video is a Hot-row card, not a `1pondo` one.
+
+### Invocation C — the eleven ura maker rows (page 1 **and** page 2 each)
+
+```bash
+ARGS=()
+for slug in 1pondo caribbeancom heyzo takara-video 10musume tokyo-hot \
+            pacopacomama h4610 c0930 h0930 xxx-av; do
+  ARGS+=(--home-url "https://123av.com/en/makers/$slug" \
+         --home-url "https://123av.com/en/makers/$slug?page=2")
+done
+.pi/skills/verify-provider/scripts/verify.sh \
+  --search-url 'https://123av.com/en/search?keyword=1pondo' \
+  --search-selector 'div.card' --search-title-selector 'h3.card__title' \
+  --search-poster-selector 'img.card__img' \
+  "${ARGS[@]}" --home-selector 'div.card' \
+  --video-url 'https://123av.com/en/v/1pondo-112626_001' \
+  --video-title-selector 'h1.watch__title' \
+  --video-poster-selector 'meta[property=og:image:secure_url]' \
+  --video-plot-selector 'p.watch__desc-text' \
+  --video-tags-selector 'a.chip[href^=/en/genres/]' \
+  --video-actors-selector 'a.chip[href^=/en/actresses/]' \
+  --stream-selector 'div.player' \
+  --stream-url 'https://jd60.purewildspirit.site/oo5/XEn0ezMAjwPK3U_oUqJFPNimmkwi0YhUXOOU_R+YgR0K2dRrxdZX/video.m3u8' \
+  --related-selector 'aside.watch-side a.vside' \
+  --header 'Referer: https://sadie-shop.site/' \
+  --header 'Origin: https://sadie-shop.site'
+```
+
+```
+── check 1a: homepage pages (22)
+GET https://123av.com/en/makers/1pondo → 200; 'div.card' matches: 12
+GET https://123av.com/en/makers/1pondo?page=2 → 200; 'div.card' matches: 12
+… (caribbeancom, heyzo, takara-video, 10musume, tokyo-hot, pacopacomama,
+   h4610, c0930, h0930, xxx-av — all 200, 'div.card' matches: 12 on both pages) …
+GET https://123av.com/en/makers/xxx-av?page=2 → 200; 'div.card' matches: 12
+GET https://123av.com/en/v/1pondo-112626_001 → 200; 'div.player' matches: 1
+GET stream (https://jd60.purewildspirit.site/oo5/XEn0ezMAjwPK3U_oUqJFPNimmkwi0YhUXOOU_R+…) → 200 application/vnd.apple.mpegurl
+GET https://123av.com/en/v/1pondo-112626_001 → 'aside.watch-side a.vside' matches: 12
+RESULT: PASS
+```
+
+**22/22 maker pages 200, 12 cards each, 0 duplicate hrefs across the whole set** — every one of
+the eleven rows pages and returns fresh cards on page 2. (S3 measured a 1/12 boundary repeat on
+`takara-video` in an earlier run; this run's captures are disjoint, and the shipped
+`fresh(cards, previous)` seam removes a repeat when the site serves one — pinned by
+`Av123ParseTest`.)
+
+### Stream ladder per required studio (bytes, not just status codes)
+
+Resolution order is the shipped one: video page → inline `player(JSON.parse(…))` episode →
+`<embed-origin>/stream?id=<hash>` → `media.stream` → master → child playlist → segment. All
+requests sent `Referer: https://sadie-shop.site/` + `Origin: https://sadie-shop.site`. Paths
+under `<edge>.<rotating>.site/oo5/<token>/`.
+
+| studio | video page | embed id | `/stream` | master | child playlist | first segment | TS sync |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **1pondo** | `/en/v/1pondo-122618_001` | `78PV11Z8` | 200 JSON | 200 `application/vnd.apple.mpegurl`, 87 B (`qc/v.m3u8`) | 200, 41,405 B | 200 `text/css`, **196,460 B** | `47 40 11 10` |
+| **heyzo** | `/en/v/heyzo-3970` | `GXN0VK` | 200 JSON | 200 `application/vnd.apple.mpegurl`, 74 B (`qc/v.m3u8`) | 200, 38,841 B | 200 `text/css`, **132,540 B** | `47 40 11 10` |
+| **tokyo-hot** | `/en/v/tokyo-hot-n1854` | `80ZZMYX2` | 200 JSON | 200 `application/vnd.apple.mpegurl`, 73 B (`qb/v.m3u8`, 854x480, BW 1,228,800) | 200, 38,989 B | 200 `text/css`, **249,852 B** | `47 40 11 10` |
+
+Segments are MPEG-TS served as `text/css` (the CDN's obfuscation), and the first four bytes are
+the TS sync pattern — **bytes serving**, not a 200 on a playlist only. Media hosts rotated per
+request (`jyxp.softquietmind.site`, `8n3l.landon-blog.site`, `80nl.highpurepath.site`,
+`jool.deepquietthought.site`, `jd60.purewildspirit.site`), matching the S1/S4 finding: the
+provider resolves `/stream` fresh per `loadLinks` and never pins a host.
+
+The three masters exactly as `/stream` returned them this run (per-call signed; the path token
+and host both rotate, so they are evidence, not something to reuse):
+
+```
+1pondo    https://jyxp.softquietmind.site/oo5/XEn0ezIAjwPK3U_oUqJFbMH921B3gspOG+GDtBqPgxcFmtVnl8JUFWzuIQ/video.m3u8
+heyzo     https://8n3l.landon-blog.site/oo5/XEn0ezQAjwPK3U_oUqJFbdjhiEw_zZwOG7uU_R+f1R1R2dRrxdRW/video.m3u8
+tokyo-hot https://80nl.highpurepath.site/oo5/XEn0ezIAjwPK3U_oUqJFO879gAJ3jcJEF73LthCPgxcDydFwwtlTGG0/video.m3u8
+```
+
+Two further sampled videos resolved the same way inside their invocations (stream 200
+`application/vnd.apple.mpegurl`): `adn-821` (Invocation B) and `1pondo-112626_001`
+(Invocation C).
+
+#### Header requirement re-probed (same master, only headers varied)
+
+| sent | result |
+| --- | --- |
+| browser UA, no referer | **403** `text/html`, 4,552 B |
+| browser UA + `Referer: https://123av.com/` | **403** `text/html`, 4,552 B |
+| browser UA + `Referer: https://sadie-shop.site/` + `Origin: https://sadie-shop.site` | **200** `application/vnd.apple.mpegurl`, 87 B |
+
+This is the S1 matrix reproduced on a current master: the media CDN gates on the **embed
+origin**, not the UA, and actively rejects a `123av.com` referer. The provider sends exactly the
+accepted pair (derived from the episode URL, not hardcoded) — `verify.sh`'s stream check used the
+same pair via `--header`.
+
+### Poster + field exposure (what `verify.sh` cannot select here)
+
+`verify.sh`'s video-field probe reads a **`content`** attribute (or text) of a simple selector.
+This site's per-video poster is a `background-image` in the player's `style`, and duration/year
+live in label-keyed `<dt>`/`<dd>` rows — neither is addressable by that probe. Proved directly
+instead:
+
+```bash
+UA='Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0'
+curl -s -A "$UA" -o /dev/null -w '%{http_code} %{content_type} %{size_download}\n' \
+  'https://icdn.123av.me/img2/s500/9e/1pondo-122618_001/cover.jpg'
+curl -s -A "$UA" -o /dev/null -w '%{http_code} %{content_type} %{size_download}\n' \
+  'https://icdn.123av.me/img2/s500/b0/heyzo-3970/cover.jpg'
+curl -s -A "$UA" -o /dev/null -w '%{http_code} %{content_type} %{size_download}\n' \
+  'https://icdn.123av.me/img2/s500/6a/tokyo-hot-n1854/cover.jpg'
+```
+
+```
+200 image/jpg 39170
+200 image/jpg 34993
+200 image/jpg 50100
+```
+
+Three **distinct** per-video posters, all serving image bytes with no headers at all (the
+`posterHeaders`-absent decision stands). Poster absence in the transcript is therefore an
+instrument limit, **not** a site gap.
+
+`<dl class="watch__info">` on the same page (label → value), proving year + duration exposure:
+
+```
+  Code: 1Pondo-122618_001
+  Type: Uncensored
+  Release date: 2018-12-26
+  Duration: 3:00:00
+  Cast: Ichika Aika Tachibana Anri Nanami Yui Hidaka Riko Usagi Miyu
+  Maker: 1Pondo
+  Series: Ipponmichi Best
+  Genres: Creampie Beautiful Legs Big Ass Bareback Big Boobs Beautiful Breasts Masturbatio…
+```
+
+- **year** ← `Release date` (2018 here); **duration** ← `Duration` clock (3:00:00 → 180 min).
+  Both are mapped by `Av123Parse.parseVideo` and pinned per fixture in `Av123VideoTest`
+  (2026 / 2026 / 2020 on the three committed pages), which is why no `--video-year-selector` /
+  `--video-duration-selector` flag is passed — no simple selector addresses "the `dd` after
+  `dt=Duration`", and a wrong selector would assert the wrong value.
+- **plot** is exposed (`p.watch__desc-text`) but is *not* all-or-none across the catalogue:
+  `tokyo-hot-ka055` has no description (S4), so a mixed sample would trip check 2's
+  inconsistent-page-shape rule. Every video sampled in this run's three invocations has one;
+  the ka055 gap is site data, recorded rather than papered over.
+
+### Instrument limits (explicit, so a later reader does not misread the transcript)
+
+1. **Poster column excluded.** `--video-poster-selector 'meta[property=og:image:secure_url]'`
+   matches nothing on purpose: the page's only per-video image is `div.player[style]`, and
+   `og:image` is the site's square logo (identical on every page — using it would fake a
+   cross-video collision). The script's NOTE "site does not expose it" is the probe's wording,
+   not the finding; the probe above is the finding.
+2. **No static stream URL on the page.** The stream is JS-built from the inline episode array,
+   so `--stream-url` carried the `/stream`-resolved master for each sampled video; checks 3
+   (content-type + m3u8 body + cross-video distinct paths) ran on it unchanged.
+3. **Quick search absent**, so no `--quick-search-url` (S3's served-page + bundle evidence, and
+   `hasQuickSearch = false`).
+4. **Granularity of the row set.** Three invocations rather than one because `/en/new` shares
+   cards with maker rows (2 of 334 cards this run: `caribbeancom-112726-001`,
+   `10musume-112726_01`), which a single `--home-url` set would read as a pagination duplicate.
+
+### Blocked entries
+
+**None this run.** Every surface answered 200 — 26 listing pages (search ×2, `/en/new` ×2,
+`/en/hot` ×2, 11 makers ×2), 5 video pages, 5 `/stream` calls, 5 master playlists, plus the
+poster probes; no `403 Attention Required!` body and no `Just a moment…` interstitial appeared
+(`cf-ray …-MSP`). The intermittent WAF deny S3 hit (Ray ID `a60d71e8bae88e12-PDX`) did **not**
+reproduce, so there is no Blocked row to justify — and no cookie/challenge handling was added on
+the strength of one green run (§Risks keeps it as a watch item).
+
+### What CI proved vs. what it did not
+
+- **Proved here:** live search (2 pages, disjoint), both non-maker home rows (2 pages each,
+  disjoint), all eleven maker rows (2 pages each, disjoint), five video pages with title /
+  plot / tags / actors, per-video posters as image bytes, the SSR related sidebar (12 per page,
+  non-empty, distinct, no self-link), search↔load title agreement, and the full HLS ladder
+  (master → child → segment with TS bytes) for **1pondo, heyzo and tokyo-hot** with the
+  embed-origin header pair the CDN requires.
+- **Not proved here:** in-app playback. How CloudStream's ExoPlayer consumes the emitted
+  `M3U8` link, the referer/headers on device, and cast behaviour are **maintainer checks at
+  merge time** (AGENTS.md: in-app testing is maintainer-only, never an agent deliverable). CI
+  can show the URL serves bytes; only a device shows the player renders them.
+
+### Unit + build
+
+```bash
+JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64 \
+  ./gradlew bootstrapCloudstream 123av:test 123av:make
+```
+
+```
+> Task :123av:test
+> Task :123av:make
+Made CloudStream package at …/123av/build/123av.cs3
+BUILD SUCCESSFUL in 1m 38s
+```
+
+`123av:test` runs this provider's 39 cases (`Av123ParseTest` 23 + `Av123VideoTest` 16) alongside
+the shared suite — **223 tests, 0 failures**. `123av/build/123av.cs3`, 177,557 B.
+
+### S5 exit — shippable, no wontfix
+
+- No `wontfix`: S1's gate stayed green and S2–S4 shipped code that this run verified live; the
+  three required studios (`1pondo`, `heyzo`, `tokyo-hot`) all serve HLS bytes.
+- **`version` stays 3.** S5 changes only this report: `scripts/affected-set.sh` classifies
+  `docs/**` as `none` (nothing reaches a `.cs3`), so a bump would republish byte-identical code
+  under a new number. S4's `3` is already the value a user receives.
+- Remaining risks are the ones in §Risks: the intermittent `123av.com` WAF deny (watch item,
+  did not reproduce), rotating media hosts (handled by per-call `/stream` resolution), and the
+  media CDN's embed-origin referer requirement (handled, re-proved above).
