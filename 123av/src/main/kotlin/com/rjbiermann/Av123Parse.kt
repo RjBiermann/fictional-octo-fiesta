@@ -80,6 +80,15 @@ object Av123Parse {
         Av123MakerRow("xxx-av", "XXX-AV"),
     )
 
+    /**
+     * The `HomePage` rows: the two S2 site listings first (their order is unchanged), then one
+     * row per ura studio. Kept here rather than in the provider so the composition and its order
+     * are data a fixture-free unit test can pin.
+     */
+    fun homeRows(): List<Pair<String, String>> =
+        listOf(NEW to "New Releases", HOT to "Hot") +
+            MAKER_ROWS.map { makerUrl(it.slug, 1) to it.label }
+
     /** The pager's own next-page link; absent on the last page and on the homepage. */
     const val NEXT = "div.pager a[rel=next]"
 
@@ -126,13 +135,20 @@ object Av123Parse {
     }
 
     /**
-     * The cards of one page that have not been served before, seeding [seen] with what this
-     * page contributes. Paging is offset-based over a growing list, so a boundary card can be
-     * re-served on the next page (S1 measured 1/12 on `/en/new`); the caller clears [seen] on
-     * page 1, so a refresh re-serves the row.
+     * The cards of one page with the boundary overlap removed: [previous] is the page that
+     * precedes it. Paging is offset-based over a growing list, so a boundary card can be
+     * re-served on the next page (S1 measured 1/12 on `/en/new`) — the overlap is that boundary
+     * card, so the immediately preceding page is the whole seen-set it needs.
+     *
+     * Deliberately **stateless**: no set outlives the call. A per-surface set kept on the
+     * provider made a repeated page request return an empty page and let two concurrent searches
+     * consume each other's cards; here a repeat re-derives the same cards and nothing is shared.
+     * Cards duplicated *within* one page are dropped too.
      */
-    fun fresh(cards: List<Av123Card>, seen: MutableSet<String>): List<Av123Card> =
-        cards.filter { seen.add(it.id) }
+    fun fresh(cards: List<Av123Card>, previous: List<Av123Card>): List<Av123Card> {
+        val served = previous.mapTo(HashSet(previous.size)) { it.id }
+        return cards.distinctBy { it.id }.filter { it.id !in served }
+    }
 
     /**
      * One `div.card` → [Av123Card]; null when the card has no real `/en/v/` href or no title,

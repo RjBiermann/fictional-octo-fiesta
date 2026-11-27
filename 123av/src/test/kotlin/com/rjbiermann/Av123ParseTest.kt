@@ -110,29 +110,42 @@ class Av123ParseTest {
 
     @Test
     fun `fresh drops a boundary card re-served on the next page`() {
-        val seen = HashSet<String>()
         val page1 = Av123Parse.parseCards(html("/new-page-1.html"))
-        assertEquals(Av123Parse.PAGE_SIZE, Av123Parse.fresh(page1, seen).size)
+        assertEquals(Av123Parse.PAGE_SIZE, Av123Parse.fresh(page1, emptyList()).size)
 
         // Offset paging over a growing list: hero is the last card of page 1 and the first of
-        // page 2. Page 2 must not re-serve it.
+        // page 2. Page 2 filters against page 1, so it must not re-serve it.
         val boundary = page1.last()
         val page2 = Av123Parse.parseCards(html("/home-page-2.html"))
-        val fresh = Av123Parse.fresh(listOf(boundary) + page2, seen)
+        val fresh = Av123Parse.fresh(listOf(boundary) + page2, page1)
         assertEquals(page2.size, fresh.size)
         assertFalse("boundary card re-served", fresh.any { it.id == boundary.id })
     }
 
     @Test
-    fun `fresh re-seeds the row when page one is cleared`() {
-        val seen = HashSet<String>()
+    fun `fresh keeps no state between calls`() {
         val page1 = Av123Parse.parseCards(html("/new-page-1.html"))
-        Av123Parse.fresh(page1, seen)
-        assertTrue("page re-served without a clear", Av123Parse.fresh(page1, seen).isEmpty())
+        val page2 = Av123Parse.parseCards(html("/home-page-2.html"))
 
-        // The adapter clears the set before page 1, so a refresh serves the row again.
-        seen.clear()
-        assertEquals(page1.size, Av123Parse.fresh(page1, seen).size)
+        // Blocking regression (Codacy, PR #1667): the provider used to keep a per-query seen-set,
+        // so a second `search(page = 2)` came back empty. Deriving the overlap from page 1 makes
+        // the call a pure function of its arguments, so a repeat is identical.
+        val first = Av123Parse.fresh(page2, page1)
+        assertEquals(Av123Parse.PAGE_SIZE, first.size)
+        assertEquals(first, Av123Parse.fresh(page2, page1))
+
+        // And the same is true under concurrency: no set is shared, so four interleaved calls
+        // cannot consume each other's cards (plain CompletableFuture — JVM test classpath).
+        val concurrent = (1..4)
+            .map { java.util.concurrent.CompletableFuture.supplyAsync { Av123Parse.fresh(page2, page1) } }
+            .map { it.get() }
+        assertTrue("concurrent calls disagree: $concurrent", concurrent.all { it == first })
+    }
+
+    @Test
+    fun `fresh drops a card served twice on one page`() {
+        val card = Av123Parse.parseCards(html("/new-page-1.html")).first()
+        assertEquals(listOf(card), Av123Parse.fresh(listOf(card, card), emptyList()))
     }
 
     // ---- duration -----------------------------------------------------------------
@@ -273,6 +286,21 @@ class Av123ParseTest {
             assertEquals("https://123av.com/en/makers/${row.slug}", Av123Parse.makerUrl(row.slug, 1))
             assertEquals("https://123av.com/en/makers/${row.slug}?page=2", Av123Parse.makerUrl(row.slug, 2))
         }
+    }
+
+    @Test
+    fun `home rows keep the two S2 rows and append the eleven makers`() {
+        // The review asked for this composition to be pinned: the S2 rows and their order must
+        // survive S3, and the eleven maker rows follow in the issue's own order.
+        val rows = Av123Parse.homeRows()
+        assertEquals(13, rows.size)
+        assertEquals(listOf(Av123Parse.NEW to "New Releases", Av123Parse.HOT to "Hot"), rows.take(2))
+        assertEquals(
+            Av123Parse.MAKER_ROWS.map { Av123Parse.makerUrl(it.slug, 1) to it.label },
+            rows.drop(2),
+        )
+        assertEquals("duplicate row url", rows.size, rows.map { it.first }.toSet().size)
+        assertEquals("duplicate row label", rows.size, rows.map { it.second }.toSet().size)
     }
 
     @Test

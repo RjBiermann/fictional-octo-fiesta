@@ -441,9 +441,57 @@ Fixture re-measure (committed captures, `keyword=1pondo`):
 | 2 | `search-page-2.html` | 12 | `1pondo-042819_840` | `1pondo-012518_637` |
 
 **p1 ∩ p2 = 0 of 12** — the pipeline duplicate bar. Every returned card is a genuine ura
-title (`1pondo-*`), not a leak or decensored slug. `search()` still applies the same
-cross-page slug dedupe as the rows, because offset paging over a growing list can shift a
-boundary card (S1 measured 1/12 on `/en/new`).
+title (`1pondo-*`), not a leak or decensored slug. Search applies the same cross-page slug
+dedupe as the rows, because offset paging over a growing list can shift a boundary card
+(S1 measured 1/12 on `/en/new`) — see [§Repair](#repair--stateless-boundary-dedupe-review-pr-1667)
+for how that dedupe is scoped now.
+
+### Repair — stateless boundary dedupe (review, PR #1667)
+
+The first cut of S3 kept a cross-page seen-set **on the provider** (`seen: ConcurrentHashMap`,
+keyed by row URL / `search:<query>`), cleared on page 1. Review flagged it as blocking, and the
+report is right on both counts it names:
+
+- **A repeated page request returned nothing.** `search(q, 2)` twice meant the second call's
+  cards were all already in the set, so the page came back empty.
+- **Concurrent requests mutated one set.** The inner `HashSet` was not thread-safe, so two
+  list/search calls for the same key could corrupt it or drop each other's cards.
+
+Fix — no state survives a call. Page N is filtered against the **preceding page's** cards, and
+the "preceding page" is fetched in-flight (`Av123.listing()` GETs page N-1 when N > 1). The
+overlap this dedupe exists for is the boundary card, so the immediately preceding page is the
+whole seen-set it needs. Consequences, recorded rather than hidden:
+
+- a repeat of `search(q, 2)` is now idempotent (same 12 cards, not an empty page);
+- nothing is shared between queries, so concurrent searches cannot interfere;
+- paging past page 1 costs one extra GET (12 cards) for the overlap check — a deliberate trade
+  for a dedupe that has no lifetime beyond the request;
+- cards duplicated **within** one page are dropped by `distinctBy` (the old set also did this).
+
+`fresh(cards, previous)` is the seam; three new cases pin it: the boundary card still drops, a
+repeated call is identical (four interleaved `CompletableFuture` calls agree), and an intra-page
+duplicate is dropped. The eleven-row composition moved from the provider's private `rows` into
+`Av123Parse.homeRows()` so the review's second coverage gap — "main page preserves the two S2
+rows and appends the maker rows in order" — is pinned by a fixture-free test (13 rows, S2 pair
+first, makers in issue order, no duplicate URL/label).
+
+Non-blocking review note (Codacy, `mainPageOf(*rows.toTypedArray())`): `mainPageOf` is
+vararg-only in the framework — there is no collection overload — so the spread is kept and
+narrowly suppressed (`@Suppress("SpreadOperator")`) on that property: one array at plugin init,
+not a per-request cost.
+
+Live re-probe on the repair run (the S3 wall did not reproduce — see [§Wall](#wall--s3s-own-re-probe-of-123avcom-was-waf-denied)):
+
+| surface | p1 | p2 | p1 ∩ p2 |
+| --- | --- | --- | --- |
+| `/en/search?keyword=1pondo` | 200, 12 cards, all `1pondo-*` | 200, 12 cards | **0/12** |
+| `/en/makers/1pondo` | 200, 12 cards, all `1pondo-*` | 200, 12 cards | **0/12** |
+| `/en/new` (row 1) | 200, 12 cards | 200, 12 cards | **0/12** |
+| all eleven maker rows | 200, 12 cards each | 200, 12 cards each | 0/12 except `takara-video` 1/12 (`aldn-624`, deduped) |
+
+Every one of those pages carries `div.pager a[rel=next]` (and `rel=last`), so `hasNext` still
+reads the pager. What this does **not** prove: `search()`'s HTTP path under the app — that stays
+pipeline/native Verification, as ADR-0005 requires (no HTTP mocking in unit tests).
 
 ### Quick search — decided **absent**
 
@@ -490,14 +538,25 @@ Page-1/page-2 proof:
 | row | page 1 | page 2 | p1 ∩ p2 |
 | --- | --- | --- | --- |
 | `1pondo` | `maker-1pondo-page-1.html`, 12 cards (`1pondo-112626_001` … `1pondo-110326_001`) | `maker-1pondo-page-2.html`, 12 cards (`1pondo-103126_001` … `1pondo-100626_001`) | **0/12** |
-| other ten | 200 at S1 capture (table above) | **not captured this run** — runner WAF-denied, see below | unknown |
+| `caribbeancom` | live 200, 12 cards | live 200, 12 cards | **0/12** |
+| `heyzo` | live 200, 12 cards | live 200, 12 cards | **0/12** |
+| `takara-video` | live 200, 12 cards | live 200, 12 cards | **1/12** (`aldn-624`, the boundary card — this is what the dedupe exists for) |
+| `10musume` | live 200, 12 cards | live 200, 12 cards | **0/12** |
+| `tokyo-hot` | live 200, 12 cards | live 200, 12 cards | **0/12** |
+| `pacopacomama` | live 200, 12 cards | live 200, 12 cards | **0/12** |
+| `h4610` | live 200, 12 cards | live 200, 12 cards | **0/12** |
+| `c0930` | live 200, 12 cards | live 200, 12 cards | **0/12** |
+| `h0930` | live 200, 12 cards | live 200, 12 cards | **0/12** |
+| `xxx-av` | live 200, 12 cards | live 200, 12 cards | **0/12** |
 
-The ten missing page-2 captures are recorded as a wall, not assumed: the row *URL form* is the
-pager's own (`?page=N`, verified in the fixture's `a[rel=next]` href), and the 1pondo pair is
-the p2 proof for the shared maker template. S5's pipeline Verification re-runs the live check
-when the runner is allowed again.
+The eleven page-2 captures S3's own run could not take (see the wall below) were taken by the
+PR #1667 repair run: every row answered 200 on both pages with `rel=next` **and** `rel=last`,
+12 cards each. One row repeats a boundary card — `takara-video` serves `aldn-624` as the last
+card of page 1 and the first of page 2, the first live instance of the shift S1 measured on
+`/en/new` — which is exactly the case the boundary dedupe removes, so the row still returns 12
+fresh cards on page 2.
 
-### Wall — this run's re-probe of `123av.com` is WAF-denied
+### Wall — S3's own re-probe of `123av.com` was WAF-denied
 
 12 probes (4 surfaces × 3 rounds: `/en`, `/en/makers`, `/en/makers/heyzo`,
 `/en/search?keyword=heyzo`), plain `curl` with a browser UA, all `403`:
@@ -513,6 +572,11 @@ firewall-deny class the plan round 1 reported, not the `Just a moment…` JS int
 intermittent, not durable (S1 and S2 got 200 on the same surfaces), so it stays a **watch**
 item: no cookie, no `CloudflareKiller`, no challenge handling was added (ADR-0008). Consequence
 for this story is limited to the ten page-2 captures noted above.
+
+**The wall did not reproduce on the PR #1667 repair run** (same day, minutes later):
+`/en/search?keyword=1pondo` (p1 and p2), `/en/makers/1pondo` (p1 and p2), `/en/new` (p1 and p2)
+and all eleven maker rows' page 1 + page 2 answered **200** with 12 cards each, so the ten
+page-2 gaps in the table above were closed by live probe rather than left open.
 
 ---
 
@@ -739,12 +803,12 @@ fixtures, alongside the shared suite) and `./gradlew 123av:make` BUILD SUCCESSFU
 
 ## S3 exit
 
-`./gradlew 123av:test` green — 21 `Av123ParseTest` cases (the nine S2 cases plus twelve for
-search, the makers index and the eleven rows), search p1/p2 and maker p1/p2 both **0/12**
-overlap, every one of the eleven rows wired to `/en/makers/<slug>` with `?page=N` from the
-site's own pager, each label traced to a fixture attribute, and the quick-search decision
-pinned by the served page. `./gradlew 123av:make` BUILD SUCCESSFUL
-(`123av/build/123av.cs3`).
+`./gradlew 123av:test` green — 23 `Av123ParseTest` cases (the nine S2 cases, twelve for
+search, the makers index and the eleven rows, and three added by the PR #1667 repair below),
+search p1/p2 and maker p1/p2 both **0/12** overlap, every one of the eleven rows wired to
+`/en/makers/<slug>` with `?page=N` from the site's own pager, each label traced to a fixture
+attribute, and the quick-search decision pinned by the served page. `./gradlew 123av:make`
+BUILD SUCCESSFUL (`123av/build/123av.cs3`).
 
 `version` **1 → 2**: search and the eleven ura rows are a change a user can receive
 (S2's `version = 1` is already published), per AGENTS.md's bump-on-provider-change rule.
