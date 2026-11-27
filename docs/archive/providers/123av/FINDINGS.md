@@ -475,6 +475,11 @@ duplicate is dropped. The eleven-row composition moved from the provider's priva
 rows and appends the maker rows in order" — is pinned by a fixture-free test (13 rows, S2 pair
 first, makers in issue order, no duplicate URL/label).
 
+Repair round 2 (review verdict, PR #1667) was doc/cleanup only: the Risk-section link now points
+at the renamed heading (`#wall--s3s-own-re-probe-of-123avcom-was-waf-denied`), and the unused
+`search(Document)` seam was dropped — `cards(Document)` is the one Document-level entry, so its
+"production path" comment named a role nothing called. No selector, URL or row changed.
+
 Non-blocking review note (Codacy, `mainPageOf(*rows.toTypedArray())`): `mainPageOf` is
 vararg-only in the framework — there is no collection overload — so the spread is kept and
 narrowly suppressed (`@Suppress("SpreadOperator")`) on that property: one array at plugin init,
@@ -714,7 +719,7 @@ known last page in its pager, e.g. `makers/1pondo?page=229`).
   (`cf-error-details`, Ray ID field) on three URLs — i.e. a firewall/ASN deny, not a JS
   interstitial.
 - S3's run reproduces it (12/12 probes, `cf-ray a60d71e8bae88e12-PDX`, same 5,657 B body) —
-  see [§Wall](#wall--this-runs-re-probe-of-123avcom-is-waf-denied). Still intermittent: S1 and
+  see [§Wall](#wall--s3s-own-re-probe-of-123avcom-was-waf-denied). Still intermittent: S1 and
   S2 got 200 on the identical surfaces from the same runner image.
 - **This run (2026-11-26 22:52–22:56Z) got 200 on all 12 site-page probes** (three rounds of
   `/en`, `/en/makers`, `/en/search?keyword=heyzo`), content-length matching normal pages:

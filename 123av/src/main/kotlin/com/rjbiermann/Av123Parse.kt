@@ -118,9 +118,6 @@ object Av123Parse {
      */
     fun parseSearch(html: String): List<Av123Card> = cards(Jsoup.parse(html, MAIN))
 
-    /** An already-parsed search page → its cards (the production path). */
-    fun search(document: Document): List<Av123Card> = cards(document)
-
     /**
      * The `/en/makers` index → its studios. Empty rows are dropped rather than emitted half
      * filled: a name or a `/en/makers/` href is what makes a studio addressable as a row.
