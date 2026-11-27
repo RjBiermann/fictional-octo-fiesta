@@ -1232,12 +1232,15 @@ instrument limit, **not** a site gap.
 
 ### Blocked entries
 
-**None this run.** Every surface answered 200 — 26 listing pages (search ×2, `/en/new` ×2,
-`/en/hot` ×2, 11 makers ×2), 5 video pages, 5 `/stream` calls, 5 master playlists, plus the
-poster probes; no `403 Attention Required!` body and no `Just a moment…` interstitial appeared
-(`cf-ray …-MSP`). The intermittent WAF deny S3 hit (Ray ID `a60d71e8bae88e12-PDX`) did **not**
-reproduce, so there is no Blocked row to justify — and no cookie/challenge handling was added on
-the strength of one green run (§Risks keeps it as a watch item).
+**None this run.** Every verification surface answered 200 — 28 listing pages (search ×2,
+`/en/new` ×2, `/en/hot` ×2, 11 makers ×2), 5 video pages, 5 `/stream` calls, 5 master playlists,
+plus the poster probes; no *unexpected* `403 Attention Required!` body and no `Just a moment…`
+interstitial appeared (`cf-ray …-MSP`). The only 403s were the two deliberate header
+negative-controls in the matrix above (no referer / `123av.com` referer) — the media CDN's
+hotlink rule, expected, not a blocked surface. The intermittent WAF deny S3 hit (Ray ID
+`a60d71e8bae88e12-PDX`) did **not** reproduce, so there is no Blocked row to justify — and no
+cookie/challenge handling was added on the strength of one green run (§Risks keeps it as a watch
+item).
 
 ### What CI proved vs. what it did not
 
