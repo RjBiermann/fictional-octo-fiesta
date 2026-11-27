@@ -291,6 +291,91 @@ class PornSlashParseTest {
         assertNull(PornSlashParse.hlsBase("<html><body><p>no player here</p></body></html>"))
     }
 
+    // ---- detail() -----------------------------------------------------------------
+
+    @Test
+    fun `detail page carries title poster tags description and quality`() {
+        val document = doc("/watch-1ZxeqYAL0xy.html")
+        val detail = PornSlashParse.detail(document, text("/watch-1ZxeqYAL0xy.html"))!!
+        val share = document.selectFirst("div.share-video")!!
+
+        assertEquals(document.selectFirst("h1.video-page-title")!!.text().trim(), detail.title)
+        assertEquals(document.selectFirst("meta[property=og:image]")!!.attr("content"), detail.poster)
+        assertEquals(
+            document.selectFirst("meta[name=description]")!!.attr("content"),
+            detail.description
+        )
+        assertEquals(share.attr("data-quality") + "p", detail.quality)
+        assertEquals(share.attr("data-encid"), detail.encid)
+        assertEquals(
+            document.select("meta[property=og:video:tag]").map { it.attr("content") },
+            detail.tags
+        )
+    }
+
+    @Test
+    fun `duration is minutes and never invented from a sub-minute value`() {
+        // the live og:duration on these pages is bare seconds ("7", "681")
+        assertEquals(11, PornSlashParse.durationMinutes("681", null))
+        assertNull(PornSlashParse.durationMinutes("7", null))
+        assertNull(PornSlashParse.durationMinutes(null, null))
+        assertNull(PornSlashParse.durationMinutes("", ""))
+        // the ISO-8601 grammar (ld+json `duration`) is read when the site ships it
+        assertEquals(1, PornSlashParse.durationMinutes("PT1M21S", null))
+        assertEquals(62, PornSlashParse.durationMinutes(null, "{\"duration\": \"PT1H2M3S\"}"))
+        assertEquals(3, PornSlashParse.durationMinutes(null, "{\"duration\": \"PT3M\"}"))
+    }
+
+    @Test
+    fun `detail derives the mp4 primary and the HLS fallback from the page itself`() {
+        for (fixture in listOf("/watch-1ZxeqYAL0xy.html", "/watch-shorts-Vpg8p8DYegA.html")) {
+            val html = text(fixture)
+            val detail = PornSlashParse.detail(doc(fixture), html)!!
+
+            assertNotNull("no mp4 from $fixture", detail.mp4)
+            assertTrue(detail.mp4!!.endsWith(".mp4"))
+            assertTrue(detail.mp4!!.contains("/p/"))
+            // host and <ptid> segment come from the page's own og:image, never templated
+            assertEquals(detail.poster!!.substringBefore("/t/"), detail.mp4!!.substringBefore("/p/"))
+
+            assertNotNull("no HLS fallback from $fixture", detail.hls)
+            assertTrue(detail.hls!!.startsWith("https://"))
+            assertTrue(detail.hls!!.endsWith("/master/" + detail.encid))
+        }
+    }
+
+    @Test
+    fun `related cards are the watch page's recommendation surface`() {
+        val document = doc("/watch-1ZxeqYAL0xy.html")
+        val detail = PornSlashParse.detail(document, text("/watch-1ZxeqYAL0xy.html"))!!
+        val selfId = document.selectFirst("div.share-video")!!.attr("data-id")
+
+        assertEquals(50, document.select("div.related div.video-item").size)
+        assertEquals(50, detail.recommendations.size)
+        assertTrue("recommendations link the video itself", detail.recommendations.none { it.id == selfId })
+        // the related rail repeats titles as site content (two cards can share one), so the
+        // identity bar here is id + poster path — both derive from the per-video encode id
+        assertEquals(50, detail.recommendations.map { it.id }.distinct().size)
+        assertEquals(50, detail.recommendations.mapNotNull { it.poster }.distinct().size)
+        assertTrue("blank recommendation title", detail.recommendations.all { it.title.isNotBlank() })
+        // the spec's cap: more related cards than 50 still yield at most 50
+        assertEquals(3, PornSlashParse.recommendations(document, limit = 3).size)
+    }
+
+    @Test
+    fun `watch fixtures satisfy the distinct bar`() {
+        val details = listOf("/watch-1ZxeqYAL0xy.html", "/watch-shorts-Vpg8p8DYegA.html")
+            .map { PornSlashParse.detail(doc(it), text(it))!! }
+        DistinctBar.assertDistinctVideos(
+            details.map { DistinctBar.VideoIdentity(it.title, it.poster, it.mp4) }
+        )
+    }
+
+    @Test
+    fun `detail is null when the page carries no title`() {
+        assertNull(PornSlashParse.detail(Jsoup.parse("<html><body><p>gone</p></body></html>")))
+    }
+
     // ---- quality() ----------------------------------------------------------------
 
     @Test

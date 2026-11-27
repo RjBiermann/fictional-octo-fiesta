@@ -15,6 +15,8 @@
 //    load, never cached across loads.
 package com.rjbiermann
 
+import com.kraptor.DurationParse
+import com.kraptor.JsonLdParse
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import org.jsoup.nodes.Document
@@ -30,10 +32,41 @@ data class SlashCard(
     val duration: Int?,
 )
 
+/**
+ * One `/watch/<id>` page: the metadata the detail surface renders, plus both stream candidates.
+ * Long-form and shorts items share the route and this grammar.
+ */
+data class SlashDetail(
+    val title: String,
+    val poster: String?,
+    val description: String?,
+    val tags: List<String>,
+    /** CloudStream convention: minutes, never seconds. */
+    val duration: Int?,
+    val quality: String?,
+    /** The CDN encode id — the HLS master's path segment. */
+    val encid: String?,
+    val mp4: String?,
+    val hls: String?,
+    val recommendations: List<SlashCard>,
+)
+
 object PornSlashParse {
 
     /** The listing card root — one grammar on every surface (home, search, /cat/, related). */
     const val CARD = "div.video-item"
+
+    /** The watch page's dataset holder — `<div class="share-video" data-id data-encid data-quality …>`. */
+    const val SHARE = "div.share-video"
+
+    /** The detail title — `<h1 class="video-page-title">`. */
+    const val DETAIL_TITLE = "h1.video-page-title"
+
+    /** The related rail under the player — the recommendation surface. */
+    const val RELATED = "div.related div.video-item"
+
+    /** The spec's related cap. */
+    const val RECOMMENDATION_LIMIT = 50
 
     /** A category tile on `/categories/` — `<a class="cat-item" href="/cat/<slug>">`. */
     const val CATEGORY_ITEM = "a.cat-item"
@@ -131,6 +164,90 @@ object PornSlashParse {
             ?: clockSeconds(el.selectFirst(".duration")?.text())
         return SlashCard(id, title, poster, quality, duration)
     }
+
+    /**
+     * One `/watch/<id>` page → [SlashDetail], or null when the page carries no title at all.
+     *
+     * [html] is the raw response body: the HLS base is a base64 run in the page's inline script.
+     * Callers already hold the text; omitted, the document's own serialization is used. Nothing
+     * here is cached or templated — the per-video `*.pages.dev` CDN host comes from the page's
+     * own `og:image` and the `*.trycloudflare.com` tunnel is decoded on every call.
+     */
+    fun detail(document: Document, html: String? = null): SlashDetail? {
+        val share = document.selectFirst(SHARE)
+        val title = document.selectFirst(DETAIL_TITLE)?.text()?.trim()?.takeIf { it.isNotEmpty() }
+            ?: document.selectFirst("meta[property=og:title]")?.attr("content")
+                ?.trim()?.takeIf { it.isNotEmpty() }
+            ?: share?.attr("data-title")?.trim()?.takeIf { it.isNotEmpty() }
+            ?: return null
+        val poster = document.selectFirst("meta[property=og:image]")?.attr("content")
+            ?.trim()?.takeIf { it.isNotEmpty() }
+        val id = share?.attr("data-id")?.trim()?.takeIf { it.isNotEmpty() }
+        val encid = share?.attr("data-encid")?.trim()?.takeIf { it.isNotEmpty() }
+        val base = hlsBase(html ?: document.html())
+        return SlashDetail(
+            title = title,
+            poster = poster,
+            description = description(document),
+            tags = tags(document),
+            duration = durationMinutes(
+                document.selectFirst("meta[property=og:duration]")?.attr("content"),
+                document.selectFirst("script[type=application/ld+json]")?.data(),
+            ),
+            quality = quality(share?.attr("data-quality")),
+            encid = encid,
+            mp4 = mp4FromThumb(poster),
+            hls = if (base != null && encid != null) "$base/master/$encid" else null,
+            recommendations = recommendations(document, id),
+        )
+    }
+
+    /**
+     * The plot: `og:description` when the site ships it, else the plain meta description. The
+     * live pages carry only the latter, prefixed with the site name — kept verbatim rather than
+     * edited.
+     */
+    fun description(document: Document): String? =
+        (document.selectFirst("meta[property=og:description]")
+            ?: document.selectFirst("meta[name=description]"))
+            ?.attr("content")?.trim()?.takeIf { it.isNotEmpty() }
+
+    /** `og:video:tag` in page order: blanks dropped, duplicates collapsed. */
+    fun tags(document: Document): List<String> =
+        document.select("meta[property=og:video:tag]")
+            .map { it.attr("content").trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+
+    /**
+     * Runtime in minutes (CloudStream convention) from `og:duration` — the live pages ship bare
+     * seconds, KVS variants ship ISO-8601 — falling back to the ld+json `VideoObject` duration.
+     * A sub-minute value becomes null: a floored 0 is not a runtime.
+     */
+    fun durationMinutes(ogDuration: String?, jsonLd: String?): Int? {
+        val raw = ogDuration?.trim().orEmpty()
+        if (raw.isNotEmpty()) {
+            val minutes =
+                if (raw.startsWith("P", ignoreCase = true)) JsonLdParse.minutes(raw)
+                else DurationParse.fromSeconds(raw) ?: DurationParse.minutes(raw)
+            if (minutes != null) return minutes
+        }
+        return JsonLdParse.minutes(jsonLd)
+    }
+
+    /**
+     * The related rail: up to [limit] cards, the video itself excluded — the site's rail omits it
+     * today, but a self-link is never a recommendation.
+     */
+    fun recommendations(
+        document: Document,
+        currentId: String? = null,
+        limit: Int = RECOMMENDATION_LIMIT,
+    ): List<SlashCard> =
+        document.select(RELATED)
+            .mapNotNull { card(it) }
+            .filter { currentId == null || it.id != currentId }
+            .take(limit)
 
     /**
      * Page-N URL for a listing surface: `?p=N` and nothing else.
