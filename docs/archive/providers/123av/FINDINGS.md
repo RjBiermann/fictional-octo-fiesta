@@ -818,3 +818,108 @@ BUILD SUCCESSFUL (`123av/build/123av.cs3`).
 `version` **1 → 2**: search and the eleven ura rows are a change a user can receive
 (S2's `version = 1` is already published), per AGENTS.md's bump-on-provider-change rule.
 Not stubbed: `load()`/`loadLinks()` (S4) and the S5 Verification closeout.
+
+## S4 exit — `load()` metadata + streams
+
+`load()` now reads the video page through `Av123Parse.parseVideo(html)`, and `loadLinks()` walks
+the inlined episode array, resolves `/stream?id=<hash>` on the episode's own embed origin, and
+emits one link per episode after classifying the media URL by **response Content-Type**.
+
+### Metadata populated (and what the page does not expose)
+
+| LoadResponse field | Source in the page | Result on the three fixtures |
+| --- | --- | --- |
+| `name` | `h1.watch__title` (English, code prefix + `—` kept verbatim) | all three populated |
+| `posterUrl` | `div.player[style="background-image:url('…')"]`, fallback episode `poster=` query | `icdn.123av.me/img2/s500/…/cover.jpg`, three different URLs |
+| `plot` | `p.watch__desc-text` | pages 1–2 populated; `tokyo-hot-ka055` has no description text → null |
+| `tags` | `dt=Genres` → `dd.chips a.chip` | 11 / 19 / 5 chips (fixture pages 1/2/3) |
+| `duration` | `dt=Duration` → `dd` clock, floored to **minutes** via shared `DurationParse` | 61 / 61 / 54 min (1:01:52 / 1:01:31 / 54:56) |
+| `year` | first four digits of `dt=Release date` | 2026 / 2026 / 2020 |
+| `actors` | `dt=Cast` → `dd.chips a.chip` | Natsume Rinka / Sakurada Momoha / *(row absent → empty)* |
+| `recommendations` | SSR `aside.watch-side a.vside` (12 per page) | 12 distinct cards on every fixture |
+| `posterHeaders` | **absent** | S1 proved `icdn.123av.me` needs no referer/UA |
+
+Not exposed / deliberately not mapped (never fabricated):
+
+- **Japanese title.** The video page carries a single localized (`/en`) title in
+  `h1.watch__title`; it has no Japanese-title element. The rec2 API's `title_ja` belongs to
+  *other* titles in its JSON, not to this page, so no Japanese title is invented.
+  `title` is therefore the page's English string (the `elcome` typo on page 1 is site data).
+- **Maker → studio.** The page exposes `dt=Maker` (`dd.chips a.chip[href^=/en/makers/]`) and the
+  parse keeps it on `Av123Video.maker`, but this framework's `LoadResponse` has **no studio
+  field**. It is not forced into tags or actors; FINDINGS records the gap instead.
+- **Series.** Same shape (`dt=Series`); kept on `Av123Video.series`, not mapped to a
+  `LoadResponse` field because none exists. Absent on `heyzo-3968` → null.
+- **Views / relative age / censoring type** are on the page but are not `LoadResponse` fields.
+
+### Stream matrix (S4 live re-probe, 2026-11-27)
+
+Probe per studio: `/en/makers/<slug>` → first `/en/v/` card → inline `player(JSON.parse('…'))`
+episode → `<embed-origin>/stream?id=<hash>` → master playlist. Plain `curl`, browser UA,
+`Referer`/`Origin` = the episode's embed origin. All eleven resolved to HLS:
+
+| Studio | Video page probed | `/stream` | Master playlist | Result |
+| --- | --- | --- | --- | --- |
+| `1pondo` | `/en/v/1pondo-112626_001` | 200 JSON | 200 `application/vnd.apple.mpegurl` | **resolved** |
+| `caribbeancom` | `/en/v/caribbeancom-112626-001` | 200 JSON | 200 `application/vnd.apple.mpegurl` | **resolved** |
+| `heyzo` | `/en/v/heyzo-3970` | 200 JSON | 200 `application/vnd.apple.mpegurl` | **resolved** |
+| `takara-video` | `/en/v/aldn-627-uncensored-leaked` | 200 JSON | 200 `application/vnd.apple.mpegurl` | **resolved** |
+| `10musume` | `/en/v/10musume-112626_01` | 200 JSON | 200 `application/vnd.apple.mpegurl` | **resolved** |
+| `tokyo-hot` | `/en/v/tokyo-hot-n1854` | 200 JSON | 200 `application/vnd.apple.mpegurl` | **resolved** |
+| `pacopacomama` | `/en/v/pacopacomama-112626_100` | 200 JSON | 200 `application/vnd.apple.mpegurl` | **resolved** |
+| `h4610` | `/en/v/h4610-ki250316` | 200 JSON | 200 `application/vnd.apple.mpegurl` | **resolved** |
+| `c0930` | `/en/v/c0930-ki250308` | 200 JSON | 200 `application/vnd.apple.mpegurl` | **resolved** |
+| `h0930` | `/en/v/h0930-ori1750` | 200 JSON | 200 `application/vnd.apple.mpegurl` | **resolved** |
+| `xxx-av` | `/en/v/xxx-av-23434` | 200 JSON | 200 `application/vnd.apple.mpegurl` | **resolved** |
+
+No studio was Blocked in this run. The media hosts rotated across every probe
+(`calmtruepath.site`, `puretruevision.site`, `landon-blog.site`, `jameson-blog.site`,
+`freepureforce.site`, `highpurepath.site`, `calmquietmind.site`, `strongcalmforce.site`,
+`skylar-shop.site`, `realpuremind.site`, `layla-store.site`); the provider never pins one —
+it derives the embed origin from the episode URL and re-resolves the signed media URL per call.
+
+### Exact request header set
+
+- Site pages (`123av.com/*`): **none** beyond a normal browser UA. No cookie, no age gate, no
+  consent wall.
+- `/stream?id=<hash>`: **no** referer required (S1 measured 200 with none and with a
+  `123av.com` referer). The provider sends none.
+- Media URL (master / child / segments): `Referer: https://<embed-origin>/` **and**
+  `Origin: https://<embed-origin>`. S1's matrix: no referer or a `123av.com` referer → 403
+  Cloudflare; embed-origin referer/origin → 200, regardless of UA (`curl/8` included).
+- Link type comes from `Content-Type` (`*mpegurl*` → `M3U8`, `video/*`/`application/mp4` →
+  `VIDEO`), never from the URL suffix — the CDN's segments are `.css`/`.svg` with `text/css`.
+- <code>vtt</code> in the `/stream` response is a scrub-preview track, not a subtitle: the
+  provider does not emit it as a `SubtitleFile`.
+
+### Stream dispatch ladder
+
+1. `loadExtractor(episodeUrl, "$mainUrl/", …)` — the shared `HostRegistry` adapters (registered
+   by `registerHostExtractors()` in the plugin).
+2. Provider-local `resolveEmbed` — the S1 `/stream?id=<hash>` reversal. The embed host is not a
+   registered host and S1 proved no existing `shared/` adapter answers it, so no new
+   `shared/` row was added (ADR-0002).
+
+The local resolver derives both the origin and the `<hash>` from the episode URL
+(`Av123Parse.embedOrigin` / `embedId`), so a changed embed host cannot silently break playback.
+
+### TDD seams + exit
+
+- `Av123Parse.parseVideo(html)` — pure jsoup + JS-literal unescape → `Av123Video` (title,
+  poster, plot, tags, actors, maker, series, duration minutes, release date/year, episodes,
+  recommendations). `parseEpisode(apiJson)` reads the decoded S1 array (and tolerates the raw
+  JS literal); `parseStream(apiJson)` reads `{"status":"ok","media":{stream,vtt}}`;
+  `streamType(contentType)` and `quality(master)` keep the two dispatch decisions pure.
+- Tests: `Av123VideoTest` pins three-fixture identity distinctness (titles, posters, stream
+  references, ids), field population/absence per fixture, episode-fixture ↔ inline-payload
+  equality, the S1 episode shape, `/stream` JSON, content-type classification and master
+  resolution quality. Fixtures: `video-page-1..3.html`, `episode-{1pondo,heyzo,tokyo-hot}.json`,
+  `stream-api-{1pondo,heyzo,tokyo-hot}.json`.
+- `./gradlew 123av:test` green; `./gradlew 123av:make` BUILD SUCCESSFUL
+  (`123av/build/123av.cs3`).
+
+`version` **2 → 3**: `load()` metadata and playable streams are a user-visible change beyond
+the S3 search/rows release.
+
+Not covered by this story: the S5 live Verification closeout and in-app playback
+(maintainer-only at merge time, per AGENTS.md).

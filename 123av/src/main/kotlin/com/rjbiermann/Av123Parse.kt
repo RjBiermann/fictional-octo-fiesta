@@ -15,6 +15,13 @@
 //    names are the only place the eleven ura row labels come from (never invented).
 package com.rjbiermann
 
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.kraptor.DurationParse
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
+import com.lagradost.cloudstream3.utils.Qualities
+import java.net.URI
+import java.net.URLDecoder
 import java.net.URLEncoder
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
@@ -41,6 +48,34 @@ data class Av123Maker(val slug: String, val name: String, val url: String)
  * on the index, or the nav link text for `xxx-av`, which sits beyond index page 1.
  */
 data class Av123MakerRow(val slug: String, val label: String)
+
+/** One episode from the inlined S1 payload: `number`, `name`, and the embed-page `url`. */
+data class Av123Episode(val number: Int?, val name: String?, val url: String)
+
+/** The `/stream` media response the embed player binds to. */
+data class Av123Stream(val url: String, val vtt: String?)
+
+/**
+ * One video page's exposed metadata plus the episode payload. Every nullable/empty field is
+ * genuinely absent from the page — the parse never invents a title, poster, date or cast member.
+ * Japanese titles are not present on the video page (the recommendation API carries
+ * `title_ja` for other titles only), so [title] is the page's own English string.
+ */
+data class Av123Video(
+    val id: String,
+    val title: String,
+    val poster: String?,
+    val plot: String?,
+    val tags: List<String>,
+    val actors: List<String>,
+    val maker: String?,
+    val series: String?,
+    val durationMinutes: Int?,
+    val releaseDate: String?,
+    val year: Int?,
+    val episodes: List<Av123Episode>,
+    val recommendations: List<Av123Card>,
+)
 
 object Av123Parse {
 
@@ -218,4 +253,231 @@ object Av123Parse {
         }
         return null
     }
+    // ---- video page + episodes (S4) ---------------------------------------------
+
+    private val JSON = ObjectMapper()
+
+    /** `player(JSON.parse('<escaped episodes>'), titleId, '<slug>', …)` in `x-data`. */
+    private val PLAYER_JSON = Regex("""JSON\.parse\(\s*'((?:\\.|[^'\\])*)'\s*\)""", RegexOption.DOT_MATCHES_ALL)
+
+    /** The third argument of the same call is the slug the page itself uses. */
+    private val PLAYER_CODE = Regex(
+        """JSON\.parse\(\s*'(?:\\.|[^'\\])*'\s*\)\s*,\s*\d+\s*,\s*'([^']+)'""",
+    )
+
+    /** `style="background-image:url('…')"` on the player (the cover, not the generic og:image). */
+    private val STYLE_URL = Regex("""url\(\s*['"]?([^'")]+)['"]?\s*\)""")
+
+    /** The `/e/<hash>` path the embed script turns into `GET /stream?id=<hash>`. */
+    private val EMBED_ID = Regex("""/e/([A-Za-z0-9_]+)""")
+
+    /** The media CDN's own master-playlist resolution, used only for a quality label. */
+    private val RESOLUTION = Regex("""RESOLUTION=\d+x(\d+)""")
+
+    /** `poster=` query value on the episode URL (percent-encoded cover). */
+    private val POSTER_PARAM = Regex("""[?&]poster=([^&]+)""")
+
+    /**
+     * A captured video page → its metadata. Null when the page has no `h1.watch__title`, which
+     * is how a 404 / wall page (the site's Laravel error page) is rejected before any field is
+     * fabricated. The episode list is inline: the player `x-data` is a JS string literal around
+     * the JSON array, so it is JS-unescaped first, then read by [parseEpisode] exactly as the
+     * committed S1 fixture is.
+     */
+    fun parseVideo(html: String): Av123Video? = video(Jsoup.parse(html, MAIN))
+
+    /** An already-parsed video page → its metadata. */
+    fun video(document: Document): Av123Video? {
+        val title = document.selectFirst("h1.watch__title")?.text().present() ?: return null
+        val xData = document.select("[x-data]")
+            .firstOrNull { it.attr("x-data").contains("JSON.parse(") }
+            ?.attr("x-data")
+            .orEmpty()
+        val episodes = PLAYER_JSON.find(xData)
+            ?.groupValues
+            ?.get(1)
+            ?.let { parseEpisode(unescapeJs(it)) }
+            .orEmpty()
+        val code = PLAYER_CODE.find(xData)?.groupValues?.get(1)?.present()
+        val info = infoRows(document)
+        val durationText = info["duration"]?.text().present()
+        val releaseDate = info["release date"]?.text().present()
+
+        return Av123Video(
+            id = code ?: info["code"]?.text()?.lowercase().orEmpty(),
+            title = title,
+            poster = playerPoster(document) ?: episodes.firstOrNull()?.url?.let(::posterFromQuery),
+            plot = document.selectFirst("p.watch__desc-text")?.text().present(),
+            tags = chips(info["genres"]),
+            actors = chips(info["cast"]),
+            maker = chips(info["maker"]).firstOrNull(),
+            series = chips(info["series"]).firstOrNull(),
+            durationMinutes = DurationParse.minutes(durationText),
+            releaseDate = releaseDate,
+            year = releaseDate?.take(4)?.toIntOrNull(),
+            episodes = episodes,
+            recommendations = related(document),
+        )
+    }
+
+    /**
+     * The S1 episode shape: `[{"number":1,"name":"1","url":"https://<embed>/e/<hash>?poster=…"}]`.
+     * Reads the decoded JSON directly (the fixture is exactly that), keeps source order, and drops
+     * an entry without a URL instead of emitting an unusable stream reference. Junk is empty, never
+     * an exception — a page with no player must not crash `load()`.
+     */
+    fun parseEpisode(apiJson: String): List<Av123Episode> {
+        // The team passes the decoded JSON (fixture), but accepting the raw `JSON.parse('…')`
+        // argument too keeps the seam usable by a caller that has only the page attribute.
+        val root = runCatching { JSON.readTree(apiJson) }.getOrNull()
+            ?: runCatching { JSON.readTree(unescapeJs(apiJson)) }.getOrNull()
+            ?: return emptyList()
+        val nodes: List<JsonNode> = when {
+            root.isArray -> root.toList()
+            root.has("episodes") && root.get("episodes").isArray -> root.get("episodes").toList()
+            else -> emptyList()
+        }
+        return nodes.mapNotNull { node ->
+            val url = node.path("url").asText("").trim().takeIf { it.isNotEmpty() }
+                ?: return@mapNotNull null
+            Av123Episode(
+                number = node.get("number")?.takeIf { it.isNumber }?.asInt(),
+                name = node.path("name").asText("").trim().takeIf { it.isNotEmpty() },
+                url = url,
+            )
+        }
+    }
+
+    /** The `/stream` response: `{"status":"ok","media":{"stream":"…","vtt":"…"}}`. */
+    fun parseStream(apiJson: String): Av123Stream? {
+        val root = runCatching { JSON.readTree(apiJson) }.getOrNull() ?: return null
+        if (root.path("status").asText("") != "ok") return null
+        val media = root.get("media") ?: return null
+        val url = media.path("stream").asText("").trim()
+            .takeIf { it.startsWith("http://") || it.startsWith("https://") }
+            ?: return null
+        val vtt = media.path("vtt").asText("").trim().takeIf { it.isNotEmpty() }
+        return Av123Stream(url, vtt)
+    }
+
+    /**
+     * ExtractorLink type from the response Content-Type, never from the URL suffix: the media CDN
+     * serves HLS, but its segments are deliberately named `.css`/`.svg` and typed `text/css`, so a
+     * suffix (or a "looks like a playlist" guess) would mislabel the stream.
+     */
+    fun streamType(contentType: String?): ExtractorLinkType? {
+        val type = contentType?.substringBefore(';')?.trim()?.lowercase() ?: return null
+        return when {
+            type.contains("mpegurl") -> ExtractorLinkType.M3U8
+            type.startsWith("video/") || type == "application/mp4" -> ExtractorLinkType.VIDEO
+            else -> null
+        }
+    }
+
+    /** Quality from a master playlist's `RESOLUTION=WxH`; unknown when the playlist is absent. */
+    fun quality(masterPlaylist: String?): Int {
+        val height = masterPlaylist?.let { RESOLUTION.find(it)?.groupValues?.get(1)?.toIntOrNull() }
+            ?: return Qualities.Unknown.value
+        return when {
+            height >= 2160 -> Qualities.P2160.value
+            height >= 1440 -> Qualities.P1440.value
+            height >= 1080 -> Qualities.P1080.value
+            height >= 720 -> Qualities.P720.value
+            height >= 480 -> Qualities.P480.value
+            height >= 360 -> Qualities.P360.value
+            height >= 240 -> Qualities.P240.value
+            else -> Qualities.P144.value
+        }
+    }
+
+    /** The embed origin + `/e/<hash>` the episode URL carries — the host rotates per video. */
+    fun embedOrigin(episodeUrl: String): String? = runCatching {
+        val uri = URI(episodeUrl)
+        val scheme = uri.scheme ?: return@runCatching null
+        val authority = uri.authority ?: return@runCatching null
+        "$scheme://$authority"
+    }.getOrNull()
+
+    /** The `<hash>` the embed script passes to `GET /stream?id=<hash>`. */
+    fun embedId(episodeUrl: String): String? =
+        runCatching { URI(episodeUrl).path }.getOrNull()?.let { EMBED_ID.find(it)?.groupValues?.get(1) }
+
+    private fun infoRows(document: Document): Map<String, Element> =
+        document.select("dl.watch__info div.watch__info-row").mapNotNull { row ->
+            val label = row.selectFirst("dt")?.text()?.trim()?.lowercase() ?: return@mapNotNull null
+            val value = row.selectFirst("dd") ?: return@mapNotNull null
+            label to value
+        }.toMap()
+
+    private fun chips(row: Element?): List<String> =
+        row?.select("a.chip")?.map { it.text().trim() }?.filter { it.isNotEmpty() }.orEmpty()
+
+    private fun playerPoster(document: Document): String? {
+        val style = document.selectFirst("div.player")?.attr("style") ?: return null
+        val url = STYLE_URL.find(style)?.groupValues?.get(1)?.trim() ?: return null
+        return absolute(url)
+    }
+
+    private fun posterFromQuery(episodeUrl: String): String? =
+        POSTER_PARAM.find(episodeUrl)?.groupValues?.get(1)?.let {
+            runCatching { URLDecoder.decode(it, "UTF-8") }.getOrNull()
+        }?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+
+    private fun related(document: Document): List<Av123Card> =
+        document.select("aside.watch-side a.vside").mapNotNull { el ->
+            val href = el.attr("href").present() ?: return@mapNotNull null
+            val slug = SLUG.find(href)?.groupValues?.get(1) ?: return@mapNotNull null
+            val title = el.selectFirst(".vside__title")?.text().present() ?: return@mapNotNull null
+            val style = el.selectFirst(".vside__thumb")?.attr("style")
+            val poster = style?.let { STYLE_URL.find(it)?.groupValues?.get(1) }?.let(::absolute)
+            Av123Card(
+                id = slug,
+                title = title,
+                url = if (href.startsWith("http")) href else MAIN + href,
+                poster = poster,
+                duration = duration(el.selectFirst(".vside__dur")?.text()),
+            )
+        }
+
+    private fun absolute(url: String?): String? {
+        val value = url?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        return if (value.startsWith("http")) value else MAIN + value
+    }
+
+    /**
+     * JS single-quoted string literal → the JSON text inside it. The page writes `\u0022` for
+     * quotes and `\\\/` for slashes; JSON.parse receives the result of this unescape, so dropping
+     * either rule makes every episode URL unreadable.
+     */
+    private fun unescapeJs(value: String): String {
+        val out = StringBuilder(value.length)
+        var i = 0
+        while (i < value.length) {
+            val c = value[i]
+            if (c != '\\' || i + 1 >= value.length) {
+                out.append(c)
+                i++
+                continue
+            }
+            when (val escaped = value[i + 1]) {
+                'u' -> {
+                    val hex = value.substring(i + 2, minOf(i + 6, value.length))
+                    val code = hex.toIntOrNull(16)
+                    if (hex.length == 4 && code != null) {
+                        out.append(code.toChar())
+                        i += 6
+                    } else {
+                        out.append(escaped)
+                        i += 2
+                    }
+                }
+                'n' -> { out.append('\n'); i += 2 }
+                'r' -> { out.append('\r'); i += 2 }
+                't' -> { out.append('\t'); i += 2 }
+                else -> { out.append(escaped); i += 2 }
+            }
+        }
+        return out.toString()
+    }
+
 }
