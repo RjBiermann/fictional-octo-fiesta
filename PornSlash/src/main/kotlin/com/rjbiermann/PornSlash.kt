@@ -1,13 +1,15 @@
 // PornSlash (pornslash.com) — a KVS-engine tube serving full-length movies and a shorts
-// feed. S1 (#1643) landed the scaffold + parse seam (PornSlashParse.kt); S2 (#1644) lands the
-// home rows and search below. Detail/streams land in S3 (#1645), shorts in S4 (#1646),
-// browse filters in S5 (#1647) — so search() carries no filter/sort argument yet and a
-// result URL is the plain `/watch/<id>` route S3 will read.
+// feed. S1 (#1643) landed the scaffold + parse seam (PornSlashParse.kt); S2 (#1644) the
+// home rows and search; S3 (#1645) the detail page and both streams below — one `/watch/<id>`
+// route covers long-form and shorts items. Shorts browse lands in S4 (#1646), filters in S5
+// (#1647), so search() carries no filter/sort argument and a result URL is the plain
+// `/watch/<id>` route.
 package com.rjbiermann
 
 import com.kraptor.registerHostExtractors
 import com.lagradost.api.Log
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 
@@ -74,6 +76,52 @@ class PornSlash : MainAPI() {
             cards.map { it.toSearchResponse() },
             hasNext = PornSlashParse.hasNext(cards.size, PornSlashParse.PAGE_SIZE_SEARCH),
         )
+    }
+
+    override suspend fun load(url: String): LoadResponse? {
+        val response = app.get(url, referer = "$mainUrl/")
+        val detail = PornSlashParse.detail(response.document, response.text) ?: return null
+        return newMovieLoadResponse(detail.title, url, TvType.NSFW, url) {
+            this.posterUrl = detail.poster
+            this.plot = detail.description
+            this.tags = detail.tags
+            this.duration = detail.duration
+            this.recommendations = detail.recommendations.map { it.toSearchResponse() }
+        }
+    }
+
+    override suspend fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val response = app.get(data, referer = "$mainUrl/")
+        val detail = PornSlashParse.detail(response.document, response.text) ?: return false
+        var sources = 0
+        // Stream 1 — primary: the mp4 the thumbnail's `/t/<encid>.jpeg` path mirrors. The
+        // per-video *.pages.dev CDN currently serves `access-control-allow-origin: *` and plays
+        // with no Referer, so the referer is cheap insurance rather than a requirement.
+        detail.mp4?.let { url ->
+            sources++
+            callback(
+                newExtractorLink(name, name, url, type = ExtractorLinkType.VIDEO) {
+                    this.quality = getQualityFromName(detail.quality)
+                    this.referer = mainUrl
+                }
+            )
+        }
+        // Stream 2 — fallback: the ladder on the page's rotating tunnel. `.m3u8` sent as VIDEO
+        // never plays (#1526), so it ships as M3U8.
+        detail.hls?.let { url ->
+            sources++
+            callback(
+                newExtractorLink(name, "$name HLS", url, type = ExtractorLinkType.M3U8) {
+                    this.referer = mainUrl
+                }
+            )
+        }
+        return sources > 0
     }
 }
 
