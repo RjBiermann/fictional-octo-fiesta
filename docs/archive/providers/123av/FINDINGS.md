@@ -2,7 +2,8 @@
 
 Evidence-only run (S1 of #1423, gate story #1653); S2 (#1654) added the scaffold, the
 `Av123Parse` card seam and the two home rows documented in
-[§Listing card + home rows](#listing-card--home-rows-s2).
+[§Listing card + home rows](#listing-card--home-rows-s2); S3 (#1655) added search and the
+eleven ura maker rows, documented in [§Search + maker rows (S3)](#search--maker-rows-s3).
 All probes were plain `curl` — no browser automation, no captcha solving, no challenge evasion.
 
 **Verdict: gate is GREEN.** Both required studios (`1pondo`, `heyzo`) resolve to a plain-HTTP
@@ -413,6 +414,108 @@ Fixtures: `makers-index.html`, `maker-1pondo-page-1.html`, `maker-1pondo-page-2.
 
 ---
 
+## Search + maker rows (S3)
+
+The two surfaces S3 shipped: `search()` over the site's only search endpoint, and one
+`mainPage` row per ura studio. Both reuse the S2 card grammar — `parseSearch()` and
+`parseCards()` are asserted to produce equal `Av123Card`s over the same page, so a selector
+fix on one cannot drift the other.
+
+### Search
+
+- Endpoint: `GET /en/search?keyword=<urlencoded>` (+ `&page=N`), i.e. the site's own GET form
+  (`<form class="search__field" method="GET" action="/en/search">`,
+  `<input type="text" name="keyword">`). No `getFilter` sort/duration/year UI — the issue's
+  own scope decision.
+- Page 1 is the bare query (`/en/search?keyword=1pondo`); page ≥ 2 is `&page=N` — the form the
+  pager links carry in the fixture.
+- Pager: `div.pager a[rel=next]` present on both pages (page 2's next target is page 3);
+  `rel=last` reports `/ 83` pages for this query. `hasNext` therefore reads the pager, not the
+  card count.
+
+Fixture re-measure (committed captures, `keyword=1pondo`):
+
+| page | fixture | cards | first card | last card |
+| --- | --- | --- | --- | --- |
+| 1 | `search-page-1.html` | 12 | `1pondo-122618_001` | `1pondo-091713_663` |
+| 2 | `search-page-2.html` | 12 | `1pondo-042819_840` | `1pondo-012518_637` |
+
+**p1 ∩ p2 = 0 of 12** — the pipeline duplicate bar. Every returned card is a genuine ura
+title (`1pondo-*`), not a leak or decensored slug. `search()` still applies the same
+cross-page slug dedupe as the rows, because offset paging over a growing list can shift a
+boundary card (S1 measured 1/12 on `/en/new`).
+
+### Quick search — decided **absent**
+
+`hasQuickSearch = false`, and no `quickSearch()` override. Evidence, pinned by a fixture test:
+
+- the served search page contains **no** `suggest`/autocomplete reference at all (case-insensitive
+  `grep -i suggest` → 0 matches on `search-page-1.html`);
+- the keyword input carries no debounce/input handler (`<input type="text" name="keyword" …>`
+  with only `x-ref` and `autocomplete="off"` — no `@input`, no `x-on:input`);
+- S1's client-bundle grep (recorded in [§Quick search](#quick-search)) found no
+  `/suggest`/`autocomplete` route either.
+
+The absence is proven by the served page + bundle, not by a 404: this run's own probe of the
+candidate paths was walled (see below), so no `404` transcript can be quoted. A hand-rolled
+title-prefix filter over search results is explicitly not a quick search (issue scope), so
+nothing is stubbed.
+
+### The eleven ura maker rows
+
+One `HomePage` row each, backed by `/en/makers/<slug>` and paged by the site's own `?page=N`
+(`pager a[rel=next]`). Order is the issue's. Labels are the site's own strings: `mcard__name`
+from the makers index for the ten studios on index page 1, and the header-nav link text
+(`XXX-AV`) for `xxx-av`, which sits beyond that 60-card page — no label is invented.
+
+| # | slug | label | listing | index name proof | page 1 (S1 probe) | last page |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | `1pondo` | 1Pondo | `/en/makers/1pondo` | `mcard__name` | 200, 68,060 B | 229 |
+| 2 | `caribbeancom` | Caribbeancom | `/en/makers/caribbeancom` | `mcard__name` | 200, 68,583 B | 321 |
+| 3 | `heyzo` | HEYZO | `/en/makers/heyzo` | `mcard__name` | 200, 68,306 B | 278 |
+| 4 | `takara-video` | Takara Video | `/en/makers/takara-video` | `mcard__name` | 200, 68,203 B | 259 |
+| 5 | `10musume` | 10musume | `/en/makers/10musume` | `mcard__name` | 200, 68,067 B | 217 |
+| 6 | `tokyo-hot` | Tokyo Hot | `/en/makers/tokyo-hot` | `mcard__name` | 200, 68,128 B | 195 |
+| 7 | `pacopacomama` | Pacopacomama | `/en/makers/pacopacomama` | `mcard__name` | 200, 68,788 B | 169 |
+| 8 | `h4610` | H4610 | `/en/makers/h4610` | `mcard__name` | 200, 67,410 B | 162 |
+| 9 | `c0930` | C0930 | `/en/makers/c0930` | `mcard__name` | 200, 67,473 B | 142 |
+| 10 | `h0930` | H0930 | `/en/makers/h0930` | `mcard__name` | 200, 67,460 B | 140 |
+| 11 | `xxx-av` | XXX-AV | `/en/makers/xxx-av` | header nav (`a[href=/en/makers/xxx-av]`) | 200, 68,286 B | 31 |
+
+No row was dropped: every one of the eleven slugs answered 200 at capture time (page-1 bytes
+and last-page numbers above), so the `/en/makers/<slug>` 404/empty rule had nothing to fire on.
+
+Page-1/page-2 proof:
+
+| row | page 1 | page 2 | p1 ∩ p2 |
+| --- | --- | --- | --- |
+| `1pondo` | `maker-1pondo-page-1.html`, 12 cards (`1pondo-112626_001` … `1pondo-110326_001`) | `maker-1pondo-page-2.html`, 12 cards (`1pondo-103126_001` … `1pondo-100626_001`) | **0/12** |
+| other ten | 200 at S1 capture (table above) | **not captured this run** — runner WAF-denied, see below | unknown |
+
+The ten missing page-2 captures are recorded as a wall, not assumed: the row *URL form* is the
+pager's own (`?page=N`, verified in the fixture's `a[rel=next]` href), and the 1pondo pair is
+the p2 proof for the shared maker template. S5's pipeline Verification re-runs the live check
+when the runner is allowed again.
+
+### Wall — this run's re-probe of `123av.com` is WAF-denied
+
+12 probes (4 surfaces × 3 rounds: `/en`, `/en/makers`, `/en/makers/heyzo`,
+`/en/search?keyword=heyzo`), plain `curl` with a browser UA, all `403`:
+
+```
+403  5,657 B  text/html; charset=UTF-8  server: cloudflare  cf-ray a60d71e8bae88e12-PDX
+<title>Attention Required! | Cloudflare</title>
+<h1 …>Sorry, you have been blocked</h1>
+```
+
+(identical body size on every probe; egress colo `PDX` this run, `MSP` during S1) — the same
+firewall-deny class the plan round 1 reported, not the `Just a moment…` JS interstitial. It is
+intermittent, not durable (S1 and S2 got 200 on the same surfaces), so it stays a **watch**
+item: no cookie, no `CloudflareKiller`, no challenge handling was added (ADR-0008). Consequence
+for this story is limited to the ten page-2 captures noted above.
+
+---
+
 ## Video pages
 
 Three probed pages, all 200, all fully server-rendered (metadata, description, related list):
@@ -540,12 +643,15 @@ known last page in its pager, e.g. `makers/1pondo?page=229`).
 
 ## Risks / blockers
 
-### Cloudflare on `123av.com` — the plan-run WAF deny is **not reproducing**
+### Cloudflare on `123av.com` — intermittent WAF deny (watch item, not a blocker)
 
 - Plan round 1 (automated probe, 2026-11-26 ~18:38Z) recorded `403`,
   `text/html`, 5,657–6,024 B, body = `Attention Required! | Cloudflare`
   (`cf-error-details`, Ray ID field) on three URLs — i.e. a firewall/ASN deny, not a JS
   interstitial.
+- S3's run reproduces it (12/12 probes, `cf-ray a60d71e8bae88e12-PDX`, same 5,657 B body) —
+  see [§Wall](#wall--this-runs-re-probe-of-123avcom-is-waf-denied). Still intermittent: S1 and
+  S2 got 200 on the identical surfaces from the same runner image.
 - **This run (2026-11-26 22:52–22:56Z) got 200 on all 12 site-page probes** (three rounds of
   `/en`, `/en/makers`, `/en/search?keyword=heyzo`), content-length matching normal pages:
 
@@ -630,3 +736,16 @@ URL with a referer, so no `HostRegistry` adapter and no embed-host extractor.
 fixtures, alongside the shared suite) and `./gradlew 123av:make` BUILD SUCCESSFUL
 (`123av/build/123av.cs3`). Provider ships `New Releases` + `Hot` rows with pager-driven
 `hasNext`; maker rows/search (S3), video pages (S4) and streams (S5) are not stubbed.
+
+## S3 exit
+
+`./gradlew 123av:test` green — 21 `Av123ParseTest` cases (the nine S2 cases plus twelve for
+search, the makers index and the eleven rows), search p1/p2 and maker p1/p2 both **0/12**
+overlap, every one of the eleven rows wired to `/en/makers/<slug>` with `?page=N` from the
+site's own pager, each label traced to a fixture attribute, and the quick-search decision
+pinned by the served page. `./gradlew 123av:make` BUILD SUCCESSFUL
+(`123av/build/123av.cs3`).
+
+`version` **1 → 2**: search and the eleven ura rows are a change a user can receive
+(S2's `version = 1` is already published), per AGENTS.md's bump-on-provider-change rule.
+Not stubbed: `load()`/`loadLinks()` (S4) and the S5 Verification closeout.
