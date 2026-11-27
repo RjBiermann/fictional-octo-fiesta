@@ -6,6 +6,7 @@ import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -23,8 +24,9 @@ import java.util.concurrent.ConcurrentHashMap
  * the MainAPI adapter — the same seam `shared/SearchCard` uses.
  *
  * No `app.get` lives here: HTTP stays in the MainAPI adapter and is covered by pipeline
- * Verification, never by unit tests (ADR-0005). Fixtures are live captures (2026-11-26,
- * mobile Chrome UA) under `src/test/resources/`.
+ * Verification, never by unit tests (ADR-0005). Fixtures are live captures (home/listing rows
+ * 2026-11-26; search + browse grids 2026-11-27), mobile Chrome UA, under
+ * `src/test/resources/`.
  */
 object YesPornVipParse {
 
@@ -49,6 +51,19 @@ object YesPornVipParse {
      *  `data-src`; `data-webp` is an alternate-format variant, so it only fills in when no
      *  canonical image survived. */
     private val POSTER_ATTRS = listOf("data-original", "data-src", "src", "data-webp")
+
+    /** A taxonomy detail page — `/channels|models|categories/<slug>/[<page>/]` — which is a
+     *  video grid, not a video. [page] is 1 when the URL carries no page segment. */
+    data class Taxonomy(val section: String, val slug: String, val page: Int)
+
+    /** Cards per listing page on every surface here (search, browse grids, home rows). The
+     *  fixtures pin it: 20 cards on both captured search pages and both browse-grid pages. */
+    const val PAGE_SIZE = 20
+
+    /** `…/<section>/<slug>/` with an optional numeric page segment; anchored so a video URL
+     *  (`/video/<id>/…`) or a bare index (`/channels/`) never parses as a taxonomy page. */
+    private val TAXONOMY_PATH =
+        Regex("""(?:^|://[^/]+)/(channels|models|categories)/([^/?#]+)(?:/(\d+))?/?(?:[?#].*)?${'$'}""")
 
     /** Video id of [href], or null when the href is not a `/video/<id>/…` link. */
     fun videoId(href: String): String? = VIDEO_PATH.find(href)?.groupValues?.get(1)
@@ -115,6 +130,77 @@ object YesPornVipParse {
     fun fresh(cards: List<Card>, seen: MutableSet<String>): List<Card> =
         cards.filter { seen.add(it.videoId ?: it.href) }
 
+    /**
+     * Pure Parse function: the search URL of [query] on [page].
+     *
+     * Search paging is a **query parameter** — path paging (`/search/<q>/2/`) answers 404
+     * (verified 2026-11-27). Page 1 carries no parameter; later pages add the KVS offset
+     * `?from_videos=<n>`, which starts one past the last card of the previous page (page 2 →
+     * `21`, page 3 → `41` with [PAGE_SIZE] cards per page — both verified disjoint live).
+     */
+    fun searchUrl(query: String, page: Int): String {
+        // The query is a path segment, so spaces must be escaped (`/search/big%20tits/` —
+        // verified 200); `URLEncoder` form-encodes spaces as `+`, which is wrong in a path.
+        val slug = URLEncoder.encode(query.trim(), "UTF-8").replace("+", "%20")
+        return if (page <= 1) {
+            "$BASE/search/$slug/"
+        } else {
+            "$BASE/search/$slug/?from_videos=${(page - 1) * PAGE_SIZE + 1}"
+        }
+    }
+
+    /**
+     * Pure Parse function: the URL of browse-grid [page] — **path** paging, unlike search.
+     * `<section>/<slug>/` for page 1, `<section>/<slug>/<page>/` afterwards; both verified
+     * 200 on every section (channels/models/categories), `/2/` serving a different grid.
+     */
+    fun browseUrl(section: String, slug: String, page: Int): String {
+        val path = "$BASE/${section.trim('/')}/${slug.trim('/')}/"
+        return if (page <= 1) path else "$path$page/"
+    }
+
+    /** [url] as a [Taxonomy] page, or null when it is a video / index / off-site URL. */
+    fun taxonomy(url: String): Taxonomy? =
+        TAXONOMY_PATH.find(url.trim())?.let { match ->
+            Taxonomy(
+                section = match.groupValues[1],
+                slug = match.groupValues[2],
+                page = match.groupValues[3].toIntOrNull() ?: 1,
+            )
+        }
+
+    /**
+     * Pure Parse function: the bounded-paging predicate.
+     *
+     * A page continues the listing only while it brings at least one card not served before,
+     * so an empty page (past the last page the site answers 404 with an empty body) or a page
+     * that repeats an earlier result set ends the listing instead of looping forever.
+     */
+    fun hasNext(document: Document, previousIds: Set<String>): Boolean =
+        hasNext(cards(document), previousIds)
+
+    /** [hasNext] over an already-parsed page, so a caller does not re-parse the document. */
+    fun hasNext(cards: List<Card>, previousIds: Set<String>): Boolean =
+        cards.any { (it.videoId ?: it.href) !in previousIds }
+
+    /**
+     * Pure Parse function: the next browse-grid page, straight from the site's own pager.
+     *
+     * Browse grids carry real page links (`a.next` → `<path>/<n+1>/`), so the next page is a
+     * structural fact rather than a guess: the last page renders no `a.next` and no dead
+     * "Next page" card is offered. Search cannot use this — its pager is AJAX-only
+     * (`href="#search"` + `data-parameters`), which is why search bounds by ids instead.
+     */
+    fun browseNextPage(document: Document): String? =
+        document.selectFirst("div.pagination a.next[href]")
+            ?.attr("href")?.trim()
+            ?.takeIf { it.isNotEmpty() && it != "#" }
+            ?.let { absolute(it) }
+
+    /** Grid title: the page's own heading (`New Videos from Brazzers`), null when absent. */
+    fun browseTitle(document: Document): String? =
+        document.selectFirst("h1")?.text()?.trim()?.takeIf { it.isNotEmpty() }
+
     /** A video thumb → its [Card]; null for taxonomy/ad thumbs and broken cards. */
     private fun videoCard(card: Element): Card? {
         val anchor = card.select("a[href]").firstOrNull { videoId(it.attr("href")) != null }
@@ -171,6 +257,14 @@ class YesPornVip : MainAPI() {
      */
     private val seen = ConcurrentHashMap<String, MutableSet<String>>()
 
+    /**
+     * Cross-page search seen-set, per query — the same guard as [seen], for the same reason:
+     * results are ranked, so a card on a page boundary can be served twice. Page 1 re-seeds
+     * the set. Its other job is loop-proofing: a page that repeats an earlier result set ends
+     * the search ([YesPornVipParse.hasNext]) instead of feeding the app a duplicate forever.
+     */
+    private val searchSeen = ConcurrentHashMap<String, MutableSet<String>>()
+
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         // Path pagination on every surface here: `/latest-updates/2/`, `/categories/2/`.
         val url = if (page <= 1) request.data else "${request.data.trimEnd('/')}/$page/"
@@ -193,6 +287,54 @@ class YesPornVip : MainAPI() {
             ),
             // An empty page — or a page that only repeated already-seen cards — ends the row.
             hasNext = fresh.isNotEmpty(),
+        )
+    }
+
+    /**
+     * The app's only card-click path is `load(url)`, so a taxonomy detail page
+     * (`/channels|models|categories/<slug>/`) opens as a load screen whose `recommendations`
+     * row is that page's video grid — parsed by the same [YesPornVipParse.cards] the rows
+     * use — plus a "Next page" card whenever the site's pager links one, which walks the
+     * grid `<path>/<n>/` page by page inside the app.
+     *
+     * Video detail pages are S3 (#1652): until that story lands, a `/video/<id>/` URL returns
+     * null here (the card is dropped, nothing throws).
+     */
+    override suspend fun load(url: String): LoadResponse? {
+        val taxonomy = YesPornVipParse.taxonomy(url) ?: return null
+        val pageUrl = YesPornVipParse.browseUrl(taxonomy.section, taxonomy.slug, taxonomy.page)
+        val document = app.get(pageUrl).document
+        val cards = YesPornVipParse.cards(document)
+        // An empty grid is not worth a screen: the card is dropped rather than opened empty.
+        if (cards.isEmpty()) return null
+        val nextPage = YesPornVipParse.browseNextPage(document)
+        return newMovieLoadResponse(
+            YesPornVipParse.browseTitle(document) ?: taxonomy.slug.replace('-', ' '),
+            pageUrl,
+            TvType.NSFW,
+            pageUrl,
+        ) {
+            this.plot = "${cards.size} videos — ${taxonomy.section} / ${taxonomy.slug}, page ${taxonomy.page}"
+            this.tags = listOf(taxonomy.section, taxonomy.slug)
+            this.recommendations = cards.map { it.toSearchResult() } + listOfNotNull(
+                nextPage?.let { href ->
+                    newMovieSearchResponse("Next page", href, TvType.NSFW) {}
+                },
+            )
+        }
+    }
+
+    override suspend fun search(query: String, page: Int): SearchResponseList {
+        val document = app.get(YesPornVipParse.searchUrl(query, page)).document
+        val cards = YesPornVipParse.cards(document)
+        val seenKeys = searchSeen.getOrPut(query) { HashSet() }
+        if (page <= 1) seenKeys.clear()
+        // Read the served set *before* this page is folded into it: a page that only repeats
+        // earlier ids ends the search (an empty page — the site's 404 past the end — too).
+        val hasNext = YesPornVipParse.hasNext(cards, seenKeys)
+        return newSearchResponseList(
+            YesPornVipParse.fresh(cards, seenKeys).map { it.toSearchResult() },
+            hasNext,
         )
     }
 
