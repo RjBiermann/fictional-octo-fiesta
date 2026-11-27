@@ -1,16 +1,21 @@
 // 123AV (123av.com) — a Laravel + Alpine JAV tube.
 //
-// S1 (#1653) was evidence only: both gate studios (1pondo, heyzo) resolve to plain HLS behind
-// an embed-host referer, so the site is buildable. S2 (#1654) landed the scaffold, the
-// listing-card Parse seam (Av123Parse.kt) and the two non-maker home rows. This story (S3,
-// #1655) adds search and the eleven ura maker rows — the reason #1423 exists. S4 owns the
-// video page, S5 the streams; `load()` is therefore still the base implementation.
+// S1 (#1653) reversed the episode API: the player `x-data` carries an inline episode array
+// whose `url` is an embed page, and `<embed-origin>/stream?id=<hash>` returns the HLS URL.
+// S2 (#1654) landed the scaffold and card seam; S3 (#1655) search + the eleven ura maker rows.
+// This story (S4, #1656) adds `load()` metadata and `loadLinks()` streams; S5 verifies live.
 package com.rjbiermann
 
 import com.kraptor.registerHostExtractors
+import com.lagradost.api.Log
 import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.LoadResponse.Companion.addActors
 import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.plugins.CloudstreamPlugin
+import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
+import com.lagradost.cloudstream3.utils.loadExtractor
+import com.lagradost.cloudstream3.utils.newExtractorLink
 
 class Av123 : MainAPI() {
     override var mainUrl = Av123Parse.MAIN
@@ -79,10 +84,111 @@ class Av123 : MainAPI() {
     }
 
     /**
+     * The video page's exposed metadata. Null on a page with no `h1.watch__title` (the site's
+     * Laravel 404 / wall page), so a dead card drops instead of showing an empty entry.
+     *
+     * Fields the page does not expose stay absent: it has no Japanese title (only the English
+     * `h1`), and `LoadResponse` in this framework has no maker/studio field, so the parsed
+     * `maker` is not forced into tags or actors. FINDINGS records both facts.
+     */
+    override suspend fun load(url: String): LoadResponse? {
+        val video = Av123Parse.parseVideo(app.get(url).text) ?: return null
+        return newMovieLoadResponse(video.title, url, TvType.NSFW, url) {
+            posterUrl = video.poster
+            plot = video.plot
+            tags = video.tags
+            duration = video.durationMinutes
+            year = video.year
+            recommendations = video.recommendations.map { it.toSearchResponse() }
+            addActors(video.actors)
+        }
+    }
+
+    /**
+     * Resolve every episode fresh on each call. The S1 shape carries the embed page in the
+     * episode `url`; the stream is behind `<embed-origin>/stream?id=<hash>`, and the media host
+     * rotates per request, so nothing is cached across calls.
+     *
+     * Dispatch order: `loadExtractor` first (the shared HostRegistry adapters live there), then
+     * the provider-local `/stream` resolver. The embed host is not a registered host as of S1,
+     * so a shared adapter would be a new `shared/` row — deliberately not added here (ADR-0002).
+     */
+    override suspend fun loadLinks(
+        data: String,
+        isCasting: Boolean,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit,
+    ): Boolean {
+        val video = runCatching { Av123Parse.parseVideo(app.get(data).text) }.getOrNull()
+            ?: return false
+        var emitted = 0
+        for (episode in video.episodes) {
+            if (addEpisode(episode.url, subtitleCallback, callback)) emitted++
+        }
+        return emitted > 0
+    }
+
+    /** Shared dispatch ladder → provider-local embed resolution; true only on a real emission. */
+    private suspend fun addEpisode(
+        episodeUrl: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit,
+    ): Boolean {
+        var dispatched = 0
+        val matched = runCatching {
+            loadExtractor(episodeUrl, "$mainUrl/", subtitleCallback) { link ->
+                dispatched++
+                callback(link)
+            }
+        }.getOrDefault(false)
+        if (matched && dispatched > 0) return true
+        return runCatching { resolveEmbed(episodeUrl, callback) }
+            .onFailure { Log.w(name, "123AV stream failed: $episodeUrl (${it.message})") }
+            .getOrDefault(false)
+    }
+
+    /**
+     * The S1 provider-local extractor: derive the embed origin from the episode URL (never a
+     * hardcoded host — it changes), call `/stream?id=<hash>`, then classify the media URL by the
+     * response Content-Type. `Referer`/`Origin` are the embed origin, the only pair S1 proved
+     * the media CDN accepts; a `123av.com` referer is actively rejected.
+     */
+    private suspend fun resolveEmbed(
+        episodeUrl: String,
+        callback: (ExtractorLink) -> Unit,
+    ): Boolean {
+        val origin = Av123Parse.embedOrigin(episodeUrl) ?: return false
+        val id = Av123Parse.embedId(episodeUrl) ?: return false
+        val stream = Av123Parse.parseStream(app.get("$origin/stream?id=$id").text) ?: return false
+        val headers = mapOf("Referer" to "$origin/", "Origin" to origin)
+
+        val head = runCatching {
+            app.head(stream.url, headers = headers, referer = "$origin/")
+        }.getOrNull()
+        var type = Av123Parse.streamType(head?.headers?.get("content-type"))
+        var master: String? = null
+        if (type == ExtractorLinkType.M3U8 || type == null) {
+            val probe = runCatching {
+                app.get(stream.url, headers = headers, referer = "$origin/")
+            }.getOrNull()
+            master = probe?.text
+            type = Av123Parse.streamType(probe?.headers?.get("content-type")) ?: type
+        }
+        type ?: return false
+
+        callback(
+            newExtractorLink(name, name, stream.url, type) {
+                this.referer = "$origin/"
+                this.headers = headers
+                this.quality = Av123Parse.quality(master)
+            },
+        )
+        return true
+    }
+
+    /**
      * Poster headers stay absent: S1 proved the `icdn.123av.me` covers answer 200 with no
-     * referer and no UA gate (re-probed this run: 200 `image/jpg`, 37,159 B, bare `curl`). The
-     * duration parsed onto the card is not shown here — `SearchResponse` has no such field and
-     * it belongs to S4's `load()`.
+     * referer and no UA gate (re-probed this run: 200 `image/jpg`, 37,159 B, bare `curl`).
      */
     private fun Av123Card.toSearchResponse(): SearchResponse =
         newMovieSearchResponse(title, url, TvType.NSFW) {
