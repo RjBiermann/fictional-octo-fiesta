@@ -1,6 +1,8 @@
 # FINDINGS — 123AV (123av.com)
 
-Evidence-only run (S1 of #1423, gate story #1653). No provider code ships with this file.
+Evidence-only run (S1 of #1423, gate story #1653); S2 (#1654) added the scaffold, the
+`Av123Parse` card seam and the two home rows documented in
+[§Listing card + home rows](#listing-card--home-rows-s2).
 All probes were plain `curl` — no browser automation, no captcha solving, no challenge evasion.
 
 **Verdict: gate is GREEN.** Both required studios (`1pondo`, `heyzo`) resolve to a plain-HTTP
@@ -39,6 +41,15 @@ Evidence (`https://123av.com/en`, 200, `text/html; charset=utf-8`, 103,937 B):
   from the `script type="module"` tag in the served page, never hardcode).
 - `server: cloudflare` on every response; `/cdn-cgi/challenge-platform/scripts/jsd/main.js` is
   present on all pages (normal CF bot-management injection, not an interstitial).
+- **Alpine templates are in the payload (S2).** The homepage carries a `<template x-for>`
+  prototype for the lazy rec rows: a full `div.card` whose `href`/`src`/duration are bindings
+  (`:href="item.url"`, `:src="item.cover"`, `x-text="item.duration"`) and therefore empty in
+  the served HTML. Card parsing must require a real `href` or it emits a null card
+  (25 `div.card` in `home-page-1.html`, 24 real).
+- **Framework surface (S2, `cloudstream3:pre-release` classes.jar):** `HomePageResponse` carries
+  only `items` + `hasNext` — there is no `showMoreUrl` field in this API version, so the spec's
+  "showMoreUrl when the site paginates" is expressed as `hasNext` and the row's own request
+  data (`/en/new`, `/en/hot`).
 
 ---
 
@@ -283,7 +294,82 @@ matches) and the input has no `@input`/debounce handler. `hasQuickSearch = false
     is withdrawn — only the shape and the 1-card boundary repeat are evidenced here);
   - re-capture `/en/new?page=1` when S2 starts if it needs page 1's exact ordering.
 
-Fixtures: `home-page-1.html` (`/en`), `home-page-2.html` (`/en/new?page=2`).
+Fixtures: `home-page-1.html` (`/en`), `home-page-2.html` (`/en/new?page=2`),
+`new-page-1.html` (`/en/new?page=1`), `hot-page-1.html` (`/en/hot?page=1`),
+`hot-page-2.html` (`/en/hot?page=2`).
+
+## Listing card + home rows (S2)
+
+One card grammar on every surface — home rows, `/en/new`, `/en/hot`, maker pages, search:
+
+```html
+<div class="card" x-data="save({ type: 'title', id: 1170473, saved: false })">
+  <div class="card__poster" x-data="preview" data-preview="https://icdn.123av.me/preview/9b/adn-808/preview.png?6b08ce1a">
+    <a class="card__cover" href="/en/v/adn-808">
+      <img class="card__img" src="https://icdn.123av.me/img2/s360/9b/adn-808/cover.jpg?6b08ce1a" alt="" loading="lazy">
+      <span class="card__dur">2:20:31</span>
+    </a>
+    …save button…
+  </div>
+  <div class="card__body">
+    <h3 class="card__title"><a class="card__link" href="/en/v/adn-808">ADN-808 — A beautiful girl …</a></h3>
+    <div class="card__meta">…views / relative age…</div>
+  </div>
+</div>
+```
+
+| Field | Selector chain (probed, in order) | Fixture proof |
+| --- | --- | --- |
+| id | `a.card__cover[href]` → `a.card__link[href]`, slug from `/en/v/<slug>` | `new-page-1` → `adn-808` |
+| title | `h3.card__title` text → `a.card__link` text. Kept verbatim (code prefix + `—` description are the site's own string) | `ADN-808 — A beautiful girl …` |
+| `videoUrl` | absolute: `https://123av.com` + the card's own root-relative `href` | `https://123av.com/en/v/adn-808` |
+| poster | `img.card__img[src]` → `.card__poster img[src]`; `data:` URIs skipped, never fabricated. Absolute already | `https://icdn.123av.me/img2/s360/9b/adn-808/cover.jpg?…` |
+| duration | `span.card__dur` `H:MM:SS` clock → seconds; null when the badge is absent | `2:20:31` → `8431` |
+
+**Poster headers: none needed.** Re-probed this run on a live cover with plain `curl`
+(`https://icdn.123av.me/img2/s360/9b/adn-808/cover.jpg?6b08ce1a`):
+
+| Sent | Result |
+| --- | --- |
+| no headers at all | **200** `image/jpg`, 37,159 B |
+| browser UA | **200** `image/jpg`, 37,159 B |
+| browser UA + `Referer: https://123av.com/en/new` | **200** `image/jpg`, 37,159 B |
+
+So `posterHeaders` stays **absent** in the provider — the image CDN has no hotlink rule (unlike
+the media CDN, which does; see [Stream sources](#stream-sources-per-video-page)).
+
+### Rows built here (non-maker)
+
+| # | Row | Listing | Why this URL |
+| --- | --- | --- | --- |
+| 1 | `New Releases` | `/en/new?page=N` | the home row's own "See all" target (`a.section__all`) |
+| 2 | `Hot` | `/en/hot?page=N` | the site's most-viewed ordering (nav label `Hot`, footer label `Trending`) |
+
+The homepage `/en` itself **does not paginate** (`home-page-1.html` has no `div.pager`), so its
+rows are not addressable as home rows; `.section__all` points at the paginated listings above.
+Maker rows and search are S3's, and are deliberately neither built nor stubbed in S2.
+
+### Pagination (S2 re-capture, 2026-11-27)
+
+The site's own pager is the signal: `div.pager a[rel=next]` present ⇒ another page exists;
+the last page and the homepage carry no such anchor (`span.pager__nav.is-disabled` / no pager).
+Page size is 12 (`div.card`), total pages rendered as `rel=last` (`?page=5000` for both rows).
+
+| Row | page 1 | page 2 | p1 ∩ p2 | pager |
+| --- | --- | --- | --- | --- |
+| New Releases | `new-page-1.html` 12 cards | `home-page-2.html` 12 cards | **0/12** | `rel=next` on both |
+| Hot | `hot-page-1.html` 12 cards | `hot-page-2.html` 12 cards | **0/12** | `rel=next` on both |
+| homepage `/en` | `home-page-1.html` 24 cards (2 rows) | n/a | — | none |
+
+- The 24 cards on the homepage are `New Releases` (12) + `Recently Added` (12); `same-713` and
+  `mimk-302` appear in both rows, so the homepage page is **not** card-distinct — dedupe by slug
+  is required when two surfaces are merged, never within a listing page.
+- S1's 1/12 boundary repeat on `/en/new` (home row's last card `cawb-082` = `/en/new?page=2`'s
+  first card) still holds for the *homepage row* boundary; the fresh `/en/new?page=1` capture is
+  disjoint from page 2 because the listing had scrolled on in the meantime. Offset paging over a
+  growing list, so **dedupe by slug** remains the rule for page-to-page merges.
+- Page 1 is the bare surface (`pageUrl(surface, 1) == surface`); pages ≥ 2 are `?page=N`. The
+  provider's row URL comes from the pager's own form, never from a guessed path.
 
 ## Makers index (and the 11 ura rows)
 
@@ -502,6 +588,26 @@ known last page in its pager, e.g. `makers/1pondo?page=229`).
 - Region: all probes ran from the GitHub runner egress through Cloudflare colo `MSP`
   (Minneapolis). No geo-wall was observed; the catalog shown matches the maker counts in #1423.
 
+### S2 (scaffold + home rows) risks
+
+- **Offset paging drifts.** Both rows page by offset over a list that keeps growing, so a card
+  can sit on both sides of a page boundary (S1 measured 1/12 on `/en/new`) and page contents
+  shift between captures. Merge surfaces by slug, never by position.
+- **Homepage is not card-distinct.** `New Releases` and `Recently Added` repeat videos
+  (`same-713`, `mimk-302` on `home-page-1.html`); only single listing pages are distinct.
+  The provider builds its rows from `/en/new` and `/en/hot`, one fetch per row, so the home
+  page's own duplication never reaches a row.
+- **Alpine prototype card.** The homepage ships a `<template x-for>` `div.card` with binding
+  attributes only. A `div.card` count (25) is not the card count (24); parsing requires a real
+  `href`.
+- **Pager is the only stop rule.** A full 12-card page does not imply page N+1 (and a full last
+  page is legal), so `hasNext` reads `div.pager a[rel=next]` instead of the row size.
+- **`showMoreUrl` does not exist in the framework API** used here (`HomePageResponse` =
+  `items` + `hasNext`); pagination is conveyed by `hasNext` alone.
+- **Site WAF watch item** (unchanged): the plan-run `403 Attention Required!` did not reproduce
+  in S1, and S2's re-capture of `/en/new?page=1|2` and `/en/hot?page=1|2` returned 200 again
+  (four fresh 68–70 KB pages, 2026-11-27). Still a watch item, not a blocker.
+
 ---
 
 ## Gate decision (S1 exit)
@@ -517,3 +623,10 @@ known last page in its pager, e.g. `makers/1pondo?page=229`).
 **Exit criterion (Green) met.** S2–S5 are buildable; no wontfix recommendation. No provider
 code was written in this story, and no `shared/` change is needed — the stream is a direct HLS
 URL with a referer, so no `HostRegistry` adapter and no embed-host extractor.
+
+## S2 exit
+
+`./gradlew 123av:test` green (9 `Av123ParseTest` cases over the five committed listing
+fixtures, alongside the shared suite) and `./gradlew 123av:make` BUILD SUCCESSFUL
+(`123av/build/123av.cs3`). Provider ships `New Releases` + `Hot` rows with pager-driven
+`hasNext`; maker rows/search (S3), video pages (S4) and streams (S5) are not stubbed.
