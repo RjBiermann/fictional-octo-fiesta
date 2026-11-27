@@ -89,7 +89,7 @@ class HomeParseTest {
 
     @Test
     fun browseRowsListTaxonomyEntriesNotVideoOrAdThumbs() {
-        val categories = YesPornVipParse.browseCards(fixture("categories.html"), "/categories/")
+        val categories = YesPornVipParse.browseCards(fixture("categories-index.html"), "/categories/")
         assertTrue(categories.size > 0)
         assertTrue(categories.all { it.href.startsWith("https://yesporn.vip/categories/") })
         assertTrue(categories.none { it.href == "https://yesporn.vip/categories/" })
@@ -98,7 +98,7 @@ class HomeParseTest {
         assertEquals("Japanese", japanese.title)
         assertEquals("https://yesporn.vip/contents/categories/72/s1_Japanese.jpg", japanese.poster)
 
-        val channels = YesPornVipParse.browseCards(fixture("channels.html"), "/channels/")
+        val channels = YesPornVipParse.browseCards(fixture("channels-index.html"), "/channels/")
         assertTrue(channels.size > 0)
         assertTrue(channels.all { it.href.startsWith("https://yesporn.vip/channels/") })
         // Channels are the lazy-load index: the poster only exists in `data-original`.
@@ -106,7 +106,7 @@ class HomeParseTest {
         assertEquals("XXXJobInterviews", channel.title)
         assertEquals("https://yesporn.vip/contents/dvds/377/cf1_DCDSD.jpg", channel.poster)
 
-        val models = YesPornVipParse.browseCards(fixture("models.html"), "/models/")
+        val models = YesPornVipParse.browseCards(fixture("models-index.html"), "/models/")
         assertTrue(models.size > 0)
         assertTrue(models.all { it.href.startsWith("https://yesporn.vip/models/") })
         assertEquals("Jodie Johnson", models.first { it.href.endsWith("/models/jodie-johnson-pnbhnj/") }.title)
