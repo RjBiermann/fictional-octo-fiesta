@@ -158,8 +158,9 @@ class WatchPorn : MainAPI() {
             )
             this.tags = tags
             // issue #1541: the theme re-added a real synopsis at div.wp-desc > p (12 of 14 sampled
-            // pages). og:description/ld+json are not a fallback — without the container they carry
-            // the site boilerplate, so absent means null. See WatchPornParse.description.
+            // pages); the old-theme p.single__content-description stays as the fallback. og:description/
+            // ld+json are not a fallback — without either container they carry the site boilerplate,
+            // so absent means null. See WatchPornParse.description.
             this.plot = plot
             this.duration = duration
             this.year = year
@@ -333,15 +334,17 @@ object WatchPornParse {
 
     /**
      * Video page synopsis: new theme div.wp-desc paragraphs (the wp-dmore "more" button is
-     * chrome, not text). Null when absent/blank — og:description / ld+json.description fall back
+     * chrome, not text), old theme p.single__content-description as the pre-#649 fallback.
+     * Null when both are absent/blank — og:description / ld+json.description fall back
      * to the 151-char site boilerplate (or the title) on pages without a synopsis (issue #1541).
      */
-    fun description(document: org.jsoup.nodes.Document): String? =
-        document.select("div.wp-desc p")
+    fun description(document: org.jsoup.nodes.Document): String? {
+        val paragraphs = document.select("div.wp-desc p")
             .map { it.text().trim() }
             .filter { it.isNotEmpty() }
-            .joinToString(" ")
-            .takeIf { it.isNotEmpty() }
+        if (paragraphs.isNotEmpty()) return paragraphs.joinToString(" ")
+        return textOf(document, "p.single__content-description")
+    }
 
     /** Video page categories: new theme a.wp-vchip, old theme Categories: info row. */
     fun tags(document: org.jsoup.nodes.Document): List<String> =

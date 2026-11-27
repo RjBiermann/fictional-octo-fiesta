@@ -1,5 +1,5 @@
 // ! Bu araç @Kraptor123 tarafından | @Cs-GizliKeyif için yazılmıştır.
-version = 34 // #1541: plot from div.wp-desc > p
+version = 35 // #1541: plot from div.wp-desc > p, legacy p.single__content-description fallback
 
 cloudstream {
     authors     = listOf("kraptor")

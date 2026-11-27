@@ -2,6 +2,8 @@ package com.kraptor
 
 import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -29,7 +31,16 @@ class WatchPornPlotParseTest {
     @Test fun `plot never picks up the more button`() {
         val plot = WatchPornParse.description(fixture("video-170727.html"))!!
         assertTrue(plot.endsWith("Let's skip the small talk"))
-        assertTrue(!plot.contains("more"))
+        assertFalse(plot.contains("more"))
+    }
+
+    @Test fun `legacy theme synopsis is kept as a fallback`() {
+        // old-theme fixture: no div.wp-desc, a real 3,999-char p.single__content-description
+        val plot = WatchPornParse.description(fixture("video-28447.html"))
+        assertNotNull(plot)
+        assertTrue(plot!!.startsWith("I am so excited for my first Vegas trip with my step-mom!"))
+        assertTrue(plot.endsWith("in their mouths"))
+        assertEquals(3999, plot.length)
     }
 
     @Test fun `plot stays null on a page without a synopsis`() {
