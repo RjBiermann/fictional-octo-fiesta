@@ -23,6 +23,9 @@ class PornSlash : MainAPI() {
     override val supportedTypes = setOf(TvType.NSFW)
     override val hasMainPage = true
 
+    /** Session-scoped search-surface decisions — see [SearchSurface]. */
+    private val searchSurfaces = SearchSurface()
+
     // Evidence, not assumption (re-probed 2026-11-27): `/search/suggest?q=milf` answers with the
     // search page itself (`200 text/html`, not JSON) and `/suggest` + `/api/suggest` are 404 —
     // there is no suggestion endpoint to call.
@@ -99,9 +102,9 @@ class PornSlash : MainAPI() {
         // A query that names a model exactly browses that model's own filmography (S5 #1647):
         // `/suggest/` is the site's directory lookup, so the `/pornstar/<slug>` route needs no
         // five-page index scrape and no home-row slot (S2's home is at the ten-row cap). Every
-        // other query — including a model-name prefix — stays the ordinary keyword search.
-        val slug = PornSlashParse.suggestUrl(query)
-            ?.let { PornSlashParse.modelSlug(query, suggest(it)) }
+        // other query — including a model-name prefix — stays the ordinary keyword search. The
+        // decision is made once per query, not once per page (see [modelSlug]).
+        val slug = modelSlug(query)
         val url = if (slug != null) {
             PornSlashParse.pageUrl(PornSlashParse.pornstarUrl(slug), page)
         } else {
@@ -115,9 +118,19 @@ class PornSlash : MainAPI() {
     }
 
     /**
-     * A directory lookup that stops answering is "no model match", never a dead search. It runs
-     * once per page (one small JSON request) so paging stays stateless: page N resolves the same
-     * surface as page 1 without caching a slug against a query.
+     * The model `query` browses, or null for the keyword surface. Decided once per query and
+     * remembered (see [SearchSurface]): `search()` is handed nothing but the query and the page, so
+     * re-deciding on page 2 would let a `/suggest/` hiccup swap page 2 of a model filmography for
+     * page 2 of the keyword result set — skipped and unrelated cards.
+     */
+    private suspend fun modelSlug(query: String): String? =
+        searchSurfaces.surface(query) {
+            PornSlashParse.suggestUrl(query)
+                ?.let { PornSlashParse.modelSlug(query, suggest(it)) }
+        }
+
+    /**
+     * A directory lookup that stops answering is "no model match", never a dead search.
      */
     private suspend fun suggest(url: String): String? = try {
         app.get(url, referer = "$mainUrl/").text

@@ -63,6 +63,37 @@ data class SlashDetail(
  */
 data class SlashModel(val id: String, val name: String)
 
+/**
+ * The search surface a query browses, remembered across pages. CloudStream's `search(query, page)`
+ * carries nothing between pages, so a decision re-made per page can move a page sequence onto the
+ * other surface: when `/suggest/` stops answering on page 2, a model filmography would silently
+ * become page 2 of the keyword result set — skipped and unrelated cards. The first page's decision
+ * is therefore remembered, negative (`null` = keyword) answers included, which also costs one
+ * `/suggest/` request per query instead of one per page.
+ *
+ * [limit] bounds it — this is a session convenience, not a query history.
+ */
+internal class SearchSurface(private val limit: Int = 16) {
+    // `""` is the remembered "no model" answer: a nullable map cannot tell a cached null apart
+    // from a query that was never decided.
+    private val decided = object : LinkedHashMap<String, String>(16, 0.75f, false) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?): Boolean =
+            size > limit
+    }
+
+    /**
+     * The model slug [query] browses, or null for the ordinary keyword surface. [resolve] runs only
+     * while the query is undecided, so a page never re-decides a surface an earlier page chose.
+     */
+    suspend fun surface(query: String, resolve: suspend () -> String?): String? {
+        val remembered = synchronized(decided) { decided[query] }
+        if (remembered != null) return remembered.ifEmpty { null }
+        val slug = resolve() ?: ""
+        synchronized(decided) { decided[query] = slug }
+        return slug.ifEmpty { null }
+    }
+}
+
 object PornSlashParse {
 
     /** The listing card root — one grammar on every surface (home, search, /cat/, related). */

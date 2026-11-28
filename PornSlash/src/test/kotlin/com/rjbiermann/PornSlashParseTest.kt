@@ -22,6 +22,7 @@
 package com.rjbiermann
 
 import com.kraptor.DistinctBar
+import kotlinx.coroutines.runBlocking
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.junit.Assert.assertEquals
@@ -389,6 +390,43 @@ class PornSlashParseTest {
         assertEquals("https://www.pornslash.com/pornstar/riley-reid/", model)
         assertEquals(model, PornSlashParse.pageUrl(model, 1))
         assertEquals("$model?p=2", PornSlashParse.pageUrl(model, 2))
+    }
+
+    @Test
+    fun `a search page sequence keeps the surface its first page chose`() = runBlocking {
+        val surfaces = SearchSurface()
+        val directory = text("/suggest-riley.json")
+        // Page 1 resolves the model from the site's own directory reply.
+        assertEquals(
+            "riley-reid",
+            surfaces.surface("Riley Reid") { PornSlashParse.modelSlug("Riley Reid", directory) },
+        )
+        // Page 2's lookup stops answering. Re-deciding would put page 2 of the keyword result set
+        // behind page 1 of the filmography — skipped and unrelated cards; the remembered
+        // decision must hold instead.
+        assertEquals("riley-reid", surfaces.surface("Riley Reid") { null })
+        // The mirror case: a keyword decision is remembered too, so a later page cannot move onto
+        // the model surface either.
+        assertNull(surfaces.surface("milf") { null })
+        assertNull(surfaces.surface("milf") { PornSlashParse.modelSlug("Riley Reid", directory) })
+        // One `/suggest/` per query, not per page: a decided query never asks again.
+        var lookups = 0
+        surfaces.surface("Riley Reid") { lookups++; null }
+        assertEquals(0, lookups)
+    }
+
+    @Test
+    fun `the surface memo is bounded, not a query history`() = runBlocking {
+        val surfaces = SearchSurface(limit = 2)
+        surfaces.surface("a") { "a-model" }
+        surfaces.surface("b") { null }
+        surfaces.surface("c") { "c-model" }
+        // The oldest decision is evicted; the newest two are still remembered.
+        var lookups = 0
+        surfaces.surface("c") { lookups++; null }
+        assertEquals(0, lookups)
+        assertEquals("a-model", surfaces.surface("a") { lookups++; "a-model" })
+        assertEquals(1, lookups)
     }
 
     @Test
