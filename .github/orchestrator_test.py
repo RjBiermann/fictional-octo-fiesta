@@ -1490,6 +1490,61 @@ class TestResolveVersionPair(unittest.TestCase):
         self.assertEqual(orchestrator._resolve_version_pair(main, branch), main)
 
 
+class TestBlockedReportNotRefired(unittest.TestCase):
+    """#1674: an Implement run that reports a BLOCK (`## S5 blocked — …`)
+    instead of diffing was read as machinery output, so the relay moved the
+    story to status/in-review and the next sweep deleted the stamp and
+    re-fired it — S5 #1647 burned four attempts that way. A block is a
+    refusal: it waits for an owner re-arm, never for another attempt."""
+
+    BLOCK = {"created_at": "2026-11-27T10:00:00Z", "user": {"type": "Bot"},
+             "body": "## S5 blocked — PornSlash\n\nverified block: getFilter absent …"}
+    WORK = {"created_at": "2026-11-27T10:00:00Z", "user": {"type": "Bot"},
+            "body": "## S5 report — PornSlash\n\nsearch + eleven maker rows landed."}
+
+    def fire(self, cs, rearm=False):
+        fired = []
+        with mock.patch.object(orchestrator, "_open_pr_for_story", lambda n: None), \
+                mock.patch.object(orchestrator, "_merged_pr_for_story", lambda n: None), \
+                mock.patch.object(orchestrator, "_fallback_delivery", lambda n: None), \
+                mock.patch.object(orchestrator, "comments", lambda n: cs), \
+                mock.patch.object(orchestrator, "_rearmed_after",
+                                  lambda n, ts: rearm), \
+                mock.patch.object(orchestrator, "label_issue", lambda *a, **k: None), \
+                mock.patch.object(orchestrator, "_fire_workflow",
+                                  lambda *a, **k: fired.append(a)):
+            orchestrator._fire_implement(1647)
+        return fired
+
+    def test_a_block_report_is_not_re_fired(self):
+        self.assertEqual(self.fire([self.BLOCK]), [])
+
+    def test_a_work_report_is_still_fired(self):
+        self.assertEqual(len(self.fire([self.WORK])), 1)
+
+    def test_an_owner_re_arm_after_the_block_fires_again(self):
+        self.assertEqual(len(self.fire([self.BLOCK], rearm=True)), 1)
+
+    def test_a_prose_mention_of_the_block_is_not_a_block_report(self):
+        prose = dict(self.WORK, body="## S5 report\n\nblocked host is now served.")
+        self.assertEqual(len(self.fire([prose])), 1)
+
+    def test_a_human_comment_is_not_a_block_report(self):
+        self.assertIsNone(orchestrator._blocked_report_at(
+            [dict(self.BLOCK, user={"type": "User"})]))
+
+    def test_the_newest_block_report_wins(self):
+        older = dict(self.BLOCK, created_at="2026-11-27T09:00:00Z")
+        for cs in ([self.BLOCK, older], [older, self.BLOCK]):
+            self.assertEqual(orchestrator._blocked_report_at(cs),
+                             self.BLOCK["created_at"])
+
+    def test_a_block_phrase_outside_the_heading_is_ignored(self):
+        self.assertIsNone(orchestrator._blocked_report_at([
+            dict(self.BLOCK,
+                 body="## S5 report\n\nfirst attempt blocked, retried fine.")]))
+
+
 class TestRepairConsumedWithoutPush(unittest.TestCase):
     """#1482 / #1485: a comment-only repair consumes, but only a run for
     THIS PR — the repo-wide run list alone let another PR's repair mark the
