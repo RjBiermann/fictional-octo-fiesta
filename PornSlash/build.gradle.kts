@@ -1,4 +1,4 @@
-version = 7
+version = 8 // #1673: version bump (v8)
 
 cloudstream {
     authors     = listOf("rjbiermann")

@@ -10,6 +10,7 @@ package com.kraptor
 import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.extractors.EmturbovidExtractor
 import com.lagradost.cloudstream3.extractors.VidStack
+import com.lagradost.cloudstream3.extractors.VinovoTo
 import com.lagradost.cloudstream3.extractors.Voe
 import com.lagradost.cloudstream3.extractors.BigwarpIO
 import com.lagradost.cloudstream3.extractors.DoodToExtractor
@@ -254,6 +255,18 @@ internal fun sharedHostRegistry(): List<ExtractorApi> = listOf(
         // signed mp4). One row, no provider-side host branch.
         turboEmbed("https://vsembed.com", "VsEmbed"),
         LoadVid(),
+        // #1512 (S9/#1447 PandaMovies, S23/#1461 Mangoporn video-source audits): both
+        // providers enumerate section.hlm[data-servers] host-agnostically and dispatch each
+        // `u` through loadExtractor, so an unregistered host is a silently dropped mirror.
+        // vinovo.to appears on 5/15 PandaMovies and 4/12 Mangoporn sampled pages and had no
+        // row. The framework's own VinovoTo answers it: mainUrl https://vinovo.to, parse
+        // targets meta[name=token|file_code|recaptcha] + video[data-base], POST
+        // /api/file/url/ with Origin + X-Requested-With, reCAPTCHA via
+        // APIHolder.getCaptchaToken (jar-verified against cloudstream3:pre-release and
+        // re-probed live 2026-11-27: /e/<id> 200 with exactly that grammar). Deliberately
+        // NOT a dood(...) row — vinovo.to does not serve the dood pass_md5 grammar, and a
+        // dood row would emit a bogus URL (FINDINGS-1447).
+        VinovoTo(),
     )
 
 fun BasePlugin.registerHostExtractors(first: List<ExtractorApi> = emptyList()) {

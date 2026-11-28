@@ -4,6 +4,7 @@ import com.lagradost.cloudstream3.extractors.StreamTape
 import com.lagradost.cloudstream3.extractors.MixDrop
 import com.lagradost.cloudstream3.extractors.StreamTapeNet
 import com.lagradost.cloudstream3.extractors.StreamTapeXyz
+import com.lagradost.cloudstream3.extractors.VinovoTo
 import com.lagradost.cloudstream3.utils.ExtractorApi
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -262,6 +263,29 @@ class HostRegistryTest {
         assertTrue(rows.single { host(it.mainUrl) == "maxstream.org" } is Maxstream)
         // the javclan.com row these mirror off must stay registered.
         assertTrue(rows.any { host(it.mainUrl) == "javclan.com" })
+    }
+
+    /**
+     * (i) Issue #1512 (S9/#1447 PandaMovies + S23/#1461 Mangoporn video-source audits):
+     * both providers enumerate `section.hlm[data-servers]` host-agnostically and dispatch
+     * each `u` through loadExtractor, so a served host with no row is a silently dropped
+     * mirror. `vinovo.to` was served on 5/15 PandaMovies and 4/12 Mangoporn samples and
+     * had no row. The framework ships `VinovoTo` (mainUrl https://vinovo.to) whose parse
+     * targets match the live page verbatim — `meta[name=token|file_code|recaptcha]` +
+     * `video[data-base]`, POST /api/file/url/ with Origin + X-Requested-With, reCAPTCHA
+     * via APIHolder.getCaptchaToken (jar-verified against cloudstream3:pre-release,
+     * 2026-11-27). So the row is the fix — and it must be the VinovoTo family, not a
+     * dood row: vinovo.to does NOT serve the dood pass_md5 grammar (FINDINGS-1447).
+     */
+    @Test
+    fun `vinovo to embed host has an explicit registry row`() {
+        val vinovoRows = rows.filter { host(it.mainUrl) == "vinovo.to" }
+        assertEquals("exactly one row answers vinovo.to", 1, vinovoRows.size)
+        val row = vinovoRows.single()
+        assertTrue(
+            "the vinovo.to row is not the framework VinovoTo adapter: ${row::class.simpleName}",
+            row is VinovoTo
+        )
     }
 
     /**
