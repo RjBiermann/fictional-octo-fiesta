@@ -1236,6 +1236,34 @@ def _has_stall_flag(cs):
                and (c.get("created_at") or "").startswith(today) for c in cs)
 
 
+# #1674: an Implement run that REPORTS A BLOCK instead of diffing is a
+# refusal, not a work claim — and not a claim the predicate can fix either:
+# narrowing `_machinery_output()` only moves the loop from the relay into
+# `_reconcile_pass()`, which re-fires an unclaimed story anyway. The guard
+# lives at the one choke point every fire path routes through
+# (`_fire_implement`). Heading-anchored and first-line-only: a work report
+# that merely mentions the block must not freeze a story that has delivered.
+BLOCK_REPORT_RE = re.compile(
+    r"(?i)^\s*#{1,4}\s*[^\n]{0,80}?\b(?:blocked|not\s+fixable|"
+    r"not\s+implementable|refus(?:ed|ing))\b")
+
+
+def _blocked_report_at(cs):
+    """created_at of the newest Bot block report (#1674), else None. PURE.
+    A refusal ends the machinery's re-fire; only an owner re-arm reopens it."""
+    newest, stamp = -1.0, None
+    for c in cs:
+        if (c.get("user") or {}).get("type") != "Bot":
+            continue
+        body = (c.get("body") or "").lstrip()
+        if not body or not BLOCK_REPORT_RE.match(body.splitlines()[0]):
+            continue
+        t = _parse_ts(c.get("created_at") or "")
+        if t > newest:
+            newest, stamp = t, c.get("created_at") or ""
+    return stamp
+
+
 def _reconcile_pass(stories, claims):
     # Reconcile: stamps whose Implement-side fire was role-gated away
     # (old bot-applied labels) get re-fired once under the owner actor.
@@ -1701,6 +1729,11 @@ def _fire_implement(num):
             # IS the delivery record; only a human re-arm overrides it.
             print(f"[orchestrator] {num}: already delivered via fallback review issue #{fb_num} — not re-fired")
             return
+    blocked = _blocked_report_at(comments(num))
+    if blocked and not _rearmed_after(num, blocked):
+        print(f"[orchestrator] {num}: last Implement report was a block — not "
+              f"re-fired (an owner-applied status/planned re-arms it)")
+        return
     # Display state + in-flight marker, stamped under GITHUB_TOKEN: that
     # identity's label events start no run, so the dispatch beside it is the
     # only fire. Under the App identity this stamp woke a second, hollow
