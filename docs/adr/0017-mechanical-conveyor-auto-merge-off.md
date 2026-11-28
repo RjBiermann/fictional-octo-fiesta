@@ -4,6 +4,18 @@
 > the receipt gate below makes the merge automatic only on chains whose
 > owner approval is on record. Humans merge everything else.
 
+> Amended 2026-11-28 (#1676): the two resolution layers use different push
+> transports. The mechanical resolver commits a merge of `origin/main` and
+> pushes it with plain `git push` under `GITHUB_TOKEN` — unaffected by
+> signing. The AI fallback (`14-rebase`) resolves the same way (`git merge`,
+> review history intact, its rule 2), so its push runs with
+> `signed-commits: false`: gh-aw's signed path is GitHub's
+> `createCommitOnBranch` GraphQL mutation, which cannot represent a merge
+> commit, and every signed rebase push failed `ERR_VALIDATION` while the PR
+> stayed conflicted. `main` requires no signatures (`required_signatures`
+> disabled), so unsigned machinery commits are accepted; the human merge is
+> still the only route into `main`.
+
 The 95-orchestrator is a non-AI, fails-closed conveyor: it automates the
 mechanics of an already-approved chain (arming stories, firing plan-loop
 rounds, approving companion runs stuck in `action_required`, resolving

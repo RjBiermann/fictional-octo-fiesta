@@ -66,6 +66,12 @@ safe-outputs:
     # remote rejects every push touching .github/workflows/** ("refusing
     # to allow a GitHub App ... without 'workflows' permission"; #1063).
     allow-workflows: true
+    # The lane's rule 2 mandates a merge commit (`git merge origin/main`,
+    # review history intact), and the signed path — createCommitOnBranch —
+    # cannot represent one, so every push died ERR_VALIDATION and the
+    # conflict stayed until the sweep re-labelled it (#1676). Unsigned is
+    # safe here: `main` does not require signatures (ADR-0017).
+    signed-commits: false
     max: 2
   remove-labels:
     allowed: [status/conflict]
