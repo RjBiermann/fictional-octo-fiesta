@@ -44,7 +44,7 @@ live page in this probe.
 | `recommendations(document)` | `div.related div.video-item`, self excluded, cap 50 | `related cards are the watch page's recommendation surface` | 50 matches on 5/5; no self-link, no duplicate href (§6) |
 | `detail` quality | `div.share-video[data-quality]` | `detail page carries …` | `1080`/`720` live |
 | `mp4FromThumb(og:image)` | `/t/<encid>.<ext>` → `/p/<encid>.mp4` on the same host | `thumbnail path yields the mp4 on the same cdn host` | derived preview plays (10s, §2) |
-| `hlsMaster(html, encid)` | rendered `https://<host>/master/<encid>` (encid-matched), else a quoted base64 base that decodes to a bare https origin | `detail carries the hls master…`, `a base token is decoded…`, `the tunnel base is decoded per load…`, `an ad token that decodes to a path is not a stream base`, `a page carrying several master urls yields this video's` | master 200 `application/x-mpegurl` on 5/5 (§3) |
+| `hlsMaster(html, encid)` | rendered `https://<host>/master/<encid>` (encid-matched), else the player's own `Pt="<b64>"` base when it decodes to a bare https origin — no `encid`, no candidate (§3.1) | `detail carries the hls master…`, `a base token is decoded…`, `the tunnel base is decoded per load…`, `an ad token that decodes to a path is not a stream base`, `a page carrying several master urls yields this video's`, `a rendered master is not this video's without the page's encid`, `a quoted base64 that is not the player token is not a base` | master 200 `application/x-mpegurl` on 5/5 (§3); 1 bare-origin base per page, and it *is* the `Pt` token (§3.1) |
 | `shortsPage(json)` | `videos[]` → `item_id`, `title`, `poster` → `image`, `quality`, `duration` | `shorts feed page 1 yields ten cards…`, `explicit json nulls are absent, never text` | 10 items/page (§8) |
 | `modelSuggestions(json)` / `modelSlug(q, json)` | `[1][]` → `model_id`, `name`; exact-name match | `suggest fixture yields the model directory rows…`, `only an exact model name resolves…` | S5 surface, unchanged by S6 |
 | `pageUrl(surface, page)` | `?p=N`, page 1 bare, sibling params preserved | `page url is a query param only…` | p2 = 25/50 fresh cards, 0 overlap (§6, §8) |
@@ -129,6 +129,11 @@ also carries an *ad* token (`Yn=atob("aHR0cHM6…")`) that decodes to
 it would invent a nonexistent source, so the path-carrying decode is rejected (test
 `an ad token that decodes to a path is not a stream base`).
 
+And the base is read from **the player's own variable** (`Pt="<b64>"`), never from "any
+quoted base64": the page carries encrypted ids and content hashes in that same shape, so an
+unscoped scan lets any bare-origin string on the page become this video's stream host
+(§3.1).
+
 Master transcript (`/watch/b4jlKRJ69mQ`):
 
 ```
@@ -161,6 +166,39 @@ segment /0  206 video/MP2T  content-range: bytes 0-2047/2123648  access-control-
 `loadLinks()` emits that master as `ExtractorLinkType.M3U8` with `referer = mainUrl`. No
 quality label is attached: the ladder is the site's own and the player reads it from the
 playlist (§5).
+
+## 3.1 Repair round — the master is tied to this video on both paths
+
+Finding (review round 1): the parse could still emit a stream that is **not this video's** —
+(a) the base-token scan matched *any* quoted base64 that decoded to a bare origin, not the
+player's own token, and (b) with no `data-encid` it took the first rendered master on the
+page, which on a page carrying a rail's own player can be a related video's.
+
+Both are now fail-closed, and the two new tests were run **red first** (stubbed against the
+old parse: both failed) then green:
+
+- `a rendered master is not this video's without the page's encid` — the encid is the page's
+  only statement of which stream is this video's, so no encid yields no candidate; the
+  preview fallback still plays *this* video instead of another one.
+- `a quoted base64 that is not the player token is not a base` — a bare-origin base64 under
+  another variable is not a base; the same string in `Pt="…"` still is.
+
+Live re-probe (2026-11-28, same day; two watch pages, one long-form one shorts) — every
+quoted base64 on the page, decoded, classified:
+
+```
+/watch/b4jlKRJ69mQ  quoted: 7  Pt tokens: 1
+  bare origin:      https://frost-dame-livestock-locking.trycloudflare.com   (is the Pt token)
+  path-bearing ad:  https://wideeyedchance.com/d.m-F/zcdnGANAvzZU…           (Yn=atob(…))
+/watch/Vpg80K5v6gA  quoted: 7  Pt tokens: 1
+  bare origin:      https://introductory-acrylic-soonest-calculate.trycloudflare.com  (is the Pt token)
+  path-bearing ad:  https://wideeyedchance.com/d.m-F/zcdnGANAvzZU…           (Yn=atob(…))
+```
+
+So the scoping changes nothing on today's pages — one bare-origin base, and it is the player's
+— while removing the class of mis-attribution. `data-encid` matched the single rendered
+`/master/<encid>` on both pages, so the rendered path is unchanged. `./gradlew PornSlash:test`
+green (49 tests in `PornSlashParseTest`), `./gradlew PornSlash:make` clean.
 
 ## 4. The stop rule — a partial page is the stop; `last + 1` is never probed
 

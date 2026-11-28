@@ -659,6 +659,14 @@ class PornSlashParseTest {
                 "abc"
             )
         )
+        // The bare-origin rule does the filtering, not the variable name alone: the same token
+        // assigned to the player variable still decodes to a URL with a path, so it is no base.
+        assertNull(
+            PornSlashParse.hlsMaster(
+                """<div class="share-video" data-encid="abc"></div><script>let Pt="$adToken";</script>""",
+                "abc"
+            )
+        )
     }
 
     @Test
@@ -671,6 +679,42 @@ class PornSlashParseTest {
         assertEquals(
             "https://mine-tunnel.trycloudflare.com/master/HkkMtzwtMMuQzwkQeMQQ",
             PornSlashParse.hlsMaster(html, "HkkMtzwtMMuQzwkQeMQQ")
+        )
+    }
+
+    @Test
+    fun `a rendered master is not this video's without the page's encid`() {
+        // A page can render several master URLs (a related rail ships its own player), and the
+        // encid is the only thing that says which one is this video. No encid therefore means no
+        // match: the preview fallback still yields *this* video, where a guessed master could
+        // play another one.
+        val html = """<script>n.loadSource("https://related-tunnel.trycloudflare.com/master/HrelatedVideoId")</script>"""
+        assertNull(PornSlashParse.hlsMaster(html, null))
+        assertNull(PornSlashParse.hlsMaster(html, ""))
+        assertNull(PornSlashParse.hlsMaster(html, "   "))
+    }
+
+    @Test
+    fun `a quoted base64 that is not the player token is not a base`() {
+        // The page carries many encoded strings (hashes, ids, an ad base). Only the player's own
+        // base (`Pt="<b64>"`, which the player `atob`s) is a tunnel base — scanning every quoted
+        // base64 would let any other bare-origin string become this video's stream host.
+        val decoy = "aHR0cHM6Ly90cmFja2luZy1leGFtcGxlLnRyeWNsb3VkZmxhcmUuY29t"
+        assertNull(
+            PornSlashParse.hlsMaster(
+                """<div class="share-video" data-encid="abc"></div>
+                    <script>let Other="$decoy";let Yd=atob(Other);</script>""",
+                "abc"
+            )
+        )
+        // and the player token itself is still read (the same string, in the player's variable)
+        assertEquals(
+            "https://tracking-example.trycloudflare.com/master/abc",
+            PornSlashParse.hlsMaster(
+                """<div class="share-video" data-encid="abc"></div>
+                    <script>let Pt="$decoy";let Pe=atob(Pt);</script>""",
+                "abc"
+            )
         )
     }
 

@@ -189,8 +189,14 @@ object PornSlashParse {
     /** The player's own master URL, already rendered into the page's inline script. */
     private val HLS_MASTER = Regex("""https://[A-Za-z0-9.-]+/master/([A-Za-z0-9_-]{4,})""")
 
-    /** A quoted base64 token the page decodes itself (`Pt="<b64>"` → `atob`). */
-    private val BASE_TOKEN = Regex("""["']([A-Za-z0-9+/]{24,256}={0,2})["']""")
+    /**
+     * The player's own base token (`Pt="<b64>"`, which the player `atob`s at runtime).
+     *
+     * Matched by its variable, never as "any quoted base64": the page carries encrypted ids,
+     * content hashes and an ad base in that same shape, so an unscoped scan lets any bare-origin
+     * string on the page become this video's stream host. Only `Pt` is the player's.
+     */
+    private val PLAYER_BASE = Regex("""\bPt\s*=\s*["']([A-Za-z0-9+/]{24,256}={0,2})["']""")
 
     /** A decoded token is a *base* only as a bare https origin — the tunnel shape. */
     private val HTTPS_ORIGIN = Regex("""^https://[A-Za-z0-9.-]+$""")
@@ -346,18 +352,23 @@ object PornSlashParse {
      *
      * A decoded token counts as a base only when it is a bare https origin: the page also
      * carries an ad token (`atob("aHR0cHM6…")`) that decodes to a URL *with a path*, which
-     * appending `/master/<encid>` to would invent a nonexistent source.
+     * appending `/master/<encid>` to would invent a nonexistent source. And it counts only when
+     * the player assigned it to its own variable — see [PLAYER_BASE].
+     *
+     * No [encid] means no candidate at all: the encid is the page's only statement of which
+     * stream is *this* video's, and a page can carry several master URLs (a related rail ships
+     * its own player). Guessing would play another video; returning null leaves the preview
+     * fallback, which is this video's own clip.
      */
     fun hlsMaster(html: String?, encid: String?): String? {
         val page = html?.takeIf { it.isNotBlank() } ?: return null
-        val id = encid?.trim()?.takeIf { it.isNotEmpty() }
+        val id = encid?.trim()?.takeIf { it.isNotEmpty() } ?: return null
         // The rendered URL must belong to *this* video: a page can carry several master URLs
         // (a rail that ships its own player), and one of those is never this stream.
         HLS_MASTER.findAll(page)
-            .firstOrNull { id == null || it.groupValues[1] == id }
+            .firstOrNull { it.groupValues[1] == id }
             ?.let { return it.value }
-        if (id == null) return null
-        for (token in BASE_TOKEN.findAll(page)) {
+        for (token in PLAYER_BASE.findAll(page)) {
             val base = decodeBase64(token.groupValues[1])?.trim() ?: continue
             if (HTTPS_ORIGIN.matches(base)) return "$base/master/$id"
         }
