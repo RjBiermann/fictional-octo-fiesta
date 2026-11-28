@@ -2444,7 +2444,13 @@ def _conflict_files(branch):
     return None
 
 
-VERSION_RE = re.compile(r"^\s*version\s*=\s*(\d+)\s*(?://.*)?$", re.M)
+# Horizontal whitespace only: a `\s*` before the optional bump comment is
+# greedy across newlines, so a bare `version = N` line swallowed its newline
+# while the commented twin kept both — the suffix compare then read
+# "bodies differ" on a conflict that is only the version line, the
+# version-file class went inert, and the PR fell through to 14-rebase
+# (whose signed push cannot carry a merge commit — #1676).
+VERSION_RE = re.compile(r"^[ \t]*version[ \t]*=[ \t]*(\d+)[ \t]*(?://.*)?\r?$", re.M)
 
 
 def _resolve_version_pair(a, b):
