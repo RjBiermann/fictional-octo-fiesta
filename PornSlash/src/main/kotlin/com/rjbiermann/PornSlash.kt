@@ -2,9 +2,11 @@
 // feed. S1 (#1643) landed the scaffold + parse seam (PornSlashParse.kt); S2 (#1644) the
 // home rows and search; S3 (#1645) the detail page and its streams; S4 (#1646) the shorts
 // surface — one `/watch/<id>` route covers long-form and shorts items, and the play path is
-// the single derived mp4 (no tunnel base, no per-playback round-trip). Filters land in S5
-// (#1647), so search() carries no filter/sort argument and a result URL is the plain
-// `/watch/<id>` route.
+// the single derived mp4 (no tunnel base, no per-playback round-trip). S5 (#1647) adds the model
+// browse surface in `search()`: the site's `/suggest/` directory maps a query that names a model
+// exactly onto its `/pornstar/<slug>/` filmography. The story's `getFilter()` bullet has no
+// framework member at this pin (`MainAPI` has no `getFilter`, and upstream's `GenreSelector`
+// surface is still commented out), so no provider filter UI exists to wire it to.
 package com.rjbiermann
 
 import com.kraptor.registerHostExtractors
@@ -20,6 +22,9 @@ class PornSlash : MainAPI() {
     override var lang = "en"
     override val supportedTypes = setOf(TvType.NSFW)
     override val hasMainPage = true
+
+    /** Session-scoped search-surface decisions — see [SearchSurface]. */
+    private val searchSurfaces = SearchSurface()
 
     // Evidence, not assumption (re-probed 2026-11-27): `/search/suggest?q=milf` answers with the
     // search page itself (`200 text/html`, not JSON) and `/suggest` + `/api/suggest` are 404 —
@@ -94,13 +99,44 @@ class PornSlash : MainAPI() {
         }
 
     override suspend fun search(query: String, page: Int): SearchResponseList {
-        val cards = PornSlashParse.cards(
-            app.get(PornSlashParse.searchUrl(query, page), referer = "$mainUrl/").document
-        )
+        // A query that names a model exactly browses that model's own filmography (S5 #1647):
+        // `/suggest/` is the site's directory lookup, so the `/pornstar/<slug>` route needs no
+        // five-page index scrape and no home-row slot (S2's home is at the ten-row cap). Every
+        // other query — including a model-name prefix — stays the ordinary keyword search. The
+        // decision is made once per query, not once per page (see [modelSlug]).
+        val slug = modelSlug(query)
+        val url = if (slug != null) {
+            PornSlashParse.pageUrl(PornSlashParse.pornstarUrl(slug), page)
+        } else {
+            PornSlashParse.searchUrl(query, page)
+        }
+        val cards = PornSlashParse.cards(app.get(url, referer = "$mainUrl/").document)
         return newSearchResponseList(
             cards.map { it.toSearchResponse() },
             hasNext = PornSlashParse.hasNext(cards.size, PornSlashParse.PAGE_SIZE_SEARCH),
         )
+    }
+
+    /**
+     * The model `query` browses, or null for the keyword surface. Decided once per query and
+     * remembered (see [SearchSurface]): `search()` is handed nothing but the query and the page, so
+     * re-deciding on page 2 would let a `/suggest/` hiccup swap page 2 of a model filmography for
+     * page 2 of the keyword result set — skipped and unrelated cards.
+     */
+    private suspend fun modelSlug(query: String): String? =
+        searchSurfaces.surface(query) {
+            PornSlashParse.suggestUrl(query)
+                ?.let { PornSlashParse.modelSlug(query, suggest(it)) }
+        }
+
+    /**
+     * A directory lookup that stops answering is "no model match", never a dead search.
+     */
+    private suspend fun suggest(url: String): String? = try {
+        app.get(url, referer = "$mainUrl/").text
+    } catch (e: Exception) {
+        Log.d(name, "suggest $url: ${e.message}")
+        null
     }
 
     override suspend fun load(url: String): LoadResponse? {

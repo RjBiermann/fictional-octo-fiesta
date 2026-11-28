@@ -7,6 +7,10 @@
 //   cat-partial.html        = /cat/tired+working+computer/, a 1-card partial page — the
 //                             pagination stop-rule evidence
 //   categories.html         = /categories/, the 92-tile listing the curated rows are pinned from
+//   suggest-riley.json      = /suggest/straight/riley, the site's model directory (10 models)
+//   suggest-empty.json      = /suggest/straight/zzzqqqxyz, the no-hit shape (`[null,null]`)
+//   pornstar-riley-reid-p1.html = /pornstar/riley-reid/, the model filmography browse surface
+//                             (S5 #1647: 25 cards/page through the same card grammar)
 //   watch-*.html            = /watch/<id> detail pages, long-form + shorts item
 //   shorts-p1.json          = /get/shorts?p=1, 10 items — S4's shorts-row fixture
 //   shorts-p2.json          = /get/shorts?p=2, 10 different items — the pagination evidence
@@ -18,6 +22,7 @@
 package com.rjbiermann
 
 import com.kraptor.DistinctBar
+import kotlinx.coroutines.runBlocking
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.junit.Assert.assertEquals
@@ -326,6 +331,115 @@ class PornSlashParseTest {
             "https://www.pornslash.com/search/tired%20working%20computer/?p=3",
             PornSlashParse.searchUrl("  tired working computer  ", 3)
         )
+    }
+
+    // ---- model directory (S5 #1647) -----------------------------------------------
+
+    @Test
+    fun `suggest fixture yields the model directory rows it carries`() {
+        val models = PornSlashParse.modelSuggestions(text("/suggest-riley.json"))
+        assertEquals(10, models.size)
+        assertTrue(models.any { it.id == "riley-reid" && it.name == "Riley Reid" })
+    }
+
+    @Test
+    fun `only an exact model name resolves to its pornstar slug`() {
+        val json = text("/suggest-riley.json")
+        assertEquals("riley-reid", PornSlashParse.modelSlug("Riley Reid", json))
+        // The same model however the user types it: case, padding and separators are noise.
+        assertEquals("riley-reid", PornSlashParse.modelSlug("  riley reid ", json))
+        assertEquals("riley-reid", PornSlashParse.modelSlug("RILEY-REID", json))
+        // A prefix is not a model name: the ordinary keyword search must still run, which is
+        // where the site's term suggestions (`riley reid anal`, …) live.
+        assertNull(PornSlashParse.modelSlug("riley", json))
+        assertNull(PornSlashParse.modelSlug("unheard of model", json))
+        assertNull(PornSlashParse.modelSlug("   ", json))
+    }
+
+    @Test
+    fun `a suggest payload without models is empty, never a throw`() {
+        // The live no-hit shape is `[null,null]` — both halves explicitly absent.
+        assertEquals(emptyList<SlashModel>(), PornSlashParse.modelSuggestions(text("/suggest-empty.json")))
+        assertEquals(emptyList<SlashModel>(), PornSlashParse.modelSuggestions(null))
+        assertEquals(emptyList<SlashModel>(), PornSlashParse.modelSuggestions(""))
+        assertEquals(emptyList<SlashModel>(), PornSlashParse.modelSuggestions("not json"))
+        assertEquals(emptyList<SlashModel>(), PornSlashParse.modelSuggestions("{\"videos\":[]}"))
+        // A row missing either half is dropped rather than half-filled.
+        assertEquals(
+            listOf(SlashModel("riley-reid", "Riley Reid")),
+            PornSlashParse.modelSuggestions(
+                """[null,[{"name":"no id"},{"model_id":"riley-reid","name":"Riley Reid"}]]"""
+            )
+        )
+    }
+
+    @Test
+    fun `suggest url carries the query and a blank query is not a request`() {
+        // Same transport rule as searchUrl(): `%20` for spaces, the query's own case untouched.
+        assertEquals(
+            "https://www.pornslash.com/suggest/straight/Riley%20Reid",
+            PornSlashParse.suggestUrl("  Riley Reid  ")
+        )
+        // The bare `/suggest/straight/` route answers an HTML page — never requested.
+        assertNull(PornSlashParse.suggestUrl("   "))
+    }
+
+    @Test
+    fun `the pornstar surface pages with the same query-param contract`() {
+        val model = PornSlashParse.pornstarUrl("riley-reid")
+        assertEquals("https://www.pornslash.com/pornstar/riley-reid/", model)
+        assertEquals(model, PornSlashParse.pageUrl(model, 1))
+        assertEquals("$model?p=2", PornSlashParse.pageUrl(model, 2))
+    }
+
+    @Test
+    fun `a search page sequence keeps the surface its first page chose`() = runBlocking {
+        val surfaces = SearchSurface()
+        val directory = text("/suggest-riley.json")
+        // Page 1 resolves the model from the site's own directory reply.
+        assertEquals(
+            "riley-reid",
+            surfaces.surface("Riley Reid") { PornSlashParse.modelSlug("Riley Reid", directory) },
+        )
+        // Page 2's lookup stops answering. Re-deciding would put page 2 of the keyword result set
+        // behind page 1 of the filmography — skipped and unrelated cards; the remembered
+        // decision must hold instead.
+        assertEquals("riley-reid", surfaces.surface("Riley Reid") { null })
+        // The mirror case: a keyword decision is remembered too, so a later page cannot move onto
+        // the model surface either.
+        assertNull(surfaces.surface("milf") { null })
+        assertNull(surfaces.surface("milf") { PornSlashParse.modelSlug("Riley Reid", directory) })
+        // One `/suggest/` per query, not per page: a decided query never asks again.
+        var lookups = 0
+        surfaces.surface("Riley Reid") { lookups++; null }
+        assertEquals(0, lookups)
+    }
+
+    @Test
+    fun `the surface memo is bounded, not a query history`() = runBlocking {
+        val surfaces = SearchSurface(limit = 2)
+        surfaces.surface("a") { "a-model" }
+        surfaces.surface("b") { null }
+        surfaces.surface("c") { "c-model" }
+        // The oldest decision is evicted; the newest two are still remembered.
+        var lookups = 0
+        surfaces.surface("c") { lookups++; null }
+        assertEquals(0, lookups)
+        assertEquals("a-model", surfaces.surface("a") { lookups++; "a-model" })
+        assertEquals(1, lookups)
+    }
+
+    @Test
+    fun `a pornstar page is a search-sized page of the same listing cards`() {
+        val document = doc("/pornstar-riley-reid-p1.html")
+        val cards = PornSlashParse.cards(document)
+        assertEquals(25, document.select(PornSlashParse.CARD).size)
+        assertEquals(PornSlashParse.PAGE_SIZE_SEARCH, cards.size)
+        assertEquals(cards.size, cards.map { it.id }.distinct().size)
+        assertTrue(PornSlashParse.hasNext(cards.size, PornSlashParse.PAGE_SIZE_SEARCH))
+        // The model surface is its own filmography, not the keyword page: a spot check that the
+        // cards are real videos, i.e. every id is renderable through the `/watch/<id>` route.
+        assertTrue(cards.all { it.title.isNotBlank() && it.poster != null })
     }
 
     // ---- curated home rows --------------------------------------------------------

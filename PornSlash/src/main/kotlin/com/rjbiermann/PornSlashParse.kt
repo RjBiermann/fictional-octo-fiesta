@@ -8,6 +8,11 @@
 // mirrors (`/t/<encid>.jpeg` → `/p/<encid>.mp4`), and a JSON shorts feed whose items are
 // plain `/watch/<item_id>` links (S4 #1646).
 //
+// S5 (#1647) adds the model browse surface without a scrape: `/suggest/<orientation>/<query>`
+// is the site's own model directory (JSON, one request), and its `model_id` is the
+// `/pornstar/<slug>` route. A search query that names a model exactly browses that model's
+// filmography; every other query stays the ordinary keyword search.
+//
 // The structural rule the drift history demands (findings 2026-11-26): the CDN host is a
 // per-video `*.pages.dev` project (wolfcipher56-1343.pages.dev/13426,
 // ba0ze4asqz-1338.pages.dev/13375, ...), so it is read from the page on every load and
@@ -52,6 +57,43 @@ data class SlashDetail(
     val recommendations: List<SlashCard>,
 )
 
+/**
+ * One `/suggest/` model row — the site's own directory entry. `id` is the `model_id`, i.e. the
+ * `/pornstar/<id>/` route; the display `name` is what an exact-name query is matched against.
+ */
+data class SlashModel(val id: String, val name: String)
+
+/**
+ * The search surface a query browses, remembered across pages. CloudStream's `search(query, page)`
+ * carries nothing between pages, so a decision re-made per page can move a page sequence onto the
+ * other surface: when `/suggest/` stops answering on page 2, a model filmography would silently
+ * become page 2 of the keyword result set — skipped and unrelated cards. The first page's decision
+ * is therefore remembered, negative (`null` = keyword) answers included, which also costs one
+ * `/suggest/` request per query instead of one per page.
+ *
+ * [limit] bounds it — this is a session convenience, not a query history.
+ */
+internal class SearchSurface(private val limit: Int = 16) {
+    // `""` is the remembered "no model" answer: a nullable map cannot tell a cached null apart
+    // from a query that was never decided.
+    private val decided = object : LinkedHashMap<String, String>(16, 0.75f, false) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?): Boolean =
+            size > limit
+    }
+
+    /**
+     * The model slug [query] browses, or null for the ordinary keyword surface. [resolve] runs only
+     * while the query is undecided, so a page never re-decides a surface an earlier page chose.
+     */
+    suspend fun surface(query: String, resolve: suspend () -> String?): String? {
+        val remembered = synchronized(decided) { decided[query] }
+        if (remembered != null) return remembered.ifEmpty { null }
+        val slug = resolve() ?: ""
+        synchronized(decided) { decided[query] = slug }
+        return slug.ifEmpty { null }
+    }
+}
+
 object PornSlashParse {
 
     /** The listing card root — one grammar on every surface (home, search, /cat/, related). */
@@ -78,6 +120,13 @@ object PornSlashParse {
     const val VIDEOS = "$MAIN/videos/"
 
     const val SEARCH = "$MAIN/search/"
+
+    /**
+     * The site's model directory lookup — JSON, not HTML. The orientation segment is the one the
+     * plain `/search/` surface uses; the [VIDEOS]/[SHORTS] feeds and `/cat/<slug>/` browse live
+     * under the same default.
+     */
+    const val SUGGEST = "$MAIN/suggest/straight/"
 
     /**
      * The shorts feed — JSON, not HTML, and 10 items per page (S4 #1646). Its items are
@@ -142,6 +191,62 @@ object PornSlashParse {
      */
     fun searchUrl(query: String, page: Int): String =
         pageUrl(SEARCH + encodeQuery(query) + "/", page)
+
+    /**
+     * `/suggest/straight/<q>` — the model-directory lookup, or null for a blank query (the
+     * bare route answers an HTML page, so it is never requested).
+     */
+    fun suggestUrl(query: String): String? {
+        val trimmed = query.trim()
+        return if (trimmed.isEmpty()) null else SUGGEST + encodeQuery(trimmed)
+    }
+
+    /**
+     * `/pornstar/<slug>/` — a model's own filmography, 25 cards/page on the same listing
+     * grammar and the same `?p=N` contract as `search()` (see [pageUrl]).
+     */
+    fun pornstarUrl(slug: String): String = "$MAIN/pornstar/$slug/"
+
+    /**
+     * A `/suggest/` payload → its model rows. The shape is `[terms[], models[]]` and either half
+     * may be an explicit JSON null — the live no-hit answer is `[null,null]`. A malformed payload
+     * yields no rows, never a throw, and a row missing `model_id` or `name` is dropped rather
+     * than half-filled.
+     */
+    fun modelSuggestions(json: String?): List<SlashModel> {
+        val root = json?.takeIf { it.isNotBlank() }
+            ?.let { runCatching { jsonMapper.readTree(it) }.getOrNull() }
+            ?: return emptyList()
+        val models = root.get(1) as? ArrayNode ?: return emptyList()
+        val rows = ArrayList<SlashModel>(models.size())
+        for (i in 0 until models.size()) {
+            val node = models.get(i)
+            val id = node.textOrNull("model_id") ?: continue
+            val name = node.textOrNull("name") ?: continue
+            rows.add(SlashModel(id, name))
+        }
+        return rows
+    }
+
+    /**
+     * The `/pornstar/<slug>` route a search query names, or null when it names no model.
+     *
+     * Only an *exact* name resolves, ignoring case, padding and the hyphen/space separator: a
+     * prefix like `riley` must keep the ordinary keyword search, where the site's term
+     * suggestions (`riley reid anal`, …) live. Exactness is also what makes the surface useful —
+     * the model page is that model's filmography, while a keyword page for the same name shares
+     * only a handful of its videos.
+     */
+    fun modelSlug(query: String, json: String?): String? {
+        val wanted = normalizeName(query) ?: return null
+        return modelSuggestions(json).firstOrNull { normalizeName(it.name) == wanted }?.id
+    }
+
+    /** Case-, padding- and separator-insensitive model name, or null when nothing is left. */
+    private fun normalizeName(raw: String?): String? =
+        raw?.replace('-', ' ')?.replace('_', ' ')?.lowercase()
+            ?.split(' ')?.filter { it.isNotEmpty() }?.joinToString(" ")
+            ?.takeIf { it.isNotEmpty() }
 
     /**
      * One `div.video-item` → [SlashCard]; null when the card lacks a real id or title so a
