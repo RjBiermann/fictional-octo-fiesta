@@ -591,6 +591,110 @@ class PornSlashParseTest {
         assertNull(PornSlashParse.detail(Jsoup.parse("<html><body><p>gone</p></body></html>")))
     }
 
+    // ---- hlsMaster() (S6 #1648) ---------------------------------------------------
+
+    @Test
+    fun `detail carries the hls master the page's own player loads`() {
+        for (fixture in listOf("/watch-1ZxeqYAL0xy.html", "/watch-shorts-Vpg8p8DYegA.html")) {
+            val html = text(fixture)
+            val document = doc(fixture)
+            val detail = PornSlashParse.detail(document)!!
+            val encid = document.selectFirst("div.share-video")!!.attr("data-encid")
+
+            assertEquals(encid, detail.encid)
+            // the master is read off the page, not templated: the expected value is the URL
+            // the fixture's own player script loads
+            val rendered = Regex("""https://[a-z0-9-]+\.trycloudflare\.com/master/$encid""")
+                .find(html)!!.value
+            assertEquals(rendered, detail.hls)
+            // and it is not the hover preview the thumbnail mirrors: `/p/` is a 10s teaser
+            assertTrue(detail.hls!!.contains("/master/"))
+            assertTrue(detail.mp4!!.contains("/p/"))
+        }
+    }
+
+    @Test
+    fun `a base token is decoded when the page renders no master url`() {
+        val encid = "HkkMtzwtMMuQzwkQeMQQ"
+        // base64("https://tunnel-one.trycloudflare.com") — the `Pt="…"` shape a page can
+        // ship instead of the rendered URL (the player decodes it at runtime)
+        val token = "aHR0cHM6Ly90dW5uZWwtb25lLnRyeWNsb3VkZmxhcmUuY29t"
+        val html = """<div class="share-video" data-id="x" data-encid="$encid"></div>
+            <script>let Pt="$token";let Pe=atob(Pt);</script>"""
+        assertEquals(
+            "https://tunnel-one.trycloudflare.com/master/$encid",
+            PornSlashParse.hlsMaster(html, encid)
+        )
+    }
+
+    @Test
+    fun `the tunnel base is decoded per load, never remembered`() {
+        // The live rotate: the same video answered navigate-marc-combine-copper… and, minutes
+        // later, cage-throw-induced-resort… — a cached base would be a dead source on replay.
+        val encid = "HkkMtzwtMMuQzwkQeMQQ"
+        val first = "aHR0cHM6Ly90dW5uZWwtb25lLnRyeWNsb3VkZmxhcmUuY29t"
+        val second = "aHR0cHM6Ly90dW5uZWwtdHdvLnRyeWNsb3VkZmxhcmUuY29t"
+        assertEquals(
+            "https://tunnel-one.trycloudflare.com/master/$encid",
+            PornSlashParse.hlsMaster("""<script>Pt="$first"</script>""", encid)
+        )
+        assertEquals(
+            "https://tunnel-two.trycloudflare.com/master/$encid",
+            PornSlashParse.hlsMaster("""<script>Pt="$second"</script>""", encid)
+        )
+    }
+
+    @Test
+    fun `an ad token that decodes to a path is not a stream base`() {
+        // Every watch page carries `Yn=atob("aHR0cHM6…")`, an *ad* base that decodes to
+        // https://wideeyedchance.com/d.m-F/… — a URL with a path, so appending
+        // /master/<encid> would invent a nonexistent source. Only a bare origin is a base.
+        val adToken = text("/watch-1ZxeqYAL0xy.html")
+            .let { Regex("""atob\("([A-Za-z0-9+/=]{24,})"\)""").find(it)!!.groupValues[1] }
+        val detail = PornSlashParse.detail(doc("/watch-1ZxeqYAL0xy.html"))!!
+        assertFalse(detail.hls!!.contains("wideeyedchance.com"))
+        assertNull(
+            PornSlashParse.hlsMaster(
+                """<div class="share-video" data-encid="abc"></div><script>let Yn=atob("$adToken");</script>""",
+                "abc"
+            )
+        )
+    }
+
+    @Test
+    fun `a page carrying several master urls yields this video's`() {
+        // A rail that ships its own player must not lend its tunnel to the page's video: the
+        // encid decides, not the order of appearance.
+        val html = """<script>n.loadSource("https://other-tunnel.trycloudflare.com/master/HotherVideoId")</script>
+            <div class="share-video" data-encid="HkkMtzwtMMuQzwkQeMQQ"></div>
+            <script>n.loadSource("https://mine-tunnel.trycloudflare.com/master/HkkMtzwtMMuQzwkQeMQQ")</script>"""
+        assertEquals(
+            "https://mine-tunnel.trycloudflare.com/master/HkkMtzwtMMuQzwkQeMQQ",
+            PornSlashParse.hlsMaster(html, "HkkMtzwtMMuQzwkQeMQQ")
+        )
+    }
+
+    @Test
+    fun `no player base yields no hls candidate`() {
+        assertNull(PornSlashParse.hlsMaster(null, "abc"))
+        assertNull(PornSlashParse.hlsMaster("", "abc"))
+        assertNull(PornSlashParse.hlsMaster("<html><body>no player</body></html>", "abc"))
+        // a token that decodes to something that is not an https origin is not a base
+        assertNull(
+            PornSlashParse.hlsMaster(
+                """<script>Pt="ZnRwOi8vZmlsZXMuZXhhbXBsZS5jb20="</script>""",
+                "abc"
+            )
+        )
+        // a base with no encid cannot be completed into a master URL
+        assertNull(
+            PornSlashParse.hlsMaster(
+                """<script>Pt="aHR0cHM6Ly90dW5uZWwtb25lLnRyeWNsb3VkZmxhcmUuY29t"</script>""",
+                null
+            )
+        )
+    }
+
     // ---- quality() ----------------------------------------------------------------
 
     @Test
