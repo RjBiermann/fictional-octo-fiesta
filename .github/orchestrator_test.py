@@ -1482,6 +1482,13 @@ class TestResolveVersionPair(unittest.TestCase):
         self.assertIsNone(orchestrator._resolve_version_pair(
             self.MAIN, self.BRANCH.replace("status  = 1", "status  = 2")))
 
+    def test_a_crlf_body_resolves_the_same_way(self):
+        # CRLF is valid input (a Windows checkout); `$` sits before `\n`, so
+        # the version line must consume its own `\r` or the class goes inert.
+        main = self.MAIN.replace("\n", "\r\n")
+        branch = self.BRANCH.replace("\n", "\r\n")
+        self.assertEqual(orchestrator._resolve_version_pair(main, branch), main)
+
 
 class TestRepairConsumedWithoutPush(unittest.TestCase):
     """#1482 / #1485: a comment-only repair consumes, but only a run for
