@@ -96,8 +96,8 @@ The ordered fallback of probe instruments: curl → TLS-impersonated curl → br
 _Avoid_: playwright (a tool, not the concept), browser testing
 
 **Blocked**:
-The live site refused the runner or serves nothing a provider could use **after the site-probe escalation ladder ran** (plain curl → TLS-impersonated curl → browser diagnosis, ADR-0011). A PR may open as Blocked with an explicit note; the human verifies in-app instead. FINDINGS records the exact **Blocked reason** so the dead end is never re-probed.
-_Avoid_: failure (a failure stops the run; Blocked completes it with a caveat); using Blocked for a pre-escalation challenge
+The live site refused the runner or serves nothing a provider could use **after the site-probe escalation ladder ran** (plain curl → TLS-impersonated curl → browser diagnosis, ADR-0011). A PR may open as Blocked with an explicit note; the human verifies in-app instead. FINDINGS records the exact **Blocked reason** so the dead end is never re-probed. A Blocked round is not a Delivery: the sweep does not re-fire that story — only a human re-arm (`status/planned` applied by the owner) puts it back in the queue.
+_Avoid_: failure (a failure stops the run; Blocked completes it with a caveat); using Blocked for a pre-escalation challenge; treating a Blocked round as work to retry
 
 **Blocked reason**:
 The recorded cause of a Blocked outcome — `client-rendered (JS-only)` (DOM has content, HTTP body doesn't, no SSR/API fallback) or `challenge, no unlock`. Recorded in FINDINGS Risks/blockers; a future agent reads it, not re-probes it.
