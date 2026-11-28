@@ -1,12 +1,14 @@
 // PornSlash (pornslash.com) — a KVS-engine tube serving full-length movies and a shorts
 // feed. S1 (#1643) landed the scaffold + parse seam (PornSlashParse.kt); S2 (#1644) the
 // home rows and search; S3 (#1645) the detail page and its streams; S4 (#1646) the shorts
-// surface — one `/watch/<id>` route covers long-form and shorts items, and the play path is
-// the single derived mp4 (no tunnel base, no per-playback round-trip). S5 (#1647) adds the model
+// surface — one `/watch/<id>` route covers long-form and shorts items. S5 (#1647) adds the model
 // browse surface in `search()`: the site's `/suggest/` directory maps a query that names a model
 // exactly onto its `/pornstar/<slug>/` filmography. The story's `getFilter()` bullet has no
 // framework member at this pin (`MainAPI` has no `getFilter`, and upstream's `GenreSelector`
-// surface is still commented out), so no provider filter UI exists to wire it to.
+// surface is still commented out), so no provider filter UI exists to wire it to. S6 (#1648)
+// closed out the play path: the `og:image` mirror S3/S4 shipped as the stream is the cards'
+// 10-second hover preview, so the full-length HLS master the page's own player loads is now the
+// primary source (decoded per load — the tunnel rotates) and the preview stays as last resort.
 package com.rjbiermann
 
 import com.kraptor.registerHostExtractors
@@ -159,11 +161,21 @@ class PornSlash : MainAPI() {
     ): Boolean {
         val response = app.get(data, referer = "$mainUrl/")
         val detail = PornSlashParse.detail(response.document) ?: return false
-        // The one play path: the mp4 the thumbnail's `/t/<encid>.jpeg` path mirrors. The
-        // per-video *.pages.dev CDN currently serves `access-control-allow-origin: *` and plays
-        // with no Referer, so the referer is cheap insurance rather than a requirement. Long-form
-        // and shorts items resolve through this same route, so a shorts item is no special case
-        // and playback needs no `/get/shorts` round-trip.
+        // The play path is the page's own player: `<tunnel>/master/<encid>`, the HLS master the
+        // site loads (144p…1080p, the site's real ladder — nothing is labelled or invented here),
+        // decoded per load because the `*.trycloudflare.com` tunnel rotates between loads.
+        // The derived `/p/<encid>.mp4` is the cards' 10-second hover preview, not the movie; it
+        // is emitted only when a page carries no player base at all, so a degraded page still
+        // yields a source instead of a failed load.
+        val hls = detail.hls
+        if (hls != null) {
+            callback(
+                newExtractorLink(name, name, hls, type = ExtractorLinkType.M3U8) {
+                    this.referer = mainUrl
+                }
+            )
+            return true
+        }
         val mp4 = detail.mp4 ?: return false
         callback(
             newExtractorLink(name, name, mp4, type = ExtractorLinkType.VIDEO) {

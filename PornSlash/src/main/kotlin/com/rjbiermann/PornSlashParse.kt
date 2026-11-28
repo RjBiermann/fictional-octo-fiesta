@@ -18,9 +18,13 @@
 // ba0ze4asqz-1338.pages.dev/13375, ...), so it is read from the page on every load and
 // never templated.
 //
-// The play path is the derived mp4 and nothing else: the watch page's other stream
-// candidate is a rotating ephemeral tunnel whose host changes between loads, and the
-// shorts spec (S4) keeps it out of the play path (and out of this source).
+// S6 (#1648) closes the loop on the play path with the close-out probe: the `og:image`
+// mirror (`/t/<encid>.jpeg` → `/p/<encid>.mp4`) is the *hover-preview* clip the cards load
+// (`div.thumbnail[data-p]`), a 10-second teaser — never the movie. The full-length source is
+// the page's own player: the rotating `*.trycloudflare.com` tunnel, `<base>/master/<encid>`,
+// fetched as `application/x-mpegurl` with the site's real 144p…1080p ladder. The base is
+// decoded per load and never remembered (the same video answered two different tunnels
+// minutes apart); the preview mp4 stays only as the last-resort fallback.
 package com.rjbiermann
 
 import com.fasterxml.jackson.databind.JsonNode
@@ -28,6 +32,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.kraptor.DurationParse
 import com.kraptor.JsonLdParse
+import com.kraptor.decodeBase64
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
@@ -53,7 +58,12 @@ data class SlashDetail(
     /** CloudStream convention: minutes, never seconds. */
     val duration: Int?,
     val quality: String?,
+    /** The per-video encode id — the `<encid>` the thumbnail path, the mp4 and the master share. */
+    val encid: String?,
+    /** The hover-preview clip the thumbnail mirrors. A 10-second teaser — never the movie. */
     val mp4: String?,
+    /** The full-length HLS master, `https://<tunnel>/master/<encid>` — the play path. */
+    val hls: String?,
     val recommendations: List<SlashCard>,
 )
 
@@ -176,6 +186,21 @@ object PornSlashParse {
     /** `/t/<encid>.<ext>` — the trailing thumbnail path segment the mp4 mirrors. */
     private val THUMB = Regex("""/t/([^/?#]+)\.[A-Za-z0-9]+$""")
 
+    /** The player's own master URL, already rendered into the page's inline script. */
+    private val HLS_MASTER = Regex("""https://[A-Za-z0-9.-]+/master/([A-Za-z0-9_-]{4,})""")
+
+    /**
+     * The player's own base token (`Pt="<b64>"`, which the player `atob`s at runtime).
+     *
+     * Matched by its variable, never as "any quoted base64": the page carries encrypted ids,
+     * content hashes and an ad base in that same shape, so an unscoped scan lets any bare-origin
+     * string on the page become this video's stream host. Only `Pt` is the player's.
+     */
+    private val PLAYER_BASE = Regex("""\bPt\s*=\s*["']([A-Za-z0-9+/]{24,256}={0,2})["']""")
+
+    /** A decoded token is a *base* only as a bare https origin — the tunnel shape. */
+    private val HTTPS_ORIGIN = Regex("""^https://[A-Za-z0-9.-]+$""")
+
     /** H:MM:SS / MM:SS card clock (`54:35` on the live home page). */
     private val CLOCK = Regex("""^(?:(\d+):)?(\d+):(\d+)$""")
 
@@ -296,6 +321,7 @@ object PornSlashParse {
         val poster = document.selectFirst("meta[property=og:image]")?.attr("content")
             ?.trim()?.takeIf { it.isNotEmpty() }
         val id = share?.attr("data-id")?.trim()?.takeIf { it.isNotEmpty() }
+        val encid = share?.attr("data-encid")?.trim()?.takeIf { it.isNotEmpty() }
         return SlashDetail(
             title = title,
             poster = poster,
@@ -306,9 +332,47 @@ object PornSlashParse {
                 document.selectFirst("script[type=application/ld+json]")?.data(),
             ),
             quality = quality(share?.attr("data-quality")),
+            encid = encid,
             mp4 = mp4FromThumb(poster),
+            hls = hlsMaster(document.html(), encid),
             recommendations = recommendations(document, id),
         )
+    }
+
+    /**
+     * The full-length stream: `https://<tunnel>/master/<encid>`.
+     *
+     * Two page shapes, both handled structurally — the live page renders the player's own
+     * master URL into the inline script, and a page that ships only the base (`Pt="<b64>"`,
+     * decoded by the player at runtime) is completed from [encid]. Nothing is templated: the
+     * host comes from the page itself, and the base is decoded **per load, never cached** —
+     * the `*.trycloudflare.com` tunnel rotates between loads (the same video answered two
+     * different tunnels minutes apart), so a remembered host is a dead source on the next
+     * play.
+     *
+     * A decoded token counts as a base only when it is a bare https origin: the page also
+     * carries an ad token (`atob("aHR0cHM6…")`) that decodes to a URL *with a path*, which
+     * appending `/master/<encid>` to would invent a nonexistent source. And it counts only when
+     * the player assigned it to its own variable — see [PLAYER_BASE].
+     *
+     * No [encid] means no candidate at all: the encid is the page's only statement of which
+     * stream is *this* video's, and a page can carry several master URLs (a related rail ships
+     * its own player). Guessing would play another video; returning null leaves the preview
+     * fallback, which is this video's own clip.
+     */
+    fun hlsMaster(html: String?, encid: String?): String? {
+        val page = html?.takeIf { it.isNotBlank() } ?: return null
+        val id = encid?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        // The rendered URL must belong to *this* video: a page can carry several master URLs
+        // (a rail that ships its own player), and one of those is never this stream.
+        HLS_MASTER.findAll(page)
+            .firstOrNull { it.groupValues[1] == id }
+            ?.let { return it.value }
+        for (token in PLAYER_BASE.findAll(page)) {
+            val base = decodeBase64(token.groupValues[1])?.trim() ?: continue
+            if (HTTPS_ORIGIN.matches(base)) return "$base/master/$id"
+        }
+        return null
     }
 
     /**
@@ -437,10 +501,14 @@ object PornSlashParse {
     }
 
     /**
-     * Thumbnail URL → mp4 URL: `/t/<encid>.<ext>` becomes `/p/<encid>.mp4`, host (the
-     * per-video `*.pages.dev` project) and `<ptid>` path segment preserved. Null when the
-     * URL is not that shape — a stream is never derived from something that is not a
+     * Thumbnail URL → its hover-preview clip: `/t/<encid>.<ext>` becomes `/p/<encid>.mp4`,
+     * host (the per-video `*.pages.dev` project) and `<ptid>` path segment preserved. Null when
+     * the URL is not that shape — a clip is never derived from something that is not a
      * thumbnail.
+     *
+     * The same mapping is the card's hover preview (`div.thumbnail[data-p]`), which is why the
+     * result is a **10-second teaser** (`mvhd` duration 10.01s on a 54-minute page) and not a
+     * play source — see [hlsMaster].
      */
     fun mp4FromThumb(ogImage: String?): String? {
         val url = ogImage?.trim()?.takeIf { it.isNotEmpty() } ?: return null
