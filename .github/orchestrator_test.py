@@ -1456,6 +1456,40 @@ class TestConflictWatchUnknownState(unittest.TestCase):
             self.assertEqual(self.run_watch(state, frozenset({"x.kt"})), [], state)
 
 
+class TestResolveVersionPair(unittest.TestCase):
+    """#1676: a trailing bump comment on the branch's `version = N` line made
+    the bodies compare unequal — `\s*` in VERSION_RE ate main's newline but
+    not the commented twin's — so the version-file class went inert on the
+    equal-number conflict it exists to resolve, and the PR fell through to
+    14-rebase (whose signed push cannot carry the merge commit)."""
+
+    MAIN = "version = 3\n\ncloudstream {\n    status  = 1\n}"
+    BRANCH = "version = 3 // #1673: version bump (v3)\n\ncloudstream {\n    status  = 1\n}"
+
+    def test_a_trailing_bump_comment_is_still_the_version_line(self):
+        self.assertEqual(
+            orchestrator._resolve_version_pair(self.MAIN, self.BRANCH),
+            self.MAIN)
+
+    def test_the_higher_number_wins(self):
+        higher = "version = 4 // bump\n\ncloudstream {\n    status  = 1\n}"
+        self.assertEqual(
+            orchestrator._resolve_version_pair(self.MAIN, higher), higher)
+        self.assertEqual(
+            orchestrator._resolve_version_pair(higher, self.MAIN), higher)
+
+    def test_a_body_difference_beyond_the_version_line_still_blocks(self):
+        self.assertIsNone(orchestrator._resolve_version_pair(
+            self.MAIN, self.BRANCH.replace("status  = 1", "status  = 2")))
+
+    def test_a_crlf_body_resolves_the_same_way(self):
+        # CRLF is valid input (a Windows checkout); `$` sits before `\n`, so
+        # the version line must consume its own `\r` or the class goes inert.
+        main = self.MAIN.replace("\n", "\r\n")
+        branch = self.BRANCH.replace("\n", "\r\n")
+        self.assertEqual(orchestrator._resolve_version_pair(main, branch), main)
+
+
 class TestRepairConsumedWithoutPush(unittest.TestCase):
     """#1482 / #1485: a comment-only repair consumes, but only a run for
     THIS PR — the repo-wide run list alone let another PR's repair mark the
