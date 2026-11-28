@@ -63,6 +63,15 @@ adapter (`unzip -l classes.jar | grep -i peestream` → empty), so no row can be
 Carried forward as its own story (see the follow-up issue referenced on #1512); #1512's own
 body already said this "needs its own story, not a hostname row".
 
+## `vinovo.si` — same family, deliberately no row today
+
+The pinned jar also ships `VinovoSi` (`mainUrl = "https://vinovo.si"`), which inherits the
+same `/d/ → /e/` normalisation and `meta[token|file_code|recaptcha]` + `video[data-base]`
+grammar; the `/api/file/url/` hop on a `vinovo.to` embed `302`s there. No sampled
+PandaMovies/Mangoporn rotation page serves a `.si` host directly, so no row is added — but
+the next host-rotation sweep must not rediscover it: if a `.si` embed appears, the fix is
+the framework `VinovoSi()` row, never a provider-side branch.
+
 ## `content.st` — not a finding
 
 `403` on every embed while the host root answers `200`; the body is a viewer-side gate
@@ -78,6 +87,23 @@ added: an unregistered row would only convert a host-side block into a silent on
 - `./gradlew Mangoporn:test` → BUILD SUCCESSFUL (same shared suite through the second owner).
 - `audits/findings.json` untouched in the diff (ADR-0013); any registry update rides an
   `<!-- findings-registry-entry -->` comment instead.
-- Provider `version` lines are left to the PR-time version bumper: this diff touches
-  `shared/src/main/**`, so the classifier's affected set is `ALL` and the bumper increments
-  every provider (issue #921) — a hand bump would collide with that commit.
+
+## Version bumps (repair round 1)
+
+`shared/src/main/**` classifies as `ALL`, so every provider must republish with the row.
+The implement run's fleet bump (`chore(version): bump affected providers`) lost three
+providers to the later main-into-branch merges, which resolved their `build.gradle.kts`
+back to main's already-published numbers: `123av` 3, `PornSlash` 6, `WatchPorn` 35.
+This round restores the bump relative to what is published — `123av` 3→4,
+`PornSlash` 6→**8** (main published 7 in #1680 while this branch was open), `WatchPorn`
+35→36 — so merging as-is republishes all 30. Every other provider already carries its
+post-merge number, so no other file is touched.
+
+## Registry bookkeeping (repair round 1)
+
+The implement run's #1512 delta comment did not begin with
+`<!-- findings-registry-entry -->`, so it is unanchored; the orchestrator's
+`_registry_candidate` self-heal re-posts an unanchored entry anchored on the issue — the
+same lesson FINDINGS-1461.md recorded, and `providers.PandaMovies.standing_issue` is still
+`null` in `audits/findings.json` until that sync lands. This repair round therefore posts
+no registry payload: the registry is conveyor-owned (ADR-0013) and the diff must not carry it.
